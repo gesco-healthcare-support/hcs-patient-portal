@@ -39,12 +39,9 @@ describe('internal-appointments.util', () => {
       expect(cancelled).toContain(AppointmentStatusType.NoShow);
     });
 
-    it('maps the Approved chip to the post-approval raw statuses', () => {
+    it('maps the Approved chip to the Approved raw status', () => {
       const approved = segmentStatuses('approved');
       expect(approved).toContain(AppointmentStatusType.Approved);
-      expect(approved).toContain(AppointmentStatusType.CheckedIn);
-      expect(approved).toContain(AppointmentStatusType.CheckedOut);
-      expect(approved).toContain(AppointmentStatusType.Billed);
     });
   });
 
@@ -53,13 +50,12 @@ describe('internal-appointments.util', () => {
       const raw: AppointmentStatusCountDto[] = [
         { status: AppointmentStatusType.Pending, count: 3 },
         { status: AppointmentStatusType.Approved, count: 2 },
-        { status: AppointmentStatusType.CheckedIn, count: 1 },
         { status: AppointmentStatusType.CancelledLate, count: 4 },
       ];
       const counts = bucketChipCounts(raw);
-      expect(counts.all).toBe(10);
+      expect(counts.all).toBe(9);
       expect(counts.pending).toBe(3);
-      expect(counts.approved).toBe(3); // Approved + CheckedIn
+      expect(counts.approved).toBe(2);
       expect(counts.cancelled).toBe(4);
       expect(counts.rejected).toBe(0);
     });

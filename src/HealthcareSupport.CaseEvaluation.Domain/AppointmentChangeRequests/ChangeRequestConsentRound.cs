@@ -1,4 +1,5 @@
 using System;
+using HealthcareSupport.CaseEvaluation.Enums;
 using Volo.Abp;
 using Volo.Abp.Auditing;
 using Volo.Abp.Domain.Entities.Auditing;
@@ -45,6 +46,13 @@ public class ChangeRequestConsentRound : FullAuditedAggregateRoot<Guid>, IMultiT
     /// <see cref="AppointmentChangeRequest.AdminReScheduleReason"/>.
     /// </summary>
     public virtual string? ProposedReason { get; protected set; }
+
+    /// <summary>
+    /// Outcome bucket (RescheduledNoBill / RescheduledLate) staff chose when they confirmed this
+    /// date (2026-10-09). Once both sides agree the reschedule completes on its own using this
+    /// value. Null for rounds opened before this column existed, which keep the manual Approve.
+    /// </summary>
+    public virtual AppointmentStatusType? ProposedOutcome { get; protected set; }
 
     /// <summary>
     /// How many times this round's consent emails have been dispatched. Starts at 1 (the
@@ -99,7 +107,8 @@ public class ChangeRequestConsentRound : FullAuditedAggregateRoot<Guid>, IMultiT
         int roundNumber,
         Guid proposedDoctorAvailabilityId,
         Guid? proposedByUserId,
-        string? proposedReason = null)
+        string? proposedReason = null,
+        AppointmentStatusType? proposedOutcome = null)
     {
         Check.Positive(roundNumber, nameof(roundNumber));
         Check.NotDefaultOrNull<Guid>(proposedDoctorAvailabilityId, nameof(proposedDoctorAvailabilityId));
@@ -112,6 +121,7 @@ public class ChangeRequestConsentRound : FullAuditedAggregateRoot<Guid>, IMultiT
         ProposedDoctorAvailabilityId = proposedDoctorAvailabilityId;
         ProposedByUserId = proposedByUserId;
         ProposedReason = proposedReason;
+        ProposedOutcome = proposedOutcome;
         SendAttempts = 1;
     }
 
@@ -200,6 +210,15 @@ public class ChangeRequestConsentRound : FullAuditedAggregateRoot<Guid>, IMultiT
     /// </summary>
     public bool AreAllRequiredSidesGranted() =>
         IsSideSatisfied(ChangeRequestSide.SideA) && IsSideSatisfied(ChangeRequestSide.SideB);
+
+    /// <summary>
+    /// Replaces the outcome staff chose for this round: used when staff re-confirm the SAME date
+    /// with a different No bill / Late choice, which is a resend, not a new round.
+    /// </summary>
+    public void ProposeOutcome(AppointmentStatusType outcome)
+    {
+        ProposedOutcome = outcome;
+    }
 
     /// <summary>
     /// Records that this round's consent emails were dispatched again. Deliberately touches

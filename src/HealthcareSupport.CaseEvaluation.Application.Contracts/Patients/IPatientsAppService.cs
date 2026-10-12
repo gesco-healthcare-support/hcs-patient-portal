@@ -18,11 +18,12 @@ public interface IPatientsAppService : IApplicationService
     Task<PatientWithNavigationPropertiesDto> GetMyProfileAsync();
     Task<PatientDto> GetAsync(Guid id);
 
-    // F1 / Design B (2026-05-29) -- the dedicated, audited SSN reveal endpoint.
+    // F1 / Design B (2026-05-29) -- the dedicated SSN reveal endpoint.
     // Standard payloads carry only the masked last-4; this returns the full
     // value to internal callers or the record owner (enforced by the
     // Patients.RevealSsn permission + SsnRevealAccess). Route:
-    // GET api/app/patients/{id}/ssn.
+    // GET api/app/patients/{id}/ssn. NOT audited -- it is a GET and GET
+    // auditing is off by default; see PatientsAppService.GetFullSsnAsync.
     Task<SsnRevealDto> GetFullSsnAsync(Guid id);
     Task<PagedResultDto<LookupDto<Guid>>> GetStateLookupAsync(LookupRequestDto input);
     Task<PagedResultDto<LookupDto<Guid>>> GetAppointmentLanguageLookupAsync(LookupRequestDto input);

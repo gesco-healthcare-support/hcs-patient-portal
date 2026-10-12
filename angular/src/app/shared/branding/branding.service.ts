@@ -1,8 +1,9 @@
 import { inject, Injectable, signal } from '@angular/core';
 import { Title } from '@angular/platform-browser';
 import { EnvironmentService, ListResultDto, PagedResultDto, RestService } from '@abp/ng.core';
-import { Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { Observable, from } from 'rxjs';
+import { map, switchMap } from 'rxjs/operators';
+import { normalizeLogoFile } from './logo-normalize.util';
 import type {
   ManagedTablePage,
   ManagedTableQuery,
@@ -122,6 +123,14 @@ export class BrandingService {
       },
       { apiName: 'Default' },
     );
+  }
+
+  /**
+   * Trims and resizes the picture to the canonical logo canvas in the browser, then uploads the
+   * resulting PNG. Errors from decoding or from an unshrinkable picture surface on the stream.
+   */
+  uploadNormalizedLogo(file: File, officeId?: string): Observable<BrandingDto> {
+    return from(normalizeLogoFile(file)).pipe(switchMap((png) => this.uploadLogo(png, officeId)));
   }
 
   /** Removes the logo for a target office, or the current office when officeId is omitted. */

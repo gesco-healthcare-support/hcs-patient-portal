@@ -229,4 +229,29 @@ public abstract class BrandingLogoStorageTests<TStartupModule>
         (await InOffice(OfficeB, () => _branding.GetBrandingAsync())).HasLogo.ShouldBeFalse();
         (await InOffice(OfficeA, () => _branding.GetBrandingAsync())).HasLogo.ShouldBeTrue();
     }
+
+    // ------------------------------------------------------------------ malware scan (B11)
+
+    [Theory]
+    [InlineData(CaseEvaluationDomainErrorCodes.UploadRefused)]
+    [InlineData(CaseEvaluationDomainErrorCodes.UploadScanUnavailable)]
+    public async Task A_logo_the_scan_refuses_reaches_the_caller_and_leaves_no_logo(string code)
+    {
+        _logos.SaveAsync(Arg.Any<string>(), Arg.Any<Stream>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new BusinessException(code));
+
+        (await Should.ThrowAsync<BusinessException>(() => UploadAsync(OfficeA, null, "logo.png", PngBytes)))
+            .Code.ShouldBe(code);
+
+        (await InOffice(OfficeA, () => _branding.GetBrandingAsync())).HasLogo.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task A_clean_logo_in_the_same_rig_is_stored_and_shown()
+    {
+        await UploadAsync(OfficeA, null, "logo.png", PngBytes);
+
+        SavedBlobNames().ShouldHaveSingleItem();
+        (await InOffice(OfficeA, () => _branding.GetBrandingAsync())).HasLogo.ShouldBeTrue();
+    }
 }

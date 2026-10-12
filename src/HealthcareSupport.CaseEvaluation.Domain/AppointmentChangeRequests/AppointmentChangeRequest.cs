@@ -108,6 +108,22 @@ public class AppointmentChangeRequest : FullAuditedAggregateRoot<Guid>, IMultiTe
     public virtual AppointmentStatusType? CancellationOutcome { get; set; }
 
     /// <summary>
+    /// Outcome bucket (CancelledNoBill / CancelledLate) that STAFF chose when they FILED a
+    /// cancellation (2026-10-09). Set only for a staff-filed cancel; once every solicited side
+    /// has agreed the request completes on its own using this value. It is a PROPOSAL, not the
+    /// decision: <see cref="CancellationOutcome"/> stays "the decided outcome" and is written
+    /// only when the request is actually decided. Null for party-requested cancellations and
+    /// for rows created before this column existed, which keep the manual staff Approve.
+    /// </summary>
+    public virtual AppointmentStatusType? ProposedOutcome { get; protected set; }
+
+    /// <summary>Records the outcome staff chose at filing time. See <see cref="ProposedOutcome"/>.</summary>
+    public void ProposeOutcome(AppointmentStatusType outcome)
+    {
+        ProposedOutcome = outcome;
+    }
+
+    /// <summary>
     /// Phase 4d (2026-08-05) -- when staff DECIDED this request, stamped once as
     /// <see cref="RequestStatus"/> becomes Accepted or Rejected, on all four decision paths.
     ///

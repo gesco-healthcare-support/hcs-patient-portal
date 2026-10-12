@@ -495,6 +495,18 @@ describe('AppointmentAddComponent booking engine', () => {
       TestBed.resetTestingModule();
       expect(create({ roles: ['Patient'] }).maxBookingDays).toBe(60);
     });
+
+    it("follows the office's booking window once the calendar has loaded it", () => {
+      const c = create({ roles: ['Patient'] });
+      expect(c.minimumBookingDays).withContext('default before the window loads').toBe(3);
+      expect(c.bookingCeilingDays).toBe(90);
+
+      c.onBookingWindowChange({ leadTimeDays: 1, maxDays: 45, ceilingDays: 75 });
+
+      expect(c.minimumBookingDays).toBe(1);
+      expect(c.maxBookingDays).withContext('the window, not the role default of 60').toBe(45);
+      expect(c.bookingCeilingDays).toBe(75);
+    });
   });
 
   describe('display helpers', () => {

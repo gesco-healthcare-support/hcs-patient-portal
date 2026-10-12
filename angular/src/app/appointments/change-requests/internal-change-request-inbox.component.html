@@ -243,7 +243,6 @@
               [dateLabel]="requestedSlotLabel(m.row) ? 'Change date to' : 'New appointment date'"
               timeLabel="New appointment time"
               noSlotsMessage="No available slots for this location and appointment type."
-              minimumBookingRuleMessage="Appointments must be at least 3 days from today."
               (slotSelected)="onSlotSelected($event)"
               (dateCleared)="onDateCleared()"
             />
@@ -267,6 +266,28 @@
                 ></textarea>
               </div>
             }
+
+            <div class="ra-field col-12" style="margin-bottom: 12px">
+              <label for="cr-date-outcome">
+                Billing outcome
+                <span class="req">*</span>
+              </label>
+              <select
+                id="cr-date-outcome"
+                class="ra-input"
+                [ngModel]="dateOutcome()"
+                (ngModelChange)="dateOutcome.set($event)"
+              >
+                <option [ngValue]="null">Choose...</option>
+                @for (opt of outcomeOptions(m.row); track opt.value) {
+                  <option [ngValue]="opt.value">{{ opt.label }}</option>
+                }
+              </select>
+              <small style="color: var(--n-500)">
+                Once both sides agree, the reschedule completes on its own with this outcome and you
+                get an email when it has been rescheduled.
+              </small>
+            </div>
 
             <div class="ra-modal__foot" style="padding: 0; border: 0; margin-bottom: 4px">
               <button

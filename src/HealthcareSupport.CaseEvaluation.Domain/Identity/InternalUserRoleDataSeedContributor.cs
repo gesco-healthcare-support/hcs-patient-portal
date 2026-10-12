@@ -500,9 +500,11 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
     /// D.1 / W-I-1 (2026-04-30): the receptionist tier needs document upload +
     /// approve, packet regeneration, audit-log read, and field-config read to
     /// complete the demo workflow (upload Stage-8 doc, approve, regenerate
-    /// packet). Create/Edit on documents is supervisor-only -- the receptionist
-    /// may upload (the upload happens via the Appointments.Edit path) and
-    /// approve/reject; structural edits to a document row stay supervisor-tier.
+    /// packet). The receptionist may upload (AppointmentDocuments.Create, which
+    /// every upload endpoint requires) and approve/reject; Edit and Delete on a
+    /// document row stay supervisor-tier. Create was missing until 2026-10 even
+    /// though this comment said otherwise (no Appointments.Edit upload path
+    /// exists), so a phone-in booker's staged documents 403'd after booking.
     /// </summary>
     internal static IEnumerable<string> IntakeStaffGrants()
     {
@@ -607,6 +609,7 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
 
         // D.1 / W-I-1: document workflow + packet regeneration + audit visibility.
         yield return Default(AppointmentDocuments);
+        yield return Create(AppointmentDocuments);
         yield return Approve(AppointmentDocuments);
         yield return Default(AppointmentPackets);
         yield return Regenerate(AppointmentPackets);

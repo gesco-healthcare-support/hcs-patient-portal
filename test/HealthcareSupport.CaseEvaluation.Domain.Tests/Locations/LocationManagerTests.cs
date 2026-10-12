@@ -36,6 +36,7 @@ public abstract class LocationManagerTests<TStartupModule> : CaseEvaluationDomai
 
     protected LocationManagerTests()
     {
+        UseAmbientTenant(TenantsTestData.TenantARef);
         _locationManager = GetRequiredService<LocationManager>();
         _doctorAvailabilityRepository = GetRequiredService<IRepository<DoctorAvailability, Guid>>();
         _appointmentRepository = GetRequiredService<IRepository<Appointment, Guid>>();

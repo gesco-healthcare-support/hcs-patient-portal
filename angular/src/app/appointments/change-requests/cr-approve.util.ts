@@ -166,10 +166,15 @@ export function consentStatusLabel(status: number | null | undefined): string {
 export function canConfirmDate(state: {
   slotId: string | null | undefined;
   time: string | null | undefined;
+  /**
+   * The No bill / Late outcome staff choose when they SET the date (2026-10-09). Required: once
+   * both sides agree the reschedule completes on its own, so there is no later Approve to pick it.
+   */
+  outcome: number | null | undefined;
   proposedSlotId?: string | null;
   adminReason?: string | null;
 }): boolean {
-  if (!state.slotId || !state.time) {
+  if (!state.slotId || !state.time || !state.outcome) {
     return false;
   }
   if (requiresAdminReason(state.proposedSlotId, state.slotId)) {
@@ -201,9 +206,15 @@ export function canFinalizeReschedule(state: {
  * up the component. Cancellations have no consent round, so "Approve" is accurate for them and is
  * returned unchanged.</p>
  */
-export function rowActionLabel(isReschedule: boolean, stage: ConsentRoundStage): string {
+export function rowActionLabel(
+  isReschedule: boolean,
+  stage: ConsentRoundStage,
+  cancelConsentBlocked = false,
+): string {
   if (!isReschedule) {
-    return 'Approve';
+    // Q11B (2026-10-09): a cancellation also needs the other side's consent, and the server
+    // refuses an early approve, so the row must not say "Approve" while consent is pending.
+    return cancelConsentBlocked ? 'Awaiting consent' : 'Approve';
   }
   switch (stage) {
     case 'needs-date':
@@ -219,6 +230,10 @@ export function rowActionLabel(isReschedule: boolean, stage: ConsentRoundStage):
  * Item K -- whether this click is the one that genuinely approves. Drives the green, final-looking
  * treatment, so the earlier stages stop looking like an approval they are not.
  */
-export function rowActionIsFinal(isReschedule: boolean, stage: ConsentRoundStage): boolean {
-  return !isReschedule || stage === 'granted';
+export function rowActionIsFinal(
+  isReschedule: boolean,
+  stage: ConsentRoundStage,
+  cancelConsentBlocked = false,
+): boolean {
+  return isReschedule ? stage === 'granted' : !cancelConsentBlocked;
 }

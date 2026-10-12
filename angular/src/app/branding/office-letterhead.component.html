@@ -1,0 +1,196 @@
+<div class="ra-card">
+  <div class="ra-card__head">
+    <span class="ic tint-blue"><app-icon name="edit" [size]="18" /></span>
+    <div>
+      <h3>Packet letterhead</h3>
+      <p>
+        Printed on every packet this office sends. Leave a field blank to use the default shown in
+        it; lines with nothing in them are left off.
+      </p>
+    </div>
+  </div>
+  <div class="ra-card__body">
+    @if (loading()) {
+      <div class="ia-empty">Loading...</div>
+    } @else {
+      <div class="ol-preview" data-testid="letterhead-preview">
+        <div class="ol-preview__name">{{ previewName() }}</div>
+        @if (form.text.letterheadTagline.trim()) {
+          <div class="ol-preview__tag">{{ form.text.letterheadTagline }}</div>
+        }
+      </div>
+
+      <div class="ra-grid">
+        <div class="ra-field col-12">
+          <label for="ol-letterhead-name">Letterhead heading</label>
+          <input
+            id="ol-letterhead-name"
+            class="ra-input"
+            type="text"
+            maxlength="128"
+            [(ngModel)]="form.text.letterheadName"
+            [placeholder]="defaults()?.defaultLetterheadName ?? ''"
+            [disabled]="busy()"
+          />
+        </div>
+        <div class="ra-field col-12">
+          <label for="ol-letterhead-tagline">Line under the heading</label>
+          <input
+            id="ol-letterhead-tagline"
+            class="ra-input"
+            type="text"
+            maxlength="128"
+            [(ngModel)]="form.text.letterheadTagline"
+            placeholder="Optional, e.g. a fellowship or board certification"
+            [disabled]="busy()"
+          />
+        </div>
+        <div class="ra-field col-6">
+          <label for="ol-physician">Physician name</label>
+          <input
+            id="ol-physician"
+            class="ra-input"
+            type="text"
+            maxlength="128"
+            [(ngModel)]="form.text.physicianName"
+            [placeholder]="defaults()?.defaultPhysicianName ?? ''"
+            [disabled]="busy()"
+          />
+          <div class="ol-hint">As named in letters and on the forms.</div>
+        </div>
+        <div class="ra-field col-6">
+          <label for="ol-practice">Practice name</label>
+          <input
+            id="ol-practice"
+            class="ra-input"
+            type="text"
+            maxlength="128"
+            [(ngModel)]="form.text.practiceName"
+            [placeholder]="defaults()?.defaultPracticeName ?? ''"
+            [disabled]="busy()"
+          />
+        </div>
+        <div class="ra-field col-12">
+          <label for="ol-street">Mailing address</label>
+          <input
+            id="ol-street"
+            class="ra-input"
+            type="text"
+            maxlength="128"
+            [(ngModel)]="form.text.mailingStreet"
+            placeholder="Street or P.O. Box"
+            [disabled]="busy()"
+          />
+        </div>
+        <div class="ra-field col-6">
+          <label for="ol-city">City</label>
+          <input
+            id="ol-city"
+            class="ra-input"
+            type="text"
+            maxlength="64"
+            [(ngModel)]="form.text.mailingCity"
+            [disabled]="busy()"
+          />
+        </div>
+        <div class="ra-field col-3">
+          <label for="ol-state">State</label>
+          <input
+            id="ol-state"
+            class="ra-input"
+            type="text"
+            maxlength="32"
+            [(ngModel)]="form.text.mailingState"
+            [disabled]="busy()"
+          />
+        </div>
+        <div class="ra-field col-3">
+          <label for="ol-zip">Zip code</label>
+          <input
+            id="ol-zip"
+            class="ra-input"
+            type="text"
+            maxlength="16"
+            [(ngModel)]="form.text.mailingZip"
+            [disabled]="busy()"
+          />
+        </div>
+        <div class="ra-field col-6">
+          <label for="ol-phone">Phone</label>
+          <input
+            id="ol-phone"
+            class="ra-input"
+            type="text"
+            maxlength="32"
+            [(ngModel)]="form.text.phone"
+            [disabled]="busy()"
+          />
+        </div>
+        <div class="ra-field col-6">
+          <label for="ol-fax">Fax</label>
+          <input
+            id="ol-fax"
+            class="ra-input"
+            type="text"
+            maxlength="32"
+            [(ngModel)]="form.text.fax"
+            [disabled]="busy()"
+          />
+        </div>
+        <div class="ra-field col-12">
+          <label for="ol-records-delivery">Address for delivering medical records</label>
+          <input
+            id="ol-records-delivery"
+            class="ra-input"
+            type="text"
+            maxlength="256"
+            [(ngModel)]="form.text.recordsDeliveryAddress"
+            placeholder="One line, as printed on the attorney notice"
+            [disabled]="busy()"
+          />
+        </div>
+        <div class="ra-field col-12">
+          <label for="ol-records-release">Address on the patient's records release form</label>
+          <textarea
+            id="ol-records-release"
+            class="ra-input"
+            rows="3"
+            maxlength="256"
+            [(ngModel)]="form.text.recordsReleaseAddress"
+            placeholder="One line per row"
+            [disabled]="busy()"
+          ></textarea>
+        </div>
+        <div class="ra-field col-6">
+          <label for="ol-fee">Missed-appointment charge ($)</label>
+          <input
+            id="ol-fee"
+            class="ra-input"
+            type="text"
+            inputmode="decimal"
+            maxlength="12"
+            [class.is-invalid]="feeInvalid()"
+            [(ngModel)]="form.fee"
+            placeholder="Leave blank for no charge"
+            [disabled]="busy()"
+          />
+          @if (feeInvalid()) {
+            <div class="ol-hint" role="alert">Enter an amount such as 250 or 250.00.</div>
+          }
+        </div>
+      </div>
+
+      <div class="ol-actions">
+        <button
+          type="button"
+          class="af-btn af-btn--primary"
+          [disabled]="busy() || feeInvalid()"
+          (click)="save()"
+        >
+          <app-icon name="check" [size]="15" />
+          Save letterhead
+        </button>
+      </div>
+    }
+  </div>
+</div>

@@ -65,5 +65,5 @@ export interface UploadAppointmentDocumentForm {
   appointmentDocumentTypeId?: string | null;
   otherDocumentTypeName?: string | null;
   file?: IFormFile;
-  isPanelStrikeList?: boolean;
+  isPanelStrikeList?: boolean | null;
 }

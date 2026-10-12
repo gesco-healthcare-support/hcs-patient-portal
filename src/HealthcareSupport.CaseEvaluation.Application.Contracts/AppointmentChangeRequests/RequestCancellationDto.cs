@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
+using HealthcareSupport.CaseEvaluation.Enums;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
 
@@ -17,4 +18,12 @@ public class RequestCancellationDto
     [Required]
     [StringLength(AppointmentChangeRequestConsts.ReasonMaxLength)]
     public string Reason { get; set; } = null!;
+
+    /// <summary>
+    /// CancelledNoBill or CancelledLate. REQUIRED when the caller is internal staff (the
+    /// cancellation then completes on its own once both sides agree, so staff pick the outcome
+    /// when they file it); ignored and not stored for an external caller, whose request still
+    /// waits for staff to choose it at approval.
+    /// </summary>
+    public AppointmentStatusType? CancellationOutcome { get; set; }
 }

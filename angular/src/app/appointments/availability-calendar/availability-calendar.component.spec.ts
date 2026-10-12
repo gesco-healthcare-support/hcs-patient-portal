@@ -1,7 +1,7 @@
 import { SimpleChange } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NgbDateParserFormatter } from '@ng-bootstrap/ng-bootstrap';
-import { Subject, of } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { DoctorAvailabilityService } from '../../proxy/doctor-availabilities/doctor-availability.service';
 import { UsDateParserFormatter } from '../../shared/us-date-parser-formatter';
 import {
@@ -22,6 +22,7 @@ describe('AvailabilityCalendarComponent', () => {
   let fixture: ComponentFixture<AvailabilityCalendarComponent>;
   let component: AvailabilityCalendarComponent;
   let lookup: jasmine.Spy;
+  let bookingWindow: jasmine.Spy;
 
   // A date comfortably past a 3-day lead time and inside the 90-day ceiling.
   const bookable = new Date();
@@ -40,10 +41,17 @@ describe('AvailabilityCalendarComponent', () => {
       ]),
     );
 
+    bookingWindow = jasmine
+      .createSpy('getBookingWindow')
+      .and.returnValue(of({ leadTimeDays: 3, maxDays: 60, ceilingDays: 90 }));
+
     await TestBed.configureTestingModule({
       imports: [AvailabilityCalendarComponent],
       providers: [
-        { provide: DoctorAvailabilityService, useValue: { getDoctorAvailabilityLookup: lookup } },
+        {
+          provide: DoctorAvailabilityService,
+          useValue: { getDoctorAvailabilityLookup: lookup, getBookingWindow: bookingWindow },
+        },
         // Mirrors app.config.ts, which formats every datepicker as MM/DD/YYYY app-wide. Display
         // format is app policy; the component pins only the date ADAPTER (its own model shape).
         { provide: NgbDateParserFormatter, useClass: UsDateParserFormatter },
@@ -80,6 +88,121 @@ describe('AvailabilityCalendarComponent', () => {
   it('does not call the API without a location', async () => {
     await loadFor(null);
     expect(lookup).not.toHaveBeenCalled();
+    expect(bookingWindow).not.toHaveBeenCalled();
+  });
+
+  /**
+   * 2026-10-12: the calendar follows the OFFICE's booking window, read from the server, instead
+   * of the fixed 3-day lead time and 90-day ceiling every caller used to get.
+   */
+  describe("the office's booking window", () => {
+    const disabled = (offsetDays: number): boolean => {
+      const day = new Date();
+      day.setDate(day.getDate() + offsetDays);
+      const probe = component as unknown as { markDateDisabled(d: unknown): boolean };
+      return probe.markDateDisabled({
+        year: day.getFullYear(),
+        month: day.getMonth() + 1,
+        day: day.getDate(),
+      });
+    };
+
+    function slotsOn(...offsets: number[]) {
+      return offsets.map((offset, i) => {
+        const day = new Date();
+        day.setDate(day.getDate() + offset);
+        const key = toDateKey(day.getFullYear(), day.getMonth() + 1, day.getDate());
+        return { id: `slot-${i}`, availableDate: `${key}T00:00:00Z`, fromTime: '09:00' };
+      });
+    }
+
+    it('reads the window for the chosen type, without an error toast', async () => {
+      await loadFor('loc-1');
+      expect(bookingWindow).toHaveBeenCalledWith('type-1', { skipHandleError: true });
+    });
+
+    it('opens days the default 3-day lead time would block when the office allows 1 day', async () => {
+      lookup.and.returnValue(of(slotsOn(1, 2)));
+      bookingWindow.and.returnValue(of({ leadTimeDays: 1, maxDays: 60, ceilingDays: 90 }));
+
+      await loadFor('loc-1');
+
+      expect(disabled(1)).withContext('day 1 is inside the default lead time').toBeFalse();
+      expect(disabled(2)).toBeFalse();
+      expect(component.effectiveLeadDays).toBe(1);
+    });
+
+    it('blocks days inside a longer office lead time and states it in the rule text', async () => {
+      bookingWindow.and.returnValue(of({ leadTimeDays: 12, maxDays: 60, ceilingDays: 90 }));
+
+      await loadFor('loc-1');
+
+      expect(disabled(10)).withContext('day 10 has slots but is inside 12 days').toBeTrue();
+      const probe = component as unknown as { minimumBookingRuleMessage: string };
+      expect(probe.minimumBookingRuleMessage).toBe(
+        'Appointments must be at least 12 days from today.',
+      );
+    });
+
+    it("uses the office's ceiling instead of 90", async () => {
+      lookup.and.returnValue(of(slotsOn(30, 50)));
+      bookingWindow.and.returnValue(of({ leadTimeDays: 3, maxDays: 30, ceilingDays: 40 }));
+
+      await loadFor('loc-1');
+
+      expect(disabled(30)).toBeFalse();
+      expect(disabled(50)).withContext('past the 40-day ceiling').toBeTrue();
+    });
+
+    it('says "1 day" rather than "1 days"', async () => {
+      bookingWindow.and.returnValue(of({ leadTimeDays: 1, maxDays: 60, ceilingDays: 90 }));
+
+      await loadFor('loc-1');
+
+      const probe = component as unknown as { minimumBookingRuleMessage: string };
+      expect(probe.minimumBookingRuleMessage).toBe(
+        'Appointments must be at least 1 day from today.',
+      );
+    });
+
+    it('hands the loaded window to the host', async () => {
+      const seen: unknown[] = [];
+      component.bookingWindowChange.subscribe((w) => seen.push(w));
+
+      await loadFor('loc-1');
+
+      expect(seen).toEqual([{ leadTimeDays: 3, maxDays: 60, ceilingDays: 90 }]);
+    });
+
+    it('keeps the fallback numbers when the window cannot be read', async () => {
+      bookingWindow.and.returnValue(throwError(() => new Error('offline')));
+      component.leadDays = 5;
+
+      await loadFor('loc-1');
+
+      expect(component.effectiveLeadDays).toBe(5);
+      expect(component.effectiveCeilingDays).toBe(90);
+      expect(lookup).withContext('slots still load').toHaveBeenCalled();
+    });
+
+    it('ignores a window that arrives after a newer one was asked for', async () => {
+      const first = new Subject<unknown>();
+      const second = new Subject<unknown>();
+      bookingWindow.and.returnValues(first, second);
+      component.locationId = 'loc-1';
+      component.ngOnChanges({ locationId: new SimpleChange(null, 'loc-1', true) });
+      component.appointmentTypeId = 'type-2';
+      component.ngOnChanges({ appointmentTypeId: new SimpleChange('type-1', 'type-2', false) });
+
+      second.next({ leadTimeDays: 7, maxDays: 60, ceilingDays: 90 });
+      second.complete();
+      await fixture.whenStable();
+      first.next({ leadTimeDays: 1, maxDays: 60, ceilingDays: 90 });
+      first.complete();
+      await fixture.whenStable();
+
+      expect(component.effectiveLeadDays).toBe(7);
+    });
   });
 
   it('offers a time option per slot on the chosen date, sorted and labelled', async () => {

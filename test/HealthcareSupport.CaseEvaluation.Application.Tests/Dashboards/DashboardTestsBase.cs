@@ -228,12 +228,11 @@ public abstract class DashboardTestsBase<TStartupModule> : CaseEvaluationApplica
     /// <summary>
     /// Inserts a clinic location OWNED BY <paramref name="officeId"/>.
     ///
-    /// <para>The integration seed inserts its three locations inside
-    /// <c>Change(null)</c>, so they carry a null TenantId and belong to no office --
-    /// the seed contributor's own comment calling them "not IMultiTenant" is stale.
-    /// A location that an office can actually see has to be created here.
-    /// <c>Location.TenantId</c> is <c>protected set</c>, so the tenant scope at
-    /// insert time is the only way to stamp it.</para>
+    /// <para>Creates a location the test controls the name and count of. The integration
+    /// seed also owns per-office locations (#764), but a test that counts or renames
+    /// them should not depend on that fixture. <c>Location.TenantId</c> is
+    /// <c>protected set</c>, so the tenant scope at insert time is the only way to
+    /// stamp it.</para>
     /// </summary>
     protected async Task<Guid> InsertOfficeLocationAsync(Guid officeId, string name)
     {
@@ -254,8 +253,7 @@ public abstract class DashboardTestsBase<TStartupModule> : CaseEvaluationApplica
 
     /// <summary>
     /// Inserts an appointment type OWNED BY <paramref name="officeId"/>. Same
-    /// reasoning as <see cref="InsertOfficeLocationAsync"/>: the seeded catalog is
-    /// host-scoped and invisible from inside an office.
+    /// reasoning as <see cref="InsertOfficeLocationAsync"/>: the test controls the row.
     /// </summary>
     protected async Task<Guid> InsertOfficeAppointmentTypeAsync(Guid officeId, string name)
     {

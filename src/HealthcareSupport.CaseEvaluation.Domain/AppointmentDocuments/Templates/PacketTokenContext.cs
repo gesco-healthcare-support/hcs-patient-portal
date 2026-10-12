@@ -307,4 +307,14 @@ public class PacketTokenContext
     /// someone to the wrong layer is how the next person misses it.</para>
     /// </summary>
     public string DateNow { get; set; } = string.Empty;
+
+    // -- Office group (NEW 2026-10-09, no OLD parity) -----------------------
+
+    /// <summary>
+    /// The office's packet letterhead: <c>##Office.*##</c>. Not uppercased -- a letterhead is
+    /// mixed case, and the templates apply <c>text-transform</c> where a form wants capitals.
+    /// OLD had no such tokens because its templates were one practice's documents; these
+    /// replace the letterhead, physician name, address and phone that were hardcoded there.
+    /// </summary>
+    public HealthcareSupport.CaseEvaluation.Branding.OfficeLetterhead Office { get; set; } = new();
 }

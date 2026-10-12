@@ -35,7 +35,7 @@ CaseEvaluation.AppointmentDocumentTypes.Delete side=Both host=IT Admin, admin of
 CaseEvaluation.AppointmentDocumentTypes.Edit side=Both host=IT Admin, admin office=Staff Supervisor, admin
 CaseEvaluation.AppointmentDocuments side=Both host=IT Admin, admin office=Applicant Attorney, Claim Examiner, Defense Attorney, Intake Staff, Patient, Staff Supervisor, admin
 CaseEvaluation.AppointmentDocuments.Approve side=Both host=IT Admin, admin office=Intake Staff, Staff Supervisor, admin
-CaseEvaluation.AppointmentDocuments.Create side=Both host=IT Admin, admin office=Applicant Attorney, Claim Examiner, Defense Attorney, Patient, Staff Supervisor, admin
+CaseEvaluation.AppointmentDocuments.Create side=Both host=IT Admin, admin office=Applicant Attorney, Claim Examiner, Defense Attorney, Intake Staff, Patient, Staff Supervisor, admin
 CaseEvaluation.AppointmentDocuments.Delete side=Both host=IT Admin, admin office=Staff Supervisor, admin
 CaseEvaluation.AppointmentDocuments.Edit side=Both host=IT Admin, admin office=Staff Supervisor, admin
 CaseEvaluation.AppointmentEmployerDetails side=Both host=IT Admin, admin office=Applicant Attorney, Claim Examiner, Defense Attorney, Intake Staff, Patient, Staff Supervisor, admin

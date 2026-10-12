@@ -139,6 +139,8 @@ export class InternalChangeRequestInboxComponent implements OnInit {
   protected readonly openId = signal<string | null>(null);
   protected readonly modal = signal<CrModal | null>(null);
   protected readonly outcome = signal<AppointmentStatusType | null>(null);
+  /** No bill / Late chosen when staff SET the date (2026-10-09); required, no default. */
+  protected readonly dateOutcome = signal<AppointmentStatusType | null>(null);
   protected readonly reason = signal('');
   protected readonly isBusy = signal(false);
 
@@ -379,7 +381,11 @@ export class InternalChangeRequestInboxComponent implements OnInit {
    * round, so they keep saying Approve -- for them it is accurate.</p>
    */
   protected rowActionLabel(row: AppointmentChangeRequestDto): string {
-    return rowActionLabelFor(this.isReschedule(row), this.stage(row));
+    return rowActionLabelFor(
+      this.isReschedule(row),
+      this.stage(row),
+      this.cancelAwaitingConsent(row),
+    );
   }
 
   /**
@@ -387,7 +393,11 @@ export class InternalChangeRequestInboxComponent implements OnInit {
    * stages open the same modal but are not approvals, so they should not look like one.
    */
   protected rowActionIsFinal(row: AppointmentChangeRequestDto): boolean {
-    return rowActionIsFinalFor(this.isReschedule(row), this.stage(row));
+    return rowActionIsFinalFor(
+      this.isReschedule(row),
+      this.stage(row),
+      this.cancelAwaitingConsent(row),
+    );
   }
 
   /** Item K: matches the label, so the icon does not promise an approval either. */
@@ -395,7 +405,18 @@ export class InternalChangeRequestInboxComponent implements OnInit {
     if (this.rowActionIsFinal(row)) {
       return 'check';
     }
+    if (!this.isReschedule(row)) {
+      return 'clock';
+    }
     return this.stage(row) === 'needs-date' ? 'calendar' : 'clock';
+  }
+
+  /** Q11B: a cancellation whose consent is still outstanding (the server refuses to approve it). */
+  private cancelAwaitingConsent(row: AppointmentChangeRequestDto): boolean {
+    return (
+      !this.isReschedule(row) &&
+      consentBlocksApproval(row.sideAConsentStatus, row.sideBConsentStatus)
+    );
   }
 
   /** Whether "Confirm date & request consent" may fire. */
@@ -403,6 +424,7 @@ export class InternalChangeRequestInboxComponent implements OnInit {
     return canConfirmDate({
       slotId: this.chosenSlotId(),
       time: this.chosenTime(),
+      outcome: this.dateOutcome(),
       proposedSlotId: row.newDoctorAvailabilityId,
       adminReason: this.adminReason(),
     });
@@ -440,7 +462,7 @@ export class InternalChangeRequestInboxComponent implements OnInit {
       this.toaster.warn(
         this.needsAdminReason(m.row)
           ? 'Explain why you are changing the requested date before confirming.'
-          : 'Choose the new appointment date and time before confirming.',
+          : 'Choose the new date, time and billing outcome before confirming.',
       );
       return;
     }
@@ -451,6 +473,7 @@ export class InternalChangeRequestInboxComponent implements OnInit {
         m.row.id,
         {
           doctorAvailabilityId: this.chosenSlotId()!,
+          rescheduleOutcome: this.dateOutcome()!,
           adminReScheduleReason: this.adminReason().trim() || null,
         },
         { skipHandleError: true },
@@ -504,6 +527,7 @@ export class InternalChangeRequestInboxComponent implements OnInit {
     this.chosenDate.set(null);
     this.chosenTime.set(null);
     this.adminReason.set('');
+    this.dateOutcome.set(null);
   }
 
   protected outcomeOptions(

@@ -13,6 +13,7 @@ public class StateRepositoryTests : CaseEvaluationEntityFrameworkCoreTestBase
 
     public StateRepositoryTests()
     {
+        UseAmbientTenant(TenantsTestData.TenantARef);
         _stateRepository = GetRequiredService<IStateRepository>();
     }
 

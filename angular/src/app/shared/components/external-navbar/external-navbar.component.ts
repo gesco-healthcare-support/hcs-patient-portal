@@ -10,6 +10,7 @@ import {
 import { IconComponent } from '../../ui/icon/icon.component';
 import type { IconName } from '../../ui/icon/icon.registry';
 import { BrandingService } from '../../branding/branding.service';
+import { PLACEHOLDER_LOGO } from '../../branding/brand-assets';
 import { avatarColor } from '../../ui/avatar.util';
 import { clickLandedInside } from '../../ui/click-inside.util';
 
@@ -48,8 +49,8 @@ export interface ExternalNotification {
 export class ExternalNavbarComponent {
   /** Per-office branding (logo + display name); overrides the inputs when present. */
   protected readonly branding = inject(BrandingService);
-  /** Tenant logo (runtime slot; static placeholder, used when no per-office logo). */
-  @Input() logoUrl = 'assets/branding/falkinstein-logo.png';
+  /** Fallback logo, used when the office has not uploaded one (neutral placeholder). */
+  @Input() logoUrl = PLACEHOLDER_LOGO;
   /** Clinic / tenant display name (fallback when no per-office display name). */
   @Input() clinicName = 'Appointment Portal';
   @Input() userName = '';

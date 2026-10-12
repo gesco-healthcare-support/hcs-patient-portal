@@ -170,9 +170,9 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
     ///
     /// 2026-06-09 fix: gated by AppointmentDocuments.Default (a read), NOT
     /// .Create. The appointment Review page loads these options on open, so a
-    /// reviewer tier must be able to read them -- Intake Staff has .Default +
-    /// .Approve but NOT .Create (upload is supervisor-only), so the old .Create
-    /// gate 403'd the Review page for Intake Staff. Every role granted .Create
+    /// reviewer tier must be able to read them -- Intake Staff had .Default +
+    /// .Approve but not .Create at the time (.Create was granted in 2026-10), so the
+    /// old .Create gate 403'd the Review page for Intake Staff. Every role granted .Create
     /// also has .Default, so no uploader loses access. Returns only label names.
     /// </summary>
     [Authorize(CaseEvaluationPermissions.AppointmentDocuments.Default)]
