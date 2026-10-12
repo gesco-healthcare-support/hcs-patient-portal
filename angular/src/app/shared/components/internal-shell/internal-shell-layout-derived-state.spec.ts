@@ -58,6 +58,7 @@ describe('InternalShellLayoutComponent derived state', () => {
   let switchableOffices: jasmine.Spy;
   let impersonatorInfo: jasmine.Spy;
   let displayName: jasmine.Spy;
+  let brandingLogo: string | null = null;
   let configValues: Record<string, unknown>;
 
   interface Probe {
@@ -115,7 +116,7 @@ describe('InternalShellLayoutComponent derived state', () => {
       { provide: Title, useValue: title },
       { provide: ImpersonationService, useValue: impersonation },
       { provide: InternalNavBadgeService, useValue: badge },
-      { provide: BrandingService, useValue: { displayName } },
+      { provide: BrandingService, useValue: { displayName, logoUrl: () => brandingLogo } },
       { provide: InternalUsersService, useValue: { getTenantOptions: tenantOptions } },
       {
         provide: IntakeAssignmentsService,
@@ -144,6 +145,7 @@ describe('InternalShellLayoutComponent derived state', () => {
   }
 
   afterEach(() => {
+    brandingLogo = null;
     clearPendingOfficeSwitch();
     TestBed.resetTestingModule();
   });
@@ -450,8 +452,20 @@ describe('InternalShellLayoutComponent derived state', () => {
       const c = createComponent();
       c.hostScope.set(true);
       expect(c.brandLogo()).toBe('assets/branding/evaluators-logo.png');
+    });
+
+    it('shows the neutral placeholder for an office with no logo', () => {
+      const c = createComponent();
       c.hostScope.set(false);
-      expect(c.brandLogo()).toBeNull();
+      expect(c.brandLogo()).toBe('assets/branding/portal-placeholder.svg');
+      expect(c.brandLogo()).not.toContain('falkinstein');
+    });
+
+    it('shows the uploaded logo for an office that has one', () => {
+      brandingLogo = 'https://api.example.test/api/app/branding/logo/o1';
+      const c = createComponent();
+      c.hostScope.set(false);
+      expect(c.brandLogo()).toBe('https://api.example.test/api/app/branding/logo/o1');
     });
 
     it('prefers the office branded display name', () => {

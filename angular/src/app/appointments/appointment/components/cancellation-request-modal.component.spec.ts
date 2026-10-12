@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 
 import { CancellationRequestModalComponent } from './cancellation-request-modal.component';
+import { AppointmentStatusType } from '../../../proxy/enums/appointment-status-type.enum';
 import { AppointmentChangeRequestService } from '../../../proxy/appointment-change-requests/appointment-change-request.service';
 
 /**
@@ -54,6 +55,55 @@ describe('CancellationRequestModalComponent', () => {
     });
   });
 
+  describe('the staff-only billing outcome', () => {
+    it('is required of staff before Submit is available', () => {
+      const c = create();
+      c.requesterIsStaff = true;
+      c.reason = 'Patient moved away';
+      expect(c.canSubmit).toBeFalse();
+      c.outcome = AppointmentStatusType.CancelledLate;
+      expect(c.canSubmit).toBeTrue();
+    });
+
+    it('is not asked of an external requester', () => {
+      const c = create();
+      c.requesterIsStaff = false;
+      c.reason = 'Patient moved away';
+      expect(c.canSubmit).toBeTrue();
+    });
+
+    it('is sent for staff', () => {
+      const c = create();
+      c.requesterIsStaff = true;
+      c.reason = 'Patient moved away';
+      c.outcome = AppointmentStatusType.CancelledNoBill;
+      c.submit();
+      expect(requestCancellation).toHaveBeenCalledWith('appt-1', {
+        reason: 'Patient moved away',
+        cancellationOutcome: AppointmentStatusType.CancelledNoBill,
+      });
+    });
+
+    it('is never sent for an external requester, even if one was set', () => {
+      const c = create();
+      c.requesterIsStaff = false;
+      c.reason = 'Patient moved away';
+      c.outcome = AppointmentStatusType.CancelledLate;
+      c.submit();
+      expect(requestCancellation).toHaveBeenCalledWith('appt-1', {
+        reason: 'Patient moved away',
+        cancellationOutcome: null,
+      });
+    });
+
+    it('is cleared when the dialog closes', () => {
+      const c = create();
+      c.outcome = AppointmentStatusType.CancelledLate;
+      c.setVisible(false);
+      expect(c.outcome).toBeNull();
+    });
+  });
+
   describe('showing and hiding', () => {
     it('announces the new visibility', () => {
       const c = create();
@@ -90,7 +140,10 @@ describe('CancellationRequestModalComponent', () => {
 
       c.submit();
 
-      expect(requestCancellation).toHaveBeenCalledWith('appt-1', { reason: 'Patient moved away' });
+      expect(requestCancellation).toHaveBeenCalledWith('appt-1', {
+        reason: 'Patient moved away',
+        cancellationOutcome: null,
+      });
       expect(succeeded).toEqual([{ id: 'cr-1' }]);
       expect(c.visible).toBeFalse();
     });

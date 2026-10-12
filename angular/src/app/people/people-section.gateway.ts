@@ -5,7 +5,7 @@ import { PatientService } from '../proxy/patients/patient.service';
 import { ApplicantAttorneyService } from '../proxy/applicant-attorneys/applicant-attorney.service';
 import { DefenseAttorneyService } from '../proxy/defense-attorneys/defense-attorney.service';
 import { ClaimExaminerService } from '../proxy/claim-examiners/claim-examiner.service';
-import { ExternalSignupService } from '../proxy/external-signups/external-signup.service';
+import { ExternalSignupStaffService } from '../proxy/external-signups/external-signup-staff.service';
 import { AppointmentService } from '../proxy/appointments/appointment.service';
 import type { AppointmentWithNavigationPropertiesDto } from '../proxy/appointments/models';
 import type { ApplicantAttorneyDto } from '../proxy/applicant-attorneys/models';
@@ -38,7 +38,7 @@ export class PeopleSectionGateway {
   private readonly aa = inject(ApplicantAttorneyService);
   private readonly da = inject(DefenseAttorneyService);
   private readonly ce = inject(ClaimExaminerService);
-  private readonly externalSignup = inject(ExternalSignupService);
+  private readonly externalSignup = inject(ExternalSignupStaffService);
   private readonly appointments = inject(AppointmentService);
 
   list(section: PeopleSectionKey): Observable<PersonRow[]> {

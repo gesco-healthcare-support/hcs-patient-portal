@@ -1,0 +1,44 @@
+@if (items().length) {
+  <section class="pc-card" aria-labelledby="pc-heading" data-testid="party-consent-card">
+    <h3 id="pc-heading" class="pc-title">
+      <app-icon name="alert" [size]="16" />
+      Your agreement is needed
+    </h3>
+    @for (item of items(); track item.changeRequestId) {
+      <div class="pc-item" data-testid="party-consent-item">
+        <div class="pc-title">{{ headline(item) }}</div>
+        <div class="pc-meta">
+          @if (showSubject) {
+            <div>{{ subject(item) }}</div>
+          }
+          <div>
+            Currently scheduled: {{ item.appointmentDate | calendarDate: 'MMM d, y, h:mm a' }}
+          </div>
+          @if (item.reason) {
+            <div>Reason: {{ item.reason }}</div>
+          }
+        </div>
+        <div class="pc-actions">
+          <button
+            type="button"
+            class="ap-btn ap-btn--primary"
+            [disabled]="busyId() !== null"
+            (click)="answer(item, true)"
+          >
+            <app-icon name="check" [size]="15" />
+            Agree
+          </button>
+          <button
+            type="button"
+            class="ap-btn ap-btn--ghost"
+            [disabled]="busyId() !== null"
+            (click)="answer(item, false)"
+          >
+            <app-icon name="x" [size]="15" />
+            Decline
+          </button>
+        </div>
+      </div>
+    }
+  </section>
+}

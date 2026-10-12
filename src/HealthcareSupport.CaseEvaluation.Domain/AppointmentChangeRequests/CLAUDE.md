@@ -24,8 +24,8 @@ user ever sees), `Accepted`, `Rejected` (both set by the supervisor approval flo
 Phase 17).
 
 On **cancel submit**: parent appointment STAYS `Approved` while the request is Pending.
-The supervisor's approve sets a `CancellationOutcome` (`CancelledNoBill` or `CancelledLate`)
-onto the parent via the state machine.
+The outcome (`CancelledNoBill` or `CancelledLate`) reaches the parent via the state machine
+when the request is finalized -- see "Completion on consent" below for who picks it and when.
 
 On **reschedule submit**: a slot is OPTIONAL (phase 4b, 2026-08-04) -- an external requester
 may send only a reason. A proposed slot transitions `Available -> Reserved` immediately
@@ -35,10 +35,30 @@ machine -- do NOT set `AppointmentStatus` directly); a staff-filed request on a 
 appointment skips that step and stays Pending. On supervisor reject, a held slot is released.
 
 **Consent (phase 4c).** Staff commit to a date, which opens a `ChangeRequestConsentRound`
-that both sides must accept through their emailed tokens. **Approval** uses the split model
+that both sides must accept -- through their emailed tokens or, since 2026-10-10, from inside
+the portal (`PartyChangeRequestConsentAppService`). Finalizing uses the split model
 (`RescheduleSplitPolicy`): a NEW appointment is created in the new slot with a new
 confirmation number, inheriting the source's status, and the old appointment is closed
 through `AppointmentManager.CloseForRescheduleAsync`.
+
+**Completion on consent (2026-10-10, walkthrough Q10/Q11).** Staff pick the billing outcome UP
+FRONT and the request finalizes itself when the last side agrees -- no second staff Approve:
+
+- a RESCHEDULE: staff choose No bill / Late at "Set date" (`ConfirmRescheduleDateInput
+  .RescheduleOutcome`, stored as `ChangeRequestConsentRound.ProposedOutcome`);
+- a cancellation FILED BY STAFF: staff choose it when filing (`RequestCancellationDto
+  .CancellationOutcome`, stored as `AppointmentChangeRequest.ProposedOutcome`);
+- a cancellation REQUESTED BY A PARTY has no proposed outcome, so it still waits for staff to
+  pick No bill / Late and Approve once the other side has agreed (product decision).
+
+`ChangeRequestConsentCompletion` (Application layer) is the single entry point. It runs AFTER
+the consent is committed, in its own unit of work, as the staff member who proposed the date
+or filed the cancellation (`RescheduleFinalizer` / `CancellationFinalizer` take that acting
+user explicitly, because the public consent call is anonymous), and that staff member is added
+to the approval email. A failure is logged and never undoes the recorded consent: the request
+stays Pending and granted, and the manual Approve still finishes it -- which is also the path
+for rounds created before this change. `ProposedOutcome` is a proposal only;
+`CancellationOutcome` remains the DECIDED outcome.
 
 ## Conventions
 
@@ -63,15 +83,22 @@ and rethrow as a validation error; surface it to the operator to seed the row.
 max-time). Those run upstream via `BookingPolicyValidator` in the Application layer,
 matching OLD parity. The domain only guards slot availability and source-appointment status.
 
-### Three AppServices, single feature folder
+### Four AppServices, single feature folder
 
 - `IAppointmentChangeRequestsAppService` -- submit (cancel, reschedule).
 - `IAppointmentChangeRequestsApprovalAppService` -- supervisor decisions, date confirmation
   and consent resends.
 - `PublicChangeRequestConsentAppService` -- the emailed consent link, `[AllowAnonymous]`;
   the token is the credential.
+- `PartyChangeRequestConsentAppService` (2026-10-10) -- the same consent answered from inside
+  the portal by a signed-in party (`api/app/change-request-consents`). The caller may answer
+  for a side only when their VERIFIED email is that side's representative (the person the link
+  was emailed to, per `ChangeRequestSideResolver.ResolveBothSidesAsync`) and they pass the
+  appointment read guard; internal staff never count as a party. It records through the
+  `ChangeRequestConsentManager.RecordDecisionAsync(ChangeRequestConsentMatch, ...)` overload,
+  so the link and the portal share one rule and whichever answers first wins.
 
-All three carry `[RemoteService(IsEnabled = false)]` and have paired manual controllers.
+All four carry `[RemoteService(IsEnabled = false)]` and have paired manual controllers.
 
 ### Entity ctor enforces type-specific required fields
 

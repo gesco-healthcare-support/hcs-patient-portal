@@ -70,11 +70,11 @@
             [selectedTime]="form.get('appointmentTime')?.value ?? null"
             [dateInvalid]="isFieldInvalid('appointmentDate')"
             [timeInvalid]="isFieldInvalid('appointmentTime')"
-            [minimumBookingRuleMessage]="minimumBookingRuleMessage"
             [dateLabel]="'::AppointmentDate' | abpLocalization"
             [noSlotsMessage]="'Appointment:NoSlotsRemaining' | abpLocalization"
             (slotSelected)="onSlotSelected($event)"
             (dateCleared)="appointmentDateCleared.emit()"
+            (bookingWindowChange)="bookingWindowChange.emit($event)"
           />
         </div>
       }

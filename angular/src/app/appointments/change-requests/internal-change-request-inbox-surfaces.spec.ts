@@ -416,9 +416,33 @@ describe('InternalChangeRequestInboxComponent surfaces', () => {
       expect(c.rowActionLabel(atStage('granted'))).toBe('Approve');
     });
 
-    it('keeps saying Approve for a cancellation, which has no consent round', () => {
+    it('keeps saying Approve for a cancellation whose consent is not outstanding', () => {
       const c = create();
       expect(c.rowActionLabel(cr({ changeRequestType: ChangeRequestType.Cancel }))).toBe('Approve');
+    });
+
+    // Q11B (2026-10-09): the server refuses an early cancellation approve, so the row says so.
+    it('says Awaiting consent for a cancellation while a side has not agreed', () => {
+      const c = create();
+      const pending = cr({
+        changeRequestType: ChangeRequestType.Cancel,
+        sideAConsentStatus: CONSENT_APPROVED,
+        sideBConsentStatus: CONSENT_PENDING,
+      });
+      expect(c.rowActionLabel(pending)).toBe('Awaiting consent');
+      expect(c.rowActionIsFinal(pending)).toBeFalse();
+      expect(c.rowActionIcon(pending)).toBe('clock');
+    });
+
+    it('says Approve for a cancellation once every side has agreed', () => {
+      const c = create();
+      const granted = cr({
+        changeRequestType: ChangeRequestType.Cancel,
+        sideAConsentStatus: CONSENT_APPROVED,
+        sideBConsentStatus: CONSENT_NOT_REQUIRED,
+      });
+      expect(c.rowActionLabel(granted)).toBe('Approve');
+      expect(c.rowActionIsFinal(granted)).toBeTrue();
     });
 
     it('reserves the final-looking treatment for the genuine approve step', () => {
@@ -535,6 +559,17 @@ describe('InternalChangeRequestInboxComponent surfaces', () => {
       expect(c.canConfirm(cr())).withContext('a slot with no time').toBeFalse();
 
       c.chosenTime.set('09:00');
+      c.dateOutcome.set(AppointmentStatusType.RescheduledNoBill);
+      expect(c.canConfirm(cr())).toBeTrue();
+    });
+
+    it('cannot confirm until a billing outcome is chosen (it completes on its own later)', () => {
+      const c = create();
+      c.chosenSlotId.set('slot-1');
+      c.chosenTime.set('09:00');
+      expect(c.canConfirm(cr())).toBeFalse();
+
+      c.dateOutcome.set(AppointmentStatusType.RescheduledLate);
       expect(c.canConfirm(cr())).toBeTrue();
     });
 
@@ -542,6 +577,7 @@ describe('InternalChangeRequestInboxComponent surfaces', () => {
       const c = create();
       c.chosenSlotId.set('slot-2');
       c.chosenTime.set('09:00');
+      c.dateOutcome.set(AppointmentStatusType.RescheduledNoBill);
       const row = cr({ newDoctorAvailabilityId: 'slot-1' });
 
       expect(c.canConfirm(row)).toBeFalse();
@@ -562,7 +598,7 @@ describe('InternalChangeRequestInboxComponent surfaces', () => {
       c.confirmDate();
       expect(service['confirmRescheduleDate']).not.toHaveBeenCalled();
       expect(toaster.warn).toHaveBeenCalledWith(
-        'Choose the new appointment date and time before confirming.',
+        'Choose the new date, time and billing outcome before confirming.',
       );
     });
 
@@ -572,6 +608,7 @@ describe('InternalChangeRequestInboxComponent surfaces', () => {
       openApproveOn(c, row);
       c.chosenSlotId.set('slot-2');
       c.chosenTime.set('09:00');
+      c.dateOutcome.set(AppointmentStatusType.RescheduledNoBill);
 
       c.confirmDate();
 
@@ -586,6 +623,7 @@ describe('InternalChangeRequestInboxComponent surfaces', () => {
       openApproveOn(c, cr({ changeRequestType: ChangeRequestType.Cancel }));
       c.chosenSlotId.set('slot-1');
       c.chosenTime.set('09:00');
+      c.dateOutcome.set(AppointmentStatusType.RescheduledNoBill);
       c.confirmDate();
       expect(service['confirmRescheduleDate']).not.toHaveBeenCalled();
     });
@@ -596,6 +634,7 @@ describe('InternalChangeRequestInboxComponent surfaces', () => {
       openApproveOn(c, row);
       c.chosenSlotId.set('slot-2');
       c.chosenTime.set('09:00');
+      c.dateOutcome.set(AppointmentStatusType.RescheduledNoBill);
       c.adminReason.set('  Doctor unavailable  ');
 
       c.confirmDate();
@@ -606,11 +645,25 @@ describe('InternalChangeRequestInboxComponent surfaces', () => {
       expect(body.adminReScheduleReason).toBe('Doctor unavailable');
     });
 
+    it('sends the outcome staff chose when they set the date', () => {
+      const c = create();
+      openApproveOn(c);
+      c.chosenSlotId.set('slot-1');
+      c.chosenTime.set('09:00');
+      c.dateOutcome.set(AppointmentStatusType.RescheduledLate);
+
+      c.confirmDate();
+
+      const [, body] = service['confirmRescheduleDate'].calls.mostRecent().args;
+      expect(body.rescheduleOutcome).toBe(AppointmentStatusType.RescheduledLate);
+    });
+
     it('sends null rather than an empty reason when none was needed', () => {
       const c = create();
       openApproveOn(c);
       c.chosenSlotId.set('slot-1');
       c.chosenTime.set('09:00');
+      c.dateOutcome.set(AppointmentStatusType.RescheduledNoBill);
 
       c.confirmDate();
 
@@ -630,6 +683,7 @@ describe('InternalChangeRequestInboxComponent surfaces', () => {
       openApproveOn(c, before);
       c.chosenSlotId.set('slot-1');
       c.chosenTime.set('09:00');
+      c.dateOutcome.set(AppointmentStatusType.RescheduledNoBill);
 
       // What the server returns on the reload: the same request, now with a round open.
       pending.resched = [
@@ -653,6 +707,7 @@ describe('InternalChangeRequestInboxComponent surfaces', () => {
       openApproveOn(c);
       c.chosenSlotId.set('slot-1');
       c.chosenTime.set('09:00');
+      c.dateOutcome.set(AppointmentStatusType.RescheduledNoBill);
       pending.resched = [];
 
       c.confirmDate();
@@ -665,6 +720,7 @@ describe('InternalChangeRequestInboxComponent surfaces', () => {
       openApproveOn(c);
       c.chosenSlotId.set('slot-1');
       c.chosenTime.set('09:00');
+      c.dateOutcome.set(AppointmentStatusType.RescheduledNoBill);
       service['confirmRescheduleDate'].and.returnValue(
         throwError(() => ({ error: { error: { message: 'That slot was just taken.' } } })),
       );

@@ -25,6 +25,7 @@ import {
 import { avatarColor } from '../../ui/avatar.util';
 import { InternalNavBadgeService } from '../../services/internal-nav-badge.service';
 import { BrandingService } from '../../branding/branding.service';
+import { HOST_LOGO, PLACEHOLDER_LOGO } from '../../branding/brand-assets';
 import { ImpersonationService } from '@volo/abp.commercial.ng.ui/config';
 import { InternalUsersService } from '../../../proxy/internal-users/internal-users.service';
 import { IntakeAssignmentsService } from '../../../proxy/host-operators/intake-assignments.service';
@@ -269,8 +270,8 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
    * logo at offices), not by this label (F3 follow-up 2026-06-28).
    */
   protected readonly brandName = computed<string>(() => 'Appointment Portal');
-  protected readonly brandLogo = computed<string | null>(() =>
-    this.hostScope() ? 'assets/branding/evaluators-logo.png' : null,
+  protected readonly brandLogo = computed<string>(() =>
+    this.hostScope() ? HOST_LOGO : this.branding.logoUrl() || PLACEHOLDER_LOGO,
   );
 
   protected readonly tenantName = computed<string>(() => {

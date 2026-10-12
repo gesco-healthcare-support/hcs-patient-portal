@@ -191,7 +191,7 @@ export class HostBrandingComponent {
     }
     this.busy.set(true);
     this.service
-      .uploadLogo(file, row.officeId)
+      .uploadNormalizedLogo(file, row.officeId)
       .pipe(finalize(() => this.busy.set(false)))
       .subscribe({
         next: () => {
@@ -199,8 +199,11 @@ export class HostBrandingComponent {
           input.value = '';
           this.reload$.next();
         },
-        error: () => {
+        error: (err: unknown) => {
           input.value = '';
+          if (err instanceof Error) {
+            this.toaster.error(err.message || 'Could not read that picture. Try a PNG or JPEG.');
+          }
         },
       });
   }

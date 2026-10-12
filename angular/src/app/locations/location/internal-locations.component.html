@@ -208,7 +208,7 @@
           <div class="ra-field col-8">
             <label>
               Appointment types
-              <span class="opt">(offered here)</span>
+              <span class="opt">(offered here; none selected = all types)</span>
             </label>
             <div class="gn-types">
               @for (t of allTypes(); track t.id) {
@@ -228,9 +228,8 @@
               Active -- bookable by external users
               <input
                 type="checkbox"
-                [ngModel]="f.isActive"
-                [ngModelOptions]="{ standalone: true }"
-                (ngModelChange)="patch({ isActive: $event })"
+                [checked]="f.isActive"
+                (change)="patch({ isActive: $any($event.target).checked })"
               />
               <span class="track"></span>
             </label>

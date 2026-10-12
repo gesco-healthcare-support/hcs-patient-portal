@@ -12,6 +12,7 @@ using Microsoft.Extensions.Logging;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.EventBus;
+using Volo.Abp.Identity;
 using Volo.Abp.MultiTenancy;
 using Volo.Abp.Uow;
 
@@ -46,6 +47,7 @@ public class ChangeRequestApprovedEmailHandler :
     private readonly IRepository<DoctorAvailability, Guid> _doctorAvailabilityRepository;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<ChangeRequestApprovedEmailHandler> _logger;
+    private readonly IRepository<IdentityUser, Guid> _identityUserRepository;
 
     public ChangeRequestApprovedEmailHandler(
         INotificationDispatcher dispatcher,
@@ -54,7 +56,8 @@ public class ChangeRequestApprovedEmailHandler :
         IRepository<AppointmentChangeRequest, Guid> changeRequestRepository,
         IRepository<DoctorAvailability, Guid> doctorAvailabilityRepository,
         ICurrentTenant currentTenant,
-        ILogger<ChangeRequestApprovedEmailHandler> logger)
+        ILogger<ChangeRequestApprovedEmailHandler> logger,
+        IRepository<IdentityUser, Guid> identityUserRepository)
     {
         _dispatcher = dispatcher;
         _contextResolver = contextResolver;
@@ -63,6 +66,7 @@ public class ChangeRequestApprovedEmailHandler :
         _doctorAvailabilityRepository = doctorAvailabilityRepository;
         _currentTenant = currentTenant;
         _logger = logger;
+        _identityUserRepository = identityUserRepository;
     }
 
     [UnitOfWork]
@@ -104,6 +108,8 @@ public class ChangeRequestApprovedEmailHandler :
                     role: r.Role,
                     isRegistered: r.IsRegistered))
                 .ToList();
+
+            await AddCompletedOnConsentStaffRecipientAsync(recipients, eventData);
 
             if (recipients.Count == 0)
             {
@@ -148,6 +154,41 @@ public class ChangeRequestApprovedEmailHandler :
                 variables: variables,
                 contextTag: $"ChangeRequestApproved/{eventData.ChangeRequestType}/{(eventData.IsAdminOverride ? "AdminOverride" : "UserRequested")}/{eventData.ChangeRequestId}");
         }
+    }
+
+    /// <summary>
+    /// 2026-10-09: when the request completed on its own once every side agreed, the staff member
+    /// who set the date / filed the cancellation never clicked Approve, so they are told too, with
+    /// the same template. Skipped quietly (with a log line) when the user or their email is gone;
+    /// never duplicates a recipient already in the list.
+    /// </summary>
+    private async Task AddCompletedOnConsentStaffRecipientAsync(
+        List<NotificationRecipient> recipients,
+        AppointmentChangeRequestApprovedEto eventData)
+    {
+        if (!eventData.CompletedOnConsentNotifyUserId.HasValue)
+        {
+            return;
+        }
+
+        var staff = await _identityUserRepository.FindAsync(eventData.CompletedOnConsentNotifyUserId.Value);
+        if (staff == null || string.IsNullOrWhiteSpace(staff.Email))
+        {
+            _logger.LogInformation(
+                "ChangeRequestApprovedEmailHandler: staff user {UserId} not found or has no email; completion email skipped for them.",
+                eventData.CompletedOnConsentNotifyUserId.Value);
+            return;
+        }
+
+        if (recipients.Any(r => string.Equals(r.Email, staff.Email, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        recipients.Add(new NotificationRecipient(
+            email: staff.Email,
+            role: RecipientRole.OfficeAdmin,
+            isRegistered: true));
     }
 
     private async Task AddRescheduleVariablesAsync(

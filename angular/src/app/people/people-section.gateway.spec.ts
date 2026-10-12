@@ -6,7 +6,7 @@ import { PatientService } from '../proxy/patients/patient.service';
 import { ApplicantAttorneyService } from '../proxy/applicant-attorneys/applicant-attorney.service';
 import { DefenseAttorneyService } from '../proxy/defense-attorneys/defense-attorney.service';
 import { ClaimExaminerService } from '../proxy/claim-examiners/claim-examiner.service';
-import { ExternalSignupService } from '../proxy/external-signups/external-signup.service';
+import { ExternalSignupStaffService } from '../proxy/external-signups/external-signup-staff.service';
 import { AppointmentService } from '../proxy/appointments/appointment.service';
 import type { PersonFormState } from './people.util';
 
@@ -100,7 +100,7 @@ describe('PeopleSectionGateway', () => {
         { provide: ApplicantAttorneyService, useValue: aa },
         { provide: DefenseAttorneyService, useValue: da },
         { provide: ClaimExaminerService, useValue: ce },
-        { provide: ExternalSignupService, useValue: externalSignup },
+        { provide: ExternalSignupStaffService, useValue: externalSignup },
         { provide: AppointmentService, useValue: appointments },
       ],
     });

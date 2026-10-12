@@ -14,6 +14,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
 using Volo.Abp.Domain.Repositories;
+using Volo.Abp.Identity;
 using Volo.Abp.MultiTenancy;
 using Xunit;
 
@@ -47,6 +48,7 @@ public class ChangeRequestApprovedEmailHandlerTests
         public IRepository<AppointmentChangeRequest, Guid> ChangeRequests { get; } = Substitute.For<IRepository<AppointmentChangeRequest, Guid>>();
         public IRepository<DoctorAvailability, Guid> Slots { get; } = Substitute.For<IRepository<DoctorAvailability, Guid>>();
         public ICurrentTenant CurrentTenant { get; } = Substitute.For<ICurrentTenant>();
+        public IRepository<IdentityUser, Guid> Users { get; } = Substitute.For<IRepository<IdentityUser, Guid>>();
 
         public DocumentEmailContext Context { get; } = new()
         {
@@ -82,7 +84,17 @@ public class ChangeRequestApprovedEmailHandlerTests
             ChangeRequests,
             Slots,
             CurrentTenant,
-            NullLogger<ChangeRequestApprovedEmailHandler>.Instance);
+            NullLogger<ChangeRequestApprovedEmailHandler>.Instance,
+            Users);
+
+        public IReadOnlyList<NotificationRecipient> SingleSendRecipients()
+        {
+            var calls = Dispatcher.ReceivedCalls()
+                .Where(c => c.GetMethodInfo().Name == nameof(INotificationDispatcher.DispatchAsync))
+                .ToList();
+            calls.Count.ShouldBe(1);
+            return ((IEnumerable<NotificationRecipient>)calls[0].GetArguments()[1]!).ToList();
+        }
 
         public (string Template, IReadOnlyDictionary<string, object?> Variables) SingleSend()
         {
@@ -119,6 +131,59 @@ public class ChangeRequestApprovedEmailHandlerTests
         await rig.Build().HandleEventAsync(Approved(ChangeRequestType.Cancel));
 
         rig.SingleSend().Template.ShouldBe(NotificationTemplateConsts.Codes.AppointmentCancelledRequestApproved);
+    }
+
+    [Fact]
+    public async Task HandleEventAsync_CompletedOnConsent_AlsoEmailsTheStaffMemberWhoSetItUp()
+    {
+        var rig = new Rig();
+        var staffId = Guid.NewGuid();
+        rig.Users.FindAsync(staffId, Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(new IdentityUser(staffId, "teststaff", "TEST-staff@test.local"));
+        var eto = Approved(ChangeRequestType.Cancel);
+        eto.CompletedOnConsentNotifyUserId = staffId;
+
+        await rig.Build().HandleEventAsync(eto);
+
+        rig.SingleSendRecipients().Select(r => r.Email)
+            .ShouldBe(new[] { "TEST-aa@test.local", "TEST-staff@test.local" });
+    }
+
+    [Fact]
+    public async Task HandleEventAsync_CompletedOnConsent_DoesNotDuplicateARecipientAlreadyInTheList()
+    {
+        var rig = new Rig();
+        var staffId = Guid.NewGuid();
+        rig.Users.FindAsync(staffId, Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(new IdentityUser(staffId, "teststaff", "TEST-AA@test.local"));
+        var eto = Approved(ChangeRequestType.Cancel);
+        eto.CompletedOnConsentNotifyUserId = staffId;
+
+        await rig.Build().HandleEventAsync(eto);
+
+        rig.SingleSendRecipients().Count.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task HandleEventAsync_CompletedOnConsent_MissingStaffUserIsSkippedQuietly()
+    {
+        var rig = new Rig();
+        var eto = Approved(ChangeRequestType.Cancel);
+        eto.CompletedOnConsentNotifyUserId = Guid.NewGuid();
+
+        await rig.Build().HandleEventAsync(eto);
+
+        rig.SingleSendRecipients().Count.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task HandleEventAsync_ManualApprove_NeverLooksUpAStaffUser()
+    {
+        var rig = new Rig();
+
+        await rig.Build().HandleEventAsync(Approved(ChangeRequestType.Cancel));
+
+        await rig.Users.DidNotReceiveWithAnyArgs().FindAsync(Guid.Empty, false, CancellationToken.None);
     }
 
     /// <summary>A defensive default: an out-of-range type still sends the cancellation template.</summary>
