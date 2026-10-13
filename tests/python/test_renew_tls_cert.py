@@ -30,6 +30,8 @@ import sys
 import tempfile
 import unittest
 
+from shell_harness import BASH, shell_path
+
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "hosting" / "renew-tls-cert.sh"
 ALERT = REPO_ROOT / "scripts" / "hosting" / "backup-alert.sh"
@@ -80,26 +82,6 @@ case "$*" in
 esac
 exit 7
 """
-
-
-def _find_bash():
-    explicit = os.environ.get("TEST_BASH")
-    if explicit:
-        return explicit
-    if sys.platform == "win32":
-        return None  # PATH's bash on Windows may be WSL, which cannot see this filesystem the same way
-    return shutil.which("bash")
-
-
-BASH = _find_bash()
-
-
-def shell_path(path):
-    """A path as the shell under test should see it (/c/x on Windows, unchanged on Linux)."""
-    text = pathlib.Path(path).as_posix()
-    if sys.platform == "win32" and len(text) > 1 and text[1] == ":":
-        return "/" + text[0].lower() + text[2:]
-    return text
 
 
 def openssl(*args, input_path=None):

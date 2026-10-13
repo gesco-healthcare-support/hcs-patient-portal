@@ -104,7 +104,10 @@ if [[ -z "$subscription" || -z "$resource_group" ]]; then
     'http://169.254.169.254/metadata/instance/compute?api-version=2021-02-01' 2>/dev/null)" \
     || fail "cannot reach the Azure instance metadata service: is this the Azure VM? Set AZURE_SUBSCRIPTION_ID and AZURE_RESOURCE_GROUP to run elsewhere."
   # Each key appears once in the compute document; a plain match avoids depending on a JSON tool.
-  meta_value() { printf '%s' "$meta" | grep -o "\"$1\": *\"[^\"]*\"" | head -1 | sed 's/.*: *"\(.*\)"/\1/'; }
+  meta_value() {
+    local key="$1"
+    printf '%s' "$meta" | grep -o "\"${key}\": *\"[^\"]*\"" | head -1 | sed 's/.*: *"\(.*\)"/\1/'
+  }
   subscription="${subscription:-$(meta_value subscriptionId)}"
   resource_group="${resource_group:-$(meta_value resourceGroupName)}"
 fi
@@ -134,7 +137,10 @@ new_key="${data}/certificates/${CERT_NAME}.key"
 
 # ---------------------------------------------------------------- 4. check what lego produced
 log "4/7 checking the certificate"
-fingerprint() { openssl x509 -noout -fingerprint -sha256 -in "$1" | cut -d= -f2; }
+fingerprint() {
+  local file="$1"
+  openssl x509 -noout -fingerprint -sha256 -in "$file" | cut -d= -f2
+}
 check_pair() {
   local cert="$1" key="$2" sans
   openssl x509 -noout -checkend 0 -in "$cert" > /dev/null || fail "${cert} has already expired"
