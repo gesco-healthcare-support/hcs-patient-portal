@@ -122,7 +122,11 @@ The template stops at an empty VM with Docker installed on the data disk. The re
 2. Clone the repository to `/home/apadmin/hcs-patient-portal` and create `secrets/` with a NEW `env.prod`.
 3. **Load the two MinIO images from the rescue archive.** They cannot be pulled from any registry (see `../README.md`,
    step 6 of "After the template").
-4. Issue the TLS certificate (DNS-01 against the zone, using the VM's identity; it already has DNS Zone Contributor).
+4. Issue the TLS certificate with `scripts/hosting/renew-tls-cert.sh` (Let's Encrypt, DNS-01 against the zone, as the
+   VM's identity, which already has DNS Zone Contributor). Run `sudo bash scripts/hosting/renew-tls-cert.sh --staging`
+   FIRST: it proves the zone, the identity and the role against Let's Encrypt's staging CA and installs nothing. Then
+   run it without `--staging`, and install `hcs-portal-tls-renew.{service,timer}` from `scripts/hosting/systemd` so it
+   renews itself. The script's header says what each step checks.
 5. Bring the stack up, migrator first, then install the backup units (`docs/runbooks/hosting-backup-restore.md`).
    Run `scripts/hosting/backup-azure-blob.sh --dry-run` before enabling the timers: it is the first real test of the
    VM's identity against the backup account.
