@@ -13,14 +13,31 @@
 # Usage (on the box): nohup bash /tmp/deploy-release.sh <expected_sha> "<services to build>" <rollback_sha> > /tmp/deploy-release.log 2>&1 < /dev/null &
 # Both shas are FULL 40-character ids, and the rollback sha is the release running NOW. Copy the scripts to /tmp
 # first and run that copy: this checkout moves under a script run from inside it.
+#
+# Two settings come from the environment. Their defaults ARE the office server, which therefore needs nothing new:
+#   DEPLOY_BRANCH  the branch this host deploys from                 (default development)
+#   BACKUP_UNIT    the systemd unit that takes the pre-deploy backup  (default hcs-portal-backup.service)
+# The Azure VM backs up with hcs-portal-backup-azure.service instead, so it launches with both set, e.g.
+#   DEPLOY_BRANCH=<branch> BACKUP_UNIT=hcs-portal-backup-azure.service nohup bash /tmp/deploy-release.sh ...
+# Both backup units touch the same last-success marker and log the same "DONE <stamp>" line, so the backup check
+# below judges either one by the same artefacts.
 set -u
-EXPECTED=${1:?expected development sha (full 40 characters)}
+DEPLOY_BRANCH=${DEPLOY_BRANCH:-development}
+BACKUP_UNIT=${BACKUP_UNIT:-hcs-portal-backup.service}
+EXPECTED=${1:?expected sha on the deploy branch (full 40 characters)}
 SERVICES=${2:-db-migrator api authserver angular}
 PREV=${3:?rollback sha (full 40 characters): the release running now}
 cd ~/hcs-patient-portal || { echo "STOP: no checkout"; exit 1; }
 C="docker compose --env-file secrets/env.prod -f docker-compose.prod.yml"
 ts() { date -u +%H:%M:%SZ; }
 stop() { echo "$(ts) DEPLOY STOPPED: $*"; exit 1; }
+# Checked before anything else runs. A misspelled unit would otherwise fail at `systemctl start` with a message
+# about a unit rather than about this setting, and the branch name goes into git commands below.
+case "$BACKUP_UNIT" in
+  hcs-portal-backup.service|hcs-portal-backup-azure.service) ;;
+  *) stop "BACKUP_UNIT must be hcs-portal-backup.service or hcs-portal-backup-azure.service, got [$BACKUP_UNIT]" ;;
+esac
+[[ "$DEPLOY_BRANCH" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ ]] || stop "DEPLOY_BRANCH is not a plain branch name: [$DEPLOY_BRANCH]"
 # The internal base domain is not committed (public repository): read it from the compose env file,
 # parsed rather than sourced, exactly as build-docs-site.sh does. The last BASE_DOMAIN line wins.
 BASE=$(grep -E '^[[:space:]]*BASE_DOMAIN=' secrets/env.prod 2>/dev/null | tail -n 1 | cut -d= -f2- \
@@ -35,33 +52,33 @@ code() { curl -sk -o /dev/null -w '%{http_code}' --max-time 20 --resolve "$1:443
 git cat-file -e "$PREV^{commit}" 2>/dev/null || stop "rollback target $PREV is not in this clone"
 [ "$PREV" = "$(git rev-parse HEAD)" ] || echo "$(ts) NOTE: rollback target $PREV is not the current HEAD $(git rev-parse HEAD)"
 
-echo "$(ts) start: HEAD $(git rev-parse HEAD) on $(git rev-parse --abbrev-ref HEAD); build [$SERVICES]"
+echo "$(ts) start: HEAD $(git rev-parse HEAD) on $(git rev-parse --abbrev-ref HEAD); deploy branch $DEPLOY_BRANCH; backup unit $BACKUP_UNIT; build [$SERVICES]"
 dirty=$(git status --porcelain --untracked-files=no)
 [ -z "$dirty" ] || stop "tracked changes on the box: $dirty"
 # After the 09-30 rollback the box sits DETACHED at the rollback target (rollback-release.sh); return to the branch.
 if [ "$(git rev-parse --abbrev-ref HEAD)" = HEAD ]; then
-  git checkout -q development || stop "could not return from detached HEAD to development"
-  echo "$(ts) was detached; now on development at $(git rev-parse HEAD)"
+  git checkout -q "$DEPLOY_BRANCH" || stop "could not return from detached HEAD to $DEPLOY_BRANCH"
+  echo "$(ts) was detached; now on $DEPLOY_BRANCH at $(git rev-parse HEAD)"
 fi
-[ "$(git rev-parse --abbrev-ref HEAD)" = development ] || stop "not on development"
+[ "$(git rev-parse --abbrev-ref HEAD)" = "$DEPLOY_BRANCH" ] || stop "not on $DEPLOY_BRANCH"
 
 # Fresh OFF-BOX backup through the installed unit (supervisor runbook step 1). Judged by its artefacts: the success
 # marker it touches only after the off-box sizes are verified, its DONE journal line, and new local dumps.
 T0=$(date +%s); J0=$(date '+%Y-%m-%d %H:%M:%S')
-sudo systemctl start hcs-portal-backup.service < /dev/null
+sudo systemctl start "$BACKUP_UNIT" < /dev/null
 ls_mt=$(sudo stat -c %Y /var/backups/hcs-portal/last-success 2>/dev/null || echo 0)
 [ "$ls_mt" -ge "$T0" ] || stop "backup: last-success marker not refreshed (mtime $ls_mt < start $T0)"
-done_line=$(sudo journalctl -u hcs-portal-backup.service --since "$J0" --no-pager < /dev/null | grep -E "DONE [0-9]{8}-[0-9]{6}" | tail -1)
+done_line=$(sudo journalctl -u "$BACKUP_UNIT" --since "$J0" --no-pager < /dev/null | grep -E "DONE [0-9]{8}-[0-9]{6}" | tail -1)
 [ -n "$done_line" ] || stop "backup: no DONE line in the journal since $J0"
 newbak=$(find backups -maxdepth 1 -name '*.bak' -newermt "@$T0" 2>/dev/null | wc -l)
 [ "$newbak" -ge 2 ] || stop "backup: only $newbak new .bak files since start"
 echo "$(ts) backup OK: $newbak new dumps; ${done_line##*]: }"
 
-git fetch -q origin development || stop "fetch"
-# The expected sha must be ON development, but need not be its tip: development keeps moving while a deploy is
+git fetch -q origin "$DEPLOY_BRANCH" || stop "fetch"
+# The expected sha must be ON the deploy branch, but need not be its tip: the branch keeps moving while a deploy is
 # prepared, and the release is the commit that was chosen and checked, not whatever landed since (2026-10-02).
-git merge-base --is-ancestor "$EXPECTED" origin/development \
-  || stop "$EXPECTED is not on origin/development ($(git rev-parse origin/development))"
+git merge-base --is-ancestor "$EXPECTED" "origin/$DEPLOY_BRANCH" \
+  || stop "$EXPECTED is not on origin/$DEPLOY_BRANCH ($(git rev-parse "origin/$DEPLOY_BRANCH"))"
 git merge --ff-only -q "$EXPECTED" || stop "ff-only merge to $EXPECTED refused (not a fast-forward, or an untracked file collision?)"
 [ "$(git rev-parse HEAD)" = "$EXPECTED" ] || stop "HEAD is $(git rev-parse HEAD) after the merge"
 echo "$(ts) checkout $PREV -> $EXPECTED (rollback target: $PREV)"
@@ -83,11 +100,15 @@ sudo chown 1654:1654 "$AP" < /dev/null && sudo chmod 700 "$AP" < /dev/null
 echo "$(ts) admin-passwords: $(stat -c '%u:%g %a' "$AP")"
 
 # --- prerequisite 3: docs site, before compose (#1152) ---
-free=$(df --output=avail -BG / | tail -1 | tr -dc 0-9)
-echo "$(ts) disk free ${free}G"
+# Measure the disk Docker actually writes to. On the office server that is /, but the Azure VM keeps Docker's root on
+# its data disk (/srv/docker), so measuring / there would watch the wrong disk.
+droot=$(docker info --format '{{.DockerRootDir}}' 2> /dev/null < /dev/null)
+[ -d "$droot" ] || droot=/
+free=$(df --output=avail -BG "$droot" | tail -1 | tr -dc 0-9)
+echo "$(ts) disk free ${free}G on the filesystem holding $droot"
 if [ "$free" -lt 15 ]; then
   docker builder prune -f --filter until=48h < /dev/null | tail -1   # build cache only: no images, no volumes
-  echo "$(ts) after cache prune: $(df --output=avail -BG / | tail -1 | tr -dc 0-9)G free"
+  echo "$(ts) after cache prune: $(df --output=avail -BG "$droot" | tail -1 | tr -dc 0-9)G free"
 fi
 bash scripts/hosting/build-docs-site.sh < /dev/null || stop "build-docs-site.sh failed (served site unchanged)"
 [ -f docker/nginx-proxy/docs-site/index.html ] || stop "docs-site has no index.html after the build"
