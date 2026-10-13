@@ -37,6 +37,12 @@
     },
     "caaReportEmail": {
       "value": ""
+    },
+    "deployCaseTrackerRelay": {
+      "value": false
+    },
+    "relayAlertEmail": {
+      "value": ""
     }
   }
 }
