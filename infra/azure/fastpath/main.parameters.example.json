@@ -17,6 +17,9 @@
     "dataDiskSku": {
       "value": "Premium_ZRS"
     },
+    "encryptionAtHost": {
+      "value": true
+    },
     "sshAllowedSourcePrefixes": {
       "value": []
     },
@@ -28,6 +31,9 @@
     },
     "dbBackupArchiveAfterDays": {
       "value": 365
+    },
+    "requireInfrastructureEncryption": {
+      "value": true
     },
     "caaReportEmail": {
       "value": ""

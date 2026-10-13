@@ -36,6 +36,9 @@ param dataDiskSizeGb int
 @description('Data disk storage type.')
 param dataDiskSku string
 
+@description('Encryption at host: the disk caches and temporary storage on the Azure host are encrypted too. Needs the EncryptionAtHost feature registered on the subscription.')
+param encryptionAtHost bool
+
 @description('Static private address inside the VM subnet.')
 param privateIpAddress string = '10.30.0.10'
 
@@ -186,6 +189,11 @@ resource vm 'Microsoft.Compute/virtualMachines@2024-07-01' = {
       ]
     }
     securityProfile: {
+      // Managed disks are always encrypted at rest with platform-managed keys. Encryption at host extends that to
+      // what lives on the Azure host: the OS disk's read/write cache (the data disk uses no cache) and temporary
+      // storage. Customer-managed keys (a disk encryption set and a Key Vault) are deliberately NOT used: they add a
+      // vault whose loss or a disabled key shuts the VM down, for a control the platform keys already provide.
+      encryptionAtHost: encryptionAtHost
       securityType: 'TrustedLaunch'
       uefiSettings: {
         secureBootEnabled: true
