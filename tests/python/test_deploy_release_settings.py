@@ -24,26 +24,15 @@ import os
 import pathlib
 import shutil
 import subprocess
-import sys
 import tempfile
 import unittest
+
+from shell_harness import BASH
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "hosting" / "deploy-release.sh"
 SHA_A = "a" * 40
 SHA_B = "b" * 40
-
-
-def _find_bash():
-    explicit = os.environ.get("TEST_BASH")
-    if explicit:
-        return explicit
-    if sys.platform == "win32":
-        return None  # PATH's bash on Windows may be WSL, which cannot see this filesystem the same way
-    return shutil.which("bash")
-
-
-BASH = _find_bash()
 
 
 def code_lines():
