@@ -21,11 +21,11 @@ import hashlib
 import os
 import pathlib
 import re
+import secrets
 import shutil
 import subprocess
 import sys
 import tempfile
-import textwrap
 import unittest
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -171,13 +171,15 @@ class BehaviourTests(unittest.TestCase):
             path.write_text(body, encoding="utf-8", newline="\n")
             path.chmod(0o755)
         self.log = self.tmp / "docker.log"
-        self.write_env(textwrap.dedent("""\
-            AZURE_BACKUP_STORAGE_ACCOUNT=synthbackupacct
-            AZURE_BACKUP_BUCKETS=bucket-a, bucket-b
-            MINIO_APP_ACCESS_KEY=synthetic-key
-            MINIO_APP_SECRET_KEY=synthetic-secret-value
-            MSSQL_SA_PASSWORD=synthetic-sa
-            """))
+        # Generated per run rather than written as literals: they are fake, and a credential-shaped literal in
+        # the repository is indistinguishable from a leaked one to every secret scanner.
+        self.minio_secret = secrets.token_hex(12)
+        self.write_env(
+            "AZURE_BACKUP_STORAGE_ACCOUNT=synthbackupacct\n"
+            "AZURE_BACKUP_BUCKETS=bucket-a, bucket-b\n"
+            f"MINIO_APP_ACCESS_KEY={secrets.token_hex(6)}\n"
+            f"MINIO_APP_SECRET_KEY={self.minio_secret}\n"
+            f"MSSQL_SA_PASSWORD={secrets.token_hex(12)}\n")
 
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
@@ -249,13 +251,13 @@ class BehaviourTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         for call in self.calls():
             joined = " ".join(call)
-            self.assertNotIn("synthetic-secret-value", joined)
+            self.assertNotIn(self.minio_secret, joined)
             self.assertNotIn("RCLONE_CONFIG_", joined)
             if call[0] == "run":
                 self.assertIn("--env-file", call)
         self.assertEqual(list((self.markers / "azure-stage").glob("rclone-env.*")), [],
                          "the credential file must be removed on exit")
-        self.assertNotIn("synthetic-secret-value", result.stdout + result.stderr)
+        self.assertNotIn(self.minio_secret, result.stdout + result.stderr)
 
     # ------------------------------------------------------------------ dry run
 
@@ -305,7 +307,7 @@ class BehaviourTests(unittest.TestCase):
         self.assertEqual(self.rclone_calls(), [])
 
     def test_a_missing_storage_account_is_refused_before_anything_runs(self):
-        self.write_env("MINIO_APP_ACCESS_KEY=k\nMINIO_APP_SECRET_KEY=s\n")
+        self.write_env(f"MINIO_APP_ACCESS_KEY={secrets.token_hex(6)}\nMINIO_APP_SECRET_KEY={secrets.token_hex(12)}\n")
         result = self.run_script()
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("AZURE_BACKUP_STORAGE_ACCOUNT", result.stderr)
