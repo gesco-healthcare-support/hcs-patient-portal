@@ -366,7 +366,7 @@ a throwaway compose project, with outbound mail and the Case Tracker neutralised
    owner.
 
 **Settings stored in the databases come back with them.** That includes anything saved through an admin screen,
-such as mail settings. That is what a production recovery wants. It is also why a *rehearsal* of this procedure
+such as mail settings. That is what a production recovery wants. It is also why a _rehearsal_ of this procedure
 must check the restored databases for stored mail settings before any application starts: those settings
 override the env file.
 
