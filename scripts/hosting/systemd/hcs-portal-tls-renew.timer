@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily check of the Patient Portal TLS certificate (renews only when due)
+
+[Timer]
+OnCalendar=*-*-* 04:20:00
+Persistent=true
+RandomizedDelaySec=1h
+
+[Install]
+WantedBy=timers.target

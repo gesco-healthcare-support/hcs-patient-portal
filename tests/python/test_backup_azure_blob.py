@@ -24,9 +24,10 @@ import re
 import secrets
 import shutil
 import subprocess
-import sys
 import tempfile
 import unittest
+
+from shell_harness import BASH
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "hosting" / "backup-azure-blob.sh"
@@ -98,17 +99,6 @@ class StaticTests(unittest.TestCase):
             with self.subTest(timer=timer):
                 self.assertIn("Persistent=true", (SYSTEMD / timer).read_text(encoding="utf-8"))
 
-
-def _find_bash():
-    explicit = os.environ.get("TEST_BASH")
-    if explicit:
-        return explicit
-    if sys.platform == "win32":
-        return None  # PATH's bash on Windows may be WSL, which cannot see this filesystem the same way
-    return shutil.which("bash")
-
-
-BASH = _find_bash()
 
 FAKE_DOCKER = r"""#!/usr/bin/env bash
 # Records every call, one per line, arguments separated by \x1f.

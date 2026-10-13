@@ -66,19 +66,32 @@ host="$(hostname)"
 now="$(date -u +%FT%TZ)"
 
 if [[ "$kind" = "failed" ]]; then
-  subject="Patient Portal backup: ${unit} failed on ${host}"
   if command -v journalctl >/dev/null 2>&1; then
     journal="$(journalctl -u "$unit" -n 40 --no-pager 2>&1 || echo "(the journal could not be read)")"
   else
     journal="(journalctl is not available on this machine)"
   fi
-  body="The unit ${unit} on ${host} entered the failed state (alert sent ${now}).
+  # The TLS renewal unit (renew-tls-cert.sh) reuses this alert; it must not read as a backup failure.
+  if [[ "$unit" == hcs-portal-tls* ]]; then
+    subject="Patient Portal certificate: ${unit} failed on ${host}"
+    body="The unit ${unit} on ${host} entered the failed state (alert sent ${now}).
+
+The site's TLS certificate was not renewed or not verified. The certificate in use keeps working until it
+expires; the journal below says when that is, or what failed. Once it expires, every browser refuses the
+site. Check the journal (journalctl -u ${unit}) and the header of scripts/hosting/renew-tls-cert.sh.
+
+Last journal lines:
+${journal}"
+  else
+    subject="Patient Portal backup: ${unit} failed on ${host}"
+    body="The unit ${unit} on ${host} entered the failed state (alert sent ${now}).
 
 Until it succeeds again, the newest off-box copy of the portal's databases and documents is older than
 intended. Check the journal (journalctl -u ${unit}) and the runbook docs/runbooks/hosting-backup-restore.md.
 
 Last journal lines:
 ${journal}"
+  fi
 else
   subject="Patient Portal backup: the ${what} has not succeeded recently on ${host}"
   body="${detail}

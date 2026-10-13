@@ -30,6 +30,8 @@ import sys
 import tempfile
 import unittest
 
+from shell_harness import BASH, shell_path
+
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "hosting" / "minio-case-tracker-access.sh"
 OFFICE = "0f8fad5b-d9cb-469f-a165-70867728950e"
@@ -64,26 +66,6 @@ esac
 echo "fake mc: unexpected: $*" >&2
 exit 2
 """
-
-
-def _find_bash():
-    explicit = os.environ.get("TEST_BASH")
-    if explicit:
-        return explicit
-    if sys.platform == "win32":
-        return None  # PATH's bash on Windows may be WSL, which cannot see this filesystem the same way
-    return shutil.which("bash")
-
-
-BASH = _find_bash()
-
-
-def shell_path(path):
-    """A path as the shell under test should see it (/c/x on Windows, unchanged on Linux)."""
-    text = pathlib.Path(path).as_posix()
-    if sys.platform == "win32" and len(text) > 1 and text[1] == ":":
-        return "/" + text[0].lower() + text[2:]
-    return text
 
 
 @unittest.skipUnless(BASH, "needs a POSIX bash (set TEST_BASH on Windows)")

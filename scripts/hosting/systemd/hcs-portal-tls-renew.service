@@ -1,0 +1,18 @@
+# The portal's Let's Encrypt certificate: issue or renew, install, reload nginx, verify what it serves
+# (scripts/hosting/renew-tls-cert.sh). AZURE VM ONLY: it signs in to Azure DNS as the VM's managed identity.
+# The office server's certificate comes from the internal CA; do not install this unit there.
+# A failure emails BACKUP_ALERT_RECIPIENTS through hcs-portal-backup-alert@, worded as a certificate failure.
+# Runs as root to read secrets/ and to talk to Docker. Invoked through bash so it does not depend on the execute bit.
+[Unit]
+Description=Patient Portal TLS certificate renewal (Let's Encrypt)
+Wants=network-online.target docker.service
+After=network-online.target docker.service
+OnFailure=hcs-portal-backup-alert@%n.service
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/home/apadmin/hcs-patient-portal
+ExecStart=/bin/bash /home/apadmin/hcs-patient-portal/scripts/hosting/renew-tls-cert.sh
+# lego may sleep up to 8 minutes before a renewal to spread load, and DNS propagation can take minutes more.
+TimeoutStartSec=45min
