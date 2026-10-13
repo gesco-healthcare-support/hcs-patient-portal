@@ -72,6 +72,17 @@ permanently.
 | Azure Bastion Basic | $142.35 ($0.19 / hour plus its public IP) | Browser SSH, no port open at all. Billed every hour it exists; `deployBastion: true` |
 | Azure Bastion Developer (free) | not available | Not offered in West US 2 |
 
+**Azure Relay for the Case Tracker's document reads** (`deployCaseTrackerRelay`, off by default; design in
+`docs/integration/case-tracker-relay.md`). Priced from the Retail Prices API, West US 2, 2026-10-13:
+
+| Item | Unit price | Per month |
+| --- | --- | --- |
+| Hybrid Connections listener | $0.0134 / listener-hour | $9.78 for the one listener |
+| Hybrid Connections data | first 5 GB a month free, then $1.00 / GB | $5.00 at about 10 GB of documents a month |
+| Metric alert (no listener for 15 minutes) and its email | about $0.10 per alerted series | about $0.10 |
+| **Documents through Relay** | | **about $15** |
+| The changes feed through Relay too (a second hybrid connection and listener) | | about **$10 more**; see the design doc |
+
 **Committing to the VM.** A reservation for this size in West US 2 costs **$1,038 for one year** (about $86.50 a
 month, 38% less) or **$1,993 for three years** (about $55.36 a month, about 60% less). Worth it once the fast path is
 the settled home for at least a year; it is a billing commitment, not a template setting.

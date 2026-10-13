@@ -131,6 +131,20 @@ The template stops at an empty VM with Docker installed on the data disk. The re
    Run `scripts/hosting/backup-azure-blob.sh --dry-run` before enabling the timers: it is the first real test of the
    VM's identity against the backup account.
 
+## Later: Azure Relay for the Case Tracker's document reads
+
+After go-live, and before the Case Tracker's document reads are switched on, redeploy with
+`deployCaseTrackerRelay: true` (and `relayAlertEmail` set). That adds:
+
+- a Relay namespace and one hybrid connection, `case-tracker-documents`;
+- a listen-only and a send-only SAS rule;
+- "Azure Relay Listener" for the VM's identity, on that hybrid connection only;
+- optionally, an alert when the hybrid connection has had no listener for 15 minutes.
+
+The VM side is `scripts/hosting/relay-listener.sh` with `hcs-portal-relay.service`, and the MinIO vhost stays closed
+(`MINIO_ALLOW_DIRECTIVES="deny all;"`). The whole design, including the Case Tracker's side, is in
+`docs/integration/case-tracker-relay.md`. It costs about $15 a month (COSTS.md).
+
 ## Known gaps, honestly
 
 - **Never deployed.** In particular, none of the following has been checked against Azure:

@@ -71,7 +71,8 @@ if [[ "$kind" = "failed" ]]; then
   else
     journal="(journalctl is not available on this machine)"
   fi
-  # The TLS renewal unit (renew-tls-cert.sh) reuses this alert; it must not read as a backup failure.
+  # The TLS renewal unit (renew-tls-cert.sh) and the relay listener (relay-listener.sh) reuse this alert; neither
+  # may read as a backup failure.
   if [[ "$unit" == hcs-portal-tls* ]]; then
     subject="Patient Portal certificate: ${unit} failed on ${host}"
     body="The unit ${unit} on ${host} entered the failed state (alert sent ${now}).
@@ -79,6 +80,15 @@ if [[ "$kind" = "failed" ]]; then
 The site's TLS certificate was not renewed or not verified. The certificate in use keeps working until it
 expires; the journal below says when that is, or what failed. Once it expires, every browser refuses the
 site. Check the journal (journalctl -u ${unit}) and the header of scripts/hosting/renew-tls-cert.sh.
+
+Last journal lines:
+${journal}"
+  elif [[ "$unit" == hcs-portal-relay* ]]; then
+    subject="Patient Portal relay: ${unit} failed on ${host}"
+    body="The unit ${unit} on ${host} entered the failed state (alert sent ${now}).
+
+The Azure Relay listener is down, so the Case Tracker cannot read portal documents until it is back. Nothing else
+in the portal is affected. Check the journal (journalctl -u ${unit}) and docs/integration/case-tracker-relay.md.
 
 Last journal lines:
 ${journal}"
