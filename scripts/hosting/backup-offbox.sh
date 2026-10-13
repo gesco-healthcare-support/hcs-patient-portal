@@ -64,6 +64,10 @@ SSH_KEY="${SSH_KEY:-/home/apadmin/.ssh/backup_offbox_ed25519}"
 REMOTE_RETENTION_DAYS="${REMOTE_RETENTION_DAYS:-30}"
 DOCKER_NET="${DOCKER_NET:-hcs-patient-portal_default}"
 STAMP="$(date +%Y%m%d-%H%M%S)"
+# Exported so backup-databases.sh names this run's dumps with THIS stamp. Each script used to compute its
+# own, a moment apart, so a run that crossed a second boundary looked for dumps that did not exist and
+# failed with "nothing shipped" (2026-10-13). tests/python/test_backup_run_stamp.py forces the boundary.
+export STAMP
 SSH_OPTS=(-i "$SSH_KEY" -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15)
 
 log() { echo "[$(date -u +%FT%TZ)] $*"; }
