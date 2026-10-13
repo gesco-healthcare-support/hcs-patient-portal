@@ -28,6 +28,8 @@ import sys
 import tempfile
 import unittest
 
+from shell_harness import BASH, shell_path
+
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 HOSTING = REPO_ROOT / "scripts" / "hosting"
 OFFBOX = HOSTING / "backup-offbox.sh"
@@ -75,27 +77,6 @@ fi
 [[ "$all" == *Remove-Item* ]] && echo PRUNED
 exit 0
 """
-
-
-def _find_bash():
-    explicit = os.environ.get("TEST_BASH")
-    if explicit:
-        return explicit
-    if sys.platform == "win32":
-        return None  # PATH's bash on Windows may be WSL, which cannot see this filesystem the same way
-    return shutil.which("bash")
-
-
-BASH = _find_bash()
-
-
-def shell_path(path):
-    """A path as the shell under test should see it. Git Bash reads "C:/x" in a tar archive name as a
-    remote host, so on Windows it gets /c/x; on Linux this is the path unchanged."""
-    text = pathlib.Path(path).as_posix()
-    if sys.platform == "win32" and len(text) > 1 and text[1] == ":":
-        return "/" + text[0].lower() + text[2:]
-    return text
 
 
 def code_lines(path):
