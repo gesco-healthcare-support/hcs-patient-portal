@@ -35,6 +35,9 @@ param dbBackupArchiveAfterDays int
 @description('Enable version-level immutability support at creation (no policy is set).')
 param enableImmutabilitySupport bool
 
+@description('Encrypt a second time at the storage infrastructure layer, with a separate key. Creation only.')
+param requireInfrastructureEncryption bool
+
 @description('The VM subnet, admitted through its Microsoft.Storage service endpoint.')
 param vmSubnetId string
 
@@ -50,14 +53,50 @@ param tags object
 var coolAfterDays = 30
 var coldAfterDays = 90
 
+var onlineTiering = {
+  tierToCool: {
+    daysAfterModificationGreaterThan: coolAfterDays
+  }
+  tierToCold: {
+    daysAfterModificationGreaterThan: coldAfterDays
+  }
+}
+
+var onlineVersionTiering = {
+  tierToCool: {
+    daysAfterCreationGreaterThan: coolAfterDays
+  }
+  tierToCold: {
+    daysAfterCreationGreaterThan: coldAfterDays
+  }
+}
+
+var dbArchive = dbBackupArchiveAfterDays > coldAfterDays
+  ? {
+      tierToArchive: {
+        daysAfterModificationGreaterThan: dbBackupArchiveAfterDays
+      }
+    }
+  : {}
+
+var dbVersionArchive = dbBackupArchiveAfterDays > coldAfterDays
+  ? {
+      tierToArchive: {
+        daysAfterCreationGreaterThan: dbBackupArchiveAfterDays
+      }
+    }
+  : {}
+
+// No managed identity on the account: one is needed only for customer-managed keys, and this account uses
+// Microsoft-managed keys. Nothing here signs in AS the account; the VM signs in TO it, with its own identity.
 resource account 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   name: accountName
   location: location
-  tags: tags
   sku: {
     name: sku
   }
   kind: 'StorageV2'
+  tags: tags
   properties: {
     // New blobs land Hot and the lifecycle rules below move them down; Archive cannot be an account default.
     accessTier: 'Hot'
@@ -88,6 +127,19 @@ resource account 'Microsoft.Storage/storageAccounts@2023-05-01' = {
     }
     immutableStorageWithVersioning: {
       enabled: enableImmutabilitySupport
+    }
+    // Azure Storage always encrypts at rest (AES-256, Microsoft-managed keys); this block states it and adds the
+    // second, infrastructure-level layer when requested. Like immutability support, that layer can be chosen only
+    // when the account is created, never afterwards.
+    encryption: {
+      keySource: 'Microsoft.Storage'
+      requireInfrastructureEncryption: requireInfrastructureEncryption
+      services: {
+        blob: {
+          enabled: true
+          keyType: 'Account'
+        }
+      }
     }
   }
 }
@@ -133,43 +185,13 @@ resource documents 'Microsoft.Storage/storageAccounts/blobServices/containers@20
   }
 }
 
-var onlineTiering = {
-  tierToCool: {
-    daysAfterModificationGreaterThan: coolAfterDays
-  }
-  tierToCold: {
-    daysAfterModificationGreaterThan: coldAfterDays
-  }
-}
-
-var onlineVersionTiering = {
-  tierToCool: {
-    daysAfterCreationGreaterThan: coolAfterDays
-  }
-  tierToCold: {
-    daysAfterCreationGreaterThan: coldAfterDays
-  }
-}
-
-var dbArchive = dbBackupArchiveAfterDays > coldAfterDays
-  ? {
-      tierToArchive: {
-        daysAfterModificationGreaterThan: dbBackupArchiveAfterDays
-      }
-    }
-  : {}
-
-var dbVersionArchive = dbBackupArchiveAfterDays > coldAfterDays
-  ? {
-      tierToArchive: {
-        daysAfterCreationGreaterThan: dbBackupArchiveAfterDays
-      }
-    }
-  : {}
-
 resource lifecycle 'Microsoft.Storage/storageAccounts/managementPolicies@2023-05-01' = {
   parent: account
   name: 'default'
+  dependsOn: [
+    dbBackups
+    documents
+  ]
   properties: {
     policy: {
       rules: [
@@ -214,10 +236,6 @@ resource lifecycle 'Microsoft.Storage/storageAccounts/managementPolicies@2023-05
       ]
     }
   }
-  dependsOn: [
-    dbBackups
-    documents
-  ]
 }
 
 output accountName string = account.name
