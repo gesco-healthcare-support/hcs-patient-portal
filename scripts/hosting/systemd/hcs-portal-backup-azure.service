@@ -1,0 +1,19 @@
+# Nightly off-server backup to Azure Blob (databases + documents). The Azure VM's counterpart of
+# hcs-portal-backup.service; install ONE of the two per machine, never both. Runs as root for the same
+# reason: the .bak files are written by the SQL Server container as uid 10001 mode 640. See the header of
+# backup-azure-blob.sh.
+[Unit]
+Description=Patient Portal off-server backup (databases + documents -> Azure Blob)
+Documentation=file:///home/apadmin/hcs-patient-portal/scripts/hosting/backup-azure-blob.sh
+After=docker.service
+Requires=docker.service
+# A failed run emails a person instead of only reaching the journal.
+OnFailure=hcs-portal-backup-alert@%n.service
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/home/apadmin/hcs-patient-portal
+ExecStart=/bin/bash /home/apadmin/hcs-patient-portal/scripts/hosting/backup-azure-blob.sh
+# The first night copies every document there is; later nights copy only what changed.
+TimeoutStartSec=4h

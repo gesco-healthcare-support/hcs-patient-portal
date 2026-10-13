@@ -174,9 +174,65 @@ logs `Policy already attached` the second time.
 ## After cutover
 
 `backup-offbox.sh` retires when the portal moves to Azure: its destination is a private address the hosted portal
-cannot reach. The Azure design replaces it -- the databases on Azure SQL with point-in-time restore, documents in
-blob storage with versioning and soft delete, and exports in a separate backups storage account. Until the
-cutover, the timers and alerts above stay in force.
+cannot reach. Until the cutover, the timers and alerts above stay in force on the office server.
+
+### On an Azure VM running the same compose stack: `backup-azure-blob.sh`
+
+The first Azure deployment runs the same compose stack on one VM, so SQL Server and MinIO are still containers
+and still need an off-server copy. `scripts/hosting/backup-azure-blob.sh` provides it, and **replaces**
+`backup-offbox.sh` on that machine. Install one of the two per machine, never both.
+
+- **Databases**: each night's `.bak` of the host database and every office database goes to the `db-backups`
+  container under `<run stamp>/`, with `MANIFEST.sha256` uploaded last. **A run folder without a manifest is
+  incomplete: do not restore from it.**
+- **Documents**: each MinIO bucket is copied to the `documents` container under `<bucket>/`. Only new or
+  changed objects are sent.
+- **Nothing is ever deleted in Azure.** The script only copies; how long anything is kept is set on the storage
+  account (versioning, soft delete, lifecycle tiers). `tests/python/test_backup_azure_blob.py` fails if a
+  destructive command appears in the script.
+- **No storage key exists.** The script signs in as the VM's managed identity, which needs Storage Blob Data
+  Contributor on both containers.
+
+**Proven so far: against the Azurite emulator only (2026-10-13)**, with a real SQL Server, a real MinIO and the
+pinned rclone image -- dry run, nightly run, a document deleted at the source staying in the backup, only new or
+changed objects being sent, and the weekly restore proof reading the host dump back and restoring it. The managed
+identity path cannot be exercised outside Azure, so **the first run on the VM is the first real proof**: run
+`--dry-run` there before enabling the timers.
+
+Settings go in `secrets/env.prod` (see the "Off-server backup to Azure Blob" block in `env.prod.example`).
+`BACKUP_ALERT_RECIPIENTS` and the SMTP settings are used exactly as on the office server. To install:
+
+```bash
+# Prove the wiring first: lists what would be copied, dumps and uploads nothing, touches no marker.
+sudo bash scripts/hosting/backup-azure-blob.sh --dry-run
+
+sudo cp scripts/hosting/systemd/hcs-portal-backup-azure*.service \
+        scripts/hosting/systemd/hcs-portal-backup-azure*.timer \
+        scripts/hosting/systemd/hcs-portal-backup-alert@.service \
+        scripts/hosting/systemd/hcs-portal-backup-freshness.* /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now hcs-portal-backup-azure.timer hcs-portal-backup-azure-verify.timer \
+                            hcs-portal-backup-freshness.timer
+# The weekly unit downloads the host dump back FROM AZURE, checks it against the manifest, restores it into a
+# scratch database and drops it. Run it once now: it writes both freshness markers.
+sudo systemctl start hcs-portal-backup-azure-verify.service
+```
+
+To restore from Azure, fetch one complete run folder, check it, then follow "Restore one database" below with
+those files. The same pinned rclone image and the VM's identity do the download:
+
+```bash
+STAMP=<a run stamp whose folder HAS a MANIFEST.sha256>
+printf 'RCLONE_CONFIG_AZ_TYPE=azureblob\nRCLONE_CONFIG_AZ_ACCOUNT=%s\nRCLONE_CONFIG_AZ_USE_MSI=true\n' \
+  "<storage account>" > /tmp/rclone-restore.env
+sudo docker run --rm --env-file /tmp/rclone-restore.env -v "$PWD/backups/restore-$STAMP:/out" \
+  <the RCLONE_IMAGE pinned in backup-azure-blob.sh> copy "az:db-backups/$STAMP" /out
+(cd "backups/restore-$STAMP" && sha256sum -c MANIFEST.sha256)   # every line must say OK
+rm /tmp/rclone-restore.env
+```
+
+Documents come back the same way, from `az:documents/<bucket>`, and go into the MinIO volume before the
+applications start. Restore the databases and the documents from the same night.
 
 ## Restore one database
 
