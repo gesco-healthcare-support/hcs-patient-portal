@@ -1,0 +1,25 @@
+# The Azure Relay listener that lets the Case Tracker read documents while the MinIO vhost stays closed to the
+# internet (scripts/hosting/relay-listener.sh; design in docs/integration/case-tracker-relay.md). AZURE VM ONLY.
+# The script supervises the azbridge container and re-attaches it whenever a deploy recreates the reverse proxy.
+# If it keeps failing, systemd stops restarting it and the unit's failure emails BACKUP_ALERT_RECIPIENTS through
+# hcs-portal-backup-alert@. Runs as root to read secrets/ and to talk to Docker; invoked through bash so it does
+# not depend on the file's execute bit.
+[Unit]
+Description=Patient Portal Azure Relay listener (Case Tracker document reads)
+Wants=network-online.target docker.service
+After=network-online.target docker.service
+OnFailure=hcs-portal-backup-alert@%n.service
+StartLimitIntervalSec=30min
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/apadmin/hcs-patient-portal
+ExecStart=/bin/bash /home/apadmin/hcs-patient-portal/scripts/hosting/relay-listener.sh
+ExecStopPost=-/usr/bin/docker rm -f hcs-portal-relay
+Restart=on-failure
+RestartSec=60
+
+[Install]
+WantedBy=multi-user.target

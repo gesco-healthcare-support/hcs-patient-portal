@@ -92,6 +92,17 @@ param lockCriticalResources bool = true
 @description('Optional address for CAA violation reports (iodef). Empty = none.')
 param caaReportEmail string = ''
 
+@description('Deploy Azure Relay for the Case Tracker\'s document reads (docs/integration/case-tracker-relay.md). OFF by default: turn it on after go-live, before the Case Tracker\'s document reads are switched on. About $10/month for the listener plus $1/GB beyond 5 GB a month; see COSTS.md.')
+param deployCaseTrackerRelay bool = false
+
+@description('Globally unique Relay namespace name, used only when deployCaseTrackerRelay is true.')
+@minLength(6)
+@maxLength(50)
+param relayNamespaceName string = 'relay-portal-${uniqueString(resourceGroup().id)}'
+
+@description('Address emailed when the Relay has had no listener for 15 minutes. Empty = no alert. Used only when deployCaseTrackerRelay is true.')
+param relayAlertEmail string = ''
+
 @description('Tags applied to every resource.')
 param tags object = {
   workload: 'appointment-portal'
@@ -257,8 +268,21 @@ module dns 'modules/dns-records.bicep' = {
   }
 }
 
+module relay 'modules/relay.bicep' = if (deployCaseTrackerRelay) {
+  name: 'fastpath-case-tracker-relay'
+  params: {
+    location: location
+    namespaceName: relayNamespaceName
+    vmPrincipalId: host.outputs.principalId
+    alertEmail: relayAlertEmail
+    tags: tags
+  }
+}
+
 output publicIpAddress string = network.outputs.publicIpAddress
 output vmName string = vmName
 output vmPrincipalId string = host.outputs.principalId
 output backupStorageAccountName string = backup.outputs.accountName
 output dnsNameServers array = dns.outputs.nameServers
+output relayNamespaceName string = relay.?outputs.namespaceName ?? ''
+output relayHybridConnectionName string = relay.?outputs.hybridConnectionName ?? ''
