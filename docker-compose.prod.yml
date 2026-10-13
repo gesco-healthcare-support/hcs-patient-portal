@@ -273,7 +273,11 @@ services:
     environment:
       DOTNET_ENVIRONMENT: "${DBMIGRATOR_ENVIRONMENT:-Production}"
       AbpLicenseCode: "${ABP_LICENSE_CODE}"
-      ConnectionStrings__Default: "Server=sql-server;Database=CaseEvaluation;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True"
+      # The application login. Unset (the office server) = sa, exactly as before. The Azure VM sets SQL_APP_LOGIN
+      # and SQL_APP_PASSWORD to a login holding CREATE ANY DATABASE and nothing else server-wide
+      # (scripts/hosting/sql-app-login.sh). It matters which: every office's connection string is built from this
+      # one and STORED in the host database when the practice is created.
+      ConnectionStrings__Default: "Server=sql-server;Database=CaseEvaluation;User Id=${SQL_APP_LOGIN:-sa};Password=${SQL_APP_PASSWORD:-${MSSQL_SA_PASSWORD}};TrustServerCertificate=True"
       Redis__Configuration: redis
       OpenIddict__Applications__CaseEvaluation_App__RootUrl: "https://${BASE_DOMAIN}"
       OpenIddict__Applications__CaseEvaluation_App__ClientId: "CaseEvaluation_App"
@@ -344,7 +348,11 @@ services:
       # decrypt it reads the other's cookies and tokens as invalid. NEVER hardcode the passphrase.
       DataProtection__CertificatePath: /app/dataprotection.pfx
       DataProtection__CertificatePassPhrase: "${DATAPROTECTION_CERT_PASSPHRASE}"
-      ConnectionStrings__Default: "Server=sql-server;Database=CaseEvaluation;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True"
+      # The application login. Unset (the office server) = sa, exactly as before. The Azure VM sets SQL_APP_LOGIN
+      # and SQL_APP_PASSWORD to a login holding CREATE ANY DATABASE and nothing else server-wide
+      # (scripts/hosting/sql-app-login.sh). It matters which: every office's connection string is built from this
+      # one and STORED in the host database when the practice is created.
+      ConnectionStrings__Default: "Server=sql-server;Database=CaseEvaluation;User Id=${SQL_APP_LOGIN:-sa};Password=${SQL_APP_PASSWORD:-${MSSQL_SA_PASSWORD}};TrustServerCertificate=True"
       Redis__Configuration: redis
       Redis__IsEnabled: "true"
       StringEncryption__DefaultPassPhrase: "${STRING_ENCRYPTION_PASSPHRASE}"
@@ -439,7 +447,11 @@ services:
       # decrypt it reads the other's cookies and tokens as invalid. NEVER hardcode the passphrase.
       DataProtection__CertificatePath: /app/dataprotection.pfx
       DataProtection__CertificatePassPhrase: "${DATAPROTECTION_CERT_PASSPHRASE}"
-      ConnectionStrings__Default: "Server=sql-server;Database=CaseEvaluation;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True"
+      # The application login. Unset (the office server) = sa, exactly as before. The Azure VM sets SQL_APP_LOGIN
+      # and SQL_APP_PASSWORD to a login holding CREATE ANY DATABASE and nothing else server-wide
+      # (scripts/hosting/sql-app-login.sh). It matters which: every office's connection string is built from this
+      # one and STORED in the host database when the practice is created.
+      ConnectionStrings__Default: "Server=sql-server;Database=CaseEvaluation;User Id=${SQL_APP_LOGIN:-sa};Password=${SQL_APP_PASSWORD:-${MSSQL_SA_PASSWORD}};TrustServerCertificate=True"
       Redis__Configuration: redis
       Redis__IsEnabled: "true"
       StringEncryption__DefaultPassPhrase: "${STRING_ENCRYPTION_PASSPHRASE}"

@@ -277,10 +277,12 @@ a throwaway compose project, with outbound mail and the Case Tracker neutralised
 #### What must exist BEFORE you start, or the recovery stops part-way
 
 1. **The off-VM copy of `secrets/`.** The nightly backup does not include it. Four things in it matter:
-   - **`MSSQL_SA_PASSWORD` must be the SAME as the lost VM's.** Each office's connection string is built from
-     `ConnectionStrings:Default` and stored on the tenant row in the host database (`DoctorTenantAppService`,
-     `SetDefaultConnectionString`), and requests are routed with the stored copy. With a different SA password,
-     the host database works and **every office fails to log in to SQL Server**.
+   - **The application's SQL password must be the SAME as the lost VM's**: `SQL_APP_LOGIN` and `SQL_APP_PASSWORD`
+     where the app has its own login (the Azure VM, `scripts/hosting/sql-app-login.sh`), otherwise
+     `MSSQL_SA_PASSWORD`. Each office's connection string is built from `ConnectionStrings:Default` and stored on
+     the tenant row in the host database (`DoctorTenantAppService`, `SetDefaultConnectionString`), and requests are
+     routed with the stored copy. With a different password, the host database works and **every office fails to
+     log in to SQL Server**.
    - `openiddict.pfx` and its passphrase. A new certificate also works, but signs everyone out, which a restore
      does anyway.
    - `dataprotection.pfx` and its passphrase.
@@ -325,6 +327,14 @@ a throwaway compose project, with outbound mail and the Case Tracker neutralised
 
    ```bash
    scripts/hosting/dc.sh up -d sql-server redis minio
+   ```
+
+   Where the app has its own login, recreate it with the SAME password, then hand it the restored databases.
+   Restores run as `sa`, so `sa` owns them until then and the app cannot open them:
+
+   ```bash
+   sudo bash scripts/hosting/sql-app-login.sh            # creates the login; refuses a password mismatch
+   sudo bash scripts/hosting/sql-app-login.sh --adopt    # after the restores: owner of every portal database
    ```
 
 5. **Recreate the buckets, then copy the documents back.** `minio-init` makes the buckets and the application's
