@@ -47,6 +47,9 @@ param dataDiskSizeGb int = 128
 ])
 param dataDiskSku string = 'Premium_ZRS'
 
+@description('Encrypt the VM\'s disk caches and temporary storage on the Azure host itself (encryption at host). Managed disks are always encrypted at rest; without this, the OS disk\'s read/write cache on the host is not. No separate charge. NEEDS a one-time registration on the subscription first: az feature register --namespace Microsoft.Compute --name EncryptionAtHost, then wait until az feature show reports Registered. See README.md.')
+param encryptionAtHost bool = true
+
 @description('Source address prefixes (CIDR) allowed to reach SSH on port 22. Empty = SSH is closed to the internet, which is the default. The office has no fixed public address, so the intended use is to add your current address when you need a shell and remove it afterwards. See README.md.')
 param sshAllowedSourcePrefixes array = []
 
@@ -77,6 +80,9 @@ param softDeleteDays int = 30
 @description('Enable version-level immutability SUPPORT on the backup account. This sets NO retention policy and locks nothing. It only keeps the option open, because account-level support can be switched on when the account is created and never afterwards. Whether to lock backups for seven years is a decision for counsel.')
 param enableImmutabilitySupport bool = true
 
+@description('Encrypt the backup account a second time at the storage infrastructure layer, with a separate Microsoft-managed key (double encryption). Like immutability support, this can be chosen ONLY when the account is created. No separate charge in the Retail Prices API. Microsoft recommends it where double encryption is a compliance requirement; it is on here because the account holds seven years of patient data and the choice cannot be revisited.')
+param requireInfrastructureEncryption bool = true
+
 @description('Extra address prefixes allowed to reach the backup account directly, for example an administrator browsing it in the portal. The VM subnet is always allowed. Empty = the VM only.')
 param backupStorageAllowedIpRanges array = []
 
@@ -96,6 +102,105 @@ var vmName = 'vm-portal-${envName}'
 
 // Built-in role ids (stable across tenants).
 var dnsZoneContributorRoleId = 'befefa01-2a29-4197-83a8-272ff33ce314'
+
+// ---------------------------------------------------------------- existing resources referenced here
+//
+// The backup account and its two containers are created by the backup-storage module in this same deployment;
+// these references only let the role assignments below target the containers. The DNS zone is the one created
+// by hand beforehand.
+
+resource backupAccount 'Microsoft.Storage/storageAccounts@2023-05-01' existing = {
+  name: backupStorageAccountName
+}
+
+resource backupBlobService 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01' existing = {
+  parent: backupAccount
+  name: 'default'
+}
+
+resource dbBackupsContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' existing = {
+  parent: backupBlobService
+  name: 'db-backups'
+}
+
+resource documentsContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' existing = {
+  parent: backupBlobService
+  name: 'documents'
+}
+
+// DNS-01 certificate issuance from the VM (Let's Encrypt) writes _acme-challenge TXT records in the zone.
+resource dnsZone 'Microsoft.Network/dnsZones@2018-05-01' existing = {
+  name: baseDomain
+}
+
+// ---------------------------------------------------------------- the VM's rights
+//
+// The backup script only ever COPIES (scripts/hosting/backup-azure-blob.sh), so the VM gets a role that can
+// read, list and write blobs but NOT delete them. With versioning on, an overwrite keeps the old version, so a
+// compromised VM can neither delete the backups nor destroy them by overwriting. The built-in Storage Blob Data
+// Contributor would include delete; this is the same thing without it.
+
+resource backupWriterRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
+  name: guid(resourceGroup().id, 'portal-backup-writer-no-delete')
+  properties: {
+    roleName: 'Portal Backup Writer, no delete (${resourceGroup().name})'
+    description: 'Read, list and write blobs in the portal backup containers. Deliberately no delete: the backup only ever copies.'
+    type: 'CustomRole'
+    assignableScopes: [
+      resourceGroup().id
+    ]
+    permissions: [
+      {
+        actions: [
+          'Microsoft.Storage/storageAccounts/blobServices/containers/read'
+        ]
+        dataActions: [
+          'Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read'
+          'Microsoft.Storage/storageAccounts/blobServices/containers/blobs/write'
+          'Microsoft.Storage/storageAccounts/blobServices/containers/blobs/add/action'
+        ]
+      }
+    ]
+  }
+}
+
+resource dbBackupsWriter 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: dbBackupsContainer
+  name: guid(dbBackupsContainer.id, vmName, backupWriterRole.id)
+  dependsOn: [
+    backup
+  ]
+  properties: {
+    roleDefinitionId: backupWriterRole.id
+    principalId: host.outputs.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource documentsWriter 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: documentsContainer
+  name: guid(documentsContainer.id, vmName, backupWriterRole.id)
+  dependsOn: [
+    backup
+  ]
+  properties: {
+    roleDefinitionId: backupWriterRole.id
+    principalId: host.outputs.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource dnsZoneWriter 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: dnsZone
+  name: guid(dnsZone.id, vmName, dnsZoneContributorRoleId)
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', dnsZoneContributorRoleId)
+    principalId: host.outputs.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// ---------------------------------------------------------------- modules
 
 module network 'modules/network.bicep' = {
   name: 'fastpath-network'
@@ -121,6 +226,7 @@ module host 'modules/host.bicep' = {
     adminSshPublicKey: adminSshPublicKey
     dataDiskSizeGb: dataDiskSizeGb
     dataDiskSku: dataDiskSku
+    encryptionAtHost: encryptionAtHost
     tags: tags
   }
 }
@@ -134,6 +240,7 @@ module backup 'modules/backup-storage.bicep' = {
     softDeleteDays: softDeleteDays
     dbBackupArchiveAfterDays: dbBackupArchiveAfterDays
     enableImmutabilitySupport: enableImmutabilitySupport
+    requireInfrastructureEncryption: requireInfrastructureEncryption
     vmSubnetId: network.outputs.vmSubnetId
     allowedIpRanges: backupStorageAllowedIpRanges
     lockAccount: lockCriticalResources
@@ -147,99 +254,6 @@ module dns 'modules/dns-records.bicep' = {
     zoneName: baseDomain
     ipAddress: network.outputs.publicIpAddress
     caaReportEmail: caaReportEmail
-  }
-}
-
-// ---------------------------------------------------------------- the VM's rights
-//
-// The backup script only ever COPIES (scripts/hosting/backup-azure-blob.sh), so the VM gets a role that can
-// read, list and write blobs but NOT delete them. With versioning on, an overwrite keeps the old version, so a
-// compromised VM can neither delete the backups nor destroy them by overwriting. The built-in Storage Blob Data
-// Contributor would include delete; this is the same thing without it.
-
-resource backupWriterRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
-  name: guid(resourceGroup().id, 'portal-backup-writer-no-delete')
-  properties: {
-    roleName: 'Portal Backup Writer, no delete (${resourceGroup().name})'
-    description: 'Read, list and write blobs in the portal backup containers. Deliberately no delete: the backup only ever copies.'
-    type: 'CustomRole'
-    assignableScopes: [
-      resourceGroup().id
-    ]
-    permissions: [
-      {
-        actions: [
-          'Microsoft.Storage/storageAccounts/blobServices/containers/read'
-        ]
-        notActions: []
-        dataActions: [
-          'Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read'
-          'Microsoft.Storage/storageAccounts/blobServices/containers/blobs/write'
-          'Microsoft.Storage/storageAccounts/blobServices/containers/blobs/add/action'
-        ]
-        notDataActions: []
-      }
-    ]
-  }
-}
-
-resource backupAccount 'Microsoft.Storage/storageAccounts@2023-05-01' existing = {
-  name: backupStorageAccountName
-}
-
-resource backupBlobService 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01' existing = {
-  parent: backupAccount
-  name: 'default'
-}
-
-resource dbBackupsContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' existing = {
-  parent: backupBlobService
-  name: 'db-backups'
-}
-
-resource documentsContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' existing = {
-  parent: backupBlobService
-  name: 'documents'
-}
-
-resource dbBackupsWriter 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  scope: dbBackupsContainer
-  name: guid(dbBackupsContainer.id, vmName, backupWriterRole.id)
-  properties: {
-    roleDefinitionId: backupWriterRole.id
-    principalId: host.outputs.principalId
-    principalType: 'ServicePrincipal'
-  }
-  dependsOn: [
-    backup
-  ]
-}
-
-resource documentsWriter 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  scope: documentsContainer
-  name: guid(documentsContainer.id, vmName, backupWriterRole.id)
-  properties: {
-    roleDefinitionId: backupWriterRole.id
-    principalId: host.outputs.principalId
-    principalType: 'ServicePrincipal'
-  }
-  dependsOn: [
-    backup
-  ]
-}
-
-// DNS-01 certificate issuance from the VM (Let's Encrypt) writes _acme-challenge TXT records in the zone.
-resource dnsZone 'Microsoft.Network/dnsZones@2018-05-01' existing = {
-  name: baseDomain
-}
-
-resource dnsZoneWriter 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  scope: dnsZone
-  name: guid(dnsZone.id, vmName, dnsZoneContributorRoleId)
-  properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', dnsZoneContributorRoleId)
-    principalId: host.outputs.principalId
-    principalType: 'ServicePrincipal'
   }
 }
 

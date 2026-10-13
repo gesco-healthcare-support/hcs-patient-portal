@@ -96,15 +96,6 @@ var bastionRules = deployBastion
     ]
   : []
 
-resource nsg 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
-  name: 'nsg-portal-${envName}-vm'
-  location: location
-  tags: tags
-  properties: {
-    securityRules: concat(webRules, sshRules, bastionRules)
-  }
-}
-
 var vmSubnet = {
   name: vmSubnetName
   properties: {
@@ -129,6 +120,15 @@ var bastionSubnet = {
   }
 }
 
+resource nsg 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
+  name: 'nsg-portal-${envName}-vm'
+  location: location
+  tags: tags
+  properties: {
+    securityRules: concat(webRules, sshRules, bastionRules)
+  }
+}
+
 resource vnet 'Microsoft.Network/virtualNetworks@2023-11-01' = {
   name: vnetName
   location: location
@@ -146,11 +146,11 @@ resource vnet 'Microsoft.Network/virtualNetworks@2023-11-01' = {
 resource vmPublicIp 'Microsoft.Network/publicIPAddresses@2023-11-01' = {
   name: 'pip-portal-${envName}'
   location: location
-  tags: tags
   sku: {
     name: 'Standard'
     tier: 'Regional'
   }
+  tags: tags
   properties: {
     publicIPAllocationMethod: 'Static'
     publicIPAddressVersion: 'IPv4'
@@ -169,11 +169,11 @@ resource vmPublicIpLock 'Microsoft.Authorization/locks@2020-05-01' = if (lockPub
 resource bastionPublicIp 'Microsoft.Network/publicIPAddresses@2023-11-01' = if (deployBastion) {
   name: 'pip-portal-${envName}-bastion'
   location: location
-  tags: tags
   sku: {
     name: 'Standard'
     tier: 'Regional'
   }
+  tags: tags
   properties: {
     publicIPAllocationMethod: 'Static'
     publicIPAddressVersion: 'IPv4'
@@ -183,10 +183,10 @@ resource bastionPublicIp 'Microsoft.Network/publicIPAddresses@2023-11-01' = if (
 resource bastion 'Microsoft.Network/bastionHosts@2023-11-01' = if (deployBastion) {
   name: 'bas-portal-${envName}'
   location: location
-  tags: tags
   sku: {
     name: 'Basic'
   }
+  tags: tags
   properties: {
     ipConfigurations: [
       {

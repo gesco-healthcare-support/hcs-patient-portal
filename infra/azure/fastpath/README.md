@@ -55,6 +55,20 @@ two can share a resource group during the move and the backup and alert units wo
   Database dumps go on to Archive after `dbBackupArchiveAfterDays` (365). Documents stay in Cold, because a restore
   after losing the VM needs every document at once and Archive takes hours to read.
 - **GRS, not ZRS or GZRS.** Only LRS, GRS and RA-GRS accounts support the Archive tier.
+- **Everything is encrypted at rest, and two layers more are on by default.** Managed disks and the storage
+  account are always encrypted with Microsoft-managed keys. On top of that:
+  - **encryption at host** (`encryptionAtHost`) also covers what lives on the Azure host: the OS disk's
+    read/write cache and the temporary storage. It needs a one-time feature registration (see Deploy).
+  - **infrastructure encryption** (`requireInfrastructureEncryption`) encrypts the backup account a second time
+    with a separate key. Like immutability support, it can be chosen only when the account is created and can
+    never be changed. Microsoft recommends it where double encryption is a compliance requirement. It is on here
+    because the account holds seven years of patient data and the choice cannot be revisited; turn it off before
+    the first deploy if you disagree.
+
+  Neither has a separate price in the Retail Prices API. **Customer-managed keys are deliberately not used**: they
+  add a Key Vault whose loss, or a disabled key, shuts the VM down and locks the backups, to protect against
+  something the Microsoft-managed keys already cover. SonarCloud flags the disks and the storage account for
+  this (rules S6388 and S6378); those findings are a recorded decision, not an oversight.
 - **Immutability support is on, with no policy.** Account-level version immutability can only be enabled when the
   account is created. Enabling it locks nothing; it keeps the option open for whenever counsel decides whether
   backups must be write-once for seven years.
@@ -75,6 +89,15 @@ Before the first deploy:
 1. The resource group exists, in West US 2.
 2. The DNS zone named exactly as the base domain exists in that resource group.
 3. An SSH key pair exists. Only the public half goes in the parameters (`ssh-keygen -t ed25519`).
+4. The subscription has the encryption-at-host feature registered. Once per subscription, and it takes a few
+   minutes:
+
+   ```bash
+   az feature register --namespace Microsoft.Compute --name EncryptionAtHost
+   az feature show --namespace Microsoft.Compute --name EncryptionAtHost --query properties.state -o tsv   # wait for Registered
+   ```
+
+   Without it the VM is refused. Setting `encryptionAtHost` to false skips this, at the cost described above.
 
 ```bash
 git clone https://github.com/gesco-healthcare-support/hcs-patient-portal.git
@@ -107,8 +130,11 @@ The template stops at an empty VM with Docker installed on the data disk. The re
 ## Known gaps, honestly
 
 - **Never deployed.** In particular, none of the following has been checked against Azure:
-  - that creating an account with immutability support on, while the blob service enables versioning, is
-    accepted in one deployment;
+  - that creating an account with immutability support AND infrastructure encryption on, while the blob service
+    enables versioning, is accepted in one deployment;
+  - that `Standard_D4s_v5` offers encryption at host in West US 2 together with Trusted Launch. Microsoft says
+    support varies by size and region; check before deploying with
+    `az vm list-skus -l westus2 --size Standard_D4s_v5 --query "[].capabilities[?name=='EncryptionAtHostSupported']"`;
   - that the custom role's three data actions are all `rclone` needs. The backup script was proven against the
     Azurite emulator, which does not enforce roles.
 - **The data disk's device name.** cloud-init looks for LUN 0 at `/dev/disk/azure/data/by-lun/0` and then

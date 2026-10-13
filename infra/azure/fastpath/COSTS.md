@@ -16,6 +16,7 @@ costs are in [../COSTS.md](../COSTS.md).
 | DNS zone | 1 public zone | $0.50 / zone / month | $0.50 |
 | DNS queries | assume 1 million a month | $0.40 / million | $0.40 |
 | Network, NSG, VNet, locks, roles | | free | $0.00 |
+| Encryption at host, backup infrastructure encryption | | no separate meter | $0.00 |
 | **Fixed total** | | | **$180.87** |
 | Backup storage | see below; grows with data | | under $1 at pilot volume |
 | Internet egress | first 100 GB a month free, then $0.087 / GB | | expected $0 |

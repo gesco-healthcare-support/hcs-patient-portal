@@ -20,30 +20,11 @@ param caaReportEmail string
 @description('TTL in seconds for the address records. Short, so a changed address takes effect quickly.')
 param addressTtl int = 300
 
-resource zone 'Microsoft.Network/dnsZones@2018-05-01' existing = {
-  name: zoneName
-}
-
 var addressRecordNames = [
   '@'
   '*'
   '*.api'
   '*.auth'
-]
-
-resource addressRecords 'Microsoft.Network/dnsZones/A@2018-05-01' = [
-  for recordName in addressRecordNames: {
-    parent: zone
-    name: recordName
-    properties: {
-      TTL: addressTtl
-      ARecords: [
-        {
-          ipv4Address: ipAddress
-        }
-      ]
-    }
-  }
 ]
 
 var caaIssuers = [
@@ -68,6 +49,25 @@ var caaReports = empty(caaReportEmail)
         value: 'mailto:${caaReportEmail}'
       }
     ]
+
+resource zone 'Microsoft.Network/dnsZones@2018-05-01' existing = {
+  name: zoneName
+}
+
+resource addressRecords 'Microsoft.Network/dnsZones/A@2018-05-01' = [
+  for recordName in addressRecordNames: {
+    parent: zone
+    name: recordName
+    properties: {
+      TTL: addressTtl
+      ARecords: [
+        {
+          ipv4Address: ipAddress
+        }
+      ]
+    }
+  }
+]
 
 resource caa 'Microsoft.Network/dnsZones/CAA@2018-05-01' = {
   parent: zone
