@@ -110,9 +110,11 @@ services:
     environment:
       MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD}"
       ACCEPT_EULA: "Y"
-      # Developer edition is licensed for dev/test (this LAN box is UAT). Switch to a
-      # licensed edition (Express/Standard) before any real-patient production use.
-      MSSQL_PID: "Developer"
+      # Developer edition is licensed for dev/test only (the LAN box is UAT), so it stays the
+      # default and the office server is unchanged. A deployment holding real patient data
+      # sets MSSQL_PID=Express (or a licensed Standard key) in secrets/env.prod. Express caps
+      # each database at 10 GB and its buffer pool at about 1.4 GB, whatever the memory limit below.
+      MSSQL_PID: "${MSSQL_PID:-Developer}"
       # T6: hard-cap SQL's total process memory (honored by the mssql image). Unset,
       # SQL grabs ~80% of host RAM (~12.8 GB of 16) and starves the app tier.
       MSSQL_MEMORY_LIMIT_MB: "${MSSQL_MEMORY_LIMIT_MB:-7168}"

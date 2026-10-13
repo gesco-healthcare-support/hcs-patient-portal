@@ -133,6 +133,13 @@ class MinioVhost(unittest.TestCase):
         self.assertRegex(env, r"(?m)^# MINIO_ALLOW_DIRECTIVES=")
         self.assertNotRegex(env, r"(?m)^MINIO_ALLOW_DIRECTIVES=")
 
+    def test_env_example_closes_it_with_deny_all_not_an_empty_value(self):
+        # compose's ":-" default replaces an EMPTY value with the private ranges, so "leave it empty"
+        # never closed the vhost. The example once said it did; pin the instruction that works.
+        env = ENV_EXAMPLE.read_text(encoding="utf-8")
+        self.assertIn('set "deny all;"', env)
+        self.assertNotRegex(env, r"An empty value \(or a typo that leaves no allow line\) denies everyone")
+
 
 class DocsAllowList(unittest.TestCase):
     """The docs site has no login, so the address allow-list is its only protection."""
@@ -166,6 +173,10 @@ class DocsAllowList(unittest.TestCase):
         env = ENV_EXAMPLE.read_text(encoding="utf-8")
         self.assertRegex(env, r"(?m)^# DOCS_ALLOW_DIRECTIVES=")
         self.assertNotRegex(env, r"(?m)^DOCS_ALLOW_DIRECTIVES=")
+
+    def test_env_example_closes_it_with_deny_all_not_an_empty_value(self):
+        env = ENV_EXAMPLE.read_text(encoding="utf-8")
+        self.assertIn('#   DOCS_ALLOW_DIRECTIVES="deny all;"', env)
 
 
 if __name__ == "__main__":
