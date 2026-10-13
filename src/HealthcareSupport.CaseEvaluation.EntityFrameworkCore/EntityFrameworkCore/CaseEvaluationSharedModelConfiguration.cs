@@ -550,6 +550,29 @@ internal static class CaseEvaluationSharedModelConfiguration
             b.HasOne<Appointment>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentId).OnDelete(DeleteBehavior.NoAction);
         });
 
+        // 2026-10-12: one row per file a document upload replaced. Append-only; the replaced object
+        // stays in storage and this row is how it is found. Indexed by document (its history) and
+        // by appointment (every file ever filed on a case).
+        builder.Entity<HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocumentVersion>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentDocumentVersions", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName(TenantIdColumn);
+            b.Property(x => x.AppointmentDocumentId).HasColumnName("AppointmentDocumentId").IsRequired();
+            b.Property(x => x.AppointmentId).HasColumnName("AppointmentId").IsRequired();
+            b.Property(x => x.BlobName).HasColumnName("BlobName").IsRequired().HasMaxLength(HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocumentConsts.BlobNameMaxLength);
+            b.Property(x => x.FileName).HasColumnName("FileName").IsRequired().HasMaxLength(HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocumentConsts.FileNameMaxLength);
+            b.Property(x => x.ContentType).HasColumnName("ContentType").HasMaxLength(HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocumentConsts.ContentTypeMaxLength);
+            b.Property(x => x.FileSize).HasColumnName("FileSize");
+            b.Property(x => x.UploadedByUserId).HasColumnName("UploadedByUserId");
+            b.Property(x => x.Status).HasColumnName("Status");
+            b.Property(x => x.RejectionReason).HasColumnName("RejectionReason").HasMaxLength(HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacketConsts.RejectionReasonMaxLength);
+            b.Property(x => x.ReplacedByUserId).HasColumnName("ReplacedByUserId");
+            b.HasIndex(x => x.AppointmentDocumentId);
+            b.HasIndex(x => x.AppointmentId);
+            b.HasOne<HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocument>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentDocumentId).OnDelete(DeleteBehavior.NoAction);
+        });
+
         // Document master template catalog (IT Admin uploads blank PDF templates).
         builder.Entity<Document>(b =>
         {
