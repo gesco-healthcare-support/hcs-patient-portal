@@ -75,8 +75,11 @@ jobs:
       - name: Build and lint every template
         run: |
           failed=0
+          # fastpath/ is the one-VM go-live template, deployed by hand. It is built and linted like the rest;
+          # nothing in this workflow deploys it (the deploy job deploys main.bicep only).
           for f in infra/azure/main.bicep infra/azure/modules/*.bicep \
-                   infra/azure/subscription/*.bicep infra/azure/subscription/modules/*.bicep; do
+                   infra/azure/subscription/*.bicep infra/azure/subscription/modules/*.bicep \
+                   infra/azure/fastpath/*.bicep infra/azure/fastpath/modules/*.bicep; do
             build=$(bicep build "$f" --stdout 2>&1 >/dev/null) || failed=1
             lint=$(bicep lint "$f" 2>&1) || failed=1
             if [ -n "$build$lint" ]; then
