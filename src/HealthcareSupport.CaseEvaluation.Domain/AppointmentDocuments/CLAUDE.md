@@ -8,7 +8,8 @@ Two aggregate roots, two managers. Blobs for both live in containers declared in
 | File | Purpose |
 |---|---|
 | `AppointmentDocument.cs` | Uploaded-file aggregate; `CreateQueued()` static factory |
-| `AppointmentDocumentManager.cs` | Upload guard (`CreateAsync`) + queued-row factory (`CreateQueuedAsync`) |
+| `AppointmentDocumentManager.cs` | Upload guard (`CreateAsync`) + queued-row factory (`CreateQueuedAsync`) + replaced-file record (`RecordReplacedFileAsync`) |
+| `AppointmentDocumentVersion.cs` | Append-only record of a file an upload replaced; the only place its storage key and metadata survive |
 | `AppointmentPacket.cs` | Generated-PDF aggregate; one row per (TenantId, AppointmentId, Kind) |
 | `AppointmentPacketManager.cs` | `EnsureGeneratingAsync` / `MarkGeneratedAsync` / `MarkFailedAsync` |
 | `Jobs/GenerateAppointmentPacketJob.cs` | Hangfire async job; renders HTML via the WeasyPrint packet-renderer sidecar -> fillable PDF |
@@ -56,6 +57,20 @@ PR4: that link points at the guard-free SPA page `public/document-upload/:id/:ve
 `PublicDocumentUploadController` (per-code 5/hr rate-limited). `IAccountUrlBuilder.BuildPublicDocumentUploadUrlAsync`
 composes the tenant-aware link; wiring it into a request email is deferred (the future email
 handler calls it). Restores the legacy "Click here to upload" flow.
+
+### AppointmentDocument: a replaced file is kept, never deleted
+
+Documents are kept seven years, so no upload path deletes the file it replaces. A re-upload
+overwrites the document row's file fields in place, so before it does, `RecordReplacedFileAsync`
+writes an `AppointmentDocumentVersion` holding the old storage key and metadata (including the
+rejection reason the re-upload clears). Without that row the kept object is an orphan nobody can
+find. A queued row's placeholder is not a file and is never recorded.
+
+Order in the upload path is load-bearing: store the new file, THEN record the old one, THEN
+reassign. The upload scanner refuses inside the store, so a refused file leaves no record and no row
+naming a file that was never stored. The record joins the same unit of work, so a failed commit
+rolls it back and the compensating delete removes only the new file. Do not reintroduce a delete of
+the replaced blob: it used to run before the commit, and a failed commit then lost both files.
 
 ### Document-type + required-document tracking (PR2/PR3)
 

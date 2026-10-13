@@ -20,10 +20,10 @@ public static class DocumentEntryMapper
 
     /// <summary>
     /// Placeholder blob written by <c>AppointmentDocument.CreateQueued</c> for a required document
-    /// that has not been uploaded yet. Duplicated here because it is a local const there; the
-    /// status check below is the primary signal, this is belt-and-braces.
+    /// that has not been uploaded yet. The status check below is the primary signal, this is
+    /// belt-and-braces.
     /// </summary>
-    public const string PendingUploadPlaceholder = "(pending-upload)";
+    public const string PendingUploadPlaceholder = AppointmentDocumentConsts.PendingUploadPlaceholder;
 
     /// <summary>
     /// True when the row has real bytes in MinIO. A <see cref="DocumentStatus.Pending"/> row is a

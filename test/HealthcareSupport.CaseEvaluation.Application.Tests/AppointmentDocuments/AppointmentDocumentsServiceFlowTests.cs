@@ -78,6 +78,7 @@ public abstract class AppointmentDocumentsServiceFlowTests<TStartupModule>
     private readonly IAppointmentPacketsAppService _packets;
     private readonly MissingRequiredDocumentsResolver _resolver;
     private readonly IRepository<AppointmentDocument, Guid> _documentRepository;
+    private readonly IRepository<AppointmentDocumentVersion, Guid> _versionRepository;
     private readonly IRepository<AppointmentPacket, Guid> _packetRepository;
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly IRepository<AppointmentDocumentType, Guid> _typeRepository;
@@ -92,6 +93,7 @@ public abstract class AppointmentDocumentsServiceFlowTests<TStartupModule>
         _packets = GetRequiredService<IAppointmentPacketsAppService>();
         _resolver = GetRequiredService<MissingRequiredDocumentsResolver>();
         _documentRepository = GetRequiredService<IRepository<AppointmentDocument, Guid>>();
+        _versionRepository = GetRequiredService<IRepository<AppointmentDocumentVersion, Guid>>();
         _packetRepository = GetRequiredService<IRepository<AppointmentPacket, Guid>>();
         _appointmentRepository = GetRequiredService<IRepository<Appointment, Guid>>();
         _typeRepository = GetRequiredService<IRepository<AppointmentDocumentType, Guid>>();
@@ -156,6 +158,15 @@ public abstract class AppointmentDocumentsServiceFlowTests<TStartupModule>
         using (_currentTenant.Change(TenantsTestData.TenantARef))
         {
             return await WithUnitOfWorkAsync(() => _documentRepository.GetAsync(id));
+        }
+    }
+
+    /// <summary>The replaced-file records of one document, read inside office A.</summary>
+    private async Task<List<AppointmentDocumentVersion>> VersionsOfAsync(Guid documentId)
+    {
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            return await WithUnitOfWorkAsync(() => _versionRepository.GetListAsync(v => v.AppointmentDocumentId == documentId));
         }
     }
 
@@ -573,12 +584,16 @@ public abstract class AppointmentDocumentsServiceFlowTests<TStartupModule>
     // ------------------------------------------------------------------ package and code uploads
 
     [Fact]
-    public async Task A_package_upload_replaces_the_file_and_removes_the_old_one()
+    public async Task A_package_upload_replaces_the_file_and_keeps_the_old_one_on_record()
     {
+        // Documents are kept seven years: the replaced file must stay in storage AND be findable,
+        // with the values the document row is about to overwrite -- including the rejection reason
+        // the re-upload clears.
+        AppointmentDocument document = null!;
         AppointmentDocumentDto result = null!;
         await AsStaff(async () =>
         {
-            var document = await InsertDocumentAsync(d =>
+            document = await InsertDocumentAsync(d =>
             {
                 d.Status = DocumentStatus.Rejected;
                 d.RejectionReason = "Wrong form";
@@ -589,23 +604,98 @@ public abstract class AppointmentDocumentsServiceFlowTests<TStartupModule>
         result.FileName.ShouldBe("signed-form.pdf");
         result.Status.ShouldBe(DocumentStatus.Accepted);
         result.RejectionReason.ShouldBeNull();
-        await _blobs.Received(1).DeleteAsync("office-a/old-blob", Arg.Any<CancellationToken>());
+        await _blobs.DidNotReceiveWithAnyArgs().DeleteAsync(default!, default);
         Published<AppointmentDocumentUploadedEto>().ShouldHaveSingleItem().IsAdHoc.ShouldBeFalse();
+
+        var version = (await VersionsOfAsync(document.Id)).ShouldHaveSingleItem();
+        version.TenantId.ShouldBe(TenantsTestData.TenantARef);
+        version.AppointmentId.ShouldBe(AppointmentId);
+        version.BlobName.ShouldBe("office-a/old-blob");
+        version.FileName.ShouldBe("synthetic-intake.pdf");
+        version.ContentType.ShouldBe("application/pdf");
+        version.FileSize.ShouldBe(10);
+        version.UploadedByUserId.ShouldBe(StaffUserId);
+        version.Status.ShouldBe(DocumentStatus.Rejected);
+        version.RejectionReason.ShouldBe("Wrong form");
+        version.ReplacedByUserId.ShouldBe(StaffUserId);
+        version.CreationTime.ShouldNotBe(default);
+        (await ReloadAsync(document.Id)).BlobName.ShouldBe(SavedBlobNames().ShouldHaveSingleItem());
     }
 
     [Fact]
-    public async Task A_package_upload_still_succeeds_when_the_old_file_cannot_be_removed()
+    public async Task A_package_upload_that_fails_to_commit_keeps_the_old_file_and_removes_only_the_new_one()
     {
-        _blobs.DeleteAsync("office-a/old-blob", Arg.Any<CancellationToken>())
-            .ThrowsAsync(new IOException("synthetic delete failure"));
-        AppointmentDocumentDto result = null!;
+        // The failed-commit data loss. The replaced file used to be deleted BEFORE the unit of work
+        // committed, so a commit failure removed the new file (the compensating delete) as well as
+        // the old one, while the rolled-back row still named the old one. The publish runs after
+        // the replace, so making it throw fails the unit of work at exactly that point.
+        //
+        // What this rig can and cannot show: it asserts the STORAGE half -- only the new file is
+        // removed. It cannot show the row and the version record rolling back, because this test
+        // module disables unit-of-work transactions and ABP's auditing interceptor saves pending
+        // changes before it writes the audit log, even on error (measured 2026-10-12: with auditing
+        // switched off, the failed request leaves nothing behind). In production the upload is a
+        // transactional POST, so that save is rolled back with everything else.
+        _events.PublishAsync(Arg.Any<AppointmentDocumentUploadedEto>(), Arg.Any<bool>())
+            .ThrowsAsync(new InvalidOperationException("synthetic publish failure"));
         await AsStaff(async () =>
         {
             var document = await InsertDocumentAsync();
-            result = await _documents.UploadPackageDocumentAsync(document.Id, "signed-form.pdf", "application/pdf", 20, Pdf());
+            (await Should.ThrowAsync<InvalidOperationException>(() =>
+                    _documents.UploadPackageDocumentAsync(document.Id, "signed-form.pdf", "application/pdf", 20, Pdf())))
+                .Message.ShouldBe("synthetic publish failure");
         });
 
-        result.FileName.ShouldBe("signed-form.pdf");
+        var saved = SavedBlobNames().ShouldHaveSingleItem();
+        await _blobs.Received(1).DeleteAsync(saved, Arg.Any<CancellationToken>());
+        await _blobs.DidNotReceive().DeleteAsync("office-a/old-blob", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task A_package_upload_the_scanner_refuses_leaves_the_document_and_its_history_untouched()
+    {
+        // The scanner refuses inside the store. Nothing after it may run: no record of a replaced
+        // file, and no row pointing at a file that was never stored.
+        _blobs.SaveAsync(Arg.Any<string>(), Arg.Any<Stream>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new BusinessException(CaseEvaluationDomainErrorCodes.UploadRefused));
+        AppointmentDocument document = null!;
+        await AsStaff(async () =>
+        {
+            document = await InsertDocumentAsync(d => d.Status = DocumentStatus.Rejected);
+            (await Should.ThrowAsync<BusinessException>(() =>
+                    _documents.UploadPackageDocumentAsync(document.Id, "signed-form.pdf", "application/pdf", 20, Pdf())))
+                .Code.ShouldBe(CaseEvaluationDomainErrorCodes.UploadRefused);
+        });
+
+        var reloaded = await ReloadAsync(document.Id);
+        reloaded.BlobName.ShouldBe("office-a/old-blob");
+        reloaded.Status.ShouldBe(DocumentStatus.Rejected);
+        (await VersionsOfAsync(document.Id)).ShouldBeEmpty();
+        await _blobs.DidNotReceiveWithAnyArgs().DeleteAsync(default!, default);
+    }
+
+    [Fact]
+    public async Task Every_replacement_is_recorded_so_a_documents_whole_history_can_be_found()
+    {
+        // Staff may replace even an accepted document, which used to delete the accepted file.
+        AppointmentDocument document = null!;
+        await AsStaff(async () =>
+        {
+            document = await InsertDocumentAsync(d => d.Status = DocumentStatus.Rejected);
+            await _documents.UploadPackageDocumentAsync(document.Id, "second.pdf", "application/pdf", 20, Pdf());
+            await _documents.UploadPackageDocumentAsync(document.Id, "third.pdf", "application/pdf", 30, Pdf());
+        });
+
+        var saved = SavedBlobNames();
+        saved.Count.ShouldBe(2);
+        var versions = await VersionsOfAsync(document.Id);
+        versions.Select(v => v.BlobName).ShouldBe(new[] { "office-a/old-blob", saved[0] }, ignoreOrder: true);
+        versions.Single(v => v.BlobName == "office-a/old-blob").Status.ShouldBe(DocumentStatus.Rejected);
+        var accepted = versions.Single(v => v.BlobName == saved[0]);
+        accepted.Status.ShouldBe(DocumentStatus.Accepted);
+        accepted.FileName.ShouldBe("second.pdf");
+        (await ReloadAsync(document.Id)).BlobName.ShouldBe(saved[1]);
+        await _blobs.DidNotReceiveWithAnyArgs().DeleteAsync(default!, default);
     }
 
     [Fact]
@@ -619,6 +709,7 @@ public abstract class AppointmentDocumentsServiceFlowTests<TStartupModule>
             (await Should.ThrowAsync<BusinessException>(() =>
                     _documents.UploadPackageDocumentAsync(document.Id, "form.pdf", "application/pdf", 0, Pdf())))
                 .Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentDocumentFileEmpty);
+            (await VersionsOfAsync(document.Id)).ShouldBeEmpty();
         });
 
         SavedBlobNames().ShouldBeEmpty();
@@ -629,12 +720,13 @@ public abstract class AppointmentDocumentsServiceFlowTests<TStartupModule>
     {
         var code = new Guid("7d3f1e2a-0000-4000-9000-000000000002");
         AppointmentDocumentDto result = null!;
+        AppointmentDocument document = null!;
         await AsStaff(async () =>
         {
-            var document = await InsertDocumentAsync(d =>
+            document = await InsertDocumentAsync(d =>
             {
                 d.VerificationCode = code;
-                d.BlobName = "(pending-upload)";
+                d.BlobName = AppointmentDocumentConsts.PendingUploadPlaceholder;
             });
 
             (await Should.ThrowAsync<BusinessException>(() =>
@@ -645,17 +737,20 @@ public abstract class AppointmentDocumentsServiceFlowTests<TStartupModule>
         });
 
         result.Status.ShouldBe(DocumentStatus.Uploaded);
-        await _blobs.DidNotReceive().DeleteAsync("(pending-upload)", Arg.Any<CancellationToken>());
+        await _blobs.DidNotReceive().DeleteAsync(AppointmentDocumentConsts.PendingUploadPlaceholder, Arg.Any<CancellationToken>());
         Published<AppointmentDocumentUploadedEto>().ShouldHaveSingleItem().UploadedByUserId.ShouldBeNull();
+        // The placeholder was never a file, so its first upload replaces nothing.
+        (await VersionsOfAsync(document.Id)).ShouldBeEmpty();
     }
 
     [Fact]
     public async Task A_code_upload_keeps_the_previous_file_because_the_case_tracker_may_hold_its_key()
     {
         var code = new Guid("7d3f1e2a-0000-4000-9000-000000000003");
+        AppointmentDocument document = null!;
         await AsStaff(async () =>
         {
-            var document = await InsertDocumentAsync(d =>
+            document = await InsertDocumentAsync(d =>
             {
                 d.VerificationCode = code;
                 d.Status = DocumentStatus.Rejected;
@@ -665,6 +760,9 @@ public abstract class AppointmentDocumentsServiceFlowTests<TStartupModule>
 
         SavedBlobNames().ShouldHaveSingleItem().ShouldNotBe("office-a/old-blob");
         await _blobs.DidNotReceive().DeleteAsync("office-a/old-blob", Arg.Any<CancellationToken>());
+        var version = (await VersionsOfAsync(document.Id)).ShouldHaveSingleItem();
+        version.BlobName.ShouldBe("office-a/old-blob");
+        version.Status.ShouldBe(DocumentStatus.Rejected);
     }
 
     [Fact]
