@@ -108,7 +108,7 @@ public class DocumentAndPacketManagerPathTests
     public async Task An_upload_needs_an_appointment_and_a_file_within_the_size_cap()
     {
         var repo = Substitute.For<IRepository<AppointmentDocument, Guid>>();
-        var manager = WithGuids(new AppointmentDocumentManager(repo));
+        var manager = WithGuids(new AppointmentDocumentManager(repo, Substitute.For<IRepository<AppointmentDocumentVersion, Guid>>()));
 
         Task Create(Guid appointmentId, long size) => manager.CreateAsync(
             TenantId, appointmentId, "TEST Intake", "intake.pdf", "blob/intake.pdf", "application/pdf", size, Guid.NewGuid());
@@ -126,7 +126,7 @@ public class DocumentAndPacketManagerPathTests
         var repo = Substitute.For<IRepository<AppointmentDocument, Guid>>();
         repo.InsertAsync(Arg.Any<AppointmentDocument>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(ci => Task.FromResult(ci.Arg<AppointmentDocument>()));
-        var manager = WithGuids(new AppointmentDocumentManager(repo));
+        var manager = WithGuids(new AppointmentDocumentManager(repo, Substitute.For<IRepository<AppointmentDocumentVersion, Guid>>()));
         var source = Guid.NewGuid();
 
         var queued = await manager.CreateQueuedAsync(TenantId, AppointmentId, "TEST Medical Records", sourceDocumentId: source);
@@ -138,6 +138,52 @@ public class DocumentAndPacketManagerPathTests
         await Should.ThrowAsync<UserFriendlyException>(() => manager.CreateQueuedAsync(TenantId, Guid.Empty, "TEST x"));
         await Should.ThrowAsync<UserFriendlyException>(() => manager.CreateQueuedAsync(TenantId, AppointmentId, "  "));
         await repo.Received(1).InsertAsync(Arg.Any<AppointmentDocument>(), Arg.Any<bool>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task A_replaced_file_is_recorded_with_the_values_it_had_before_the_upload_overwrites_them()
+    {
+        var versions = Substitute.For<IRepository<AppointmentDocumentVersion, Guid>>();
+        versions.InsertAsync(Arg.Any<AppointmentDocumentVersion>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(ci => Task.FromResult(ci.Arg<AppointmentDocumentVersion>()));
+        var manager = WithGuids(new AppointmentDocumentManager(Substitute.For<IRepository<AppointmentDocument, Guid>>(), versions));
+        var uploader = Guid.NewGuid();
+        var replacer = Guid.NewGuid();
+        var document = new AppointmentDocument(
+            Guid.NewGuid(), TenantId, AppointmentId, "TEST Intake", "first.pdf", "office/appt/first", "application/pdf", 42, uploader)
+        {
+            Status = DocumentStatus.Rejected,
+            RejectionReason = "TEST wrong form",
+        };
+
+        var version = await manager.RecordReplacedFileAsync(document, replacer);
+
+        version.ShouldNotBeNull();
+        version.TenantId.ShouldBe(TenantId);
+        version.AppointmentDocumentId.ShouldBe(document.Id);
+        version.AppointmentId.ShouldBe(AppointmentId);
+        version.BlobName.ShouldBe("office/appt/first");
+        version.FileName.ShouldBe("first.pdf");
+        version.ContentType.ShouldBe("application/pdf");
+        version.FileSize.ShouldBe(42);
+        version.UploadedByUserId.ShouldBe(uploader);
+        version.Status.ShouldBe(DocumentStatus.Rejected);
+        version.RejectionReason.ShouldBe("TEST wrong form");
+        version.ReplacedByUserId.ShouldBe(replacer);
+        await versions.Received(1).InsertAsync(version, Arg.Any<bool>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task A_queued_row_that_never_had_a_file_records_nothing_when_its_first_file_arrives()
+    {
+        var versions = Substitute.For<IRepository<AppointmentDocumentVersion, Guid>>();
+        var manager = WithGuids(new AppointmentDocumentManager(Substitute.For<IRepository<AppointmentDocument, Guid>>(), versions));
+        var queued = AppointmentDocument.CreateQueued(Guid.NewGuid(), TenantId, AppointmentId, "TEST Medical Records", Guid.NewGuid());
+
+        (await manager.RecordReplacedFileAsync(queued, replacedByUserId: null)).ShouldBeNull();
+
+        queued.BlobName.ShouldBe(AppointmentDocumentConsts.PendingUploadPlaceholder);
+        await versions.DidNotReceiveWithAnyArgs().InsertAsync(default!, default, default);
     }
 
     // ------------------------------------------------------------------ change-request documents

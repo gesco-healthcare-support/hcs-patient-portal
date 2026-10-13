@@ -9,15 +9,44 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 /// <summary>
 /// Slim DomainService for <see cref="AppointmentDocument"/>. The AppService
 /// orchestrates blob upload -> entity insert in a single UoW; this manager
-/// just centralizes the validation + entity construction.
+/// centralizes the validation, the entity construction, and the record of
+/// a file an upload replaces.
 /// </summary>
 public class AppointmentDocumentManager : DomainService
 {
     protected IRepository<AppointmentDocument, Guid> _appointmentDocumentRepository;
+    protected IRepository<AppointmentDocumentVersion, Guid> _versionRepository;
 
-    public AppointmentDocumentManager(IRepository<AppointmentDocument, Guid> appointmentDocumentRepository)
+    public AppointmentDocumentManager(
+        IRepository<AppointmentDocument, Guid> appointmentDocumentRepository,
+        IRepository<AppointmentDocumentVersion, Guid> versionRepository)
     {
         _appointmentDocumentRepository = appointmentDocumentRepository;
+        _versionRepository = versionRepository;
+    }
+
+    /// <summary>
+    /// Records the file <paramref name="document"/> points at NOW, so it can still be found after an
+    /// upload replaces it. The file itself is never deleted; see <see cref="AppointmentDocumentVersion"/>.
+    ///
+    /// <para>Call it after the new file is stored and BEFORE the document's file fields are
+    /// overwritten, because it reads them. Records nothing, and returns null, for a queued row that
+    /// has never had a file: its placeholder names no stored object.</para>
+    /// </summary>
+    public virtual async Task<AppointmentDocumentVersion?> RecordReplacedFileAsync(
+        AppointmentDocument document,
+        Guid? replacedByUserId)
+    {
+        Check.NotNull(document, nameof(document));
+
+        if (string.IsNullOrWhiteSpace(document.BlobName)
+            || string.Equals(document.BlobName, AppointmentDocumentConsts.PendingUploadPlaceholder, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        var version = new AppointmentDocumentVersion(GuidGenerator.Create(), document, replacedByUserId);
+        return await _versionRepository.InsertAsync(version);
     }
 
     public virtual async Task<AppointmentDocument> CreateAsync(

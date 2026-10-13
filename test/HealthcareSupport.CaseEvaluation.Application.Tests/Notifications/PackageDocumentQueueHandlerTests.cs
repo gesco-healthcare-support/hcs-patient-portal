@@ -34,7 +34,8 @@ public class PackageDocumentQueueHandlerTests
         var appointmentDocumentRepository = Substitute.For<IRepository<AppointmentDocument, Guid>>();
         var documentTypeRepository = Substitute.For<IAppointmentDocumentTypeRepository>();
         var manager = Substitute.For<AppointmentDocumentManager>(
-            Substitute.For<IRepository<AppointmentDocument, Guid>>());
+            Substitute.For<IRepository<AppointmentDocument, Guid>>(),
+            Substitute.For<IRepository<AppointmentDocumentVersion, Guid>>());
         var currentTenant = Substitute.For<ICurrentTenant>();
         currentTenant.Change(Arg.Any<Guid?>(), Arg.Any<string?>())
             .Returns(Substitute.For<IDisposable>());

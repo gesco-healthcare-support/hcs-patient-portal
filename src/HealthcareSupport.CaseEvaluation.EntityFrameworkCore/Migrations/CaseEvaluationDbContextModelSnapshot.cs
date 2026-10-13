@@ -1165,6 +1165,74 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                     b.ToTable("AppAppointmentDocuments", (string)null);
                 });
 
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocumentVersion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AppointmentDocumentId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("AppointmentDocumentId");
+
+                    b.Property<Guid>("AppointmentId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("AppointmentId");
+
+                    b.Property<string>("BlobName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("BlobName");
+
+                    b.Property<string>("ContentType")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("ContentType");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("FileName");
+
+                    b.Property<long>("FileSize")
+                        .HasColumnType("bigint")
+                        .HasColumnName("FileSize");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("RejectionReason");
+
+                    b.Property<Guid?>("ReplacedByUserId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ReplacedByUserId");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int")
+                        .HasColumnName("Status");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.Property<Guid>("UploadedByUserId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("UploadedByUserId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppointmentDocumentId");
+
+                    b.HasIndex("AppointmentId");
+
+                    b.ToTable("AppAppointmentDocumentVersions", (string)null);
+                });
+
             modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacket", b =>
                 {
                     b.Property<Guid>("Id")
@@ -7328,6 +7396,15 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                     b.HasOne("HealthcareSupport.CaseEvaluation.Appointments.Appointment", null)
                         .WithMany()
                         .HasForeignKey("AppointmentId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocumentVersion", b =>
+                {
+                    b.HasOne("HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocument", null)
+                        .WithMany()
+                        .HasForeignKey("AppointmentDocumentId")
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
                 });
