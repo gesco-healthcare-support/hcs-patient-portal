@@ -21,6 +21,7 @@ launcher puts /usr/bin in front of PATH, so the real `date` wins over the fake a
 import os
 import pathlib
 import re
+import secrets
 import shutil
 import subprocess
 import sys
@@ -127,8 +128,10 @@ class BehaviourTests(unittest.TestCase):
         for d in (self.backups, self.staging, self.remote):
             d.mkdir()
         self.env_file = self.tmp / "env.prod"
+        # Generated per run: fake values, but a credential-shaped literal reads as a leak to secret scanners.
         self.env_file.write_text(
-            "MSSQL_SA_PASSWORD=synthetic-sa\nMINIO_ROOT_USER=synthetic-user\nMINIO_ROOT_PASSWORD=synthetic-pass\n",
+            f"MSSQL_SA_PASSWORD={secrets.token_hex(12)}\nMINIO_ROOT_USER={secrets.token_hex(6)}\n"
+            f"MINIO_ROOT_PASSWORD={secrets.token_hex(12)}\n",
             encoding="utf-8", newline="\n")
         self.key = self.tmp / "key"
         self.key.write_text("not a real key\n", encoding="utf-8")
