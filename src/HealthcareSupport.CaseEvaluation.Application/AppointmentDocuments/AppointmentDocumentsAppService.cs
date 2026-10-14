@@ -13,6 +13,7 @@ using HealthcareSupport.CaseEvaluation.Localization;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using HealthcareSupport.CaseEvaluation.PackageDetails;
 using HealthcareSupport.CaseEvaluation.Permissions;
+using HealthcareSupport.CaseEvaluation.PhiAccess;
 using HealthcareSupport.CaseEvaluation.Shared;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Localization;
@@ -671,6 +672,9 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         // appointment so an external party can only download files on
         // appointments they are a party to.
         await _readAccessGuard.EnsureCanReadAsync(entity.AppointmentId);
+        // Recorded before the file is opened, so a failed log write leaves no open stream behind.
+        await PhiAccessRecorder.RecordAsync(PhiAccessAction.DocumentDownloaded,
+            new PhiAccessTarget(null, entity.AppointmentId, entity.Id));
         var stream = await _blobContainer.GetAsync(entity.BlobName);
         if (stream == null)
         {

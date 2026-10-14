@@ -2,6 +2,7 @@ using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Patients;
 using HealthcareSupport.CaseEvaluation.Permissions;
+using HealthcareSupport.CaseEvaluation.PhiAccess;
 using HealthcareSupport.CaseEvaluation.Reports.Pdf;
 using Microsoft.AspNetCore.Authorization;
 using QuestPDF.Fluent;
@@ -103,6 +104,7 @@ public class ReportsAppService : CaseEvaluationAppService, IReportsAppService
             appointmentStatus: input.AppointmentStatus,
             sorting: sorting);
 
+        await RecordExportAsync(PhiAccessAction.ReportPdfExported, items);
         var rows = items.Select(ToMaskedRow).ToList();
         var bytes = new AppointmentReportPdfDocument(rows).GeneratePdf();
 
@@ -168,6 +170,7 @@ public class ReportsAppService : CaseEvaluationAppService, IReportsAppService
             appointmentStatus: input.AppointmentStatus,
             sorting: sorting);
 
+        await RecordExportAsync(PhiAccessAction.ReportCsvExported, items);
         var rows = items.Select(ToMaskedRow).ToList();
         var bytes = AppointmentReportCsv.Build(rows);
 
@@ -177,6 +180,14 @@ public class ReportsAppService : CaseEvaluationAppService, IReportsAppService
             ContentType = "text/csv",
             FileName = "appointment-request-report.csv",
         };
+    }
+
+    // One access-log row per appointment in the file, so "who saw this patient" finds exports too.
+    private Task RecordExportAsync(PhiAccessAction action, List<AppointmentWithNavigationProperties> items)
+    {
+        return PhiAccessRecorder.RecordManyAsync(action, items
+            .Select(item => new PhiAccessTarget(item.Appointment.PatientId, item.Appointment.Id))
+            .ToList());
     }
 
     private static AppointmentReportRowDto ToMaskedRow(AppointmentWithNavigationProperties nav)
