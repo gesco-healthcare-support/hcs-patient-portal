@@ -103,6 +103,19 @@ param relayNamespaceName string = 'relay-portal-${uniqueString(resourceGroup().i
 @description('Address emailed when the Relay has had no listener for 15 minutes. Empty = no alert. Used only when deployCaseTrackerRelay is true.')
 param relayAlertEmail string = ''
 
+@description('Run the outside "site is down" check (modules/uptime.bicep): Azure probes https://health.<baseDomain>/health-status from three regions every 15 minutes and emails uptimeAlertEmail. ON by default; about $4.50/month, see COSTS.md.')
+param deployUptimeCheck bool = true
+
+@description('Who is emailed when the site is down or its TLS certificate has under 14 days left. REQUIRED while deployUptimeCheck is true: an empty value fails validation.')
+param uptimeAlertEmail string = ''
+
+@description('Seconds between outside checks from each region: 900 (default, about $4.38/month) or 300 (about $13.14/month, faster alerts).')
+@allowed([
+  300
+  900
+])
+param uptimeFrequencySeconds int = 900
+
 @description('Tags applied to every resource.')
 param tags object = {
   workload: 'appointment-portal'
@@ -279,6 +292,18 @@ module relay 'modules/relay.bicep' = if (deployCaseTrackerRelay) {
   }
 }
 
+module uptime 'modules/uptime.bicep' = if (deployUptimeCheck) {
+  name: 'fastpath-uptime-check'
+  params: {
+    location: location
+    envName: envName
+    healthUrl: 'https://health.${baseDomain}/health-status'
+    alertEmail: uptimeAlertEmail
+    frequencySeconds: uptimeFrequencySeconds
+    tags: tags
+  }
+}
+
 output publicIpAddress string = network.outputs.publicIpAddress
 output vmName string = vmName
 output vmPrincipalId string = host.outputs.principalId
@@ -286,3 +311,4 @@ output backupStorageAccountName string = backup.outputs.accountName
 output dnsNameServers array = dns.outputs.nameServers
 output relayNamespaceName string = relay.?outputs.namespaceName ?? ''
 output relayHybridConnectionName string = relay.?outputs.hybridConnectionName ?? ''
+output uptimeWebTestName string = uptime.?outputs.webTestName ?? ''
