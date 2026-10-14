@@ -62,6 +62,8 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
     public DbSet<AppointmentEmployerDetail> AppointmentEmployerDetails { get; set; } = null!;
     public DbSet<Appointment> Appointments { get; set; } = null!;
     public DbSet<HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocument> AppointmentDocuments { get; set; } = null!;
+    public DbSet<HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocumentVersion> AppointmentDocumentVersions { get; set; } = null!;
+    public DbSet<HealthcareSupport.CaseEvaluation.PhiAccess.PhiAccessLogEntry> PhiAccessLog { get; set; } = null!;
     public DbSet<HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacket> AppointmentPackets { get; set; } = null!;
     public DbSet<AppointmentTypeFieldConfig> AppointmentTypeFieldConfigs { get; set; } = null!;
     public DbSet<SystemParameter> SystemParameters { get; set; } = null!;

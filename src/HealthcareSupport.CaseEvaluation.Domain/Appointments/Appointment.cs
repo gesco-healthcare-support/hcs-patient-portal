@@ -137,7 +137,7 @@ public class Appointment : FullAuditedAggregateRoot<Guid>, IMultiTenant
     /// It must NOT become a second read path for an unmasked SSN -- the dedicated
     /// reveal endpoint (<c>PatientsAppService.GetFullSsnAsync</c>) remains the only
     /// way to read an unmasked SSN through the API (permission- and owner-gated;
-    /// note it is not itself audited -- GET auditing is off by default).
+    /// each reveal is recorded in the PHI access log, not the HTTP audit log).
     /// </summary>
     [CanBeNull]
     public virtual string? PatientSocialSecurityNumber { get; set; }

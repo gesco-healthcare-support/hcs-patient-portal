@@ -279,6 +279,12 @@ Status semantics for Case Tracker:
 - Mint a scoped MinIO credential: read-only on `case-evaluation-documents`, read/write on
   `case-tracker-documents`; create the `case-tracker-documents` bucket. (The portal MinIO supports
   this; only the root user exists today.)
+  - **Scripted 2026-10-13:** `scripts/hosting/minio-case-tracker-access.sh <office id>` creates one
+    credential PER OFFICE, granting `s3:GetObject` on `case-evaluation-documents/tenants/<office id>/*`
+    only, and writes it to `secrets/case-tracker-minio-<office id>.txt` (mode 600). `--rotate` replaces
+    a secret; `--show` prints the policy. The credential made by hand on 2026-08-13 covered one office
+    and was not reproducible. The read/write grant on `case-tracker-documents` is NOT scripted: whether
+    the Case Tracker still stores its own documents in the portal's MinIO is an open question.
 - Capacity (measured 2026-07-23): MinIO currently holds ~3.3 MB of objects (1 tenant, a few docs) -
   it is NOT filling up. The portal VM has a single ~48 GiB disk that is ~79% used, but that is Docker
   build cache (~26 GB, almost entirely reclaimable via `docker builder prune`) plus images (~4.5 GB),

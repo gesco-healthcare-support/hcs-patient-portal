@@ -47,7 +47,7 @@ param location string = resourceGroup().location
 @maxLength(8)
 param envName string = 'pilot'
 
-@description('Base public domain, e.g. portal.evaluators.com.')
+@description('Base public domain, e.g. medlegal.evaluators.com.')
 param baseDomain string
 
 @description('SQL administrator login name.')

@@ -3,9 +3,10 @@
 > Purpose: recover the host database and every per-office database from backup.
 > Audience: whoever operates the deployed server.
 > Owner: the portal maintainer.
-> **Last proven: 2026-10-07 -- Tier-1 restore rehearsal (every backup restores + documents match
-> the database, non-destructive). A full stack-up recovery on a clean machine has still never been
-> done. See the warning below.**
+> **Last proven: 2026-10-13 -- Tier-2 restore rehearsal: the whole system was stood up from one
+> matched backup set on a machine that is not the server, a user signed in, opened an appointment
+> and downloaded a packet. Tier 1 (every backup restores, documents match) was proven 2026-10-07.
+> Recovery onto a new Azure VM from the backup account is written below but not yet rehearsed.**
 
 ## When you need this page
 
@@ -41,9 +42,34 @@ stopped, recreated or overwritten). For the backup set stamped `20261007-013018`
   That copy is MANUAL: a secret changed on the server after that date is not captured until
   someone re-pulls it.
 
-**What is still unproven (Tier 2):** that the whole stack comes back up from backup on a clean
-machine and a user can sign in and download a document. Until that is done, a restore is proven
-_readable and internally consistent_, not proven to _recover the business_.
+**A Tier-2 restore rehearsal passed on 2026-10-13.** The backup set stamped `20261013-013222` was
+copied read-only off the server to a separate machine and restored into a throwaway compose project.
+The application images were built from the commit the server runs, and the secrets came from the
+off-box `secrets/` copy. Outbound mail and every Case Tracker setting were neutralised first, and the
+ports were bound to that machine's loopback address. It proved:
+
+- the host database and both office databases restore (113 / 76 / 76 user tables), and the migrator
+  reaches every office through its stored connection string;
+- **every row that references a stored object finds it, matched on the EXACT object key**: 69 of 69
+  (documents, packets and office logos). Zero missing, and zero objects that no row references;
+- the migrator rewrites the sign-in client's redirect addresses to the new base domain, so a restore
+  under a different domain signs in;
+- the off-box `secrets/` copy is restore-complete for that release: both certificates load with
+  their passphrases, and the stored connection strings accept the SQL password in it;
+- a person signed in, opened an appointment and downloaded a packet;
+- nothing left the machine: no mail was sent and the Case Tracker outbox held every row.
+
+**Times measured:** about 5 minutes from an empty project to ready once images exist (databases
+about 70 s, documents about 15 s, migrator 46 s, applications about 2 min). Building the five images
+from source took about an hour, and one attempt failed on a public npm registry timeout and passed on
+retry.
+
+**Learned:**
+
+- **Office connection strings are stored in the host database**, built from the SQL credentials in
+  force when each office was created. So a restore must use the same `MSSQL_SA_PASSWORD` as the
+  source, and changing that password needs the stored strings updated in the same step.
+- Upload malware scanning was not running in that rehearsal, so uploads remain unexercised there.
 
 **History, kept:** no full restore on real data had ever been performed by a person before
 2026-10-07; the maintainer confirmed this on 2026-09-28, at handover.
@@ -174,9 +200,185 @@ logs `Policy already attached` the second time.
 ## After cutover
 
 `backup-offbox.sh` retires when the portal moves to Azure: its destination is a private address the hosted portal
-cannot reach. The Azure design replaces it -- the databases on Azure SQL with point-in-time restore, documents in
-blob storage with versioning and soft delete, and exports in a separate backups storage account. Until the
-cutover, the timers and alerts above stay in force.
+cannot reach. Until the cutover, the timers and alerts above stay in force on the office server.
+
+### On an Azure VM running the same compose stack: `backup-azure-blob.sh`
+
+The first Azure deployment runs the same compose stack on one VM, so SQL Server and MinIO are still containers
+and still need an off-server copy. `scripts/hosting/backup-azure-blob.sh` provides it, and **replaces**
+`backup-offbox.sh` on that machine. Install one of the two per machine, never both.
+
+- **Databases**: each night's `.bak` of the host database and every office database goes to the `db-backups`
+  container under `<run stamp>/`, with `MANIFEST.sha256` uploaded last. **A run folder without a manifest is
+  incomplete: do not restore from it.**
+- **Documents**: each MinIO bucket is copied to the `documents` container under `<bucket>/`. Only new or
+  changed objects are sent.
+- **Nothing is ever deleted in Azure.** The script only copies; how long anything is kept is set on the storage
+  account (versioning, soft delete, lifecycle tiers). `tests/python/test_backup_azure_blob.py` fails if a
+  destructive command appears in the script.
+- **No storage key exists.** The script signs in as the VM's managed identity, which needs Storage Blob Data
+  Contributor on both containers.
+
+**Proven so far: against the Azurite emulator only (2026-10-13)**, with a real SQL Server, a real MinIO and the
+pinned rclone image -- dry run, nightly run, a document deleted at the source staying in the backup, only new or
+changed objects being sent, and the weekly restore proof reading the host dump back and restoring it. The managed
+identity path cannot be exercised outside Azure, so **the first run on the VM is the first real proof**: run
+`--dry-run` there before enabling the timers.
+
+Settings go in `secrets/env.prod` (see the "Off-server backup to Azure Blob" block in `env.prod.example`).
+`BACKUP_ALERT_RECIPIENTS` and the SMTP settings are used exactly as on the office server. To install:
+
+```bash
+# Prove the wiring first: lists what would be copied, dumps and uploads nothing, touches no marker.
+sudo bash scripts/hosting/backup-azure-blob.sh --dry-run
+
+sudo cp scripts/hosting/systemd/hcs-portal-backup-azure*.service \
+        scripts/hosting/systemd/hcs-portal-backup-azure*.timer \
+        scripts/hosting/systemd/hcs-portal-backup-alert@.service \
+        scripts/hosting/systemd/hcs-portal-backup-freshness.* /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now hcs-portal-backup-azure.timer hcs-portal-backup-azure-verify.timer \
+                            hcs-portal-backup-freshness.timer
+# The weekly unit downloads the host dump back FROM AZURE, checks it against the manifest, restores it into a
+# scratch database and drops it. Run it once now: it writes both freshness markers.
+sudo systemctl start hcs-portal-backup-azure-verify.service
+```
+
+To restore from Azure, fetch one complete run folder, check it, then follow "Restore one database" below with
+those files. The same pinned rclone image and the VM's identity do the download:
+
+```bash
+STAMP=<a run stamp whose folder HAS a MANIFEST.sha256>
+printf 'RCLONE_CONFIG_AZ_TYPE=azureblob\nRCLONE_CONFIG_AZ_ACCOUNT=%s\nRCLONE_CONFIG_AZ_USE_MSI=true\n' \
+  "<storage account>" > /tmp/rclone-restore.env
+sudo docker run --rm --env-file /tmp/rclone-restore.env -v "$PWD/backups/restore-$STAMP:/out" \
+  <the RCLONE_IMAGE pinned in backup-azure-blob.sh> copy "az:db-backups/$STAMP" /out
+(cd "backups/restore-$STAMP" && sha256sum -c MANIFEST.sha256)   # every line must say OK
+rm /tmp/rclone-restore.env
+```
+
+Documents do NOT come back "from the same night". The `documents` container is one cumulative mirror: each run
+copies only new or changed objects into it and nothing is ever deleted there, so it always holds every object
+ever backed up, a superset of what any one night's databases reference. Copy it back whole, before the
+applications start. The next section does both halves for a whole system.
+
+### Recover the whole system onto a new Azure VM from the backup account
+
+**Use this when the VM is gone or unusable.** It rebuilds the system on a new VM from the newest complete run
+in the backup account. Nothing here touches the backup account except reading it, and the account carries a
+delete lock, so a mistake here cannot cost the backups.
+
+**Not yet rehearsed end to end** (written 2026-10-13). Downloading a run and checking its manifest is proven
+against the Azurite emulator only. Everything after the download was proven by the 2026-10-13 Tier-2 rehearsal,
+from a set copied off the office server: restoring host and offices, loading documents, the migrator rewriting the
+sign-in redirects, and the exact-key document check. A first drill of this exact path is planned on the VM, into
+a throwaway compose project, with outbound mail and the Case Tracker neutralised.
+
+#### What must exist BEFORE you start, or the recovery stops part-way
+
+1. **The off-VM copy of `secrets/`.** The nightly backup does not include it. Four things in it matter:
+   - **The application's SQL password must be the SAME as the lost VM's**: `SQL_APP_LOGIN` and `SQL_APP_PASSWORD`
+     where the app has its own login (the Azure VM, `scripts/hosting/sql-app-login.sh`), otherwise
+     `MSSQL_SA_PASSWORD`. Each office's connection string is built from `ConnectionStrings:Default` and stored on
+     the tenant row in the host database (`DoctorTenantAppService`, `SetDefaultConnectionString`), and requests are
+     routed with the stored copy. With a different password, the host database works and **every office fails to
+     log in to SQL Server**.
+   - `openiddict.pfx` and its passphrase. A new certificate also works, but signs everyone out, which a restore
+     does anyway.
+   - `dataprotection.pfx` and its passphrase.
+   - `admin-passwords/`.
+2. **The two MinIO images.** They cannot be pulled from any registry. Load them from the rescue archive (see the
+   header of `docker-compose.prod.yml`).
+3. **The release that was running:** the commit to check out. Newer code is fine, because the migrator applies
+   any pending migrations; older code is not.
+
+#### Steps
+
+1. **Build the VM and its stack, up to and including the TLS certificate**, as `infra/azure/fastpath/README.md`
+   describes ("Deploy", then "After the template, before the application", steps 1-4). Use the RESTORED
+   `secrets/` from item 1 above, not new ones. Redeploying the template gives the new VM its own identity and
+   assigns it the backup-account roles. Assignments can take a few minutes to apply.
+
+2. **Find the newest COMPLETE run.** A run folder without `MANIFEST.sha256` is incomplete: the manifest is
+   uploaded last.
+
+   ```bash
+   cd ~/hcs-patient-portal
+   printf 'RCLONE_CONFIG_AZ_TYPE=azureblob\nRCLONE_CONFIG_AZ_ACCOUNT=%s\nRCLONE_CONFIG_AZ_USE_MSI=true\nRCLONE_CONFIG=/dev/null\n' \
+     "<storage account>" > /tmp/rclone-az.env
+   RC="sudo docker run --rm --env-file /tmp/rclone-az.env <the RCLONE_IMAGE pinned in backup-azure-blob.sh>"
+   $RC lsf --dirs-only az:db-backups | sort | tail -5          # newest last
+   $RC lsf az:db-backups/<stamp>/                               # MUST list MANIFEST.sha256 and one .bak per database
+   ```
+
+3. **Download that run and check it.** Then put the dumps where SQL Server reads them.
+
+   ```bash
+   STAMP=<stamp>
+   sudo docker run --rm --env-file /tmp/rclone-az.env -v "$PWD/backups/restore-$STAMP:/out" \
+     <the pinned RCLONE_IMAGE> copy "az:db-backups/$STAMP" /out
+   (cd "backups/restore-$STAMP" && sha256sum -c MANIFEST.sha256)      # every line must say OK
+   sudo cp "backups/restore-$STAMP"/*.bak backups/                     # ./backups is BACKUP_DIR
+   ```
+
+4. **Start the data tier only, and restore. Host first.** Bring up `sql-server`, `redis` and `minio`, nothing
+   else. Then restore the host `CaseEvaluation`, then every `CaseEvaluation_<office>` in the run, following
+   "Restore one database" below, step 4. The host goes first because it holds the office connection strings.
+
+   ```bash
+   scripts/hosting/dc.sh up -d sql-server redis minio
+   ```
+
+   Where the app has its own login, recreate it with the SAME password, then hand it the restored databases.
+   Restores run as `sa`, so `sa` owns them until then and the app cannot open them:
+
+   ```bash
+   sudo bash scripts/hosting/sql-app-login.sh            # creates the login; refuses a password mismatch
+   sudo bash scripts/hosting/sql-app-login.sh --adopt    # after the restores: owner of every portal database
+   ```
+
+5. **Recreate the buckets, then copy the documents back.** `minio-init` makes the buckets and the application's
+   MinIO user from `env.prod`. Then copy each bucket listed in `AZURE_BACKUP_BUCKETS`, using the same two remotes
+   as `backup-azure-blob.sh`, in the opposite direction:
+
+   ```bash
+   scripts/hosting/dc.sh up -d minio-init && docker wait hcs-patient-portal-minio-init-1     # prints 0
+   # Add the MinIO remote to the same env file: the application credential from env.prod (it may write the bucket).
+   printf 'RCLONE_CONFIG_MINIO_TYPE=s3\nRCLONE_CONFIG_MINIO_PROVIDER=Minio\nRCLONE_CONFIG_MINIO_ENDPOINT=http://minio:9000\nRCLONE_CONFIG_MINIO_ACCESS_KEY_ID=%s\nRCLONE_CONFIG_MINIO_SECRET_ACCESS_KEY=%s\nRCLONE_CONFIG_MINIO_NO_CHECK_BUCKET=true\n' \
+     "<MINIO_APP_ACCESS_KEY>" "<MINIO_APP_SECRET_KEY>" | sudo tee -a /tmp/rclone-az.env > /dev/null
+   sudo docker run --rm --network hcs-patient-portal_default --env-file /tmp/rclone-az.env \
+     <the pinned RCLONE_IMAGE> copy az:documents/case-evaluation-documents minio:case-evaluation-documents
+   sudo rm /tmp/rclone-az.env
+   ```
+
+   The Case Tracker's own bucket is backed up only if it was listed in `AZURE_BACKUP_BUCKETS`.
+
+6. **Check that the documents match the databases** before anyone signs in, as in "Verify documents match the
+   database" below. List the restored objects with
+   `rclone lsf -R minio:case-evaluation-documents` in place of the tar listing. **Any object a row references that
+   is missing is a finding to record.** Do not paper over it.
+
+7. **Start the applications.** Run `scripts/hosting/dc.sh up -d`; the migrator runs first and must exit 0. Then
+   `scripts/hosting/dc.sh up -d --force-recreate reverse-proxy`. Then:
+   - check that `/health-status` answers and that each office's API answers;
+   - confirm the SQL Server edition: `SELECT @@VERSION` must not say Developer.
+
+   Everyone is signed out: sessions lived in Redis, which is not backed up.
+
+8. **Reinstall the host-side pieces a git checkout never installs.** These are the systemd units: the Azure
+   backup, the restore proof, the freshness check, the alert and certificate renewal. Enable their timers, as
+   when the VM was first built, and run a backup at once, so the new VM's first set exists before the next night.
+
+9. **Give the Case Tracker its MinIO access back.** MinIO's users live in MinIO itself, and the document backup
+   does not carry them. So each office's Case Tracker credential is gone, even though its file is still in the
+   restored `secrets/`. Move that file aside and create a new one per office with
+   `scripts/hosting/minio-case-tracker-access.sh <office id>`, then hand the new credential to the Case Tracker
+   owner.
+
+**Settings stored in the databases come back with them.** That includes anything saved through an admin screen,
+such as mail settings. That is what a production recovery wants. It is also why a _rehearsal_ of this procedure
+must check the restored databases for stored mail settings before any application starts: those settings
+override the env file.
 
 ## Restore one database
 

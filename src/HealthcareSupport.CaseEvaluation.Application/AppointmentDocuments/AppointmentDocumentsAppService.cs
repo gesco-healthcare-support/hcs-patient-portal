@@ -13,6 +13,7 @@ using HealthcareSupport.CaseEvaluation.Localization;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using HealthcareSupport.CaseEvaluation.PackageDetails;
 using HealthcareSupport.CaseEvaluation.Permissions;
+using HealthcareSupport.CaseEvaluation.PhiAccess;
 using HealthcareSupport.CaseEvaluation.Shared;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Localization;
@@ -558,11 +559,10 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         // an Accepted row; this keeps the immutability rule in one named place on both paths.
         DocumentUploadGate.EnsureNotImmutable(document, isInternalUser: false);
 
-        // Anonymous = external by definition; never internal. The previous blob is RETAINED:
-        // an object key may already have been handed to the Case Tracker, and an emailed link
-        // must not be able to destroy bytes (see DeleteAsync, Part 2 2026-07-28).
+        // Anonymous = external by definition; never internal. Like every replace path, this keeps
+        // the previous file and records it (see OverwriteUploadedFileAsync).
         await OverwriteUploadedFileAsync(
-            document, fileName, contentType, fileSize, content, isInternalUser: false, retainPreviousBlob: true);
+            document, fileName, contentType, fileSize, content, isInternalUser: false);
 
         await _localEventBus.PublishAsync(new AppointmentDocumentUploadedEto
         {
@@ -580,10 +580,26 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
 
     /// <summary>
     /// Shared file-upload + entity-update path for package-doc and
-    /// verification-code upload paths. Saves the blob, overwrites the
-    /// document's file metadata, sets status (Uploaded for external,
-    /// Accepted for internal), clears <see cref="AppointmentDocument.RejectionReason"/>
-    /// (re-upload after rejection wipes the prior reason).
+    /// verification-code upload paths. Saves the blob, records the file it
+    /// replaces, overwrites the document's file metadata, sets status
+    /// (Uploaded for external, Accepted for internal), clears
+    /// <see cref="AppointmentDocument.RejectionReason"/> (re-upload after
+    /// rejection wipes the prior reason; the version row keeps it).
+    ///
+    /// <para>THE REPLACED FILE IS NEVER DELETED (2026-10-12). Documents are kept
+    /// seven years, and the Case Tracker may already hold the old object key
+    /// (see DeleteAsync, Part 2 2026-07-28). The signed-in package path used to
+    /// delete it, and did so BEFORE the unit of work committed: when the commit
+    /// then failed, the compensating delete removed the new file too and the
+    /// rolled-back row still named the old one, which was gone -- a failed
+    /// upload could destroy the only copy. Keeping the file and writing an
+    /// <see cref="AppointmentDocumentVersion"/> in the same unit of work closes
+    /// both: a failed commit rolls the record back and removes only the new file.</para>
+    ///
+    /// <para>ORDER IS LOAD-BEARING: store first, then record and reassign. The
+    /// upload scanner refuses inside the store, and when it does nothing below
+    /// runs -- no version row, and no document row naming a file that was never
+    /// stored.</para>
     /// </summary>
     private async Task OverwriteUploadedFileAsync(
         AppointmentDocument document,
@@ -591,8 +607,7 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         string? contentType,
         long fileSize,
         Stream content,
-        bool isInternalUser,
-        bool retainPreviousBlob = false)
+        bool isInternalUser)
     {
         if (string.IsNullOrWhiteSpace(fileName))
         {
@@ -610,24 +625,9 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         var newBlobName = $"{tenantSegment}/{document.AppointmentId:N}/{Guid.NewGuid():N}";
         await SaveBlobWithRollbackAsync(newBlobName, content);
 
-        // Try to delete the placeholder/old blob if it was a real one
-        // (queued rows have a "(pending-upload)" placeholder; skip that).
-        // retainPreviousBlob: the anonymous link path never deletes bytes. NOTE the authenticated
-        // package-upload path still deletes the replaced blob (retainPreviousBlob = false); that
-        // is pre-existing behaviour and is reported rather than changed here.
-        if (!retainPreviousBlob
-            && !string.Equals(document.BlobName, "(pending-upload)", StringComparison.Ordinal))
-        {
-            try
-            {
-                await _blobContainer.DeleteAsync(document.BlobName);
-            }
-            catch
-            {
-                // entity row is the source of truth; orphan blob is
-                // a cleanup-job concern.
-            }
-        }
+        // Reads the document's CURRENT file fields, so it must run before they are overwritten.
+        // A queued row's placeholder is not a file and records nothing.
+        await _documentManager.RecordReplacedFileAsync(document, CurrentUser.Id);
 
         document.BlobName = newBlobName;
         document.FileName = fileName.Trim();
@@ -672,6 +672,9 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         // appointment so an external party can only download files on
         // appointments they are a party to.
         await _readAccessGuard.EnsureCanReadAsync(entity.AppointmentId);
+        // Recorded before the file is opened, so a failed log write leaves no open stream behind.
+        await PhiAccessRecorder.RecordAsync(PhiAccessAction.DocumentDownloaded,
+            new PhiAccessTarget(null, entity.AppointmentId, entity.Id));
         var stream = await _blobContainer.GetAsync(entity.BlobName);
         if (stream == null)
         {

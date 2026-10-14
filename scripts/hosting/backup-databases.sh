@@ -24,7 +24,11 @@ SQL_SERVICE="${SQL_SERVICE:-sql-server}"
 BACKUP_DIR="${BACKUP_DIR:-./backups}"
 RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-14}"
 CONTAINER_BACKUP_DIR="/var/opt/mssql/backups"
-STAMP="$(date +%Y%m%d-%H%M%S)"
+# The run stamp in every dump's file name. backup-offbox.sh passes its own, so it ships exactly this run's
+# dumps; run alone, this script stamps them itself. Checked strictly before use: it goes into the SQL BACKUP
+# statement below and into file names, so only the exact YYYYMMDD-HHMMSS shape is accepted.
+STAMP="${STAMP:-$(date +%Y%m%d-%H%M%S)}"
+[[ "$STAMP" =~ ^[0-9]{8}-[0-9]{6}$ ]] || { echo "ERROR: STAMP must look like 20261013-013000; refusing a malformed value" >&2; exit 1; }
 
 # SA password from the git-ignored env file (never echoed).
 SA_PASSWORD="$(grep -E '^MSSQL_SA_PASSWORD=' "$ENV_FILE" | head -1 | cut -d= -f2-)"
