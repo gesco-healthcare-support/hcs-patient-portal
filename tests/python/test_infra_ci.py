@@ -4,7 +4,8 @@ Its failure modes are quiet ones, which is why each guard is tested from both si
 
 - the role drift check passing while a template assigns a role CI may not grant (the deploy then fails with
   AuthorizationFailed, in production, at the first real run);
-- the workflow guard passing while infra.yml gains an unpinned action or an environment on the preview job;
+- the workflow guard passing while infra.yml gains an unpinned action, an environment on the preview job, or a
+  push trigger that would deploy main.bicep on a promotion;
 - a parameter or an error message leaking into a PUBLIC log or PR comment.
 """
 
@@ -152,6 +153,24 @@ class CheckWorkflow(unittest.TestCase):
     def test_token_request_from_another_job_fails(self):
         bad = GOOD_WORKFLOW.replace("    runs-on: ubuntu-latest\n", "    permissions:\n      id-token: write\n", 1)
         self.assertTrue(any("job 'bicep' requests an OIDC token" in e for e in infra.check_workflow(bad)))
+
+    def test_push_trigger_fails(self):
+        bad = GOOD_WORKFLOW.replace("  pull_request:\n", "  pull_request:\n  push:\n    branches:\n      - production\n")
+        errors = infra.check_workflow(bad)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("must not run on push", errors[0])
+
+    def test_push_in_the_inline_trigger_list_fails(self):
+        bad = GOOD_WORKFLOW.replace("on:\n  pull_request:\n", "on: [pull_request, push]\n")
+        self.assertTrue(any("must not run on push" in e for e in infra.check_workflow(bad)))
+
+    def test_push_in_a_comment_a_path_or_a_step_is_not_a_trigger(self):
+        fine = GOOD_WORKFLOW.replace(
+            "  pull_request:\n",
+            "  pull_request:\n    paths:\n      - \"scripts/push.sh\"\n  # no push: on purpose\n  workflow_dispatch:\n")
+        fine = fine.replace("      - uses: ./.github/actions/local\n",
+                            "      - uses: ./.github/actions/local\n      - run: git push --dry-run\n")
+        self.assertEqual(infra.check_workflow(fine), [])
 
     def test_missing_job_and_missing_default_permissions_fail(self):
         bad = GOOD_WORKFLOW.replace("permissions:\n  contents: read\n", "").replace("  deploy:", "  ship:")

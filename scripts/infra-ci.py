@@ -7,8 +7,9 @@ Three subcommands, stdlib only:
              - every role a resource-group template assigns is in the infra identity's ABAC set
                (infra/azure/subscription/assignable-roles.json), and every entry in that set is either
                assigned or explicitly reserved for a named plan item;
-             - infra.yml keeps its safety properties: no pull_request_target, every action pinned by SHA,
-               the preview job names no environment, the deploy job names azure-production-infra.
+             - infra.yml keeps its safety properties: no pull_request_target, no push trigger, every action
+               pinned by SHA, the preview job names no environment, the deploy job names
+               azure-production-infra.
   params     Writes a deployment parameters file for either the pull-request preview (placeholders for
              secure values, everything else from the last real deploy) or the deploy (from the
              environment's secrets and variables).
@@ -175,6 +176,26 @@ def check_fic_policy(root: Path) -> list[str]:
     return errors
 
 
+def trigger_errors(workflow: str) -> list[str]:
+    """The workflow runs on pull requests and by hand, never because something was pushed.
+
+    The deploy job applies main.bicep, the full design; the go-live is the one-VM fast path, deployed by hand.
+    A push trigger would let the first promotion to `production` that carries an infra/azure change start a
+    deploy of the design that was not chosen. Reads the top-level `on:` block in both its block and inline forms.
+    """
+    inline, block, inside = "", [], False
+    for line in workflow.splitlines():
+        if line.strip() and not line.startswith((" ", "#")):
+            key, _, rest = line.partition(":")
+            inside = key == "on"
+            inline = rest if inside else inline
+        elif inside:
+            block.append(line)
+    if re.search(r"\bpush\b", inline) or any(re.match(r" {2}push\s*:", line) for line in block):
+        return ["infra.yml must not run on push: its deploy job applies main.bicep. Use workflow_dispatch."]
+    return []
+
+
 def job_errors(jobs: dict[str, str]) -> list[str]:
     """Which job may hold which identity."""
     errors = []
@@ -197,6 +218,7 @@ def check_workflow(workflow: str) -> list[str]:
     code = "\n".join(line for line in workflow.splitlines() if not line.lstrip().startswith("#"))
     if "pull_request_target" in code:
         errors.append("infra.yml must never use pull_request_target: it runs fork code with base-repo rights.")
+    errors += trigger_errors(code)
     errors += unpinned_actions(workflow)
     errors += job_errors(job_blocks(workflow))
     errors += unredirected_az(code)
