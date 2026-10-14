@@ -4,7 +4,7 @@ Written 2026-10-13. **Nothing here has been deployed yet.** `bicep build` and `b
 CI pins) report zero diagnostics on every file. That proves the syntax and the type model agree; it does not prove a
 resource provisions. The first real test is `what-if` against the subscription.
 
-What it costs, line by line: [COSTS.md](COSTS.md). About $181 a month at the defaults.
+What it costs, line by line: [COSTS.md](COSTS.md). About $185 a month at the defaults.
 
 ## What this is
 
@@ -35,6 +35,8 @@ two can share a resource group during the move and the backup and alert units wo
 | `modules/host.bicep` | The VM, its two disks, its identity, and the cloud-init that installs Docker on the data disk |
 | `modules/backup-storage.bicep` | The backup account, its two containers, versioning, soft delete and lifecycle tiers |
 | `modules/dns-records.bicep` | Address and CAA records in the EXISTING DNS zone |
+| `modules/uptime.bicep` | The outside "site is down" check and its email (on by default) |
+| `modules/relay.bicep` | Optional Azure Relay for the Case Tracker's document reads (off by default) |
 | `main.parameters.example.json` | Copy to `main.parameters.json` (gitignored) and fill in |
 | `COSTS.md` | Every line priced from the Azure Retail Prices API |
 
@@ -102,7 +104,7 @@ Before the first deploy:
 ```bash
 git clone https://github.com/gesco-healthcare-support/hcs-patient-portal.git
 cd hcs-patient-portal/infra/azure/fastpath
-cp main.parameters.example.json main.parameters.json   # fill in baseDomain and adminSshPublicKey
+cp main.parameters.example.json main.parameters.json   # fill in baseDomain, adminSshPublicKey, uptimeAlertEmail
 
 # Not optional on a first run: read what it will create.
 az deployment group what-if -g <resource-group> -f main.bicep -p @main.parameters.json
@@ -131,6 +133,22 @@ The template stops at an empty VM with Docker installed on the data disk. The re
    Run `scripts/hosting/backup-azure-blob.sh --dry-run` before enabling the timers: it is the first real test of the
    VM's identity against the backup account.
 
+## The outside "site is down" check
+
+On by default (`deployUptimeCheck`). Azure requests `https://health.<baseDomain>/health-status` from three US regions
+every 15 minutes, and emails `uptimeAlertEmail` when two of the three fail. nginx answers only that path on the
+health host and passes it to the API, whose health check queries the database, so a 200 means DNS, TLS, nginx, the
+API and SQL Server all work. The check also fails when the TLS certificate has fewer than 14 days left, which
+catches a renewal that has been failing for weeks. The backup and certificate alerts on the VM cannot report the
+VM itself being down; this can. About $4.38 a month (COSTS.md).
+
+- **Expect one "Fired" email right after the first deploy**, because nothing answers yet, and a "Resolved" email
+  once the stack is up. That pair is also the proof the alert path works. The sender is
+  `azure-noreply@microsoft.com`; put it on the safe-senders list, or the first one lands in Junk.
+- It does not check the sign-in server or the web app's own pages. Each extra test costs the same again.
+- `uptimeAlertEmail` is required while the check is on: an empty value fails validation rather than deploying a
+  check that tells nobody. `uptimeFrequencySeconds: 300` alerts faster for about $13 a month.
+
 ## Later: Azure Relay for the Case Tracker's document reads
 
 After go-live, and before the Case Tracker's document reads are switched on, redeploy with
@@ -153,6 +171,7 @@ The VM side is `scripts/hosting/relay-listener.sh` with `hcs-portal-relay.servic
   - that `Standard_D4s_v5` offers encryption at host in West US 2 together with Trusted Launch. Microsoft says
     support varies by size and region; check before deploying with
     `az vm list-skus -l westus2 --size Standard_D4s_v5 --query "[].capabilities[?name=='EncryptionAtHostSupported']"`;
+  - that the outside check's location ids and its two-of-three alert rule are accepted as written;
   - that the custom role's three data actions are all `rclone` needs. The backup script was proven against the
     Azurite emulator, which does not enforce roles.
 - **The data disk's device name.** cloud-init looks for LUN 0 at `/dev/disk/azure/data/by-lun/0` and then
