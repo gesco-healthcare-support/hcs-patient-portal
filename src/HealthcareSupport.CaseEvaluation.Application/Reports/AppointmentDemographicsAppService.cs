@@ -1,6 +1,7 @@
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Permissions;
+using HealthcareSupport.CaseEvaluation.PhiAccess;
 using HealthcareSupport.CaseEvaluation.Reports.Pdf;
 using Microsoft.AspNetCore.Authorization;
 using QuestPDF.Fluent;
@@ -31,7 +32,10 @@ public class AppointmentDemographicsAppService : CaseEvaluationAppService, IAppo
 
     public virtual async Task<DownloadResult> GetPdfAsync(Guid appointmentId)
     {
+        // The read above records an AppointmentViewed row (and enforces the party gate); this row
+        // records that the record also left the portal as a file.
         var appointment = await _appointmentsAppService.GetWithNavigationPropertiesAsync(appointmentId);
+        await PhiAccessRecorder.RecordAsync(PhiAccessAction.DemographicsExported, new PhiAccessTarget(null, appointmentId));
         var bytes = new AppointmentDemographicsPdfDocument(appointment).GeneratePdf();
 
         var confirmation = appointment.Appointment?.RequestConfirmationNumber;

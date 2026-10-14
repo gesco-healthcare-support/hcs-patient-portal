@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.BlobContainers;
 using HealthcareSupport.CaseEvaluation.Permissions;
+using HealthcareSupport.CaseEvaluation.PhiAccess;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
 using Volo.Abp.Application.Services;
@@ -96,6 +97,9 @@ public class AppointmentPacketsAppService : CaseEvaluationAppService, IAppointme
             throw new UserFriendlyException("Packet is not ready yet. Please wait for generation to finish.");
         }
 
+        // Recorded before the file is opened, so a failed log write leaves no open stream behind.
+        await PhiAccessRecorder.RecordAsync(PhiAccessAction.PacketDownloaded,
+            new PhiAccessTarget(null, appointmentId, packet.Id));
         var stream = await _blobContainer.GetAsync(packet.BlobName);
         if (stream == null)
         {
@@ -159,6 +163,8 @@ public class AppointmentPacketsAppService : CaseEvaluationAppService, IAppointme
             throw new UserFriendlyException("Packet is not ready yet. Please wait for generation to finish.");
         }
 
+        await PhiAccessRecorder.RecordAsync(PhiAccessAction.PacketDownloaded,
+            new PhiAccessTarget(null, appointmentId, packet.Id));
         var stream = await _blobContainer.GetAsync(packet.BlobName);
         if (stream == null)
         {

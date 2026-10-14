@@ -48,6 +48,7 @@ HealthcareSupport.CaseEvaluation.Notifications.Outbox.NotificationOutboxItem -> 
 HealthcareSupport.CaseEvaluation.PackageDetails.DocumentPackage -> IMultiTenant=no CaseEvaluationDbContext=mapped CaseEvaluationTenantDbContext=mapped
 HealthcareSupport.CaseEvaluation.PackageDetails.PackageDetail -> IMultiTenant=yes CaseEvaluationDbContext=mapped CaseEvaluationTenantDbContext=mapped
 HealthcareSupport.CaseEvaluation.Patients.Patient -> IMultiTenant=yes CaseEvaluationDbContext=mapped CaseEvaluationTenantDbContext=mapped
+HealthcareSupport.CaseEvaluation.PhiAccess.PhiAccessLogEntry -> IMultiTenant=yes CaseEvaluationDbContext=mapped CaseEvaluationTenantDbContext=mapped
 HealthcareSupport.CaseEvaluation.States.State -> IMultiTenant=yes CaseEvaluationDbContext=mapped CaseEvaluationTenantDbContext=mapped
 HealthcareSupport.CaseEvaluation.SystemParameters.SystemParameter -> IMultiTenant=yes CaseEvaluationDbContext=mapped CaseEvaluationTenantDbContext=mapped
 HealthcareSupport.CaseEvaluation.UserQueries.UserQuery -> IMultiTenant=yes CaseEvaluationDbContext=mapped CaseEvaluationTenantDbContext=mapped

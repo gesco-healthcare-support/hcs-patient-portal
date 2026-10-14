@@ -573,6 +573,28 @@ internal static class CaseEvaluationSharedModelConfiguration
             b.HasOne<HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocument>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentDocumentId).OnDelete(DeleteBehavior.NoAction);
         });
 
+        // 2026-10-13: the PHI access log. Ids only, append-only, never deleted. No foreign keys on
+        // purpose: a log row must outlive anything it points at, and must never block a write
+        // elsewhere. Indexed for the four questions it answers: who saw this patient, who saw this
+        // appointment, what did this user see, and what happened in this period.
+        builder.Entity<HealthcareSupport.CaseEvaluation.PhiAccess.PhiAccessLogEntry>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "PhiAccessLog", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName(TenantIdColumn);
+            b.Property(x => x.UserId).HasColumnName("UserId");
+            b.Property(x => x.ImpersonatorUserId).HasColumnName("ImpersonatorUserId");
+            b.Property(x => x.Action).HasColumnName("Action").IsRequired();
+            b.Property(x => x.PatientId).HasColumnName("PatientId");
+            b.Property(x => x.AppointmentId).HasColumnName("AppointmentId");
+            b.Property(x => x.DocumentId).HasColumnName("DocumentId");
+            b.Property(x => x.AccessedAt).HasColumnName("AccessedAt").IsRequired();
+            b.HasIndex(x => new { x.PatientId, x.AccessedAt });
+            b.HasIndex(x => new { x.AppointmentId, x.AccessedAt });
+            b.HasIndex(x => new { x.UserId, x.AccessedAt });
+            b.HasIndex(x => x.AccessedAt);
+        });
+
         // Document master template catalog (IT Admin uploads blank PDF templates).
         builder.Entity<Document>(b =>
         {
