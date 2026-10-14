@@ -743,6 +743,8 @@
     "CaseEvaluation:Document.JdfRequiresAmeAppointment": "Appointment type is not valid. Please upload appropriate document.",
     "CaseEvaluation:Document.JdfUploaderMustBeBookingAttorney": "Only the booking attorney can upload the joint declaration form.",
     "CaseEvaluation:Document.ImmutableForExternalUser": "This document has already been accepted and cannot be modified.",
+    "CaseEvaluation:Document.ReplaceRequiresRejected": "Only a rejected document can be replaced this way. Upload it as a new document instead.",
+    "CaseEvaluation:Document.NotAPackageRow": "This document is not a requested package document, so it cannot be uploaded this way.",
     "CaseEvaluation:Document.UnauthorizedVerificationCode": "Un unauthorized user",
     "CaseEvaluation:ChangeRequest.AlreadyHandled": "This change request has already been processed.",
     "CaseEvaluation:ChangeRequest.InvalidCancellationOutcome": "Cancellation outcome must be CancelledNoBill or CancelledLate.",

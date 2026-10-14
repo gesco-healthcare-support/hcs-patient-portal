@@ -69,6 +69,17 @@ public interface IAppointmentDocumentsAppService
         Stream content);
 
     /// <summary>
+    /// 2026-10-14: "Upload replacement" on a REJECTED document of any kind. Replaces the
+    /// file in place, keeps and records the replaced file, clears the rejection.
+    /// </summary>
+    Task<AppointmentDocumentDto> ReplaceRejectedDocumentAsync(
+        Guid documentId,
+        string fileName,
+        string? contentType,
+        long fileSize,
+        Stream content);
+
+    /// <summary>
     /// Phase 14: AME Joint Declaration Form upload. Creates a NEW row
     /// with <c>IsJointDeclaration = true</c>. Gates: appointment
     /// Approved + not past DueDate; AppointmentType is AME; caller is

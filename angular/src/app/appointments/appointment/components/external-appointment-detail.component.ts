@@ -531,10 +531,18 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
     this.touched.add(key);
   }
 
-  /** Acknowledge the document replacement (the upload happens in the Documents section). */
-  protected ackDocumentReplaced(): void {
+  /**
+   * 2026-10-14: the "documents" fix-it item is done when a file was ACTUALLY provided -- an upload
+   * or a replacement of a rejected document, reported by the Documents panel's documentProvided
+   * event. It used to be a click on "I uploaded the replacement", which marked it done whether or
+   * not anything was uploaded.
+   */
+  protected onDocumentProvided(): void {
+    if (!this.documentFlagged || this.touched.has('documents')) {
+      return;
+    }
     this.touched.add('documents');
-    this.fixItToaster.success('Thanks -- upload your replacement in the Documents section below.');
+    this.fixItToaster.success('Document received -- that item is done.');
   }
 
   /**

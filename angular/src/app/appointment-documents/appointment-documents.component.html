@@ -172,6 +172,18 @@
                 </div>
               }
             </div>
+            <!-- 2026-10-14: replaces the rejected file in place (kept on record server-side). -->
+            @if (canUpload && doc.status === DocumentStatus.Rejected) {
+              <button
+                type="button"
+                class="btn btn-outline-primary btn-sm replace-btn"
+                (click)="startReplace(doc, replacePicker)"
+                [disabled]="replacingDoc !== null"
+              >
+                <i class="fa fa-upload me-1"></i>
+                {{ replacingDoc?.id === doc.id ? 'Uploading...' : 'Upload replacement' }}
+              </button>
+            }
             <button
               type="button"
               class="btn btn-outline-primary btn-sm"
@@ -215,6 +227,16 @@
         }
       </div>
     }
+    <!-- One picker serves every "Upload replacement" button; startReplace remembers the row. -->
+    <input
+      #replacePicker
+      id="document-replace-input"
+      type="file"
+      class="d-none"
+      aria-label="Choose the replacement file"
+      [accept]="acceptAttribute"
+      (change)="onReplacementSelected($event)"
+    />
   </div>
 </div>
 

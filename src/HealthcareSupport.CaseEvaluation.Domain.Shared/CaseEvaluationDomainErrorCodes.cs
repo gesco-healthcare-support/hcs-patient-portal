@@ -567,6 +567,22 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:Document.ImmutableForExternalUser";
 
     /// <summary>
+    /// 2026-10-14 -- raised by <c>DocumentUploadGate.EnsureRejected</c> when "Upload
+    /// replacement" names a document that is not Rejected. Localization key
+    /// <c>CaseEvaluation:Document.ReplaceRequiresRejected</c>.
+    /// </summary>
+    public const string DocumentReplaceRequiresRejected =
+        "CaseEvaluation:Document.ReplaceRequiresRejected";
+
+    /// <summary>
+    /// 2026-10-14 -- raised by <c>DocumentUploadGate.EnsurePackageRow</c> when the package
+    /// upload names an ad-hoc upload or a joint declaration. Localization key
+    /// <c>CaseEvaluation:Document.NotAPackageRow</c>.
+    /// </summary>
+    public const string DocumentNotAPackageRow =
+        "CaseEvaluation:Document.NotAPackageRow";
+
+    /// <summary>
     /// Phase 14 (2026-05-04) -- raised by
     /// <c>DocumentUploadGate.EnsureVerificationCodeMatches</c> when
     /// the supplied verification code does not match the document's
