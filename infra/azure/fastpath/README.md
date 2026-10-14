@@ -121,7 +121,17 @@ The template stops at an empty VM with Docker installed on the data disk. The re
 1. Confirm cloud-init finished and Docker really is on the data disk: `findmnt /srv` shows the data disk and
    `docker info --format '{{.DockerRootDir}}'` prints `/srv/docker`. If cloud-init could not find the disk, it
    stopped before installing Docker on purpose; see "Known gaps".
-2. Clone the repository to `/home/apadmin/hcs-patient-portal` and create `secrets/` with a NEW `env.prod`.
+2. Clone the repository to `/home/apadmin/hcs-patient-portal` and create `secrets/` with a NEW `env.prod`
+   (every key is in `env.prod.example`). On this VM, unlike the office server:
+   - `MSSQL_PID=Express` (licensed for production; the default, Developer, is not);
+   - `SQL_APP_LOGIN` and `SQL_APP_PASSWORD`, the application's own SQL login instead of `sa`. Choose the
+     password once, before the first office exists: it is stored in every office's connection string;
+   - `MINIO_ALLOW_DIRECTIVES="deny all;"` and `DOCS_ALLOW_DIRECTIVES="deny all;"`. Empty is NOT closed:
+     compose then falls back to the private address ranges;
+   - `AZURE_BACKUP_STORAGE_ACCOUNT` = the template's `backupStorageAccountName` output;
+   - `CASE_TRACKER_INTEGRATION_TOKEN` and `CASE_TRACKER_FEED_TOKEN` as two DIFFERENT values; the push
+     (`CASE_TRACKER_BASE_URL`, `CASE_TRACKER_INTAKE_TOKEN`) stays empty, because the Case Tracker pulls;
+   - optionally `ACME_EMAIL`, the Let's Encrypt contact.
 3. **Load the two MinIO images from the rescue archive.** They cannot be pulled from any registry (see `../README.md`,
    step 6 of "After the template").
 4. Issue the TLS certificate with `scripts/hosting/renew-tls-cert.sh` (Let's Encrypt, DNS-01 against the zone, as the
@@ -129,7 +139,9 @@ The template stops at an empty VM with Docker installed on the data disk. The re
    FIRST: it proves the zone, the identity and the role against Let's Encrypt's staging CA and installs nothing. Then
    run it without `--staging`, and install `hcs-portal-tls-renew.{service,timer}` from `scripts/hosting/systemd` so it
    renews itself. The script's header says what each step checks.
-5. Bring the stack up, migrator first, then install the backup units (`docs/runbooks/hosting-backup-restore.md`).
+5. Bring the stack up: start `sql-server`, create the application's login with
+   `sudo bash scripts/hosting/sql-app-login.sh` (it verifies the login is not sysadmin), then the migrator, then
+   the rest. Then install the backup units (`docs/runbooks/hosting-backup-restore.md`).
    Run `scripts/hosting/backup-azure-blob.sh --dry-run` before enabling the timers: it is the first real test of the
    VM's identity against the backup account.
 
