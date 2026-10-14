@@ -4238,6 +4238,56 @@ namespace HealthcareSupport.CaseEvaluation.TenantMigrations
                     b.ToTable("AppPatients", (string)null);
                 });
 
+            modelBuilder.Entity("HealthcareSupport.CaseEvaluation.PhiAccess.PhiAccessLogEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("AccessedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("AccessedAt");
+
+                    b.Property<int>("Action")
+                        .HasColumnType("int")
+                        .HasColumnName("Action");
+
+                    b.Property<Guid?>("AppointmentId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("AppointmentId");
+
+                    b.Property<Guid?>("DocumentId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DocumentId");
+
+                    b.Property<Guid?>("ImpersonatorUserId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ImpersonatorUserId");
+
+                    b.Property<Guid?>("PatientId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("PatientId");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TenantId");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("UserId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccessedAt");
+
+                    b.HasIndex("AppointmentId", "AccessedAt");
+
+                    b.HasIndex("PatientId", "AccessedAt");
+
+                    b.HasIndex("UserId", "AccessedAt");
+
+                    b.ToTable("AppPhiAccessLog", (string)null);
+                });
+
             modelBuilder.Entity("HealthcareSupport.CaseEvaluation.States.State", b =>
                 {
                     b.Property<Guid>("Id")

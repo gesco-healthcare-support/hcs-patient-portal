@@ -22,8 +22,8 @@ public interface IPatientsAppService : IApplicationService
     // Standard payloads carry only the masked last-4; this returns the full
     // value to internal callers or the record owner (enforced by the
     // Patients.RevealSsn permission + SsnRevealAccess). Route:
-    // GET api/app/patients/{id}/ssn. NOT audited -- it is a GET and GET
-    // auditing is off by default; see PatientsAppService.GetFullSsnAsync.
+    // GET api/app/patients/{id}/ssn. Each reveal is recorded in the PHI access
+    // log (the HTTP audit log skips GETs); see PatientsAppService.GetFullSsnAsync.
     Task<SsnRevealDto> GetFullSsnAsync(Guid id);
     Task<PagedResultDto<LookupDto<Guid>>> GetStateLookupAsync(LookupRequestDto input);
     Task<PagedResultDto<LookupDto<Guid>>> GetAppointmentLanguageLookupAsync(LookupRequestDto input);
