@@ -371,9 +371,9 @@ a throwaway compose project, with outbound mail and the Case Tracker neutralised
 
 9. **Give the Case Tracker its MinIO access back.** MinIO's users live in MinIO itself, and the document backup
    does not carry them. So each office's Case Tracker credential is gone, even though its file is still in the
-   restored `secrets/`. Move that file aside and create a new one per office with
-   `scripts/hosting/minio-case-tracker-access.sh <office id>`, then hand the new credential to the Case Tracker
-   owner.
+   restored `secrets/`. Move that file aside and create a new one with
+   `scripts/hosting/minio-case-tracker-access.sh --shared <every Case-Tracker-served office id>` (or per office,
+   `... <office id>`, where an office has its own key), then hand the new credential to the Case Tracker owner.
 
 **Settings stored in the databases come back with them.** That includes anything saved through an admin screen,
 such as mail settings. That is what a production recovery wants. It is also why a _rehearsal_ of this procedure
