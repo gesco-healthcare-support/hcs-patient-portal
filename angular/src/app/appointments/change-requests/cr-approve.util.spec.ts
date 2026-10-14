@@ -3,8 +3,10 @@ import {
   canConfirmDate,
   canFinalizeReschedule,
   consentStatusLabel,
+  effectiveRescheduleOutcome,
   formatSlotLabel,
   requiresAdminReason,
+  rescheduleModalTitle,
   rescheduleStage,
   rowActionIsFinal,
   rowActionLabel,
@@ -313,10 +315,26 @@ describe('cr-approve.util', () => {
   });
 
   describe('formatSlotLabel', () => {
-    // A timestamp WITHOUT a zone, as the server sends it, so it parses as local midnight and
-    // reads as the same calendar day in every timezone. A bare '2026-08-27' would parse as UTC
-    // midnight and read as Aug 26 in Pacific time -- a test that passes in CI and fails locally.
+    // A slot date is a CALENDAR date: the label must be the day that was written, whatever zone
+    // designator the value arrives with. Until 2026-10-14 the server sent it as UTC midnight
+    // ('...T00:00:00Z'), and `new Date()` made a Pacific viewer read the day before -- the
+    // approve modal said "Oct 19" for a reschedule staff had set to Oct 20.
     const DAY = '2026-08-27T00:00:00';
+
+    it('labels the written day when the date arrives as UTC midnight', () => {
+      expect(formatSlotLabel('2026-08-27T00:00:00Z', '10:30')).toBe('Aug 27, 2026 at 10:30');
+    });
+
+    it('labels the written day whatever offset the date carries', () => {
+      // +14:00 is the one that fails in EVERY zone, CI's UTC included: read as an instant it is
+      // 10:00 UTC on the 26th. The Z case above only fails west of Greenwich.
+      expect(formatSlotLabel('2026-08-27T00:00:00+14:00', '10:30')).toBe('Aug 27, 2026 at 10:30');
+    });
+
+    it('labels the written day for a bare date', () => {
+      // The ECMAScript spec parses a bare date as UTC midnight, the same trap as the Z.
+      expect(formatSlotLabel('2026-08-27', null)).toBe('Aug 27, 2026');
+    });
 
     it('labels a slot with its date and start time', () => {
       expect(formatSlotLabel(DAY, '10:30')).toBe('Aug 27, 2026 at 10:30');
@@ -329,6 +347,30 @@ describe('cr-approve.util', () => {
     it('gives no label for an unparseable date', () => {
       // Positive control: the tests above show a parseable date DOES label.
       expect(formatSlotLabel('not-a-date', '10:30')).toBeNull();
+    });
+  });
+
+  describe('rescheduleModalTitle', () => {
+    it('names the step the reschedule is really on', () => {
+      expect(rescheduleModalTitle('needs-date')).toBe('Set reschedule date');
+      expect(rescheduleModalTitle('awaiting-consent')).toBe('Reschedule awaiting consent');
+      expect(rescheduleModalTitle('granted')).toBe('Complete reschedule');
+    });
+  });
+
+  describe('effectiveRescheduleOutcome', () => {
+    it('uses the outcome chosen at Set date over the modal pick', () => {
+      // The fallback Approve used to send the modal's No bill default even when Late was chosen.
+      expect(effectiveRescheduleOutcome(8, 7)).toBe(8);
+    });
+
+    it('falls back to the modal pick on a round that carries no outcome', () => {
+      expect(effectiveRescheduleOutcome(null, 7)).toBe(7);
+      expect(effectiveRescheduleOutcome(undefined, 8)).toBe(8);
+    });
+
+    it('is null when neither is set', () => {
+      expect(effectiveRescheduleOutcome(null, null)).toBeNull();
     });
   });
 

@@ -71,6 +71,16 @@ function toDate(value: DateInput): Date | null {
 }
 
 /**
+ * Parses a CALENDAR DATE as the day that was written, ignoring any zone designator; null when
+ * empty or unparseable. The parse behind `calendarDate`, exported for code that formats a
+ * calendar date outside a template -- the reschedule modal's slot label read a slot date with a
+ * bare `new Date()` and showed Oct 19 for an Oct 20 slot (2026-10-14).
+ */
+export function parseCalendarDate(value: DateInput): Date | null {
+  return toDate(typeof value === 'string' ? asLocalWallClock(value) : value);
+}
+
+/**
  * Renders an INSTANT -- a moment that happened -- in Pacific time.
  *
  * Use this for anything the server stamped: creation and modification times, approval times,
@@ -119,9 +129,7 @@ export class CalendarDatePipe implements PipeTransform {
   private readonly locale = inject(LOCALE_ID);
 
   transform(value: DateInput, format = 'mediumDate'): string | null {
-    if (value === null || value === undefined || value === '') return null;
-
-    const date = toDate(typeof value === 'string' ? asLocalWallClock(value) : value);
+    const date = parseCalendarDate(value);
     if (!date) return null;
 
     return formatDate(date, format, this.locale);

@@ -33,6 +33,7 @@ public partial class AppointmentChangeRequestToAppointmentChangeRequestDtoMapper
     [MapperIgnoreTarget(nameof(AppointmentChangeRequestDto.CurrentRoundSideAStatus))]
     [MapperIgnoreTarget(nameof(AppointmentChangeRequestDto.CurrentRoundSideBStatus))]
     [MapperIgnoreTarget(nameof(AppointmentChangeRequestDto.CurrentRoundSendAttempts))]
+    [MapperIgnoreTarget(nameof(AppointmentChangeRequestDto.CurrentRoundProposedOutcome))]
     public override partial AppointmentChangeRequestDto Map(AppointmentChangeRequest source);
 
     [MapperIgnoreTarget(nameof(AppointmentChangeRequestDto.AppointmentConfirmationNumber))]
@@ -47,5 +48,6 @@ public partial class AppointmentChangeRequestToAppointmentChangeRequestDtoMapper
     [MapperIgnoreTarget(nameof(AppointmentChangeRequestDto.CurrentRoundSideAStatus))]
     [MapperIgnoreTarget(nameof(AppointmentChangeRequestDto.CurrentRoundSideBStatus))]
     [MapperIgnoreTarget(nameof(AppointmentChangeRequestDto.CurrentRoundSendAttempts))]
+    [MapperIgnoreTarget(nameof(AppointmentChangeRequestDto.CurrentRoundProposedOutcome))]
     public override partial void Map(AppointmentChangeRequest source, AppointmentChangeRequestDto destination);
 }

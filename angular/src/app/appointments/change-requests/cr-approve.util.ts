@@ -15,6 +15,8 @@
  * rules (ChangeRequestApprovalValidator); these only drive the button state.
  */
 
+import { parseCalendarDate } from '../../shared/pipes/pacific-date.pipe';
+
 /** True only when staff replaced a slot the requestor actually proposed. */
 export function requiresAdminReason(
   proposedSlotId: string | null | undefined,
@@ -114,16 +116,16 @@ export function rescheduleStage(row: ConsentRoundRow | null | undefined): Consen
 /**
  * "Aug 27, 2026 at 10:30", or null when there is no date to show. Shared by the requestor's
  * proposal and the confirmed round's date so the two read identically in the modal.
+ *
+ * The slot date is a CALENDAR date, so it is parsed as written (`parseCalendarDate`), never as
+ * an instant: read with `new Date()`, a UTC-midnight value showed Pacific staff the day before.
  */
 export function formatSlotLabel(
   isoDate: string | null | undefined,
   fromTime: string | null | undefined,
 ): string | null {
-  if (!isoDate) {
-    return null;
-  }
-  const date = new Date(isoDate);
-  if (Number.isNaN(date.getTime())) {
+  const date = parseCalendarDate(isoDate);
+  if (!date) {
     return null;
   }
   const day = date.toLocaleDateString('en-US', {
@@ -193,6 +195,35 @@ export function canFinalizeReschedule(state: {
   outcome: number | null | undefined;
 }): boolean {
   return state.stage === 'granted' && !!state.outcome;
+}
+
+/**
+ * 2026-10-14 -- the approve modal's title for a reschedule. Since 2026-10-09 a reschedule
+ * completes on its own once both sides agree, so only the fallback stage is an approval; the
+ * title says which step the modal is really on instead of "Approve reschedule" throughout.
+ */
+export function rescheduleModalTitle(stage: ConsentRoundStage): string {
+  switch (stage) {
+    case 'needs-date':
+      return 'Set reschedule date';
+    case 'awaiting-consent':
+      return 'Reschedule awaiting consent';
+    default:
+      return 'Complete reschedule';
+  }
+}
+
+/**
+ * The outcome a reschedule finalizes with: the one staff chose at Set date, which the automatic
+ * completion would have used, else the modal's own pick (a round opened before outcomes were
+ * chosen at Set date carries none). Without this the fallback Approve sent the modal's No bill
+ * default even when Late had been chosen.
+ */
+export function effectiveRescheduleOutcome(
+  chosenAtSetDate: number | null | undefined,
+  modalPick: number | null | undefined,
+): number | null {
+  return chosenAtSetDate ?? modalPick ?? null;
 }
 
 /**
