@@ -120,7 +120,9 @@ az deployment group what-if \
 
 - **Infra: Bicep** builds and lints every template (zero diagnostics), then runs `scripts/infra-ci.py check`.
 - **Infra: What-If** runs on pull requests from this repository and posts one comment per PR.
-- **Infra: Deploy** runs from `production` behind the `azure-production-infra` environment.
+- **Infra: Deploy** runs from `production` behind the `azure-production-infra` environment, started BY HAND
+  (`workflow_dispatch`). It never runs on a push: it applies `main.bicep`, the full design, while the go-live is
+  the one-VM fast path in `fastpath/`, deployed by hand. `scripts/infra-ci.py check` refuses a push trigger.
 
 ### Three identities, not one
 

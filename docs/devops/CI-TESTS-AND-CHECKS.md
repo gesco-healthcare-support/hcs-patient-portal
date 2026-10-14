@@ -113,7 +113,7 @@ These run on a pull request only when it touches their paths, and neither is a r
 | Workflow        | Runs on                                                                                                                                              | Jobs                                        |
 | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
 | `docs-site.yml` | Pull request or push to `main` touching `docs/**`, `mkdocs.yml`, `.github/docs-requirements.*`, `scripts/docs/**` or the workflow; manual dispatch | Docs: Build site, Docs: Publish to Pages    |
-| `infra.yml`     | Pull request touching `infra/azure/**`, `scripts/infra-ci.py` or the workflow; push to `production` touching `infra/azure/**`; manual dispatch      | Infra: Bicep, Infra: What-If, Infra: Deploy |
+| `infra.yml`     | Pull request touching `infra/azure/**`, `scripts/infra-ci.py` or the workflow; manual dispatch on `production`, never on push                       | Infra: Bicep, Infra: What-If, Infra: Deploy |
 
 - **The documentation site is built and checked, not published.** The publish job runs only on `main` when the
   repository variable `DOCS_SITE_PUBLISH` is `true`, and the repository defines no variables
