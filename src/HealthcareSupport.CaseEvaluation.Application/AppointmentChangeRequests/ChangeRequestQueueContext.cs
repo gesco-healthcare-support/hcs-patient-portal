@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using HealthcareSupport.CaseEvaluation.Enums;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
 
@@ -30,14 +31,16 @@ internal static class ChangeRequestQueueContext
 
     /// <summary>
     /// Phase 4c (2026-08-05) -- the current consent round for one change request: the date staff
-    /// confirmed, where each side stands on it, and how many times it has been sent.
+    /// confirmed, where each side stands on it, how many times it has been sent, and (since
+    /// 2026-10-09) the billing outcome chosen with the date.
     /// </summary>
     internal readonly record struct ConsentRoundContext(
         int RoundNumber,
         Guid ProposedDoctorAvailabilityId,
         ChangeRequestConsentStatus SideAStatus,
         ChangeRequestConsentStatus SideBStatus,
-        int SendAttempts);
+        int SendAttempts,
+        AppointmentStatusType? ProposedOutcome = null);
 
     /// <summary>
     /// Fills each DTO's appointment context, and its requested-slot context ONLY when that row
@@ -81,6 +84,7 @@ internal static class ChangeRequestQueueContext
             dto.CurrentRoundSideAStatus = round.SideAStatus;
             dto.CurrentRoundSideBStatus = round.SideBStatus;
             dto.CurrentRoundSendAttempts = round.SendAttempts;
+            dto.CurrentRoundProposedOutcome = round.ProposedOutcome;
 
             // The round's slot is looked up from the same dictionary as the requested slot, so a
             // round pointing at a deleted slot degrades to "unknown date" rather than throwing.

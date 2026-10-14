@@ -47195,6 +47195,19 @@
           "isNullable": true
         },
         {
+          "name": "CurrentRoundProposedOutcome",
+          "jsonName": null,
+          "type": "HealthcareSupport.CaseEvaluation.Enums.AppointmentStatusType?",
+          "typeSimple": "enum?",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
           "name": "ChangeRequestType",
           "jsonName": null,
           "type": "HealthcareSupport.CaseEvaluation.AppointmentChangeRequests.ChangeRequestType",

@@ -33,11 +33,12 @@ public class ChangeRequestQueueContextUnitTests
         ChangeRequestConsentStatus sideB = ChangeRequestConsentStatus.Pending,
         int roundNumber = 2,
         int sendAttempts = 1,
-        Guid? slotId = null) =>
+        Guid? slotId = null,
+        AppointmentStatusType? outcome = null) =>
         new()
         {
             [ChangeRequestId] = new(
-                roundNumber, slotId ?? RoundSlotId, sideA, sideB, sendAttempts),
+                roundNumber, slotId ?? RoundSlotId, sideA, sideB, sendAttempts, outcome),
         };
 
     private static Dictionary<Guid, ChangeRequestQueueContext.AppointmentContext> Appointments() =>
@@ -143,6 +144,7 @@ public class ChangeRequestQueueContextUnitTests
         dto.CurrentRoundSideAStatus.ShouldBeNull();
         dto.CurrentRoundSideBStatus.ShouldBeNull();
         dto.CurrentRoundSendAttempts.ShouldBeNull();
+        dto.CurrentRoundProposedOutcome.ShouldBeNull();
     }
 
     [Fact]
@@ -167,6 +169,31 @@ public class ChangeRequestQueueContextUnitTests
         dto.CurrentRoundSideAStatus.ShouldBe(ChangeRequestConsentStatus.Approved);
         dto.CurrentRoundSideBStatus.ShouldBe(ChangeRequestConsentStatus.Pending);
         dto.CurrentRoundSendAttempts.ShouldBe(3);
+    }
+
+    [Fact]
+    public void A_round_carries_the_billing_outcome_staff_chose_at_set_date()
+    {
+        // 2026-10-14: the approve modal shows this read-only and sends it back on the manual
+        // fallback, so staff are not asked for the outcome a second time.
+        var dto = NewDto();
+
+        ChangeRequestQueueContext.Apply(
+            new[] { dto }, Appointments(), Slots(), RoundFor(outcome: AppointmentStatusType.RescheduledLate));
+
+        dto.CurrentRoundProposedOutcome.ShouldBe(AppointmentStatusType.RescheduledLate);
+    }
+
+    [Fact]
+    public void A_round_opened_before_outcomes_were_chosen_at_set_date_has_no_outcome()
+    {
+        // Rounds from before 2026-10-09 carry none; the modal then asks, as it always did.
+        var dto = NewDto();
+
+        ChangeRequestQueueContext.Apply(new[] { dto }, Appointments(), Slots(), RoundFor(outcome: null));
+
+        dto.CurrentConsentRoundNumber.ShouldBe(2);
+        dto.CurrentRoundProposedOutcome.ShouldBeNull();
     }
 
     [Fact]

@@ -587,6 +587,7 @@ public class AppointmentChangeRequestsApprovalAppService :
                     r.SideAConsentStatus,
                     r.SideBConsentStatus,
                     r.SendAttempts,
+                    r.ProposedOutcome,
                 }));
         var roundsByChangeRequestId = roundRows
             .GroupBy(r => r.AppointmentChangeRequestId)
@@ -600,7 +601,8 @@ public class AppointmentChangeRequestsApprovalAppService :
                         current.ProposedDoctorAvailabilityId,
                         current.SideAConsentStatus,
                         current.SideBConsentStatus,
-                        current.SendAttempts);
+                        current.SendAttempts,
+                        current.ProposedOutcome);
                 });
 
         // Slots for BOTH the requestor's proposal (after 4b most rows have none) and each
