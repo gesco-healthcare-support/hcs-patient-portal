@@ -396,10 +396,12 @@ The config comment gives the original reason for the zero limit: _"until ABP Com
 Angular 20.3+"_. Whether that constraint still binds against Angular 20.3.27 is not recorded
 anywhere and has not been retested.
 
-**Since the snapshot (checked 2026-09-30).** `.github/dependabot.yml` now has five entries, all still targeting
-`chore/dependency-updates`: `nuget` and the two `npm` directories keep `open-pull-requests-limit: 0`, while
-`github-actions` and `docker` allow 5 (`grep -n "open-pull-requests-limit" .github/dependabot.yml`). Dependabot pull
-requests can still reach `main`: #1154 (a `moment` bump in the AuthServer) merged there on 2026-09-29.
+**Since the snapshot (checked 2026-10-14).** `.github/dependabot.yml` has eight entries, all targeting
+`chore/dependency-updates`, and since 2026-10-14 **every one has `open-pull-requests-limit: 0`**: no version-update
+pull requests in any ecosystem, by decision (`grep -n "open-pull-requests-limit" .github/dependabot.yml`). Alerts
+are unaffected. Security-update pull requests are a separate repository setting, still enabled, and they target
+`main`, which is how #1154 (a `moment` bump in the AuthServer) merged there on 2026-09-29. The pinned actions and
+image digests now move only through a monthly manual patch check.
 
 ---
 
