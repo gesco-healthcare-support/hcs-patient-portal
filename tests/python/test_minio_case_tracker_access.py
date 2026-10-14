@@ -8,7 +8,11 @@ What these tests pin:
   - creating refuses when the office already has a credential, here or in MinIO, so a second run cannot replace a
     secret the Case Tracker is using; rotating refuses when there is nothing to rotate;
   - once MinIO has ACCEPTED a new secret, the file is kept even if a later step fails, so a live secret is never
-    thrown away.
+    thrown away;
+  - the SHARED credential (--shared, 2026-10-14) grants s3:GetObject on each listed office's prefix and nothing else,
+    and --update replaces the office list while keeping the secret, so the Case Tracker keeps its one key.
+    Proven against a real MinIO by hand on 2026-10-14 (15 checks): listed offices readable; an unlisted office,
+    writes, deletes, listings and admin refused; an added office readable with the same key; a removed one refused.
 
 The real MinIO images cannot be pulled in CI (see docker-compose.prod.yml), so `docker` here is a fake that runs
 the piped script locally, against a fake `mc` that keeps its users and policies in a directory. The script was
@@ -225,6 +229,101 @@ class CaseTrackerAccess(unittest.TestCase):
         code, output = self.run_script(OFFICE, "--force")
         self.assertNotEqual(code, 0)
         self.assertIn("unknown option", output)
+        code, output = self.run_script(OFFICE, "--update")
+        self.assertNotEqual(code, 0, "--update belongs to the shared credential only")
+        self.assertIn("unknown option", output)
+
+    # ---------------------------------------------------------------- the shared credential (2026-10-14)
+
+    def shared_policy(self):
+        path = self.dir / "state" / "policies" / "ct-read-shared.json"
+        return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+
+    def shared_credential(self):
+        return self.credential("shared")
+
+    def test_the_shared_credential_grants_get_object_on_each_listed_office_and_nothing_else(self):
+        # Unsorted, duplicated and upper case on purpose: the same SET must give the same policy.
+        code, output = self.run_script("--shared", OTHER_OFFICE, OFFICE.upper(), OFFICE)
+        self.assertEqual(code, 0, output)
+        self.assertEqual(self.shared_policy()["Statement"], [{
+            "Effect": "Allow",
+            "Action": ["s3:GetObject"],
+            "Resource": [f"arn:aws:s3:::case-evaluation-documents/tenants/{office}/*"
+                         for office in sorted([OFFICE, OTHER_OFFICE])],
+        }])
+        self.assertEqual((self.dir / "state" / "attached" / "ct-shared").read_text(encoding="utf-8"), "ct-read-shared")
+        cred = self.shared_credential()
+        self.assertEqual(cred["access_key"], "ct-shared")
+        self.assertEqual(cred["prefixes"], ",".join(f"tenants/{o}/" for o in sorted([OFFICE, OTHER_OFFICE])))
+        self.assertEqual(cred["secret_key"], self.minio_secret("ct-shared"))
+        self.assertNotIn(cred["secret_key"], output)
+
+    def test_update_changes_the_office_list_and_keeps_the_secret(self):
+        self.assertEqual(self.run_script("--shared", OFFICE)[0], 0)
+        secret = self.shared_credential()["secret_key"]
+        third = "3f2504e0-4f89-41d3-9a0c-0305e82c3301"
+        code, output = self.run_script("--shared", OFFICE, OTHER_OFFICE, third, "--update")
+        self.assertEqual(code, 0, output)
+        resources = self.shared_policy()["Statement"][0]["Resource"]
+        self.assertEqual(len(resources), 3)
+        self.assertIn(f"arn:aws:s3:::case-evaluation-documents/tenants/{third}/*", resources)
+        self.assertEqual(self.minio_secret("ct-shared"), secret, "an office-list change must not change the key")
+        cred = self.shared_credential()
+        self.assertEqual(cred["secret_key"], secret)
+        self.assertIn(f"tenants/{third}/", cred["prefixes"])
+        self.assertNotIn(secret, output)
+        self.assertIn("UNCHANGED", output)
+
+    def test_update_is_refused_without_a_shared_credential_and_touches_nothing(self):
+        code, output = self.run_script("--shared", OFFICE, "--update")
+        self.assertNotEqual(code, 0)
+        self.assertIn("does not exist", output)
+        self.assertEqual(self.docker_calls(), [])
+
+    def test_update_is_refused_when_minio_has_no_shared_user_and_the_file_is_unchanged(self):
+        self.assertEqual(self.run_script("--shared", OFFICE)[0], 0)
+        before = self.shared_credential()
+        (self.dir / "state" / "users" / "ct-shared").unlink()
+        code, output = self.run_script("--shared", OFFICE, OTHER_OFFICE, "--update")
+        self.assertNotEqual(code, 0)
+        self.assertIn("refused the policy update", output)
+        self.assertEqual(self.shared_credential(), before)
+        self.assertFalse((self.out / "case-tracker-minio-shared.txt.tmp").exists())
+
+    def test_a_second_shared_create_is_refused_and_points_at_update(self):
+        self.assertEqual(self.run_script("--shared", OFFICE)[0], 0)
+        code, output = self.run_script("--shared", OFFICE, OTHER_OFFICE)
+        self.assertNotEqual(code, 0)
+        self.assertIn("already exists", output)
+        self.assertIn("--update", output)
+
+    def test_shared_rotate_replaces_the_secret(self):
+        self.assertEqual(self.run_script("--shared", OFFICE)[0], 0)
+        old = self.shared_credential()["secret_key"]
+        code, output = self.run_script("--shared", OFFICE, "--rotate")
+        self.assertEqual(code, 0, output)
+        self.assertNotEqual(self.shared_credential()["secret_key"], old)
+        self.assertEqual(self.minio_secret("ct-shared"), self.shared_credential()["secret_key"])
+
+    def test_shared_arguments_are_checked_before_minio_is_touched(self):
+        for args, message in ((("--shared",), "at least one office id"),
+                              (("--shared", "falkinstein"), "must be the office id"),
+                              (("--shared", OFFICE, "--force"), "unknown option"),
+                              (("--shared", OFFICE, "--update", "--rotate"), "at most one")):
+            with self.subTest(args=args):
+                code, output = self.run_script(*args)
+                self.assertNotEqual(code, 0)
+                self.assertIn(message, output)
+        self.assertEqual(self.docker_calls(), [])
+
+    def test_shared_show_prints_the_policy_and_never_a_secret(self):
+        self.assertEqual(self.run_script("--shared", OFFICE, OTHER_OFFICE)[0], 0)
+        secret = self.shared_credential()["secret_key"]
+        code, output = self.run_script("--shared", "--show")
+        self.assertEqual(code, 0, output)
+        self.assertIn(f"tenants/{OTHER_OFFICE}/*", output)
+        self.assertNotIn(secret, output)
 
 
 class TheScriptIsShippedExecutable(unittest.TestCase):

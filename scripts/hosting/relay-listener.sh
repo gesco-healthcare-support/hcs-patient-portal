@@ -8,7 +8,7 @@
 #   - nginx sees these connections from 127.0.0.1, which the MinIO vhost always allows, so MINIO_ALLOW_DIRECTIVES
 #     stays "deny all;" and the S3 endpoint is closed to the internet;
 #   - TLS runs end to end between the Case Tracker and nginx; the relay only ever carries ciphertext;
-#   - the per-office read-only MinIO users (minio-case-tracker-access.sh) still decide what can be read.
+#   - the read-only MinIO user (minio-case-tracker-access.sh, shared or per office) still decides what can be read.
 #
 # WHY A SUPERVISOR LOOP. A container joined to another container's network namespace keeps the OLD namespace when
 # that container is recreated -- and every deploy force-recreates the reverse proxy. So this script watches the

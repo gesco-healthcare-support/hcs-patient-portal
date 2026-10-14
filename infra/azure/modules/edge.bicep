@@ -33,7 +33,7 @@ param gatewaySubnetId string
 @description('Private address of the application host, which is the only backend.')
 param backendPrivateIp string
 
-@description('Base public domain, e.g. portal.evaluators.com.')
+@description('Base public domain, e.g. medlegal.evaluators.com.')
 param baseDomain string
 
 @description('Deploy the Application Gateway, its WAF policies and its diagnostics. False on the FIRST deployment: the certificate the gateway needs is issued on the host after phase 1, into a vault that only the network can reach. The public IP and the DNS zone deploy either way, because issuance proves domain control through that zone.')
