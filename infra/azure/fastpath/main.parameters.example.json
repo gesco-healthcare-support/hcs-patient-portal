@@ -43,6 +43,15 @@
     },
     "relayAlertEmail": {
       "value": ""
+    },
+    "deployUptimeCheck": {
+      "value": true
+    },
+    "uptimeAlertEmail": {
+      "value": "replace-with-the-ops-address@example.com"
+    },
+    "uptimeFrequencySeconds": {
+      "value": 900
     }
   }
 }

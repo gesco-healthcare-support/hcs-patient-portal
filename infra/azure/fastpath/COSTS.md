@@ -15,13 +15,14 @@ costs are in [../COSTS.md](../COSTS.md).
 | Public IP | Standard, static IPv4 | $0.005 / hour | $3.65 |
 | DNS zone | 1 public zone | $0.50 / zone / month | $0.50 |
 | DNS queries | assume 1 million a month | $0.40 / million | $0.40 |
+| Outside "site is down" check | Standard availability test, 3 regions every 15 minutes (8,760 runs) | $0.0005 / run | $4.38 |
 | Network, NSG, VNet, locks, roles | | free | $0.00 |
 | Encryption at host, backup infrastructure encryption | | no separate meter | $0.00 |
-| **Fixed total** | | | **$180.87** |
+| **Fixed total** | | | **$185.25** |
 | Backup storage | see below; grows with data | | under $1 at pilot volume |
 | Internet egress | first 100 GB a month free, then $0.087 / GB | | expected $0 |
 
-**About $181 a month at the defaults**, below the $200-300 the brief expected. The VM is 77% of it.
+**About $185 a month at the defaults**, below the $200-300 the brief expected. The VM is 76% of it.
 
 ## The backup account (Standard_GRS)
 
@@ -83,6 +84,22 @@ permanently.
 | **Documents through Relay** | | **about $15** |
 | The changes feed through Relay too (a second hybrid connection and listener) | | about **$10 more**; see the design doc |
 
+**The outside check** (`deployUptimeCheck`, on by default; `modules/uptime.bicep`). Retail Prices API, West US 2,
+2026-10-13:
+
+| Item | Unit price | Per month |
+| --- | --- | --- |
+| Standard availability test runs | $0.0005 / run | $4.38 at 15 minutes (8,760 runs); $13.14 at 5 minutes |
+| Results in Log Analytics | first 5 GB a month free, then $2.30 / GB | $0: well under 1 MB a day, capped at 0.1 GB a day |
+| Metric alert and its email | first 10 alert series and 1,000 emails a month free | $0 |
+| **Outside check** | | **about $4.38** |
+
+The free classic "URL ping" test is no longer offered (Microsoft retired it on 2026-09-30). Two free
+alternatives were weighed and not chosen: a third-party uptime service (a new vendor account outside Azure that
+no template can create) and a scheduled GitHub Actions job (its schedule can slip by an hour under load, and it
+stops after 60 days without repository activity). A VM-level metric alert is cheap but sees the VM, not the site:
+nginx down, the API failing or an expired certificate would all look healthy.
+
 **Committing to the VM.** A reservation for this size in West US 2 costs **$1,038 for one year** (about $86.50 a
 month, 38% less) or **$1,993 for three years** (about $55.36 a month, about 60% less). Worth it once the fast path is
 the settled home for at least a year; it is a billing commitment, not a template setting.
@@ -90,7 +107,7 @@ the settled home for at least a year; it is a billing commitment, not a template
 ## Not included
 
 - Any Azure Backup vault or disk snapshots of the VM. The nightly off-server backup is the recovery copy.
-- Defender for Cloud, Log Analytics, alerts, Key Vault, Application Gateway and managed databases. Those belong to
-  the full design, built in stages.
+- Defender for Cloud, Key Vault, Application Gateway, managed databases, and monitoring beyond the outside check
+  (its small workspace holds only the check's results). Those belong to the full design, built in stages.
 - SQL Server licensing. The stack runs SQL Server **Express** on Azure, which is free and licensed for production
   (10 GB per database). The Developer edition the office server uses is not licensed for production.
