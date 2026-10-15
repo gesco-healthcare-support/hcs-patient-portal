@@ -208,12 +208,16 @@ public class CalendarDateNormalizationTests : CaseEvaluationEntityFrameworkCoreT
                 "browser then renders the day before. Measured before the exemption: " +
                 "wrote 1985-09-03 Unspecified, read back 1985-09-03T00:00:00.0000000Z Kind=Utc.");
 
+            // NOT a wire check, corrected 2026-10-15. ABP's IJsonSerializer (events, cache, jobs)
+            // registers its DateTime converter with SkipDateTimeNormalization(), so this cannot
+            // gain a Z whatever the entity or DTO says. The HTTP API is configured separately and
+            // DOES normalize: PatientDto.DateOfBirth reaches the browser as UTC midnight today.
+            // What reaches the browser is pinned in DtoDateTimeWireTests.
             json.Serialize(new { reread.DateOfBirth })
                 .ShouldNotContain(
                     "Z",
                     Case.Sensitive,
-                    "A calendar date must reach the client with no zone designator, so the client " +
-                    "renders the day that was entered rather than converting it.");
+                    "ABP's internal serializer must carry a calendar date without a zone.");
 
             // CreationTime is the contrast case and must keep its Z -- the display layer converts
             // it to Pacific, which it can only do from an unambiguous instant.

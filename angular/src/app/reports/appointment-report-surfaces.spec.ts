@@ -162,6 +162,17 @@ describe('AppointmentReportComponent surfaces', () => {
       expect(reportService['getList']).toHaveBeenCalled();
     });
 
+    it('asks for the whole of the last day, not its midnight', () => {
+      // A one-day report (Sep 1 to Sep 1) came back EMPTY: the max reached the server as
+      // midnight, and every appointment that day has a slot time after it.
+      const c = create();
+      withFilter(c, { appointmentDateMin: '2026-09-01', appointmentDateMax: '2026-09-01' });
+      c.applyFilters();
+      const input = reportService['getList'].calls.mostRecent().args[0];
+      expect(input.appointmentDateMin).toBe('2026-09-01');
+      expect(input.appointmentDateMax).toBe('2026-09-01T23:59:59');
+    });
+
     it('accepts a filter with no dates at all', () => {
       const c = create();
       withFilter(c);
@@ -281,7 +292,10 @@ describe('AppointmentReportComponent surfaces', () => {
       const params = http.get.calls.mostRecent().args[1].params;
       expect(params.get('appointmentTypeId')).toBe('t-1');
       expect(params.get('appointmentStatus')).toBe('1');
-      expect(params.get('appointmentDateMax')).toBe('2026-09-30');
+      // End of the day: the server compares AppointmentDate <= max, and a bare date is midnight,
+      // which dropped every appointment ON the last day (2026-10-15).
+      expect(params.get('appointmentDateMax')).toBe('2026-09-30T23:59:59');
+      expect(params.get('appointmentDateMin')).toBe('2026-09-01');
     });
 
     it('takes the file name from the content-disposition header', async () => {

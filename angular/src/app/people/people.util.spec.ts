@@ -144,6 +144,21 @@ describe('people.util', () => {
       );
     });
 
+    it('keeps a row born ON the latest date when the API sends the date with a time and a zone', () => {
+      // The API serializes the date of birth as "1985-09-03T00:00:00Z"; the filter input holds
+      // "1985-09-03". Compared as whole strings the first sorts greater, and the row vanished.
+      const apiShaped = { ...r, dateOfBirth: '1985-09-03T00:00:00Z' };
+      expect(
+        matchesPeopleFilters(apiShaped, { ...emptyPeopleFilters(), dobMax: '1985-09-03' }),
+      ).toBe(true);
+      expect(
+        matchesPeopleFilters(apiShaped, { ...emptyPeopleFilters(), dobMin: '1985-09-03' }),
+      ).toBe(true);
+      expect(
+        matchesPeopleFilters(apiShaped, { ...emptyPeopleFilters(), dobMax: '1985-09-02' }),
+      ).toBe(false);
+    });
+
     it('excludes a row in a different state', () => {
       expect(matchesPeopleFilters(r, { ...emptyPeopleFilters(), stateId: 'ca' })).toBe(true);
       expect(matchesPeopleFilters(r, { ...emptyPeopleFilters(), stateId: 'ny' })).toBe(false);
