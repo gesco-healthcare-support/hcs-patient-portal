@@ -165,12 +165,28 @@ ssl_prefer_server_ciphers off;
 # purpose: every host here sends its own header, so each is protected on its own visit, and the
 # directive on the apex would bind every office subdomain at once. `add_header` does NOT inherit into a
 # location that declares its own, so the /docs/ location repeats it.
-# HTTP -> HTTPS redirect for every host.
+# HTTP -> HTTPS redirect for every host, except Let's Encrypt's HTTP-01 challenge.
+#
+# The challenge path is served from a webroot that scripts/hosting/renew-tls-cert.sh writes into when
+# ACME_CHALLENGE=http-01 (the DNS fallback when the public names are A records rather than a delegated
+# Azure DNS zone). Let's Encrypt fetches the token over plain HTTP on port 80, so it must NOT be
+# redirected. `^~` makes this prefix win over any regex location; `try_files ... =404` serves only files
+# that exist, and nothing else is ever in that directory. Under DNS-01 (and on the office server) the
+# directory is empty, so the path answers 404 and every other request still redirects.
 server {
     access_log /var/log/nginx/access.log portal_noquery;
     listen 80 default_server;
     server_name _;
-    return 301 https://$host$request_uri;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /usr/share/nginx/acme;
+        default_type text/plain;
+        try_files $uri =404;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
 }
 
 # Catch-all for 443: refuse any Host that matches none of the named server blocks below.
