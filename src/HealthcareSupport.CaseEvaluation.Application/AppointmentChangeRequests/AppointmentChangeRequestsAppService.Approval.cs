@@ -193,6 +193,8 @@ public class AppointmentChangeRequestsApprovalAppService :
         }
 
         var appointment = await _appointmentRepository.GetAsync(changeRequest.AppointmentId);
+        // Before anything is resent or proposed: the appointment's own slot is not a new date.
+        RescheduleRequestValidators.EnsureNotCurrentSlot(appointment.DoctorAvailabilityId, input.DoctorAvailabilityId);
         var slot = await _doctorAvailabilityRepository.GetAsync(input.DoctorAvailabilityId);
 
         // Same lead-time + horizon gates the booking and submit paths enforce, applied at the
