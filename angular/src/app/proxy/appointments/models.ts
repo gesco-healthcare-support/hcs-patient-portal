@@ -227,6 +227,10 @@ export interface GetAppointmentsInput extends PagedAndSortedResultRequestDto {
   appointmentStatuses?: AppointmentStatusType[] | null;
 }
 
+export interface RecordAppointmentListExportInput {
+  appointmentIds: string[];
+}
+
 export interface RejectAppointmentInput {
   reason: string;
 }

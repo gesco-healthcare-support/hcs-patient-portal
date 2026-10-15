@@ -721,6 +721,12 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         // appointment so an external party can only download files on
         // appointments they are a party to.
         await _readAccessGuard.EnsureCanReadAsync(entity.AppointmentId);
+        // 2026-10-14: a queued placeholder has no file. Refuse it BEFORE recording, or the access
+        // log holds a download that never happened (the open below would fail).
+        if (string.Equals(entity.BlobName, AppointmentDocumentConsts.PendingUploadPlaceholder, StringComparison.Ordinal))
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.DocumentNotUploadedYet);
+        }
         // Recorded before the file is opened, so a failed log write leaves no open stream behind.
         await PhiAccessRecorder.RecordAsync(PhiAccessAction.DocumentDownloaded,
             new PhiAccessTarget(null, entity.AppointmentId, entity.Id));

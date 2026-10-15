@@ -241,10 +241,19 @@ export class InternalPeopleComponent {
   }
 
   // ---- detail ----
+  /**
+   * 2026-10-14: opening a patient fetches the record through the single-record read the server
+   * records as PatientViewed, and the detail opens only once that read succeeded. It used to show
+   * the row the bulk list already held, so opening a patient left no trace in the access log.
+   */
   protected openDetail(row: PersonRow): void {
-    if (this.meta().isPatient) {
-      this.detailRow.set(row);
+    if (!this.meta().isPatient || !row.id) {
+      return;
     }
+    this.gateway.patientDetail(row.id).subscribe({
+      next: (fresh) => this.detailRow.set(fresh),
+      error: () => this.toaster.error('Could not open the patient record.'),
+    });
   }
   protected closeDetail(): void {
     this.detailRow.set(null);

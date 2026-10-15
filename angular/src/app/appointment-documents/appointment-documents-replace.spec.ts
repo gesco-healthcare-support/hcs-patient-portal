@@ -94,6 +94,19 @@ describe('AppointmentDocumentsComponent replacing a rejected document', () => {
     expect((fixture.nativeElement as HTMLElement).querySelector('.replace-btn')).toBeNull();
   });
 
+  it('offers no download on a requested document still awaiting its file', () => {
+    // 2026-10-14: the server refuses it (nothing to download) before the access log records
+    // anything; the panel no longer offers the dead button either.
+    const { fixture, c } = create();
+    c.documents = [
+      doc({ id: 'awaiting', status: DocumentStatus.Pending }),
+      doc({ id: 'uploaded', status: DocumentStatus.Uploaded }),
+    ];
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement as HTMLElement).querySelectorAll('.download-btn').length).toBe(1);
+  });
+
   it("sends the file to the row's own replace route, then refreshes and says so", () => {
     const { c } = create();
 

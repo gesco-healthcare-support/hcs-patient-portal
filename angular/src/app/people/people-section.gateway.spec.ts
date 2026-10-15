@@ -8,7 +8,7 @@ import { DefenseAttorneyService } from '../proxy/defense-attorneys/defense-attor
 import { ClaimExaminerService } from '../proxy/claim-examiners/claim-examiner.service';
 import { ExternalSignupStaffService } from '../proxy/external-signups/external-signup-staff.service';
 import { AppointmentService } from '../proxy/appointments/appointment.service';
-import type { PersonFormState } from './people.util';
+import type { PersonFormState, PersonRow } from './people.util';
 
 /**
  * The People gateway: the layer that maps one People section onto the right generated proxy.
@@ -83,6 +83,12 @@ describe('PeopleSectionGateway', () => {
       getAppointmentLanguageLookup: jasmine
         .createSpy('getAppointmentLanguageLookup')
         .and.returnValue(of({ items: [] })),
+      getWithNavigationProperties: jasmine.createSpy('getWithNavigationProperties').and.returnValue(
+        of({
+          patient: { id: 'p-9', firstName: 'Grace', lastName: 'Hopper', identityUserId: 'u-9' },
+          state: { name: 'California' },
+        }),
+      ),
     };
     aa = crud();
     da = crud();
@@ -108,6 +114,20 @@ describe('PeopleSectionGateway', () => {
   });
 
   afterEach(() => TestBed.resetTestingModule());
+
+  describe('one patient record (2026-10-14)', () => {
+    it('reads it through the single-record route the server logs, mapped like a list row', () => {
+      let result: PersonRow | undefined;
+      gateway.patientDetail('p-9').subscribe((r) => (result = r));
+
+      expect(patients['getWithNavigationProperties']).toHaveBeenCalledWith('p-9');
+      expect(patients['getList']).not.toHaveBeenCalled();
+      expect(result?.id).toBe('p-9');
+      expect(result?.firstName).toBe('Grace');
+      expect(result?.portal).toBe('linked');
+      expect(result?.stateName).toBe('California');
+    });
+  });
 
   function firstRow(section: 'patients' | 'aa' | 'da' | 'ce') {
     let row: any;

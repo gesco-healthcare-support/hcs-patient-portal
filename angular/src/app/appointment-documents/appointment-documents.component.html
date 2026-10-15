@@ -184,14 +184,17 @@
                 {{ replacingDoc?.id === doc.id ? 'Uploading...' : 'Upload replacement' }}
               </button>
             }
-            <button
-              type="button"
-              class="btn btn-outline-primary btn-sm"
-              (click)="download(doc)"
-              title="Download"
-            >
-              <i class="fa fa-download"></i>
-            </button>
+            <!-- 2026-10-14: a requested document still awaiting its file has nothing to download. -->
+            @if (doc.status !== DocumentStatus.Pending) {
+              <button
+                type="button"
+                class="btn btn-outline-primary btn-sm download-btn"
+                (click)="download(doc)"
+                title="Download"
+              >
+                <i class="fa fa-download"></i>
+              </button>
+            }
             @if (canApprove && doc.status !== DocumentStatus.Accepted) {
               <button
                 type="button"
