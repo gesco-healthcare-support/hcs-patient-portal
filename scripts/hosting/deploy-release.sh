@@ -44,6 +44,28 @@ BASE=$(grep -E '^[[:space:]]*BASE_DOMAIN=' secrets/env.prod 2>/dev/null | tail -
   | tr -d '\r' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'$/\1/")
 [ -n "$BASE" ] || stop "BASE_DOMAIN missing or empty in secrets/env.prod"
 code() { curl -sk -o /dev/null -w '%{http_code}' --max-time 20 --resolve "$1:443:127.0.0.1" "https://$1$2"; }
+# Both web hosts must RUN as Production: outside Development, identity-model PII logging stays off and the API
+# documentation is not served (IdentityModelPiiLogging, ApiDocumentationPipeline: both decided by the environment, not
+# by a setting). Read from the running containers, after `up`, so it checks what is serving rather than what compose
+# meant. ASPNETCORE_ENVIRONMENT must be exactly Production, and EMPTY FAILS: `printenv` prints nothing for an unset
+# variable, compose sets the value explicitly, so empty means the read saw nothing, and a check that passes on seeing
+# nothing is the failure mode the compose-config check below already refuses. DOTNET_ENVIRONMENT may be unset or
+# Production, the same rule as that compose-config check. Returns non-zero when either host is wrong.
+check_web_env() {
+  local svc a d bad=0
+  for svc in api authserver; do
+    a=$(docker exec "hcs-patient-portal-$svc-1" printenv ASPNETCORE_ENVIRONMENT 2>&1 < /dev/null)
+    d=$(docker exec "hcs-patient-portal-$svc-1" printenv DOTNET_ENVIRONMENT 2>&1 < /dev/null)
+    if [ "$a" = Production ] && { [ -z "$d" ] || [ "$d" = Production ]; }; then
+      printf '%-22sASPNETCORE_ENVIRONMENT=[%s] DOTNET_ENVIRONMENT=[%s]  OK\n' "${svc%server} environment:" "$a" "$d"
+    else
+      printf '%-22sASPNETCORE_ENVIRONMENT=[%s] DOTNET_ENVIRONMENT=[%s]  WRONG (want Production, and unset or Production)\n' \
+        "${svc%server} environment:" "${a:0:160}" "${d:0:160}"
+      bad=$((bad + 1))
+    fi
+  done
+  [ "$bad" = 0 ]
+}
 # 2026-10-02: a short sha passed the backup and the fast-forward, then stopped at the HEAD comparison below, with HEAD
 # already moved. A relaunch that let the rollback target default to HEAD would then have rolled back to the release
 # being deployed. So both shas are full ids, checked before anything runs, and the rollback target is never inferred.
@@ -231,10 +253,13 @@ echo "api /health-api:      $(code admin.api.$BASE /health-api)  (want 401, #113
 echo "auth /health-ui:      $(code admin.auth.$BASE /health-ui)  (want 302 to sign-in, #1131)"
 echo "docs CSP header:      $(curl -sk -D - -o /dev/null --max-time 20 --resolve "$BASE:443:127.0.0.1" "https://$BASE/docs/" | grep -i '^content-security-policy' | cut -c1-120)"
 echo "authserver user:      $(docker exec hcs-patient-portal-authserver-1 id 2>&1)"
-# Adrian 2026-09-30 12:5x ("Fix it in today's release"): identity-model PII logging must be OFF in both web hosts.
-echo "api DisablePII:       $(docker exec hcs-patient-portal-api-1 printenv App__DisablePII 2>&1)  (want true)"
-echo "auth DisablePII:      $(docker exec hcs-patient-portal-authserver-1 printenv App__DisablePII 2>&1)  (want true)"
+# Replaces the App__DisablePII probe (2026-09-30): that setting no longer decides anything outside Development, so the
+# variable is empty on a correct server and the probe could only ever raise a false alarm. The environment decides.
+# It reports like the probes above rather than stopping, because the stack is already serving; a wrong value is
+# repeated just above the last line, so it cannot scroll away.
+webenv=OK; check_web_env || webenv=WRONG
 
 echo "$(ts) [ERR]/[FTL] lines since start, api + authserver: $($C logs --since 20m api authserver < /dev/null 2>&1 | grep -cE '\[(ERR|FTL)\]')"
 $C ps --format '{{.Service}} {{.Status}}' < /dev/null
+[ "$webenv" = OK ] || echo "$(ts) WARNING: A WEB HOST IS NOT RUNNING AS Production (the 'environment:' lines above). The stack IS serving; decide now whether to roll back: rollback-release.sh $PREV"
 echo "$(ts) DEPLOY DONE $(git rev-parse HEAD)"
