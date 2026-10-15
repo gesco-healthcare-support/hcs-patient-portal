@@ -121,17 +121,34 @@ The template stops at an empty VM with Docker installed on the data disk. The re
 1. Confirm cloud-init finished and Docker really is on the data disk: `findmnt /srv` shows the data disk and
    `docker info --format '{{.DockerRootDir}}'` prints `/srv/docker`. If cloud-init could not find the disk, it
    stopped before installing Docker on purpose; see "Known gaps".
-2. Clone the repository to `/home/apadmin/hcs-patient-portal` and create `secrets/` with a NEW `env.prod`
-   (every key is in `env.prod.example`). On this VM, unlike the office server:
+2. Clone the repository to `/home/apadmin/hcs-patient-portal`. From its root, write a NEW `secrets/env.prod`
+   with the generator, fill in what it lists, then check it:
+
+   ```bash
+   install -d -m 700 secrets
+   python3 scripts/hosting/vm-env-prod.py generate --alert-email <address>
+   # edit secrets/env.prod: replace every CHANGE_ME the generator listed
+   python3 scripts/hosting/vm-env-prod.py check
+   ```
+
+   The generator starts from `env.prod.example`, and stops if that file has a key it has no decision for. It
+   generates every secret within the limits of what reads it. It creates the file mode 600 and never overwrites
+   one. It prints no values. A person supplies only the ABP licence and NuGet key, the SMTP account and the
+   backup account name; `--alert-email` fills the Let's Encrypt contact and both alert lists. On this VM, unlike
+   the office server, it writes:
+
    - `MSSQL_PID=Express` (licensed for production; the default, Developer, is not);
-   - `SQL_APP_LOGIN` and `SQL_APP_PASSWORD`, the application's own SQL login instead of `sa`. Choose the
-     password once, before the first office exists: it is stored in every office's connection string;
+   - `SQL_APP_LOGIN` and `SQL_APP_PASSWORD`, the application's own SQL login instead of `sa`. The password is
+     chosen once, before the first office exists: it is stored in every office's connection string;
    - `MINIO_ALLOW_DIRECTIVES="deny all;"` and `DOCS_ALLOW_DIRECTIVES="deny all;"`. Empty is NOT closed:
      compose then falls back to the private address ranges;
-   - `AZURE_BACKUP_STORAGE_ACCOUNT` = the template's `backupStorageAccountName` output;
+   - MinIO keys of at most 20 characters and secrets of at most 40, which is all MinIO accepts;
    - `CASE_TRACKER_INTEGRATION_TOKEN` and `CASE_TRACKER_FEED_TOKEN` as two DIFFERENT values; the push
      (`CASE_TRACKER_BASE_URL`, `CASE_TRACKER_INTAKE_TOKEN`) stays empty, because the Case Tracker pulls;
-   - optionally `ACME_EMAIL`, the Let's Encrypt contact.
+   - `AZURE_BACKUP_STORAGE_ACCOUNT` left for the template's `backupStorageAccountName` output.
+
+   `check` refuses (exit 1) a file that breaks any of those rules, still holds a placeholder, sets a key twice
+   or is readable by anyone but its owner. It names keys and never values. Run it again after every hand edit.
 3. **Load the two MinIO images from the rescue archive.** They cannot be pulled from any registry (see `../README.md`,
    step 6 of "After the template").
 4. Issue the TLS certificate with `scripts/hosting/renew-tls-cert.sh` (Let's Encrypt, DNS-01 against the zone, as the
