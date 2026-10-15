@@ -7,13 +7,13 @@ using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentStatuses;
 
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class AppointmentStatusRepositoryTests : CaseEvaluationEntityFrameworkCoreTestBase
 {
     private readonly IAppointmentStatusRepository _statusRepository;
 
     public AppointmentStatusRepositoryTests()
     {
+        UseAmbientTenant(TenantsTestData.TenantARef);
         _statusRepository = GetRequiredService<IAppointmentStatusRepository>();
     }
 

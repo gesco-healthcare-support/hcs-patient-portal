@@ -7,13 +7,13 @@ using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.Locations;
 
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class LocationRepositoryTests : CaseEvaluationEntityFrameworkCoreTestBase
 {
     private readonly ILocationRepository _locationRepository;
 
     public LocationRepositoryTests()
     {
+        UseAmbientTenant(TenantsTestData.TenantARef);
         _locationRepository = GetRequiredService<ILocationRepository>();
     }
 

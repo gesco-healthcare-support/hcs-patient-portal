@@ -1,16 +1,30 @@
-import type {
-  CreationAuditedEntityDto,
-  EntityDto,
-  ExtensibleEntityDto,
-  ExtensibleFullAuditedEntityDto,
-  ExtensibleObject,
-  ExtensiblePagedAndSortedResultRequestDto,
-} from '@abp/ng.core';
+import type { CreationAuditedEntityDto, EntityDto, ExtensibleEntityDto, ExtensibleFullAuditedEntityDto, ExtensibleObject, ExtensiblePagedAndSortedResultRequestDto } from '@abp/ng.core';
 import type { IdentityClaimValueType } from './identity-claim-value-type.enum';
 import type { ImportUsersFromFileType } from './import-users-from-file-type.enum';
 import type { IRemoteStreamContent } from '../content/models';
 
-export interface IdentityUserDto {}
+export interface IdentityUserDto extends ExtensibleFullAuditedEntityDto<string> {
+  tenantId?: string | null;
+  userName?: string;
+  email?: string;
+  name?: string;
+  surname?: string;
+  emailConfirmed?: boolean;
+  phoneNumber?: string;
+  phoneNumberConfirmed?: boolean;
+  supportTwoFactor?: boolean;
+  twoFactorEnabled?: boolean;
+  isActive?: boolean;
+  lockoutEnabled?: boolean;
+  isLockedOut?: boolean;
+  lockoutEnd?: string | null;
+  shouldChangePasswordOnNextLogin?: boolean;
+  concurrencyStamp?: string;
+  roleNames?: string[];
+  accessFailedCount?: number;
+  lastPasswordChangeTime?: string | null;
+  isExternal?: boolean;
+}
 
 export interface ClaimTypeDto extends ExtensibleEntityDto<string> {
   name?: string;

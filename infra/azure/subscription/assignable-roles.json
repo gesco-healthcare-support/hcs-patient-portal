@@ -1,0 +1,25 @@
+{
+  "_comment": [
+    "The ONLY roles the infra deploy identity may assign. bootstrap.bicep reads this file to build the ABAC condition",
+    "on that identity's Role Based Access Control Administrator assignment, so this is the single place the set lives.",
+    "",
+    "Every role a resource-group template assigns MUST be here, or its deployment fails with AuthorizationFailed.",
+    "Every entry here MUST either be assigned by a resource-group template or carry 'reserved' naming the plan item",
+    "that will assign it. `scripts/infra-ci.py check` enforces both directions.",
+    "",
+    "Adding a role widens what CI can grant. It needs a bootstrap re-run by a subscription Owner, which is the point:",
+    "CI cannot widen its own rights.",
+    "",
+    "These are Microsoft's public built-in role definition ids, identical in every tenant. They are not secrets."
+  ],
+  "roles": {
+    "7f951dda-4ed3-4680-a7ca-43fe172d538d": { "role": "AcrPull", "usedBy": "A1" },
+    "4633458b-17de-408a-b874-0445c86b69e6": { "role": "Key Vault Secrets User", "usedBy": "A1" },
+    "db79e9a7-68ee-4b58-9aeb-b90e7c24fcba": { "role": "Key Vault Certificate User", "usedBy": "A1" },
+    "e147488a-f6f5-4113-8e2d-b22465e65bf6": { "role": "Key Vault Crypto Service Encryption User", "usedBy": "A1" },
+    "ba92f5b4-2d11-453d-a403-e96b0029c9fe": { "role": "Storage Blob Data Contributor", "usedBy": "A1" },
+    "b86a8fe4-44ce-4948-aee5-eccb2c155cd7": { "role": "Key Vault Secrets Officer", "usedBy": "A3", "reserved": "A3 (D3 admin-password vault)" },
+    "a4417e6f-fecd-4de8-b567-7b0420556985": { "role": "Key Vault Certificates Officer", "usedBy": "A5", "reserved": "A5 (certificate import from the host)" },
+    "befefa01-2a29-4197-83a8-272ff33ce314": { "role": "DNS Zone Contributor", "usedBy": "A5", "reserved": "A5 (acme.sh DNS-01 challenge records)" }
+  }
+}

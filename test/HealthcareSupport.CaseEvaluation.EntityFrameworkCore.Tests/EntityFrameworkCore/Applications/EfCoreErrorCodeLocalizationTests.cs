@@ -1,0 +1,6 @@
+
+namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Applications;
+
+public class EfCoreErrorCodeLocalizationTests : ErrorCodeLocalizationTests<CaseEvaluationEntityFrameworkCoreTestModule>
+{
+}

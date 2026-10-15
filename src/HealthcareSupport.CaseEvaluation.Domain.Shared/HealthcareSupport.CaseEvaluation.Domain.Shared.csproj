@@ -34,6 +34,16 @@
   <ItemGroup>
     <EmbeddedResource Include="Localization\CaseEvaluation\*.json" />
     <Content Remove="Localization\CaseEvaluation\*.json" />
+    <!-- Per-resource overrides (AbpUi, AbpAccount) so OLD-parity labels like
+         "Sign Up" / "Already have an account?" land in stock ABP Razor pages
+         that look up against AbpUi/AccountResource directly (our
+         CaseEvaluationResource inherits from those, so its keys win for
+         derived-resource lookups but NOT for direct base-resource lookups).
+         AddVirtualJson registration in CaseEvaluationDomainSharedModule. -->
+    <EmbeddedResource Include="Localization\AbpUiOverride\*.json" />
+    <Content Remove="Localization\AbpUiOverride\*.json" />
+    <EmbeddedResource Include="Localization\AccountOverride\*.json" />
+    <Content Remove="Localization\AccountOverride\*.json" />
   </ItemGroup>
 
 </Project>

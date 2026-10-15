@@ -1,10 +1,12 @@
 # Schema Reference
 
-[Home](../INDEX.md) > [Database](./) > Schema Reference
+> Purpose: Database-level reference for table naming, SQL type conventions, ABP system tables, and the dual-DbContext strategy. Audience: backend developers.
+
+[Home](../index.md) > [Database](./) > Schema Reference
 
 ---
 
-For per-entity column details, see the feature CLAUDE.md files linked in [Domain Model](../backend/DOMAIN-MODEL.md). This page covers database-level concerns not found in the entity documentation.
+For per-entity column details, see the feature CLAUDE.md files linked in [Domain Model](EF-CORE-DESIGN.md). This page covers database-level concerns not found in the entity documentation.
 
 ## Table Naming
 
@@ -51,7 +53,7 @@ ABP Framework creates its own tables (not prefixed with `App`):
 | PermissionManagement | `AbpPermissionGrants`, `AbpPermissionGroups` | Permission storage |
 | SettingManagement | `AbpSettings` | Application settings |
 | AuditLogging | `AbpAuditLogs`, `AbpAuditLogActions`, `AbpEntityChanges`, `AbpEntityPropertyChanges` | Audit trail |
-| BackgroundJobs | `AbpBackgroundJobs` | Job queue |
+| BackgroundJobs | `AbpBackgroundJobs` | ABP's job table. Jobs actually run on Hangfire (`AbpBackgroundJobsHangfireModule`), whose own tables live in SQL Server via `UseSqlServerStorage` |
 | FeatureManagement | `AbpFeatureGroups`, `AbpFeatureValues` | Feature flags |
 
 ## Dual Database Strategy
@@ -60,15 +62,16 @@ The project uses two DbContexts that produce separate migration sets:
 
 | Context | Migrations Path | Contains |
 |---------|----------------|----------|
-| `CaseEvaluationDbContext` | `Migrations/` | All entities (host + tenant via `IsHostDatabase()` guards) |
-| `CaseEvaluationTenantDbContext` | `TenantMigrations/` | Tenant-scoped entities only |
+| `CaseEvaluationDbContext` | `Migrations/` | All entities, including the two host-only ones (`OfficeBranding`, `IntakeOfficeAssignment`) behind `IsHostDatabase()` |
+| `CaseEvaluationTenantDbContext` | `TenantMigrations/` | Every entity except the two host-only ones; each office's database holds its own rows |
 
 See [EF Core Design](EF-CORE-DESIGN.md) for full details on the dual DbContext strategy.
 
 ---
 
 **Related:**
-- [Domain Model](../backend/DOMAIN-MODEL.md) -- entity index with links to per-entity details
+
+- [Domain Model](EF-CORE-DESIGN.md) -- entity index with links to per-entity details
 - [EF Core Design](EF-CORE-DESIGN.md) -- dual DbContext strategy
 - [Migration Guide](MIGRATION-GUIDE.md) -- creating and applying migrations
-- [Entity Relationships](../backend/ENTITY-RELATIONSHIPS.md) -- FK diagram
+- [Entity Relationships](EF-CORE-DESIGN.md) -- FK diagram

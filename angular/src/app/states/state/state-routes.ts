@@ -5,8 +5,11 @@ export const STATE_ROUTES: Routes = [
   {
     path: '',
     loadComponent: () => {
-      return import('./components/state.component').then((c) => c.StateComponent);
+      return import('../../configuration/internal-configuration.component').then(
+        (c) => c.InternalConfigurationComponent,
+      );
     },
     canActivate: [authGuard, permissionGuard],
+    data: { section: 'states', requiredPolicy: 'CaseEvaluation.States' },
   },
 ];

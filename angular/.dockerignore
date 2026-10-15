@@ -1,0 +1,19 @@
+# The angular service builds with context `./angular`, so the repo-root
+# .dockerignore does NOT apply here -- each build context has its own. Without
+# this file, `COPY . /app` pulled the host's node_modules (~583 MB), dist, and
+# .angular build cache straight into the image. The image installs its own
+# dependencies, so none of these host artifacts belong in the build context.
+node_modules
+dist
+.angular
+e2e
+.git
+.vscode
+.idea
+*.log
+
+# Yarn Berry: cache + machine-state never belong in the build context
+# (.yarn/releases IS required by the Dockerfile and stays).
+.yarn/cache
+.yarn/install-state.gz
+.yarn/unplugged

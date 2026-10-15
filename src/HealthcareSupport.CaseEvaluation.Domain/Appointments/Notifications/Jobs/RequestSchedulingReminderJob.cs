@@ -3,20 +3,24 @@ using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments.Jobs;
 using HealthcareSupport.CaseEvaluation.Enums;
+using HealthcareSupport.CaseEvaluation.MultiTenancy;
+using HealthcareSupport.CaseEvaluation.Notifications;
+using HealthcareSupport.CaseEvaluation.Settings;
 using Microsoft.Extensions.Logging;
 using Volo.Abp.BackgroundJobs;
-using Volo.Abp.Data;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
-using Volo.Abp.MultiTenancy;
+using Volo.Abp.Settings;
+using Volo.Abp.Timing;
+using HealthcareSupport.CaseEvaluation.Timing;
 using Volo.Abp.Uow;
 
 namespace HealthcareSupport.CaseEvaluation.Appointments.Notifications.Jobs;
 
 /// <summary>
 /// W2-10: CCR Title 8 Sec. 31.5 -- request-scheduling reminder. Fires daily
-/// at 08:00 Pacific Time. For each tenant, locates Pending or AwaitingMoreInfo
-/// appointments whose request submission has been outstanding for the
+/// at 08:00 Pacific Time. For each tenant, locates Pending appointments
+/// whose request submission has been outstanding for the
 /// elapsed-day windows defined in CCR (default 30 / 60 / 75 / 85 / 90 days
 /// since RequestConfirmationNumber assignment), resolves all parties via
 /// <see cref="IAppointmentRecipientResolver"/>, and enqueues per-recipient
@@ -27,29 +31,30 @@ namespace HealthcareSupport.CaseEvaluation.Appointments.Notifications.Jobs;
 /// </summary>
 public class RequestSchedulingReminderJob : ITransientDependency
 {
-    private static readonly int[] ReminderElapsedDays = { 30, 60, 75, 85, 90 };
-
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
-    private readonly IDataFilter _dataFilter;
-    private readonly ICurrentTenant _currentTenant;
+    private readonly ITenantWorkRunner _tenantWorkRunner;
     private readonly IAppointmentRecipientResolver _recipientResolver;
     private readonly IBackgroundJobManager _backgroundJobManager;
+    private readonly ISettingProvider _settingProvider;
     private readonly ILogger<RequestSchedulingReminderJob> _logger;
+    private readonly IClock _clock;
 
     public RequestSchedulingReminderJob(
         IRepository<Appointment, Guid> appointmentRepository,
-        IDataFilter dataFilter,
-        ICurrentTenant currentTenant,
+        ITenantWorkRunner tenantWorkRunner,
         IAppointmentRecipientResolver recipientResolver,
         IBackgroundJobManager backgroundJobManager,
-        ILogger<RequestSchedulingReminderJob> logger)
+        ISettingProvider settingProvider,
+        ILogger<RequestSchedulingReminderJob> logger,
+        IClock clock)
     {
         _appointmentRepository = appointmentRepository;
-        _dataFilter = dataFilter;
-        _currentTenant = currentTenant;
+        _tenantWorkRunner = tenantWorkRunner;
         _recipientResolver = recipientResolver;
         _backgroundJobManager = backgroundJobManager;
+        _settingProvider = settingProvider;
         _logger = logger;
+        _clock = clock;
     }
 
     public const string RecurringJobId = "appt-request-scheduling-reminder";
@@ -59,43 +64,42 @@ public class RequestSchedulingReminderJob : ITransientDependency
     public virtual async Task ExecuteAsync()
     {
         _logger.LogInformation("RequestSchedulingReminderJob: starting daily run.");
-        var tenantIds = await GetDistinctTenantIdsAsync();
         var enqueuedTotal = 0;
-        foreach (var tenantId in tenantIds)
+        var officeCount = 0;
+        await _tenantWorkRunner.ForEachOfficeAsync(async _ =>
         {
-            using (_currentTenant.Change(tenantId))
-            {
-                enqueuedTotal += await ProcessTenantAsync();
-            }
-        }
+            officeCount++;
+            enqueuedTotal += await ProcessTenantAsync();
+        });
         _logger.LogInformation(
             "RequestSchedulingReminderJob: enqueued {Total} reminder emails across {TenantCount} tenants.",
             enqueuedTotal,
-            tenantIds.Count);
-    }
-
-    private async Task<System.Collections.Generic.List<Guid?>> GetDistinctTenantIdsAsync()
-    {
-        using (_dataFilter.Disable<IMultiTenant>())
-        {
-            var queryable = await _appointmentRepository.GetQueryableAsync();
-            return queryable.Select(a => a.TenantId).Distinct().ToList();
-        }
+            officeCount);
     }
 
     private async Task<int> ProcessTenantAsync()
     {
-        var nowUtc = DateTime.UtcNow.Date;
+        if (!await _settingProvider.GetAsync<bool>(CaseEvaluationSettings.RemindersPolicy.RemindersEnabled))
+        {
+            return 0;
+        }
+
+        var cadence = new ReminderCadence(
+            await _settingProvider.GetOrNullAsync(
+                CaseEvaluationSettings.RemindersPolicy.Sec31_5ElapsedDayAnchors));
+
+        // 2026-08-31: BOTH sides were UTC dates -- correct only because the cron fires at 08:00
+        // Pacific. CreationTime is a UTC INSTANT, so the elapsed-day count must be measured between
+        // Pacific calendar dates, which is what the configured anchors mean.
+        var todayPacific = PacificTime.TodayFrom(_clock.Now);
         var queryable = await _appointmentRepository.GetQueryableAsync();
-        // Match the request-creation date against each elapsed-day window;
-        // ABP CreationTime is set at appointment row insert (the request submit
-        // moment), so windowStart = today - daysElapsed (date-only).
+        // Match the request-creation date against each configured elapsed-day
+        // anchor; ABP CreationTime is set at appointment row insert (the request
+        // submit moment), so daysElapsed = today - creation date (date-only).
         var eligible = queryable
-            .Where(a =>
-                (a.AppointmentStatus == AppointmentStatusType.Pending ||
-                 a.AppointmentStatus == AppointmentStatusType.AwaitingMoreInfo))
+            .Where(a => a.AppointmentStatus == AppointmentStatusType.Pending)
             .ToList()
-            .Where(a => ReminderElapsedDays.Any(d => a.CreationTime.Date == nowUtc.AddDays(-d)))
+            .Where(a => cadence.ShouldFire((int)(todayPacific - PacificTime.TodayFrom(a.CreationTime)).TotalDays))
             .ToList();
 
         var enqueued = 0;

@@ -8,6 +8,11 @@ namespace HealthcareSupport.CaseEvaluation.Locations;
 public class LocationDto : FullAuditedEntityDto<Guid>, IHasConcurrencyStamp
 {
     public string Name { get; set; } = null!;
+
+    // #11 (task_59b8c23a): external integration ID (CalMed / Case Tracker), the clinic's
+    // unique business identifier -- flows wherever the location DTO is used.
+    public string FacilityId { get; set; } = null!;
+
     public string? Address { get; set; }
 
     public string? City { get; set; }
@@ -20,7 +25,8 @@ public class LocationDto : FullAuditedEntityDto<Guid>, IHasConcurrencyStamp
 
     public Guid? StateId { get; set; }
 
-    public Guid? AppointmentTypeId { get; set; }
+    // I3 (2026-06-08): a Location offers multiple appointment types (M2M).
+    public List<Guid> AppointmentTypeIds { get; set; } = new();
 
     public string ConcurrencyStamp { get; set; } = null!;
 }

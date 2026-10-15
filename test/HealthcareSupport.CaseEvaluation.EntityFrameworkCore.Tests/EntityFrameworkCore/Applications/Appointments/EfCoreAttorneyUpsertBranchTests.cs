@@ -1,0 +1,7 @@
+using HealthcareSupport.CaseEvaluation.Appointments;
+
+namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Applications.Appointments;
+
+public class EfCoreAttorneyUpsertBranchTests : AttorneyUpsertBranchTests<CaseEvaluationEntityFrameworkCoreTestModule>
+{
+}

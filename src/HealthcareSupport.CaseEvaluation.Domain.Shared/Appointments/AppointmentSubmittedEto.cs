@@ -23,6 +23,8 @@ public class AppointmentSubmittedEto
 
     public Guid PatientId { get; set; }
 
+    public Guid AppointmentTypeId { get; set; }
+
     public string RequestConfirmationNumber { get; set; } = string.Empty;
 
     public DateTime AppointmentDate { get; set; }
@@ -38,6 +40,7 @@ public class AppointmentSubmittedEto
         Guid? tenantId,
         Guid bookerUserId,
         Guid patientId,
+        Guid appointmentTypeId,
         string requestConfirmationNumber,
         DateTime appointmentDate,
         DateTime submittedAt)
@@ -46,6 +49,7 @@ public class AppointmentSubmittedEto
         TenantId = tenantId;
         BookerUserId = bookerUserId;
         PatientId = patientId;
+        AppointmentTypeId = appointmentTypeId;
         RequestConfirmationNumber = requestConfirmationNumber;
         AppointmentDate = appointmentDate;
         SubmittedAt = submittedAt;

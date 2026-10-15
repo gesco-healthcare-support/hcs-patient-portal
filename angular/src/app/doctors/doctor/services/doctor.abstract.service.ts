@@ -29,7 +29,12 @@ export abstract class AbstractDoctorViewService {
         filter((status) => status === Confirmation.Status.confirm),
         switchMap(() => this.proxyService.delete(record.doctor.id)),
       )
-      .subscribe(this.list.get);
+      .subscribe({
+        next: () => this.list.get(),
+        // ABP's HTTP error handler has already told the user. The row stays in
+        // the list, which is the truth: the delete did not happen.
+        error: () => undefined,
+      });
   }
 
   hookToQuery() {
@@ -44,6 +49,8 @@ export abstract class AbstractDoctorViewService {
       this.data = list;
     };
 
+    // No error callback by design: ListService.hookToQuery catches a failed
+    // load itself, reports it through ABP's handler and keeps `data` as it was.
     this.list.hookToQuery(getData).subscribe(setData);
   }
 

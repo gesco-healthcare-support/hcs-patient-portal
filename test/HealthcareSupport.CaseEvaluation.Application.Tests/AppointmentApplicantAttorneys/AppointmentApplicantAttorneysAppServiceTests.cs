@@ -60,26 +60,30 @@ public abstract class AppointmentApplicantAttorneysAppServiceTests<TStartupModul
     [Fact]
     public async Task CreateAsync_PersistsNewJoin()
     {
-        // Create in host context -> TenantId = null; use IDataFilter.Disable to
-        // fetch it back without a tenant wrap in the assertion.
-        var input = new AppointmentApplicantAttorneyCreateDto
+        // Inside the office that owns Appointment1. Creating a child row needs the caller to be a party
+        // to its appointment, and from host context that appointment is not visible at all. These tests
+        // used to create from host context, writing an unscoped row onto another office's appointment.
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
         {
-            AppointmentId = AppointmentsTestData.Appointment1Id,
-            ApplicantAttorneyId = ApplicantAttorneysTestData.Attorney1Id,
-            IdentityUserId = IdentityUsersTestData.Patient1UserId
-        };
+            var input = new AppointmentApplicantAttorneyCreateDto
+            {
+                AppointmentId = AppointmentsTestData.Appointment1Id,
+                ApplicantAttorneyId = ApplicantAttorneysTestData.Attorney1Id,
+                IdentityUserId = IdentityUsersTestData.Patient1UserId
+            };
 
-        var created = await _joinsAppService.CreateAsync(input);
+            var created = await _joinsAppService.CreateAsync(input);
 
-        created.ShouldNotBeNull();
-        created.AppointmentId.ShouldBe(input.AppointmentId);
-        created.ApplicantAttorneyId.ShouldBe(input.ApplicantAttorneyId);
-        created.IdentityUserId.ShouldBe(input.IdentityUserId);
+            created.ShouldNotBeNull();
+            created.AppointmentId.ShouldBe(input.AppointmentId);
+            created.ApplicantAttorneyId.ShouldBe(input.ApplicantAttorneyId);
+            created.IdentityUserId.ShouldBe(input.IdentityUserId);
 
-        using (_dataFilter.Disable<IMultiTenant>())
-        {
-            var persisted = await _joinRepository.FindAsync(created.Id);
-            persisted.ShouldNotBeNull();
+            using (_dataFilter.Disable<IMultiTenant>())
+            {
+                var persisted = await _joinRepository.FindAsync(created.Id);
+                persisted.ShouldNotBeNull();
+            }
         }
     }
 
@@ -111,18 +115,24 @@ public abstract class AppointmentApplicantAttorneysAppServiceTests<TStartupModul
     [Fact]
     public async Task DeleteAsync_RemovesJoin()
     {
-        var created = await _joinsAppService.CreateAsync(new AppointmentApplicantAttorneyCreateDto
+        // Inside the office that owns Appointment1. Creating a child row needs the caller to be a party
+        // to its appointment, and from host context that appointment is not visible at all. These tests
+        // used to create from host context, writing an unscoped row onto another office's appointment.
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
         {
-            AppointmentId = AppointmentsTestData.Appointment1Id,
-            ApplicantAttorneyId = ApplicantAttorneysTestData.Attorney1Id,
-            IdentityUserId = IdentityUsersTestData.Patient1UserId
-        });
+            var created = await _joinsAppService.CreateAsync(new AppointmentApplicantAttorneyCreateDto
+            {
+                AppointmentId = AppointmentsTestData.Appointment1Id,
+                ApplicantAttorneyId = ApplicantAttorneysTestData.Attorney1Id,
+                IdentityUserId = IdentityUsersTestData.Patient1UserId
+            });
 
-        await _joinsAppService.DeleteAsync(created.Id);
+            await _joinsAppService.DeleteAsync(created.Id);
 
-        using (_dataFilter.Disable<IMultiTenant>())
-        {
-            (await _joinRepository.FindAsync(created.Id)).ShouldBeNull();
+            using (_dataFilter.Disable<IMultiTenant>())
+            {
+                (await _joinRepository.FindAsync(created.Id)).ShouldBeNull();
+            }
         }
     }
 

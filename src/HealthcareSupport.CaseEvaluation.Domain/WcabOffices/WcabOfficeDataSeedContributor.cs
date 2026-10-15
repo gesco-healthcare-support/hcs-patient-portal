@@ -10,7 +10,8 @@ namespace HealthcareSupport.CaseEvaluation.WcabOffices;
 /// <summary>
 /// Seeds the active Southern California WCAB district offices most commonly referenced
 /// during workers'-comp IME scheduling. All rows reference California's State seed by ID.
-/// Host-scoped (no IMultiTenant); idempotent via per-row upsert-by-ID.
+/// Seeded per office under database-per-office; <c>WcabOffice</c> IS <c>IMultiTenant</c>
+/// (this line previously said host-scoped). Idempotent via per-row upsert-by-ID.
 /// Source: California DIR WCAB District Office directory
 /// (https://www.dir.ca.gov/wcab/wcab_locations.html, accessed 2026-04-24).
 /// </summary>
@@ -25,7 +26,9 @@ public class WcabOfficeDataSeedContributor : IDataSeedContributor, ITransientDep
 
     public async Task SeedAsync(DataSeedContext context)
     {
-        if (context?.TenantId != null)
+        // Per-office (db-per-office): seed under the active tenant; skip host scope
+        // (no catalogs there). Per-office seed execution + ordering is Phase B (B4).
+        if (context?.TenantId == null)
         {
             return;
         }

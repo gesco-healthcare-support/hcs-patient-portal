@@ -1,0 +1,85 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "_comment": [
+    "COPY THIS to main.parameters.json and fill it in. That file is gitignored.",
+    "",
+    "THREE VALUES MUST NEVER BE WRITTEN INTO A FILE IN THIS REPOSITORY:",
+    "  sqlAdminPassword, adminSshPublicKey, tlsCertificateSecretId",
+    "Pass them on the command line from a pipeline secret, or use a Key Vault",
+    "reference. The repository is PUBLIC.",
+    "",
+    "A Key Vault reference looks like this and is the preferred form:",
+    "  \"sqlAdminPassword\": {",
+    "    \"reference\": {",
+    "      \"keyVault\": { \"id\": \"/subscriptions/.../vaults/<bootstrap-vault>\" },",
+    "      \"secretName\": \"portal-sql-admin-password\"",
+    "    }",
+    "  }",
+    "Note the vault holding the bootstrap secrets is a DIFFERENT vault from the one",
+    "this template creates - the template's vault does not exist yet at parameter time.",
+    "",
+    "FIRST DEPLOYMENT, TWO PHASES (see main.bicep): phase 1 with deployGateway false and",
+    "tlsCertificateSecretId empty; issue the certificate into Key Vault from the host;",
+    "phase 2 with deployGateway true and tlsCertificateSecretId set.",
+    "",
+    "sqlEntraAdminObjectId is REQUIRED and the placeholder below fails validation on",
+    "purpose (it is not 36 characters), so an unfilled copy cannot deploy."
+  ],
+  "parameters": {
+    "location": {
+      "value": "westus2"
+    },
+    "envName": {
+      "value": "pilot"
+    },
+    "baseDomain": {
+      "value": "portal.example.com"
+    },
+    "sqlAdminLogin": {
+      "value": "portaladmin"
+    },
+    "sqlAdminPassword": {
+      "value": "REPLACE-VIA-KEYVAULT-REFERENCE-OR-PIPELINE-SECRET"
+    },
+    "sqlEntraAdminObjectId": {
+      "value": "REPLACE-WITH-THE-ENTRA-GROUP-OBJECT-ID"
+    },
+    "sqlEntraAdminName": {
+      "value": "REPLACE-WITH-THE-ENTRA-GROUP-DISPLAY-NAME"
+    },
+    "adminSshPublicKey": {
+      "value": "REPLACE-WITH-THE-PUBLIC-HALF-OF-THE-DEPLOY-KEY"
+    },
+    "deployGateway": {
+      "value": false
+    },
+    "tlsCertificateSecretId": {
+      "value": ""
+    },
+    "wafMode": {
+      "value": "Detection"
+    },
+    "enableDdosIpProtection": {
+      "value": true
+    },
+    "probeHostName": {
+      "value": "health.portal.example.com"
+    },
+    "registrySku": {
+      "value": "Basic"
+    },
+    "elasticPoolCapacity": {
+      "value": 100
+    },
+    "redisSkuName": {
+      "value": "Balanced_B0"
+    },
+    "vmSize": {
+      "value": "Standard_D4s_v5"
+    },
+    "createDnsZone": {
+      "value": true
+    }
+  }
+}

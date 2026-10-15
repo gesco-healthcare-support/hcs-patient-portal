@@ -55,6 +55,7 @@ dotnet test [options] --verbosity normal
 Capture both stdout and stderr. Set a timeout of 5 minutes (300000ms).
 
 If the command fails to start (not a test failure, but a build/config error):
+
 - Check if LocalDB is running: `sqllocaldb info MSSQLLocalDB`
 - Check if the project builds: `dotnet build`
 - Report the build error and stop
@@ -72,6 +73,7 @@ Extract from the output:
 - **Duration:** look for `Total time:` or `Duration:`
 
 For each failure, extract:
+
 - **Test name:** the fully qualified test method name
 - **Error message:** the Shouldly assertion message or exception message
 - **Stack trace:** abbreviated to the relevant frame (skip framework internals)
@@ -99,21 +101,25 @@ For each failing test, classify:
 For each failure, provide a specific suggestion:
 
 ### Assertion failures
+
 - Read the test method to understand what it expects
 - Read the source code being tested
 - Determine: is the test wrong (expectations changed) or is the code wrong (regression)?
 - Suggest: update the assertion value, or fix the source code
 
 ### Not Found / Seed Data
+
 - Check if a `{Entity}DataSeedContributor` exists in `test/.../Domain.Tests/{Feature}/`
 - If missing: suggest running `/design-tests {Feature}` to create seed data
 - If exists: check that the hardcoded GUIDs in the seed match the test assertions
 
 ### Configuration / DI
+
 - Check that the test module registers the required services
 - Check that the test class uses the correct base class
 
 ### Database / Migration
+
 - Check if a new migration was added but not applied to the test SQLite database
 - The test DB is rebuilt from scratch each run — ensure all entity configs are correct
 
@@ -142,7 +148,7 @@ If the user asks to fix failures:
 
 ## Step 8 — REPORT
 
-```
+```text
 Test Results ({scope}):
   Command: {exact command run}
   Duration: {time}

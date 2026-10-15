@@ -10,7 +10,8 @@ public static class AppointmentClaimExaminerConsts
     }
 
     public const int NameMaxLength = 50;
-    public const int ClaimExaminerNumberMaxLength = 255;
+    // Issue 2.3 (2026-05-12): renamed from ClaimExaminerNumberMaxLength.
+    public const int SuiteMaxLength = 255;
     public const int EmailMaxLength = 255;
     public const int PhoneNumberMaxLength = 20;
     public const int FaxMaxLength = 15;

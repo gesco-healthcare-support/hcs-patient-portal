@@ -1,0 +1,163 @@
+// Submit-query modal -- ported from
+// design_handoff_appointment_portal/styles/ext-home.css (.ext-modal*) and
+// components/ext-after2.jsx markup. Plain standalone modal that replaces the
+// LeptonX abp-modal; fields/buttons reuse the global ap- utilities, only the
+// modal-specific chrome is scoped here.
+.ext-modal-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(7, 30, 49, 0.5);
+  backdrop-filter: blur(3px);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: sqFade 0.18s ease both;
+}
+.ext-modal {
+  background: #fff;
+  border-radius: 18px;
+  width: 100%;
+  max-width: 520px;
+  box-shadow: var(--sh-lg);
+  overflow: hidden;
+  animation: sqPop 0.2s ease both;
+}
+
+.ext-modal__head {
+  padding: 22px 24px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+.ext-modal__head .ic {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ext-modal__head h3 {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--n-900);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+.ext-modal__head p {
+  font-size: 13px;
+  color: var(--n-500);
+  margin: 3px 0 0;
+}
+.ext-modal__head .x {
+  margin-left: auto;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--n-500);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex: none;
+  transition: all 0.14s ease;
+}
+.ext-modal__head .x:hover {
+  background: var(--n-50);
+  color: var(--n-800);
+}
+
+.ext-modal__body {
+  padding: 22px 24px;
+}
+.sq-mb {
+  margin-bottom: 16px;
+}
+
+.ext-modal__foot {
+  padding: 16px 24px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  background: var(--n-25);
+}
+
+.ext-textarea {
+  width: 100%;
+  padding: 12px 14px;
+  font-size: 13.5px;
+  font-family: var(--font);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  resize: vertical;
+  min-height: 96px;
+  color: var(--n-800);
+}
+.ext-textarea:focus {
+  outline: none;
+  border-color: var(--blue-400);
+  box-shadow: 0 0 0 4px var(--blue-50);
+}
+.ext-count {
+  font-size: 11.5px;
+  color: var(--n-400);
+  text-align: right;
+  margin-top: 5px;
+}
+
+.ext-help-note {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  background: #fdf3ea;
+  border: 1px solid #f3d9be;
+  border-radius: 10px;
+  padding: 11px 13px;
+  font-size: 12px;
+  color: #9a5a18;
+  margin-top: 14px;
+}
+.ext-help-note .i {
+  color: #c47d2c;
+  flex: none;
+  margin-top: 1px;
+  display: inline-flex;
+}
+
+.req {
+  color: var(--st-rejected-fg);
+}
+.opt {
+  color: var(--n-400);
+  font-weight: 500;
+}
+.tint-blue {
+  background: var(--blue-50);
+  color: var(--blue-700);
+}
+
+@keyframes sqFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes sqPop {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}

@@ -8,7 +8,7 @@ param (
 
 # Create values.localdev.yaml if not exists
 $localDevFilePath = Join-Path $PSScriptRoot "caseevaluation/values.localdev.yaml"
-if (!(Test-Path $localDevFilePath)) {
+if (-not (Test-Path $localDevFilePath)) {
 	New-Item -ItemType File -Path $localDevFilePath | Out-Null
 }
 

@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using Volo.Abp.AuditLogging.EntityFrameworkCore;
-using HealthcareSupport.CaseEvaluation.Books;
 using Volo.Abp.BackgroundJobs.EntityFrameworkCore;
 using Volo.Abp.EntityFrameworkCore;
 using Volo.Abp.EntityFrameworkCore.Modeling;
@@ -21,40 +20,30 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
 public abstract class CaseEvaluationDbContextBase<TDbContext> : AbpDbContext<TDbContext>
     where TDbContext : DbContext
 {
-    public DbSet<Book> Books { get; set; }
-
-    public CaseEvaluationDbContextBase(DbContextOptions<TDbContext> options)
+    protected CaseEvaluationDbContextBase(DbContextOptions<TDbContext> options)
         : base(options)
     {
 
     }
 
-    protected override void OnModelCreating(ModelBuilder builder)
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        base.OnModelCreating(builder);
+        base.OnModelCreating(modelBuilder);
 
         /* Include modules to your migration db context */
 
-        builder.ConfigurePermissionManagement();
-        builder.ConfigureSettingManagement();
-        builder.ConfigureBackgroundJobs();
-        builder.ConfigureAuditLogging();
-        builder.ConfigureIdentityPro();
-        builder.ConfigureOpenIddictPro();
-        builder.ConfigureFeatureManagement();
-        builder.ConfigureLanguageManagement();
-        builder.ConfigureFileManagement();
-        builder.ConfigureSaas();
-        builder.ConfigureTextTemplateManagement();
-        builder.ConfigureBlobStoring();
-        builder.ConfigureGdpr();
-
-        builder.Entity<Book>(b =>
-        {
-            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "Books",
-                CaseEvaluationConsts.DbSchema);
-            b.ConfigureByConvention(); //auto configure for the base class props
-            b.Property(x => x.Name).IsRequired().HasMaxLength(128);
-        });
+        modelBuilder.ConfigurePermissionManagement();
+        modelBuilder.ConfigureSettingManagement();
+        modelBuilder.ConfigureBackgroundJobs();
+        modelBuilder.ConfigureAuditLogging();
+        modelBuilder.ConfigureIdentityPro();
+        modelBuilder.ConfigureOpenIddictPro();
+        modelBuilder.ConfigureFeatureManagement();
+        modelBuilder.ConfigureLanguageManagement();
+        modelBuilder.ConfigureFileManagement();
+        modelBuilder.ConfigureSaas();
+        modelBuilder.ConfigureTextTemplateManagement();
+        modelBuilder.ConfigureBlobStoring();
+        modelBuilder.ConfigureGdpr();
     }
 }

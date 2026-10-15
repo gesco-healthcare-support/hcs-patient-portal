@@ -1,0 +1,150 @@
+@page
+@model HealthcareSupport.CaseEvaluation.Pages.Account.LoginModel
+@{
+    ViewData["Title"] = "Sign in";
+}
+@*
+    Custom Razor view for /Account/Login. Filesystem precedence
+    overrides the Pro OpenIddict module's stock Login page. The paired
+    PageModel (Login.cshtml.cs) extends OpenIddictSupportedLoginModel
+    so OpenIddict authorize / 2FA / lockout flow are preserved; this
+    view only rewrites the visible copy.
+
+    Anti-enumeration UX (proposed-copy.md 2.1, locked 2026-05-18):
+      - Single generic banner "Email or password is incorrect, or your
+        email isn't verified." for all 3 failure cases.
+      - Always-visible "Resend verification" link below the form, so
+        showing the link does NOT leak which case triggered it.
+      - "?flash=password-updated" / "email-verified" /
+        "verification-invalid" query banners (one-shot, cross-page).
+
+    Email-only login: the field accepts email format only (type=email +
+    autocomplete=email + inputmode=email). The framework's
+    ReplaceEmailToUsernameOfInputIfNeeds method on the base PageModel
+    auto-resolves email -> username on SignIn, so the inherited form
+    binding key (LoginInput.UserNameOrEmailAddress) stays.
+*@
+
+<div class="account-card">
+    <div class="account-content">
+
+        <h1 class="text-center mt-4 mb-3">Sign in</h1>
+
+        @* Cross-page flash banner: password-updated / email-verified / verification-invalid. *@
+        @if (!string.IsNullOrEmpty(Model.FlashBannerLevel) && !string.IsNullOrEmpty(Model.FlashBannerText))
+        {
+            var flashClass = Model.FlashBannerLevel == "success" ? "alert-success" : "alert-warning";
+            var flashRole = Model.FlashBannerLevel == "success" ? "status" : "alert";
+            <div class="alert @flashClass mt-3" role="@flashRole" aria-live="polite">
+                @Model.FlashBannerText
+            </div>
+        }
+
+        @* Anti-enumeration banner for all 3 credential-failure modes. *@
+        @if (Model.ShowGenericFailureBanner)
+        {
+            <div class="alert alert-danger mt-3" role="alert" aria-live="assertive">
+                Email or password is incorrect, or your email isn't verified.
+            </div>
+        }
+
+        <form method="post" novalidate>
+            <input type="hidden" asp-for="ReturnUrl" />
+            <input type="hidden" asp-for="ReturnUrlHash" />
+
+            <div class="form-group mt-3">
+                <label asp-for="LoginInput.UserNameOrEmailAddress" class="form-label">Email address</label>
+                <input asp-for="LoginInput.UserNameOrEmailAddress"
+                       type="email"
+                       class="form-control"
+                       autocomplete="email"
+                       inputmode="email"
+                       autofocus
+                       required />
+                @* Drop class= -- audit FL2 / RPL2; see ForgotPassword.cshtml for rationale. *@
+                <span asp-validation-for="LoginInput.UserNameOrEmailAddress"></span>
+            </div>
+
+            <div class="form-group mt-3">
+                <label asp-for="LoginInput.Password" class="form-label">Password</label>
+                <input asp-for="LoginInput.Password"
+                       type="password"
+                       class="form-control"
+                       autocomplete="current-password"
+                       required />
+                @* Drop class= -- audit FL2 / RPL2; see ForgotPassword.cshtml for rationale. *@
+                <span asp-validation-for="LoginInput.Password"></span>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center mt-3">
+                <div class="form-check">
+                    <input asp-for="LoginInput.RememberMe" class="form-check-input" />
+                    <label asp-for="LoginInput.RememberMe" class="form-check-label">Remember me</label>
+                </div>
+                <a asp-page="ForgotPassword">Forgot password?</a>
+            </div>
+
+            @*
+                name="Action" + value="Login" is the framework's form convention.
+                The base PageModel's OnPostAsync(string action) parameter is
+                non-nullable, so the model binder rejects submissions that lack
+                the "action" field. Submitting "Login" passes the non-Cancel
+                check inside base.OnPostAsync; "Cancel" is the OpenIddict
+                cancel-button path.
+            *@
+            <div class="d-grid gap-2 mt-4">
+                <button id="login-submit"
+                        type="submit"
+                        name="Action"
+                        value="Login"
+                        class="btn btn-primary btn-lg"
+                        title="Sign in">
+                    Sign in
+                </button>
+            </div>
+        </form>
+
+        @*
+            Resend verification affordance, visible ONLY when the failed
+            submit was the unverified-email case (Adrian 2026-05-19, with
+            explicit acceptance of the enumeration leak: link presence
+            tells an attacker the email exists + is unverified). Hidden
+            on fresh page loads, ?flash= banner views, wrong-password
+            failures, and non-existent-email failures.
+        *@
+        @if (Model.IsUnverifiedEmailFailure)
+        {
+            <p class="text-center text-muted small mt-3">
+                Need to verify your email?
+                <a href="~/Account/ResendVerification?context=login&email=@Uri.EscapeDataString(Model.UnverifiedEmailHint ?? string.Empty)">Resend verification</a>.
+            </p>
+        }
+
+        <hr class="my-4" />
+
+        <p class="text-center text-muted small">
+            Not registered? <a asp-page="Register">Sign up</a>.
+        </p>
+
+    </div>
+</div>
+
+@section scripts {
+    <script>
+        // "Signing in..." busy text on submit (proposed-copy.md 2.1).
+        // Disable the button on submit so duplicate clicks don't fire a
+        // second post; the server-side antiforgery token would only allow
+        // one anyway, but the UX hint prevents user confusion.
+        (function () {
+            var form = document.querySelector('form[method="post"]');
+            if (!form) return;
+            var btn = document.getElementById('login-submit');
+            if (!btn) return;
+            form.addEventListener('submit', function () {
+                btn.disabled = true;
+                btn.setAttribute('aria-disabled', 'true');
+                btn.innerText = 'Signing in...';
+            });
+        })();
+    </script>
+}

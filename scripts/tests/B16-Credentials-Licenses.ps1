@@ -30,7 +30,9 @@ Write-Host "`n--- B16.1 ABP License ---" -ForegroundColor Yellow
 $nugetConfig = Join-Path $projectRoot "NuGet.Config"
 if (Test-Path $nugetConfig) {
     $content = Get-Content $nugetConfig -Raw
-    $hasApiKey = ($content -match 'ABP_NUGET_API_KEY' -or $content -match 'afccfa61')
+    # Either the template placeholder or a resolved key: the ABP feed carries the key as a
+    # GUID path segment, so match that shape rather than any particular value.
+    $hasApiKey = ($content -match 'ABP_NUGET_API_KEY' -or $content -match 'nuget\.abp\.io/[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}/')
     Assert-IsTrue -TestResults $TestResults -TestId "B16.1.1" -Name "NuGet.Config has ABP API key" -Condition $hasApiKey -Details "Key present: $hasApiKey. MEDIUM risk - key in source control."
 } else {
     Add-SkipResult -TestResults $TestResults -TestId "B16.1.1" -Name "NuGet API key" -Reason "NuGet.Config not found"

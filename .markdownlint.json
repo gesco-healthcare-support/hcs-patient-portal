@@ -1,7 +1,17 @@
 {
   "default": true,
   "MD013": false,
-  "MD024": { "allow_different_nesting": true },
+  "MD024": {
+    "siblings_only": true
+  },
+  "MD025": {
+    "front_matter_title": ""
+  },
+  "MD028": false,
+  "MD029": false,
   "MD033": false,
+  "MD036": false,
+  "MD037": false,
+  "MD038": false,
   "MD041": false
 }

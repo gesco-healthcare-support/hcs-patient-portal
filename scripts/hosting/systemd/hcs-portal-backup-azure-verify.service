@@ -1,0 +1,15 @@
+# Weekly Azure backup run that ALSO downloads the host dump back from Azure, checks it against the run's
+# manifest, restores it into a scratch database and drops it. This proves the copy in Azure restores, not
+# just the one on this disk. Touches last-restore-proof, which backup-freshness-check.sh watches.
+[Unit]
+Description=Patient Portal Azure backup WITH restore proof from Azure (weekly)
+After=docker.service
+Requires=docker.service
+OnFailure=hcs-portal-backup-alert@%n.service
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/home/apadmin/hcs-patient-portal
+ExecStart=/bin/bash /home/apadmin/hcs-patient-portal/scripts/hosting/backup-azure-blob.sh --verify-restore
+TimeoutStartSec=4h

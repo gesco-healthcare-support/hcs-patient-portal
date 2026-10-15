@@ -1,0 +1,45 @@
+name: Packet Real PDF
+
+# post_process.py runs against the REAL pikepdf here (#938). The Python Test job measures it
+# against tests/python/fake_pdf_libs.py, which says the module calls the fake in the expected
+# shape and nothing about the library the packet-renderer image actually ships.
+#
+# NOT a required check, and path-filtered on purpose: a required job that skips reports
+# success. This one only matters when the PDF path changes, and a weekly run catches library
+# drift when nothing in the repository changes at all.
+on:
+  pull_request:
+    paths:
+      - 'tools/packet-templates/shared/**'
+      - 'docker/packet-renderer/**'
+      - 'tests/python/test_post_process_real_pdf.py'
+      - '.github/workflows/packet-real-pdf.yml'
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-pdf:
+    name: 'Packet: post_process against real pikepdf'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # Under this, a missing library FAILS the test instead of skipping it. A skip is
+      # green, which is how this check would silently stop checking.
+      REQUIRE_REAL_PDF_LIBS: '1'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+        with:
+          python-version: "3.12"
+      - name: Install the pikepdf version the image ships, plus an independent reader
+        run: |
+          set -euo pipefail
+          pin="$(grep -E '^pikepdf==' docker/packet-renderer/requirements.in)"
+          test -n "$pin"
+          python -m pip install --only-binary :all: "$pin" pypdf==6.15.0
+      - name: Run post_process.finalize over a real PDF
+        run: python -m unittest tests/python/test_post_process_real_pdf.py -v

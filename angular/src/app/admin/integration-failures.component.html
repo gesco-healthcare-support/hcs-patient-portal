@@ -1,0 +1,120 @@
+<div class="if-head">
+  <div>
+    <h2>Case Tracker failures</h2>
+    <p class="if-sub">
+      Pushes that failed permanently and will not retry on their own. Each one means a case has not
+      reached the Case Tracker. Retry re-sends the appointment's current details.
+    </p>
+  </div>
+  <button type="button" class="if-btn" (click)="load()" [disabled]="loading()">
+    <app-icon name="refresh" [size]="14" />
+    Refresh
+  </button>
+</div>
+
+@if (!loading() && rows().length) {
+  <!-- Office filter + bulk retry (#917): after an outage every push in its window dead-letters at
+       once, and retrying them one click per case is the work this saves. Retry all is offered only
+       for one office at a time, and asks once before sending. -->
+  <div class="if-toolbar">
+    <label class="if-filter">
+      Office
+      <select [value]="officeFilter()" (change)="selectOffice($any($event.target).value)">
+        <option value="">All offices</option>
+        @for (o of offices(); track o.id) {
+          <option [value]="o.id">{{ o.name }}</option>
+        }
+      </select>
+    </label>
+    @if (officeFilter()) {
+      @if (confirmingRetryAll()) {
+        <span class="if-confirm">
+          Retry all {{ visibleRows().length }} for {{ selectedOfficeName() }}?
+        </span>
+        <button
+          type="button"
+          class="if-btn if-btn-primary"
+          (click)="retryAll()"
+          [disabled]="retryingAll()"
+        >
+          {{ retryingAll() ? 'Retrying...' : 'Retry all' }}
+        </button>
+        <button
+          type="button"
+          class="if-btn"
+          (click)="confirmingRetryAll.set(false)"
+          [disabled]="retryingAll()"
+        >
+          Cancel
+        </button>
+      } @else {
+        <button type="button" class="if-btn" (click)="confirmingRetryAll.set(true)">
+          Retry all for this office
+        </button>
+      }
+    }
+  </div>
+}
+
+@if (notice()) {
+  <div class="if-notice" role="status">{{ notice() }}</div>
+}
+
+@if (loading()) {
+  <div class="if-empty">
+    <app-icon name="clock" [size]="26" />
+    Loading failures...
+  </div>
+} @else if (error()) {
+  <div class="if-empty if-error">
+    <app-icon name="alert" [size]="26" />
+    <b>Could not load failures</b>
+    {{ error() }}
+  </div>
+} @else if (!rows().length) {
+  <!-- Explicit empty state: a blank table reads as "broken", not as "nothing wrong". -->
+  <div class="if-empty">
+    <app-icon name="check" [size]="26" />
+    <b>No failed pushes</b>
+    Every appointment has reached the Case Tracker, or is still queued to.
+  </div>
+} @else {
+  <table class="if-table">
+    <thead>
+      <tr>
+        <th>Confirmation</th>
+        <th>Clinic</th>
+        <th>Type</th>
+        <th>Attempts</th>
+        <th>Failed</th>
+        <th>Error</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (r of visibleRows(); track r.id) {
+        <tr>
+          <td>
+            <strong>{{ r.confirmationNumber || '(unknown)' }}</strong>
+            <div class="if-dim">{{ r.appointmentId }}</div>
+          </td>
+          <td>{{ r.officeName }}</td>
+          <td>{{ r.messageType }}</td>
+          <td>{{ r.attemptCount }}</td>
+          <td>{{ r.failedAt | pacificDate: 'short' }}</td>
+          <td class="if-err">{{ r.lastError || '--' }}</td>
+          <td>
+            <button
+              type="button"
+              class="if-btn"
+              (click)="retry(r)"
+              [disabled]="retrying() === r.id || retryingAll()"
+            >
+              {{ retrying() === r.id ? 'Retrying...' : 'Retry' }}
+            </button>
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+}

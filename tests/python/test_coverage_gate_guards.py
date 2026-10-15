@@ -1,0 +1,292 @@
+"""The fail-fast guards, the summarisers, and the blind-spot detector.
+
+These are the parts that decide whether the gate can pass WITHOUT MEASURING
+ANYTHING, which is the failure the enforcement phase exists to remove. They are
+pinned here so that softening one breaks a test by name rather than quietly
+widening what the gate lets through.
+
+One characterization test records a defect rather than fixing it -- see
+`test_an_existing_but_EMPTY_report_is_rejected`.
+"""
+
+from __future__ import annotations
+
+import contextlib
+import io
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+from gate_loader import gate
+
+
+@contextlib.contextmanager
+def dying():
+    """Assert the gate exits, and SWALLOW the `::error::` it prints on the way.
+
+    `die()` writes a GitHub Actions workflow command to STDOUT, and Actions
+    parses those into annotations. Without this, the five guard tests below
+    stamp five red `failure` annotations onto every GREEN run of `Python: Test`
+    -- measured on the first CI run of #825, which reported 6 annotations, 5 at
+    failure level, while passing.
+
+    A check that displays errors while succeeding is the always-red signal this
+    programme exists to remove, so the tests must not manufacture one. pytest
+    captures stdout by default; stdlib unittest does not, so it is done here.
+    """
+    with contextlib.redirect_stdout(io.StringIO()):
+        yield
+
+
+def _patterns(*globs):
+    return [gate.glob_to_regex(g) for g in globs]
+
+
+class TestRequireReport(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.tmp_path = Path(self._tmp.name)
+        self.addCleanup(self._tmp.cleanup)
+
+    def test_a_missing_report_exits_non_zero(self):
+        """A skipped job reports Success; an absent report must NOT pass."""
+        with dying(), self.assertRaises(SystemExit) as cm:
+            gate.require_report(self.tmp_path / "nope.xml", "backend")
+        self.assertEqual(cm.exception.code, 1)
+
+    def test_an_existing_but_EMPTY_report_is_rejected(self):
+        """CHARACTERIZATION -- pins current behaviour, does NOT endorse it.
+
+        Empty is the right rejection for a coverage report: an empty one means
+        the suite produced nothing. It is the WRONG rejection for a diff, where
+        empty legitimately means the submission changes nothing -- which is why
+        `load_changed_diff` deliberately does not call this helper.
+
+        This is a recorded defect. It is pinned, not corrected, because the
+        phase's change class forbids folding a behaviour change into a coverage
+        commit. If this test starts failing, the fix landed somewhere -- confirm
+        it was intended before updating the assertion.
+        """
+        empty = self.tmp_path / "empty.xml"
+        empty.write_text("", encoding="utf-8")
+        with dying(), self.assertRaises(SystemExit) as cm:
+            gate.require_report(empty, "backend")
+        self.assertEqual(cm.exception.code, 1)
+
+    def test_a_non_empty_report_is_accepted(self):
+        report = self.tmp_path / "ok.xml"
+        report.write_text("<coverage/>", encoding="utf-8")
+        self.assertIsNone(gate.require_report(report, "backend"))
+
+
+class TestRequireFloor(unittest.TestCase):
+    def test_an_unset_floor_exits_rather_than_passing(self):
+        """An unconfigured threshold is a check nobody finished wiring."""
+        with dying(), self.assertRaises(SystemExit):
+            gate.require_floor(None, "backend")
+
+    def test_a_blank_floor_exits(self):
+        with dying(), self.assertRaises(SystemExit):
+            gate.require_floor("   ", "backend")
+
+    def test_a_non_numeric_floor_exits(self):
+        with dying(), self.assertRaises(SystemExit):
+            gate.require_floor("ninety", "backend")
+
+    def test_a_valid_floor_is_returned_as_a_float(self):
+        self.assertEqual(gate.require_floor("72", "backend"), 72.0)
+        self.assertEqual(gate.require_floor("90.5", "changed"), 90.5)
+
+    def test_zero_is_a_legitimate_value_and_is_NOT_treated_as_unset(self):
+        """A floor of 0 is a real, deliberate setting -- not an unset one.
+
+        The rationale first written here was WRONG, and seen-to-fail exposed it:
+        it claimed "`0` is falsy", but argparse hands this function the STRING
+        `"0"`, and a non-empty string is truthy. So a plain truthiness check
+        cannot reject it and the test guarded nothing against that mutation.
+
+        The mutation it does guard against is numeric coercion --
+        `not float(value)`, or `float(value) == 0` -- which is a plausible
+        refactor ("reject an empty or zero floor") and would reject a floor
+        somebody set to 0 on purpose.
+        """
+        self.assertEqual(gate.require_floor("0", "backend"), 0.0)
+        self.assertEqual(gate.require_floor("0.0", "frontend"), 0.0)
+
+
+class TestSummarise(unittest.TestCase):
+    def test_counts_lines_files_and_hits(self):
+        per_file = {"a.cs": {1: 1, 2: 0, 3: 4}, "b.cs": {1: 0}}
+        self.assertEqual(gate.summarise(per_file, []), (4, 2, 2))
+
+    def test_EXCLUDED_files_are_removed_from_both_sides(self):
+        """THE DECOY IS LOAD-BEARING.
+
+        The fixture deliberately contains a file the pattern MUST remove. Built
+        without it, this test asserts only what `summarise` keeps and would pass
+        with the exclusion check deleted -- a negative guarantee cannot be
+        proven against a fixture that lacks the thing being excluded.
+        """
+        per_file = {
+            "src/App/Real.cs": {1: 1, 2: 0},
+            "src/App/Migrations/Init.cs": {1: 0, 2: 0, 3: 0, 4: 0},  # the decoy
+        }
+        found, hit, files = gate.summarise(per_file, _patterns("**/Migrations/**"))
+        self.assertEqual(files, 1, "the excluded file still reached the file count")
+        self.assertEqual(found, 2, "the excluded file's lines still reached the denominator")
+        self.assertEqual(hit, 1)
+
+    def test_an_empty_map_yields_zeroes(self):
+        self.assertEqual(gate.summarise({}, []), (0, 0, 0))
+
+
+class TestUnmeasuredChanged(unittest.TestCase):
+    def test_flags_a_changed_source_file_the_report_never_mentions(self):
+        per_file = {"angular/src/app/seen.ts": {1: 1}}
+        changed = {"angular/src/app/seen.ts": {1}, "angular/src/app/unseen.ts": {5}}
+        self.assertEqual(
+            gate.unmeasured_changed(per_file, changed, []), ["angular/src/app/unseen.ts"]
+        )
+
+    def test_scopes_itself_by_the_extensions_the_report_uses(self):
+        """Self-configuring per stack: this is why `.py` enters the check for free."""
+        per_file = {"scripts/gate.py": {1: 1}}
+        changed = {"docs/README.md": {1}, "scripts/other.py": {1}, "ci.yml": {2}}
+        self.assertEqual(gate.unmeasured_changed(per_file, changed, []), ["scripts/other.py"])
+
+    def test_an_excluded_file_is_not_flagged(self):
+        per_file = {"src/App/Real.cs": {1: 1}}
+        changed = {"src/App/Migrations/New.cs": {1}}
+        self.assertEqual(
+            gate.unmeasured_changed(per_file, changed, _patterns("**/Migrations/**")), []
+        )
+
+    def test_a_report_with_no_extensions_flags_nothing(self):
+        """No report means no scope; guessing one would flag the whole diff."""
+        self.assertEqual(gate.unmeasured_changed({}, {"a.cs": {1}}, []), [])
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+
+class TestParserPythonStack(unittest.TestCase):
+    """The CLI contract `.github/workflows/ci.yml` invokes (#787).
+
+    ci.yml passes `--python-cobertura` and `--floor-python` by name. Nothing
+    else asserts those flags exist, so a rename here would be found by a red
+    required check rather than by a test -- and `Coverage: Floors` is the one
+    job whose failure mode this repo has repeatedly catalogued as "passes
+    without measuring anything".
+    """
+
+    def parse(self, *argv):
+        return gate.build_parser().parse_args(list(argv))
+
+    def test_accepts_the_python_report_and_floor(self):
+        args = self.parse("--python-cobertura", "coverage.xml", "--floor-python", "52")
+        self.assertEqual(args.python_cobertura, "coverage.xml")
+        self.assertEqual(args.floor_python, "52")
+
+    def test_both_default_to_none_when_absent(self):
+        # None is what makes measure_all skip the stack, so the default is
+        # load-bearing rather than incidental.
+        args = self.parse()
+        self.assertIsNone(args.python_cobertura)
+        self.assertIsNone(args.floor_python)
+
+    def test_there_is_no_python_prefix_flag(self):
+        # Deliberate: coverage.py emits repo-relative paths, unlike karma's
+        # lcov. If someone adds one, the empty prefix in measure_all is no
+        # longer obviously right and this should be revisited.
+        self.assertFalse(hasattr(self.parse(), "python_prefix"))
+
+    def test_the_other_two_stacks_still_parse(self):
+        args = self.parse(
+            "--cobertura", "b.xml", "--floor-backend", "72",
+            "--lcov", "f.info", "--lcov-prefix", "angular", "--floor-frontend", "20",
+        )
+        self.assertEqual(args.cobertura, "b.xml")
+        self.assertEqual(args.floor_backend, "72")
+        self.assertEqual(args.lcov, "f.info")
+        self.assertEqual(args.lcov_prefix, "angular")
+        self.assertEqual(args.floor_frontend, "20")
+
+    def test_measure_only_is_still_available_for_baselining(self):
+        self.assertTrue(self.parse("--measure-only").measure_only)
+
+
+class TestNoReportSuppliedAtAll(unittest.TestCase):
+    """The gate must not pass when it measured NOTHING.
+
+    The same class of hole as the "check SKIPPED" branch `discover_tracked`
+    replaced, one level up: `require_report` guards a stack that IS named and
+    `require_floor` guards a stack that IS measured, so with no stack named at
+    all BOTH were unreachable. Measured before the fix -- the gate printed
+    nothing and exited 0.
+
+    The MESSAGE is asserted, not only the exit code. A guard that fails without
+    saying why sends the reader somewhere else, and this one fires on the script
+    that gates every build, where the first guess will be the coverage work.
+    """
+
+    COBERTURA = ('<?xml version="1.0" ?><coverage><packages><package><classes>'
+                 '<class filename="scripts/thing.py"><lines>'
+                 '<line number="1" hits="1"/></lines></class>'
+                 '</classes></package></packages></coverage>')
+
+    def _run(self, argv):
+        """Drive main() with a patched argv, capturing stdout so the `::error::`
+        never reaches Actions as an annotation -- the same contract `dying()`
+        provides above, with the buffer KEPT so the message can be asserted.
+        """
+        buf = io.StringIO()
+        original = sys.argv
+        sys.argv = ["coverage-gate.py"] + argv
+        try:
+            with contextlib.redirect_stdout(buf):
+                try:
+                    code = gate.main()
+                except SystemExit as exc:
+                    code = exc.code
+        finally:
+            sys.argv = original
+        return code, buf.getvalue()
+
+    def test_no_report_at_all_fails_while_gating(self):
+        code, out = self._run(["--exclusions", ".coverage-exclusions"])
+        self.assertEqual(code, 1)
+        self.assertIn("no coverage report was supplied", out)
+
+    def test_it_names_the_flags_that_would_satisfy_it(self):
+        _code, out = self._run(["--exclusions", ".coverage-exclusions"])
+        self.assertIn("--lcov", out)
+        self.assertIn("--cobertura", out)
+        self.assertIn("--python-cobertura", out)
+
+    def test_no_report_at_all_ALSO_fails_in_measure_only_mode(self):
+        # The half that is easy to leave open. measure-only is the mode whose
+        # figures feed the rolling baseline, so a silent empty result is worse
+        # there rather than better.
+        code, out = self._run(["--exclusions", ".coverage-exclusions", "--measure-only"])
+        self.assertEqual(code, 1)
+        self.assertIn("no coverage report was supplied", out)
+
+    # THE POSITIVE CONTROL. Without it the three above pass with the guard
+    # written as an unconditional die(), which would fail every build.
+    def test_one_report_is_enough_to_proceed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            report = Path(tmp) / "coverage.xml"
+            report.write_text(self.COBERTURA, encoding="utf-8")
+            manifest = Path(tmp) / "tracked.txt"
+            manifest.write_text("scripts/thing.py\n", encoding="utf-8")
+            code, out = self._run([
+                "--exclusions", ".coverage-exclusions",
+                "--cobertura", str(report),
+                "--tracked-files", str(manifest),
+                "--measure-only",
+            ])
+        self.assertEqual(code, 0)
+        self.assertIn("backend:", out)
+        self.assertNotIn("no coverage report was supplied", out)

@@ -24,17 +24,66 @@ feature/* --> main --> development --> staging --> production
 | `staging`     | Pre-production verification.                 |
 | `production`  | Live application (not deployed yet).         |
 
-Merges flow one direction only. Promotion PRs between long-lived branches must
-use **rebase**, never a merge commit, to preserve linear history.
+Merges flow one direction only. Promotion PRs between long-lived branches merge
+as **merge commits**, never squash or rebase (see "Branch Protection" below).
 
-## Branch Protection (Progressive Hardening)
+## Branch Protection
 
-| Branch        | Required checks                    | Approvals |
-| ------------- | ---------------------------------- | --------- |
-| `main`        | Backend Build, Frontend Build      | 1         |
-| `development` | + Backend Test, Frontend Lint      | 1         |
-| `staging`     | + Frontend Test, Dependency Review | 1         |
-| `production`  | + Secret Detection                 | 2         |
+**The same 17 checks are required on all four branches, and `main` requires one
+more.** A change that cannot merge to `main` cannot merge anywhere. Besides that
+extra check, what varies by branch is how many approvals a pull request needs
+(`gh api repos/<org>/hcs-patient-portal/branches/<branch>/protection`,
+2026-09-30).
+
+| Branch        | Required checks                           | Approvals | Up to date with base |
+| ------------- | ----------------------------------------- | --------- | -------------------- |
+| `main`        | the 17 below + `Tools: Packet Golden Output` | 0      | required             |
+| `development` | the 17 below                              | 1         | required             |
+| `staging`     | the 17 below                              | 1         | required             |
+| `production`  | the 17 below                              | **2**     | required             |
+
+`Tools: Packet Golden Output` runs the packet-template generator tests in
+`tools/packet-templates/tests`, which check that the generators emit
+byte-identical documents.
+
+The 17, exactly as configured:
+
+| Check                            | What it covers                                                            |
+| -------------------------------- | ------------------------------------------------------------------------- |
+| `Meta: Changed paths`            | Classifies the diff; unrecognised paths run the full suite                |
+| `Backend: Build`                 | Compiles the solution, warnings as errors, and checks both migration sets |
+| `Backend: Test`                  | Backend test suite                                                        |
+| `Backend: Format Check`          | `dotnet format`                                                           |
+| `Frontend: Build`                | Compiles the SPA                                                          |
+| `Frontend: Test`                 | Angular specs                                                             |
+| `Frontend: Lint`                 | Angular static analysis                                                   |
+| `Frontend: Format Check`         | Prettier                                                                  |
+| `Coverage: Floors`               | Per-stack coverage floors and the changed-lines floor                     |
+| `Dependency Review`              | Licences and vulnerabilities in changed dependencies                      |
+| `TruffleHog: PR commits`         | Secret scan of the diff                                                   |
+| `CodeQL: csharp`                 | Code scanning, backend                                                    |
+| `CodeQL: javascript-typescript`  | Code scanning, frontend                                                   |
+| `Lint: Markdown`                 | Every markdown file in the repository                                     |
+| `Lint: YAML workflows`           | `.github/workflows/`                                                      |
+| `Commitlint: PR commits`         | Commit message format                                                     |
+| `PR Title: Conventional Commits` | Pull request title format                                                 |
+
+Two checks run on pull requests but are deliberately **not** required:
+
+- `Docs: Structure Check` -- it is conditional on the diff touching shared paths,
+  and a skipped job reports success. Requiring it would let a pull request that
+  does not touch those paths satisfy it without running.
+- `SonarCloud: Analysis` -- informational while its quality gate is being
+  settled; making it required would block on conditions unrelated to the change.
+
+Promotion PRs between long-lived branches merge as **merge commits**, never
+squash or rebase: the `development-merge-only` ruleset allows only merge commits
+into `development`, and `cascade-guard.yml` fails when a promotion into
+`development` lands as a squash. Promotion PRs show BEHIND permanently; do not use "Update branch" on
+one, because on the `main -> development` PR that merges `development` back into
+`main`. See
+[docs/devops/CI-TESTS-AND-CHECKS.md](docs/devops/CI-TESTS-AND-CHECKS.md#cascade-prs-report-behind-permanently----do-not-fix-it)
+for why, and for how such a PR is merged.
 
 ## Development Workflow
 
@@ -55,8 +104,8 @@ use **rebase**, never a merge commit, to preserve linear history.
 
 3. Push and open a pull request against `main`. Use the template that appears;
    fill in the summary, test plan, documentation, and HIPAA checklist.
-4. After CI passes and one approval, merge (squash is the default for feature
-   branches).
+4. After CI passes, merge with squash, the default for feature branches (`main`
+   requires no approving review; see the table above).
 5. Code promotes automatically via two workflows: `auto-pr-dev.yml` opens the
    `main` -> `development` PR on push to `main`, and `deploy-dev.yml` opens
    the `development` -> `staging` PR after its validate job passes on push
@@ -122,4 +171,4 @@ security vulnerability.
 - Docker issues: [docs/runbooks/DOCKER-DEV.md](docs/runbooks/DOCKER-DEV.md).
 - How the code is organised:
   [docs/architecture/OVERVIEW.md](docs/architecture/OVERVIEW.md).
-- Everything else: the index at [docs/INDEX.md](docs/INDEX.md).
+- Everything else: the index at [docs/index.md](docs/index.md).

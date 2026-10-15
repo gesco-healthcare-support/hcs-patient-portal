@@ -1,16 +1,26 @@
 # User Roles and Actors
 
-[Home](../INDEX.md) > [Business Domain](./) > User Roles & Actors
+> Purpose: Defines every actor in the system, their seeded role names, capabilities, and registration flow. Audience: developer, QA.
+
+[Home](../index.md) > [Business Domain](./) > User Roles & Actors
 
 ## Overview
 
-The HCS Case Evaluation Portal uses a role-based access model built on top of ABP Framework's identity system. Roles are seeded at application startup and assigned during user registration. Each tenant (doctor practice) has its own set of users and role assignments.
+The Appointment Portal uses a role-based access model built on top of ABP Framework's identity system. Roles are seeded at application startup and assigned during user registration. Each tenant (doctor practice) has its own set of users and role assignments.
 
 ---
 
 ## Seeded Roles
 
-The `ExternalUserRoleDataSeedContributor` (`src/HealthcareSupport.CaseEvaluation.Domain/Identity/ExternalUserRoleDataSeedContributor.cs`) ensures the following roles exist in every tenant:
+> **This page listed four roles until 2026-09-28.** There are seven, plus the ABP superuser. The
+> three internal roles were missing entirely, which meant the page described the people who use
+> the portal least and omitted the ones who use it most.
+
+### External roles
+
+Seeded per office by `ExternalUserRoleDataSeedContributor`
+(`src/HealthcareSupport.CaseEvaluation.Domain/Identity/ExternalUserRoleDataSeedContributor.cs`),
+from `ExternalRoleConsts.All`:
 
 | Role                   | Description                                      |
 |------------------------|--------------------------------------------------|
@@ -19,30 +29,113 @@ The `ExternalUserRoleDataSeedContributor` (`src/HealthcareSupport.CaseEvaluation
 | **Applicant Attorney** | Attorney representing the worker                 |
 | **Defense Attorney**   | Attorney representing the employer/insurer       |
 
+External users never reach the internal shell. The Angular route table decides that with a
+`canMatch` pair, `externalUserOnlyMatchGuard` and `internalUserOnlyMatchGuard`.
+
+### Internal roles
+
+Seeded by `InternalUserRoleDataSeedContributor`:
+
+| Role                   | Scope  | Description                                          |
+|------------------------|--------|------------------------------------------------------|
+| **IT Admin**           | Host   | Configures the system: templates, parameters, offices |
+| **Staff Supervisor**   | Tenant | Approves and rejects appointments, handles change requests |
+| **Intake Staff**       | Tenant | Day-to-day booking and intake for the office          |
+
+The shell filters its navigation by these three, plus the superuser, in
+`angular/src/app/shared/auth/internal-user-roles.ts`. **Do not collapse them into "Admin"**: a
+Staff Supervisor and an Intake Staff member see different navigation and are different people in
+the office.
+
 ### Built-in ABP Role
 
 | Role      | Description                                        |
 |-----------|----------------------------------------------------|
-| **admin** | System administrator with full permissions on all entities, users, roles, and tenants |
+| **admin** | The framework superuser. Sees every navigation item; used for host administration |
 
 ---
 
 ## Per-Role Capabilities
 
-### Role Capability Matrix
+> **The matrix that used to be here was wrong, and wrong in a way worth understanding.** It denied
+> Defense Attorney and Claim Examiner the ability to book appointments or request a cancellation,
+> and gave those rights only to Patient and Applicant Attorney. At the permission layer, **all four
+> external roles receive a byte-identical set.** The seeder loops over `ExternalRoleConsts.All` and
+> grants every role the same `BookingBaselineGrants()` list.
 
-| Capability                          | Admin | Patient | Applicant Attorney | Defense Attorney | Claim Examiner |
-|-------------------------------------|:-----:|:-------:|:------------------:|:----------------:|:--------------:|
-| Full CRUD on all entities           |   Y   |         |                    |                  |                |
-| Manage users, roles, permissions    |   Y   |         |                    |                  |                |
-| Manage tenants                      |   Y   |         |                    |                  |                |
-| View own appointments               |   Y   |    Y    |         Y          |        Y         |       Y        |
-| Book appointments                   |   Y   |    Y    |         Y          |                  |                |
-| Book on behalf of patients          |   Y   |         |         Y          |                  |                |
-| Edit own profile                    |   Y   |    Y    |         Y          |        Y         |       Y        |
-| Request cancellation/reschedule     |   Y   |    Y    |         Y          |                  |                |
-| View assigned appointments          |   Y   |         |         Y          |        Y         |       Y        |
-| Manage case details                 |   Y   |         |                    |                  |       Y        |
+### The four external roles have the same permissions
+
+There is exactly one per-role difference in the entire external grant: **`Patients.RevealSsn` is
+granted to `Patient` alone.** Everything else -- booking, change requests, document upload, the
+whole child-resource set -- is granted identically to all four.
+
+This is deliberate, and the seeder says why:
+
+> Mirrors OLD where any authenticated external user could see the slot list and create their own
+> appointment. Restrictions on cross-tenant and cross-user data are enforced by `IMultiTenant`
+> plus AppService-level filtering, **not by withholding the permission**.
+
+So a capability matrix expressed in permissions cannot describe this system. What a Defense
+Attorney can actually reach is not decided by a permission; it is decided by whether they are a
+party to the appointment.
+
+### What actually decides access
+
+Per-appointment access is `AppointmentReadAccessGuard` over `AppointmentAccessRules`: seven
+pathways, first match wins.
+
+| Pathway | Granted when |
+|---|---|
+| Internal user | The caller holds any internal role |
+| Creator | The caller booked it (`CreatorId`, coalesced with `BookedByUserId`) |
+| Patient | The caller is the patient on the appointment |
+| Applicant Attorney | The caller is linked on an `AppointmentApplicantAttorney` row |
+| Defense Attorney | The caller is linked on an `AppointmentDefenseAttorney` row |
+| Claim Examiner | The caller's email matches an `AppointmentClaimExaminer` email |
+| Appointment Accessor | The caller holds an explicit accessor grant (Edit access for write) |
+
+Plus a row-level rule: the caller's email matches one of the appointment's denormalised party-email
+columns **and** the caller holds that column's role. Email alone is not enough, deliberately -- a
+firm whose address appears as the applicant attorney on one appointment and the defense attorney
+on another sees each only while holding the matching role.
+
+**Holding a permission is not having access.** That distinction is the single most important thing
+on this page, and it is what the old matrix obscured.
+
+### Internal capability, which IS permission-shaped
+
+Unlike the external roles, the three internal roles get genuinely different grants, from
+`ItAdminGrants()`, `StaffSupervisorTenantGrants()` and `IntakeStaffGrants()`.
+
+| Capability | IT Admin | Staff Supervisor | Intake Staff |
+|---|:---:|:---:|:---:|
+| Dashboard | Host | Tenant | Tenant |
+| Approve and reject appointments | Y | Y | Y |
+| Approve and reject change requests | Y | Y | Y |
+| Create and edit appointments | Y | Y | Y |
+| Create and edit patients | Y | Y | Y |
+| Reveal a patient's SSN | Y | Y | Y |
+| Full CRUD on doctor availability slots | Y | Y | Y |
+| Reports and export | Y | Y | Y |
+| Full CRUD on every entity | Y | | |
+| CRUD on lookup masters (locations, appointment types, languages, WCAB offices) | Y | Y | |
+| Delete operational records other than availability slots | Y | Y | |
+
+The three internal roles are **far more alike than the names suggest.** All three approve and
+reject appointments and change requests, all three reveal SSNs, all three run reports, and all
+three have full CRUD on availability slots. Intake Staff is the front-line reviewer for every
+appointment in its office, so those grants are deliberate.
+
+The real differences are narrow: **IT Admin alone has blanket CRUD on every entity**, Staff
+Supervisor additionally manages the office's lookup masters, and **Intake Staff cannot delete
+operational records** -- except availability slots, which it owns outright because keeping the
+bookable grid current is its job.
+
+If you are looking for the boundary that stops one internal person seeing another office's data,
+it is not in this table. It is the per-office database.
+
+The authority is the seeder, and the methods are named above. The Angular shell separately filters
+navigation by `resolveInternalRoleKey`, which is a display concern and not a grant.
 
 ---
 
@@ -66,7 +159,7 @@ External users (non-admin) self-register through the `ExternalSignupAppService` 
 
 ### ExternalUserType Enum
 
-The registration form maps to `ExternalUserType` (defined in `src/HealthcareSupport.CaseEvaluation.Application.Contracts/ExternalSignups/ExternalUserType.cs`):
+The registration form maps to `ExternalUserType` (defined in `src/HealthcareSupport.CaseEvaluation.Domain.Shared/ExternalSignups/ExternalUserType.cs`):
 
 | Value | Type                | Maps to Role         |
 |-------|---------------------|----------------------|
@@ -178,11 +271,53 @@ This pattern allows fine-grained, per-appointment access control without grantin
 
 ---
 
+## External Layout Roles
+
+All four external roles get the same external pages, outside the staff shell: the external home, the
+read-only appointment detail, the booking wizard and their own profile page. Each page renders
+`ExternalNavbarComponent` (`angular/src/app/shared/components/external-navbar/`) at the top; there is
+no sidebar.
+
+| Role                   | Gets external layout |
+|------------------------|:--------------------:|
+| **Patient**            | Y                    |
+| **Applicant Attorney** | Y                    |
+| **Defense Attorney**   | Y                    |
+| **Claim Examiner**     | Y                    |
+
+The split is made by the Angular router (verified against code on main, 2026-09-30):
+
+- `angular/src/app/shared/auth/external-user-roles.ts` -- the `EXTERNAL_USER_ROLES` constant lists
+  all four role names, and `hasOnlyExternalRoles` is true when every role the user holds is one of
+  them. `externalUserOnlyMatchGuard` uses it, so a user with any internal role gets the staff pages.
+- `angular/src/app/home/external-home.component.ts` -- `ROLE_CONFIGS` gives each of the four roles
+  its own labels and default view on the external home.
+
+See [Role-Based UI](../frontend/ROLE-BASED-UI.md) for the full split.
+
+---
+
 ## External User Lookup
 
-The `ExternalSignupAppService.GetExternalUserLookupAsync` method provides a lookup of all external users, filtered to the roles: Patient, Applicant Attorney, and Defense Attorney. This is used in the UI when assigning appointment accessors or booking on behalf of another user.
+`ExternalSignupAppService.GetExternalUserLookupAsync(filter)` is a SEARCH: a typed term is
+required (a blank filter returns nothing -- never an enumerable list of every tenant user).
+It covers all four external roles (**Patient, Applicant Attorney, Defense Attorney, Claim
+Examiner**), but the result set is scoped by the caller:
 
-The `GetMyProfileAsync` method allows authenticated external users to retrieve their own profile, including their assigned role.
+- **Internal staff** (admin / Intake Staff / Staff Supervisor / Doctor) search the whole
+  tenant.
+- **External callers** see ONLY their co-parties -- the parties named on appointments the
+  caller can already see (`AppointmentVisibilityService` + `ExternalCoPartyRules`). This is
+  a HIPAA boundary: an external user must not enumerate parties on cases they are not on.
+
+(History: the old "D-2" decision restricted the roles to Patient + Applicant Attorney;
+reversed 2026-06-22 because the four roles are capability-equal. A second pass the same day
+added the co-party scoping so external callers cannot enumerate strangers.) The lookup
+feeds the booking/accessor pickers as a search bar, like the patient lookup.
+
+The `GetMyProfileAsync` method allows authenticated external users to retrieve their own
+profile, including their assigned role. Role resolution covers all four external roles
+(Patient, Applicant Attorney, Defense Attorney, Claim Examiner).
 
 ---
 
@@ -190,7 +325,7 @@ The `GetMyProfileAsync` method allows authenticated external users to retrieve t
 
 - **Role seeder:** `src/HealthcareSupport.CaseEvaluation.Domain/Identity/ExternalUserRoleDataSeedContributor.cs`
 - **Signup service:** `src/HealthcareSupport.CaseEvaluation.Application/ExternalSignups/ExternalSignupAppService.cs`
-- **ExternalUserType enum:** `src/HealthcareSupport.CaseEvaluation.Application.Contracts/ExternalSignups/ExternalUserType.cs`
+- **ExternalUserType enum:** `src/HealthcareSupport.CaseEvaluation.Domain.Shared/ExternalSignups/ExternalUserType.cs`
 - **AccessType enum:** `src/HealthcareSupport.CaseEvaluation.Domain.Shared/Enums/AccessType.cs`
 - **AppointmentAccessor entity:** `src/HealthcareSupport.CaseEvaluation.Domain/AppointmentAccessors/AppointmentAccessor.cs`
 

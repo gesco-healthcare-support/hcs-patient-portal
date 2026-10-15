@@ -1,0 +1,7 @@
+using HealthcareSupport.CaseEvaluation.Uploads;
+
+namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Domains.Uploads;
+
+public class EfCoreUploadContainerScanWiringTests : UploadContainerScanWiringTests<CaseEvaluationEntityFrameworkCoreTestModule>
+{
+}

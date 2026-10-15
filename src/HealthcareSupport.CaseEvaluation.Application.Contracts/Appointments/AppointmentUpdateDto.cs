@@ -1,3 +1,4 @@
+using HealthcareSupport.CaseEvaluation.CustomFields;
 using HealthcareSupport.CaseEvaluation.Enums;
 using System;
 using System.ComponentModel.DataAnnotations;
@@ -17,7 +18,8 @@ public class AppointmentUpdateDto : IHasConcurrencyStamp
 
     public Guid PatientId { get; set; }
 
-    public Guid IdentityUserId { get; set; }
+    // IP6 (2026-06-05): nullable -- mirrors the nullable Appointment.IdentityUserId.
+    public Guid? IdentityUserId { get; set; }
 
     public Guid AppointmentTypeId { get; set; }
 
@@ -38,4 +40,17 @@ public class AppointmentUpdateDto : IHasConcurrencyStamp
 
     [StringLength(AppointmentConsts.PartyEmailMaxLength)]
     public string? ClaimExaminerEmail { get; set; }
+
+    /// <summary>2026-06-09: optional per-appointment "Referred By".</summary>
+    [StringLength(AppointmentConsts.RefferedByMaxLength)]
+    public string? RefferedBy { get; set; }
+
+    /// <summary>
+    /// B1 (2026-05-05) -- replace-all set of per-AppointmentType custom-field
+    /// answers. The AppService deletes existing <c>CustomFieldValue</c> rows
+    /// for this appointment and inserts the supplied list. Empty-string values
+    /// are skipped. Mirrors OLD's edit-mode write in
+    /// <c>AppointmentDomain.cs</c>.
+    /// </summary>
+    public List<CustomFieldValueInputDto> CustomFieldValues { get; set; } = new();
 }

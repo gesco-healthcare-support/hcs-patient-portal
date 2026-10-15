@@ -1,0 +1,10 @@
+# #945: emails a person when the off-box backup or the weekly restore proof has not succeeded recently -- the
+# case OnFailure= cannot see, because a run that never starts never fails. See backup-freshness-check.sh.
+[Unit]
+Description=Patient Portal backup freshness check
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/home/apadmin/hcs-patient-portal
+ExecStart=/bin/bash /home/apadmin/hcs-patient-portal/scripts/hosting/backup-freshness-check.sh

@@ -1,4 +1,4 @@
-[Home](../INDEX.md) > Repository Map > README
+[Home](../index.md) > Repository Map > README
 
 # Repository Map
 
@@ -44,5 +44,6 @@ The `scheduled-doc-check` skill flags staleness if `index.json` is older than
 
 ## Related
 
-- [Verify Structure Skill](../../.claude/skills/verify-structure/SKILL.md)
-- [Generate Repo Map Skill](../../.claude/skills/generate-repo-map/SKILL.md)
+Regeneration is manual via the `build-repo-map.py` script documented above.
+Skill files for verify-structure and generate-repo-map are not present in this repo;
+those operations are handled by running the script directly.

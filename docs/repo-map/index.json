@@ -7502,61 +7502,6 @@
       ]
     },
     {
-      "file": "angular/src/app/wcab-offices/wcab-office/services/wcab-office-detail.abstract.service.ts",
-      "imports": [
-        "../../../proxy/wcab-offices/models",
-        "../../../proxy/wcab-offices/wcab-office.service",
-        "@abp/ng.core",
-        "@angular/core",
-        "@angular/forms",
-        "rxjs/operators"
-      ],
-      "language": "typescript",
-      "symbols": []
-    },
-    {
-      "file": "angular/src/app/wcab-offices/wcab-office/services/wcab-office-detail.service.ts",
-      "imports": [
-        "./wcab-office-detail.abstract.service",
-        "@angular/core"
-      ],
-      "language": "typescript",
-      "symbols": [
-        {
-          "kind": "class",
-          "name": "WcabOfficeDetailViewService"
-        }
-      ]
-    },
-    {
-      "file": "angular/src/app/wcab-offices/wcab-office/services/wcab-office.abstract.service.ts",
-      "imports": [
-        "../../../proxy/wcab-offices/models",
-        "../../../proxy/wcab-offices/wcab-office.service",
-        "@abp/ng.core",
-        "@abp/ng.theme.shared",
-        "@angular/core",
-        "@swimlane/ngx-datatable",
-        "rxjs/operators"
-      ],
-      "language": "typescript",
-      "symbols": []
-    },
-    {
-      "file": "angular/src/app/wcab-offices/wcab-office/services/wcab-office.service.ts",
-      "imports": [
-        "./wcab-office.abstract.service",
-        "@angular/core"
-      ],
-      "language": "typescript",
-      "symbols": [
-        {
-          "kind": "class",
-          "name": "WcabOfficeViewService"
-        }
-      ]
-    },
-    {
       "file": "angular/src/app/states/state/state-routes.ts",
       "imports": [
         "@abp/ng.core",
@@ -7662,60 +7607,6 @@
         {
           "kind": "const",
           "name": "STATES_STATE_ROUTE_PROVIDER"
-        }
-      ]
-    },
-    {
-      "file": "angular/src/app/states/state/services/state-detail.abstract.service.ts",
-      "imports": [
-        "../../../proxy/states/models",
-        "../../../proxy/states/state.service",
-        "@abp/ng.core",
-        "@angular/core",
-        "@angular/forms",
-        "rxjs/operators"
-      ],
-      "language": "typescript",
-      "symbols": []
-    },
-    {
-      "file": "angular/src/app/states/state/services/state-detail.service.ts",
-      "imports": [
-        "./state-detail.abstract.service",
-        "@angular/core"
-      ],
-      "language": "typescript",
-      "symbols": [
-        {
-          "kind": "class",
-          "name": "StateDetailViewService"
-        }
-      ]
-    },
-    {
-      "file": "angular/src/app/states/state/services/state.abstract.service.ts",
-      "imports": [
-        "../../../proxy/states/models",
-        "../../../proxy/states/state.service",
-        "@abp/ng.core",
-        "@abp/ng.theme.shared",
-        "@angular/core",
-        "rxjs/operators"
-      ],
-      "language": "typescript",
-      "symbols": []
-    },
-    {
-      "file": "angular/src/app/states/state/services/state.service.ts",
-      "imports": [
-        "./state.abstract.service",
-        "@angular/core"
-      ],
-      "language": "typescript",
-      "symbols": [
-        {
-          "kind": "class",
-          "name": "StateViewService"
         }
       ]
     },
@@ -7872,62 +7763,6 @@
       ]
     },
     {
-      "file": "angular/src/app/patients/patient/services/patient-detail.abstract.service.ts",
-      "imports": [
-        "../../../proxy/enums/gender.enum",
-        "../../../proxy/enums/phone-number-type.enum",
-        "../../../proxy/patients/models",
-        "../../../proxy/patients/patient.service",
-        "@abp/ng.core",
-        "@angular/core",
-        "@angular/forms",
-        "rxjs/operators"
-      ],
-      "language": "typescript",
-      "symbols": []
-    },
-    {
-      "file": "angular/src/app/patients/patient/services/patient-detail.service.ts",
-      "imports": [
-        "./patient-detail.abstract.service",
-        "@angular/core"
-      ],
-      "language": "typescript",
-      "symbols": [
-        {
-          "kind": "class",
-          "name": "PatientDetailViewService"
-        }
-      ]
-    },
-    {
-      "file": "angular/src/app/patients/patient/services/patient.abstract.service.ts",
-      "imports": [
-        "../../../proxy/patients/models",
-        "../../../proxy/patients/patient.service",
-        "@abp/ng.core",
-        "@abp/ng.theme.shared",
-        "@angular/core",
-        "rxjs/operators"
-      ],
-      "language": "typescript",
-      "symbols": []
-    },
-    {
-      "file": "angular/src/app/patients/patient/services/patient.service.ts",
-      "imports": [
-        "./patient.abstract.service",
-        "@angular/core"
-      ],
-      "language": "typescript",
-      "symbols": [
-        {
-          "kind": "class",
-          "name": "PatientViewService"
-        }
-      ]
-    },
-    {
       "file": "angular/src/app/locations/location/location-routes.ts",
       "imports": [
         "@abp/ng.core",
@@ -8034,61 +7869,6 @@
         {
           "kind": "const",
           "name": "LOCATIONS_LOCATION_ROUTE_PROVIDER"
-        }
-      ]
-    },
-    {
-      "file": "angular/src/app/locations/location/services/location-detail.abstract.service.ts",
-      "imports": [
-        "../../../proxy/locations/location.service",
-        "../../../proxy/locations/models",
-        "@abp/ng.core",
-        "@angular/core",
-        "@angular/forms",
-        "rxjs/operators"
-      ],
-      "language": "typescript",
-      "symbols": []
-    },
-    {
-      "file": "angular/src/app/locations/location/services/location-detail.service.ts",
-      "imports": [
-        "./location-detail.abstract.service",
-        "@angular/core"
-      ],
-      "language": "typescript",
-      "symbols": [
-        {
-          "kind": "class",
-          "name": "LocationDetailViewService"
-        }
-      ]
-    },
-    {
-      "file": "angular/src/app/locations/location/services/location.abstract.service.ts",
-      "imports": [
-        "../../../proxy/locations/location.service",
-        "../../../proxy/locations/models",
-        "@abp/ng.core",
-        "@abp/ng.theme.shared",
-        "@angular/core",
-        "@swimlane/ngx-datatable",
-        "rxjs/operators"
-      ],
-      "language": "typescript",
-      "symbols": []
-    },
-    {
-      "file": "angular/src/app/locations/location/services/location.service.ts",
-      "imports": [
-        "./location.abstract.service",
-        "@angular/core"
-      ],
-      "language": "typescript",
-      "symbols": [
-        {
-          "kind": "class",
-          "name": "LocationViewService"
         }
       ]
     },
@@ -8451,67 +8231,6 @@
       ]
     },
     {
-      "file": "angular/src/app/doctor-availabilities/doctor-availability/services/doctor-availability-detail.abstract.service.ts",
-      "imports": [
-        "../../../proxy/doctor-availabilities/doctor-availability.service",
-        "../../../proxy/doctor-availabilities/models",
-        "../../../proxy/enums/booking-status.enum",
-        "@abp/ng.core",
-        "@angular/common",
-        "@angular/core",
-        "@angular/forms",
-        "rxjs/operators"
-      ],
-      "language": "typescript",
-      "symbols": []
-    },
-    {
-      "file": "angular/src/app/doctor-availabilities/doctor-availability/services/doctor-availability-detail.service.ts",
-      "imports": [
-        "./doctor-availability-detail.abstract.service",
-        "@angular/core"
-      ],
-      "language": "typescript",
-      "symbols": [
-        {
-          "kind": "class",
-          "name": "DoctorAvailabilityDetailViewService"
-        }
-      ]
-    },
-    {
-      "file": "angular/src/app/doctor-availabilities/doctor-availability/services/doctor-availability.abstract.service.ts",
-      "imports": [
-        "../../../proxy/doctor-availabilities/doctor-availability.service",
-        "../../../proxy/doctor-availabilities/models",
-        "@abp/ng.core",
-        "@abp/ng.theme.shared",
-        "@angular/core",
-        "rxjs/operators"
-      ],
-      "language": "typescript",
-      "symbols": [
-        {
-          "kind": "interface",
-          "name": "DoctorAvailabilityGroupedRow"
-        }
-      ]
-    },
-    {
-      "file": "angular/src/app/doctor-availabilities/doctor-availability/services/doctor-availability.service.ts",
-      "imports": [
-        "./doctor-availability.abstract.service",
-        "@angular/core"
-      ],
-      "language": "typescript",
-      "symbols": [
-        {
-          "kind": "class",
-          "name": "DoctorAvailabilityViewService"
-        }
-      ]
-    },
-    {
       "file": "angular/src/app/dashboard/host-dashboard/host-dashboard.component.ts",
       "imports": [
         "@abp/ng.components/page",
@@ -8555,27 +8274,6 @@
         {
           "kind": "const",
           "name": "APPOINTMENT_ROUTES"
-        }
-      ]
-    },
-    {
-      "file": "angular/src/app/appointments/appointment/components/appointment-detail.component.ts",
-      "imports": [
-        "../services/appointment-detail.service",
-        "@abp/ng.core",
-        "@abp/ng.theme.shared",
-        "@angular/common",
-        "@angular/core",
-        "@angular/forms",
-        "@ng-bootstrap/ng-bootstrap",
-        "@ngx-validate/core",
-        "@volo/abp.commercial.ng.ui"
-      ],
-      "language": "typescript",
-      "symbols": [
-        {
-          "kind": "class",
-          "name": "AppointmentDetailModalComponent"
         }
       ]
     },
@@ -8678,61 +8376,6 @@
         {
           "kind": "const",
           "name": "APPOINTMENTS_APPOINTMENT_ROUTE_PROVIDER"
-        }
-      ]
-    },
-    {
-      "file": "angular/src/app/appointments/appointment/services/appointment-detail.abstract.service.ts",
-      "imports": [
-        "../../../proxy/appointments/appointment.service",
-        "../../../proxy/appointments/models",
-        "../../../proxy/enums/appointment-status-type.enum",
-        "@abp/ng.core",
-        "@angular/core",
-        "@angular/forms",
-        "rxjs/operators"
-      ],
-      "language": "typescript",
-      "symbols": []
-    },
-    {
-      "file": "angular/src/app/appointments/appointment/services/appointment-detail.service.ts",
-      "imports": [
-        "./appointment-detail.abstract.service",
-        "@angular/core"
-      ],
-      "language": "typescript",
-      "symbols": [
-        {
-          "kind": "class",
-          "name": "AppointmentDetailViewService"
-        }
-      ]
-    },
-    {
-      "file": "angular/src/app/appointments/appointment/services/appointment.abstract.service.ts",
-      "imports": [
-        "../../../proxy/appointments/appointment.service",
-        "../../../proxy/appointments/models",
-        "@abp/ng.core",
-        "@abp/ng.theme.shared",
-        "@angular/core",
-        "rxjs/operators"
-      ],
-      "language": "typescript",
-      "symbols": []
-    },
-    {
-      "file": "angular/src/app/appointments/appointment/services/appointment.service.ts",
-      "imports": [
-        "./appointment.abstract.service",
-        "@angular/core"
-      ],
-      "language": "typescript",
-      "symbols": [
-        {
-          "kind": "class",
-          "name": "AppointmentViewService"
         }
       ]
     },
@@ -8846,61 +8489,6 @@
       ]
     },
     {
-      "file": "angular/src/app/appointment-types/appointment-type/services/appointment-type-detail.abstract.service.ts",
-      "imports": [
-        "../../../proxy/appointment-types/appointment-type.service",
-        "../../../proxy/appointment-types/models",
-        "@abp/ng.core",
-        "@angular/core",
-        "@angular/forms",
-        "rxjs/operators"
-      ],
-      "language": "typescript",
-      "symbols": []
-    },
-    {
-      "file": "angular/src/app/appointment-types/appointment-type/services/appointment-type-detail.service.ts",
-      "imports": [
-        "./appointment-type-detail.abstract.service",
-        "@angular/core"
-      ],
-      "language": "typescript",
-      "symbols": [
-        {
-          "kind": "class",
-          "name": "AppointmentTypeDetailViewService"
-        }
-      ]
-    },
-    {
-      "file": "angular/src/app/appointment-types/appointment-type/services/appointment-type.abstract.service.ts",
-      "imports": [
-        "../../../proxy/appointment-types/appointment-type.service",
-        "../../../proxy/appointment-types/models",
-        "@abp/ng.core",
-        "@abp/ng.theme.shared",
-        "@angular/core",
-        "@swimlane/ngx-datatable",
-        "rxjs/operators"
-      ],
-      "language": "typescript",
-      "symbols": []
-    },
-    {
-      "file": "angular/src/app/appointment-types/appointment-type/services/appointment-type.service.ts",
-      "imports": [
-        "./appointment-type.abstract.service",
-        "@angular/core"
-      ],
-      "language": "typescript",
-      "symbols": [
-        {
-          "kind": "class",
-          "name": "AppointmentTypeViewService"
-        }
-      ]
-    },
-    {
       "file": "angular/src/app/appointment-statuses/appointment-status/appointment-status-routes.ts",
       "imports": [
         "@abp/ng.core",
@@ -9006,60 +8594,6 @@
         {
           "kind": "const",
           "name": "APPOINTMENT_STATUSES_APPOINTMENT_STATUS_ROUTE_PROVIDER"
-        }
-      ]
-    },
-    {
-      "file": "angular/src/app/appointment-statuses/appointment-status/services/appointment-status-detail.abstract.service.ts",
-      "imports": [
-        "../../../proxy/appointment-statuses/appointment-status.service",
-        "../../../proxy/appointment-statuses/models",
-        "@abp/ng.core",
-        "@angular/core",
-        "@angular/forms",
-        "rxjs/operators"
-      ],
-      "language": "typescript",
-      "symbols": []
-    },
-    {
-      "file": "angular/src/app/appointment-statuses/appointment-status/services/appointment-status-detail.service.ts",
-      "imports": [
-        "./appointment-status-detail.abstract.service",
-        "@angular/core"
-      ],
-      "language": "typescript",
-      "symbols": [
-        {
-          "kind": "class",
-          "name": "AppointmentStatusDetailViewService"
-        }
-      ]
-    },
-    {
-      "file": "angular/src/app/appointment-statuses/appointment-status/services/appointment-status.abstract.service.ts",
-      "imports": [
-        "../../../proxy/appointment-statuses/appointment-status.service",
-        "../../../proxy/appointment-statuses/models",
-        "@abp/ng.core",
-        "@abp/ng.theme.shared",
-        "@angular/core",
-        "rxjs/operators"
-      ],
-      "language": "typescript",
-      "symbols": []
-    },
-    {
-      "file": "angular/src/app/appointment-statuses/appointment-status/services/appointment-status.service.ts",
-      "imports": [
-        "./appointment-status.abstract.service",
-        "@angular/core"
-      ],
-      "language": "typescript",
-      "symbols": [
-        {
-          "kind": "class",
-          "name": "AppointmentStatusViewService"
         }
       ]
     },
@@ -9173,60 +8707,6 @@
       ]
     },
     {
-      "file": "angular/src/app/appointment-languages/appointment-language/services/appointment-language-detail.abstract.service.ts",
-      "imports": [
-        "../../../proxy/appointment-languages/appointment-language.service",
-        "../../../proxy/appointment-languages/models",
-        "@abp/ng.core",
-        "@angular/core",
-        "@angular/forms",
-        "rxjs/operators"
-      ],
-      "language": "typescript",
-      "symbols": []
-    },
-    {
-      "file": "angular/src/app/appointment-languages/appointment-language/services/appointment-language-detail.service.ts",
-      "imports": [
-        "./appointment-language-detail.abstract.service",
-        "@angular/core"
-      ],
-      "language": "typescript",
-      "symbols": [
-        {
-          "kind": "class",
-          "name": "AppointmentLanguageDetailViewService"
-        }
-      ]
-    },
-    {
-      "file": "angular/src/app/appointment-languages/appointment-language/services/appointment-language.abstract.service.ts",
-      "imports": [
-        "../../../proxy/appointment-languages/appointment-language.service",
-        "../../../proxy/appointment-languages/models",
-        "@abp/ng.core",
-        "@abp/ng.theme.shared",
-        "@angular/core",
-        "rxjs/operators"
-      ],
-      "language": "typescript",
-      "symbols": []
-    },
-    {
-      "file": "angular/src/app/appointment-languages/appointment-language/services/appointment-language.service.ts",
-      "imports": [
-        "./appointment-language.abstract.service",
-        "@angular/core"
-      ],
-      "language": "typescript",
-      "symbols": [
-        {
-          "kind": "class",
-          "name": "AppointmentLanguageViewService"
-        }
-      ]
-    },
-    {
       "file": "angular/src/app/applicant-attorneys/applicant-attorney/applicant-attorney-routes.ts",
       "imports": [
         "@abp/ng.core",
@@ -9333,60 +8813,6 @@
         {
           "kind": "const",
           "name": "APPLICANT_ATTORNEYS_APPLICANT_ATTORNEY_ROUTE_PROVIDER"
-        }
-      ]
-    },
-    {
-      "file": "angular/src/app/applicant-attorneys/applicant-attorney/services/applicant-attorney-detail.abstract.service.ts",
-      "imports": [
-        "../../../proxy/applicant-attorneys/applicant-attorney.service",
-        "../../../proxy/applicant-attorneys/models",
-        "@abp/ng.core",
-        "@angular/core",
-        "@angular/forms",
-        "rxjs/operators"
-      ],
-      "language": "typescript",
-      "symbols": []
-    },
-    {
-      "file": "angular/src/app/applicant-attorneys/applicant-attorney/services/applicant-attorney-detail.service.ts",
-      "imports": [
-        "./applicant-attorney-detail.abstract.service",
-        "@angular/core"
-      ],
-      "language": "typescript",
-      "symbols": [
-        {
-          "kind": "class",
-          "name": "ApplicantAttorneyDetailViewService"
-        }
-      ]
-    },
-    {
-      "file": "angular/src/app/applicant-attorneys/applicant-attorney/services/applicant-attorney.abstract.service.ts",
-      "imports": [
-        "../../../proxy/applicant-attorneys/applicant-attorney.service",
-        "../../../proxy/applicant-attorneys/models",
-        "@abp/ng.core",
-        "@abp/ng.theme.shared",
-        "@angular/core",
-        "rxjs/operators"
-      ],
-      "language": "typescript",
-      "symbols": []
-    },
-    {
-      "file": "angular/src/app/applicant-attorneys/applicant-attorney/services/applicant-attorney.service.ts",
-      "imports": [
-        "./applicant-attorney.abstract.service",
-        "@angular/core"
-      ],
-      "language": "typescript",
-      "symbols": [
-        {
-          "kind": "class",
-          "name": "ApplicantAttorneyViewService"
         }
       ]
     }

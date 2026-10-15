@@ -8,18 +8,26 @@ on:
   pull_request_target:
     types: [opened, edited, synchronize, reopened]
 
+# Least-privilege default (phase 2 item 2.3, 2026-09-03). Scorecard
+# `TokenPermissionsID` flagged a top-level `write` here. The scope is
+# REQUIRED -- the action reports its verdict as a commit status -- so it moved DOWN to the job that
+# needs it rather than being removed. A job-level block replaces this one,
+# so behaviour is unchanged; what changes is the default for any job added
+# to this file later, which no longer inherits write access silently.
 permissions:
-  pull-requests: read
-  statuses: write
+  contents: read
 
 jobs:
   validate:
     name: 'PR Title: Conventional Commits'
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+      statuses: write
     timeout-minutes: 5
     continue-on-error: true
     steps:
-      - uses: amannn/action-semantic-pull-request@v6.1.1
+      - uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50  # v6.1.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:

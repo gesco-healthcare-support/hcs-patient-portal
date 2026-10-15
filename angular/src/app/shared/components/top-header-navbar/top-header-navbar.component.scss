@@ -23,6 +23,14 @@
   color: #34536f;
 }
 
+.top-header-navbar__brand {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+// Size comes from the shared .brand-logo box in styles/_brand.scss (36px, 28px narrow).
+
 .top-header-navbar__user-meta {
   display: flex;
   align-items: center;
@@ -35,10 +43,6 @@
 .top-header-navbar__user-meta a {
   color: #0d5ea0;
   text-decoration: none;
-}
-
-.top-header-navbar__user-meta a:hover {
-  text-decoration: underline;
 }
 
 .top-header-navbar__divider {

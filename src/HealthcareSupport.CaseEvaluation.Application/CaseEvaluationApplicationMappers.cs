@@ -1,5 +1,6 @@
 using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
+using HealthcareSupport.CaseEvaluation.ClaimExaminers;
 using HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
@@ -18,6 +19,7 @@ using HealthcareSupport.CaseEvaluation.Doctors;
 using HealthcareSupport.CaseEvaluation.Locations;
 using HealthcareSupport.CaseEvaluation.AppointmentLanguages;
 using HealthcareSupport.CaseEvaluation.AppointmentStatuses;
+using HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes;
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
 using System;
 using HealthcareSupport.CaseEvaluation.Shared;
@@ -26,48 +28,42 @@ using System.Linq;
 using System.Collections.Generic;
 using Riok.Mapperly.Abstractions;
 using Volo.Abp.Mapperly;
-using HealthcareSupport.CaseEvaluation.Books;
+using HealthcareSupport.CaseEvaluation.SystemParameters;
 
 [assembly: MapperDefaults(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
 
 namespace HealthcareSupport.CaseEvaluation;
 
-[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
-public partial class CaseEvaluationBookToBookDtoMapper : MapperBase<Book, BookDto>
+// An attorney row is not always linked to a portal account, so the entity's
+// IdentityUserId is nullable while the DTOs carry a non-nullable Guid. The wire
+// contract spells "no linked account" as the all-zero Guid (the Angular side's
+// UNASSIGNED_APPOINTMENT_ID). Mapperly's default for Guid? -> Guid skips the
+// assignment on null, which in the Map(source, destination) overload would keep
+// the destination's previous id; the mappers below route through this instead.
+internal static class AttorneyIdentityMapping
 {
-    public override partial BookDto Map(Book source);
-    public override partial void Map(Book source, BookDto destination);
-}
-
-[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Target)]
-public partial class CaseEvaluationCreateUpdateBookDtoToBookMapper : MapperBase<CreateUpdateBookDto, Book>
-{
-    [MapperIgnoreTarget(nameof(Book.ConcurrencyStamp))]
-    [MapperIgnoreTarget(nameof(Book.CreationTime))]
-    [MapperIgnoreTarget(nameof(Book.CreatorId))]
-    [MapperIgnoreTarget(nameof(Book.LastModificationTime))]
-    [MapperIgnoreTarget(nameof(Book.LastModifierId))]
-    public override partial Book Map(CreateUpdateBookDto source);
-
-    [MapperIgnoreTarget(nameof(Book.ConcurrencyStamp))]
-    [MapperIgnoreTarget(nameof(Book.CreationTime))]
-    [MapperIgnoreTarget(nameof(Book.CreatorId))]
-    [MapperIgnoreTarget(nameof(Book.LastModificationTime))]
-    [MapperIgnoreTarget(nameof(Book.LastModifierId))]
-    public override partial void Map(CreateUpdateBookDto source, Book destination);
+    public static Guid OrUnassigned(Guid? value) => value ?? Guid.Empty;
 }
 
 [Mapper]
 public partial class StateToStateDtoMappers : MapperBase<State, StateDto>
 {
+    // UsageCount is computed in StatesAppService.GetListAsync, not auto-mapped.
+    [MapperIgnoreTarget(nameof(StateDto.UsageCount))]
     public override partial StateDto Map(State source);
+
+    [MapperIgnoreTarget(nameof(StateDto.UsageCount))]
     public override partial void Map(State source, StateDto destination);
 }
 
 [Mapper]
 public partial class AppointmentTypeToAppointmentTypeDtoMappers : MapperBase<AppointmentType, AppointmentTypeDto>
 {
+    // UsageCount is computed in AppointmentTypesAppService.GetListAsync, not auto-mapped.
+    [MapperIgnoreTarget(nameof(AppointmentTypeDto.UsageCount))]
     public override partial AppointmentTypeDto Map(AppointmentType source);
+
+    [MapperIgnoreTarget(nameof(AppointmentTypeDto.UsageCount))]
     public override partial void Map(AppointmentType source, AppointmentTypeDto destination);
 }
 
@@ -81,21 +77,50 @@ public partial class AppointmentTypeToAppointmentTypeExcelDtoMappers : MapperBas
 [Mapper]
 public partial class AppointmentStatusToAppointmentStatusDtoMappers : MapperBase<AppointmentStatus, AppointmentStatusDto>
 {
+    // UsageCount is always null (not tracked); never auto-mapped.
+    [MapperIgnoreTarget(nameof(AppointmentStatusDto.UsageCount))]
     public override partial AppointmentStatusDto Map(AppointmentStatus source);
+
+    [MapperIgnoreTarget(nameof(AppointmentStatusDto.UsageCount))]
     public override partial void Map(AppointmentStatus source, AppointmentStatusDto destination);
+}
+
+[Mapper]
+public partial class AppointmentDocumentTypeToAppointmentDocumentTypeDtoMappers : MapperBase<AppointmentDocumentType, AppointmentDocumentTypeDto>
+{
+    // UsageCount + AppointmentTypeIds are projected in the app service (the join
+    // collection is not auto-mappable to a Guid list), so ignore them here.
+    [MapperIgnoreTarget(nameof(AppointmentDocumentTypeDto.UsageCount))]
+    [MapperIgnoreTarget(nameof(AppointmentDocumentTypeDto.AppointmentTypeIds))]
+    [MapperIgnoreSource(nameof(AppointmentDocumentType.AppointmentTypes))]
+    public override partial AppointmentDocumentTypeDto Map(AppointmentDocumentType source);
+
+    [MapperIgnoreTarget(nameof(AppointmentDocumentTypeDto.UsageCount))]
+    [MapperIgnoreTarget(nameof(AppointmentDocumentTypeDto.AppointmentTypeIds))]
+    [MapperIgnoreSource(nameof(AppointmentDocumentType.AppointmentTypes))]
+    public override partial void Map(AppointmentDocumentType source, AppointmentDocumentTypeDto destination);
 }
 
 [Mapper]
 public partial class AppointmentLanguageToAppointmentLanguageDtoMappers : MapperBase<AppointmentLanguage, AppointmentLanguageDto>
 {
+    // UsageCount is computed in AppointmentLanguagesAppService.GetListAsync, not auto-mapped.
+    [MapperIgnoreTarget(nameof(AppointmentLanguageDto.UsageCount))]
     public override partial AppointmentLanguageDto Map(AppointmentLanguage source);
+
+    [MapperIgnoreTarget(nameof(AppointmentLanguageDto.UsageCount))]
     public override partial void Map(AppointmentLanguage source, AppointmentLanguageDto destination);
 }
 
 [Mapper]
 public partial class LocationToLocationDtoMappers : MapperBase<Location, LocationDto>
 {
+    // I3 (2026-06-08): AppointmentTypeIds is filled from the AppointmentTypes M2M
+    // in LocationsAppService.ToLocationDto, not auto-mapped here.
+    [MapperIgnoreTarget(nameof(LocationDto.AppointmentTypeIds))]
     public override partial LocationDto Map(Location source);
+
+    [MapperIgnoreTarget(nameof(LocationDto.AppointmentTypeIds))]
     public override partial void Map(Location source, LocationDto destination);
 }
 
@@ -104,6 +129,20 @@ public partial class LocationWithNavigationPropertiesToLocationWithNavigationPro
 {
     public override partial LocationWithNavigationPropertiesDto Map(LocationWithNavigationProperties source);
     public override partial void Map(LocationWithNavigationProperties source, LocationWithNavigationPropertiesDto destination);
+
+    // I3 (2026-06-08): nested Location -> LocationDto used by the maps above.
+    // AppointmentTypeIds is filled in the AppService, so ignore it here too,
+    // otherwise Mapperly RMG012 fails on the unmapped target.
+    [MapperIgnoreTarget(nameof(LocationDto.AppointmentTypeIds))]
+    private partial LocationDto MapLocation(Location source);
+
+    // Prompt 15: nested State/AppointmentType maps carry the computed UsageCount
+    // target (filled in the AppService, never auto-mapped) -- ignore it here too.
+    [MapperIgnoreTarget(nameof(StateDto.UsageCount))]
+    private partial StateDto MapState(State source);
+
+    [MapperIgnoreTarget(nameof(AppointmentTypeDto.UsageCount))]
+    private partial AppointmentTypeDto MapAppointmentType(AppointmentType source);
 }
 
 [Mapper]
@@ -153,6 +192,10 @@ public partial class WcabOfficeWithNavigationPropertiesToWcabOfficeWithNavigatio
 {
     public override partial WcabOfficeWithNavigationPropertiesDto Map(WcabOfficeWithNavigationProperties source);
     public override partial void Map(WcabOfficeWithNavigationProperties source, WcabOfficeWithNavigationPropertiesDto destination);
+
+    // Prompt 15: nested State -> StateDto carries the computed UsageCount target.
+    [MapperIgnoreTarget(nameof(StateDto.UsageCount))]
+    private partial StateDto MapState(State source);
 }
 
 [Mapper]
@@ -228,15 +271,49 @@ public partial class LocationToLookupDtoGuidMapper : MapperBase<Location, Lookup
 [Mapper]
 public partial class DoctorAvailabilityToDoctorAvailabilityDtoMappers : MapperBase<DoctorAvailability, DoctorAvailabilityDto>
 {
+    // 2026-05-15 -- the entity carries ICollection<DoctorAvailabilityAppointmentType>;
+    // the DTO surfaces List<Guid> AppointmentTypeIds. Use the project's
+    // idiomatic [MapperIgnoreTarget] + AfterMap pattern (see
+    // AppointmentTypeToLookupDtoGuidMapper) so the shape change is explicit.
+    [MapperIgnoreTarget(nameof(DoctorAvailabilityDto.AppointmentTypeIds))]
+    [MapperIgnoreTarget(nameof(DoctorAvailabilityDto.RemainingCapacity))]
     public override partial DoctorAvailabilityDto Map(DoctorAvailability source);
+
+    [MapperIgnoreTarget(nameof(DoctorAvailabilityDto.AppointmentTypeIds))]
+    [MapperIgnoreTarget(nameof(DoctorAvailabilityDto.RemainingCapacity))]
     public override partial void Map(DoctorAvailability source, DoctorAvailabilityDto destination);
+
+    public override void AfterMap(DoctorAvailability source, DoctorAvailabilityDto destination)
+    {
+        destination.AppointmentTypeIds = source.AppointmentTypes
+            .Select(x => x.AppointmentTypeId)
+            .ToList();
+    }
 }
 
-[Mapper]
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.None)]
 public partial class DoctorAvailabilityWithNavigationPropertiesToDoctorAvailabilityWithNavigationPropertiesDtoMapper : MapperBase<DoctorAvailabilityWithNavigationProperties, DoctorAvailabilityWithNavigationPropertiesDto>
 {
+    // Source and target AppointmentTypes share the same name; Mapperly reuses
+    // the existing AppointmentType -> AppointmentTypeDto mapper. The nested
+    // DoctorAvailability mapping is generated internally and does NOT run
+    // DoctorAvailabilityToDoctorAvailabilityDtoMappers.AfterMap, so the inner
+    // DTO's AppointmentTypeIds would otherwise stay empty. AfterMap below
+    // populates it from the outer materialized AppointmentTypes list (the
+    // EF repository builds that list via an explicit subquery join, so it
+    // is the authoritative source for IDs in this projection path).
     public override partial DoctorAvailabilityWithNavigationPropertiesDto Map(DoctorAvailabilityWithNavigationProperties source);
     public override partial void Map(DoctorAvailabilityWithNavigationProperties source, DoctorAvailabilityWithNavigationPropertiesDto destination);
+
+    public override void AfterMap(DoctorAvailabilityWithNavigationProperties source, DoctorAvailabilityWithNavigationPropertiesDto destination)
+    {
+        if (destination.DoctorAvailability != null && source.AppointmentTypes != null)
+        {
+            destination.DoctorAvailability.AppointmentTypeIds = source.AppointmentTypes
+                .Select(x => x.Id)
+                .ToList();
+        }
+    }
 }
 
 [Mapper]
@@ -288,25 +365,13 @@ public partial class AppointmentPacketToDtoMapper : MapperBase<HealthcareSupport
     public override partial void Map(HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacket source, HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacketDto destination);
 }
 
-[Mapper]
-public partial class AppointmentSendBackInfoToDtoMapper : MapperBase<AppointmentSendBackInfo, AppointmentSendBackInfoDto>
-{
-    [MapperIgnoreTarget(nameof(AppointmentSendBackInfoDto.FlaggedFields))]
-    public override partial AppointmentSendBackInfoDto Map(AppointmentSendBackInfo source);
-    [MapperIgnoreTarget(nameof(AppointmentSendBackInfoDto.FlaggedFields))]
-    public override partial void Map(AppointmentSendBackInfo source, AppointmentSendBackInfoDto destination);
-
-    public override void AfterMap(AppointmentSendBackInfo source, AppointmentSendBackInfoDto destination)
-    {
-        destination.FlaggedFields = source.GetFlaggedFields().ToList();
-    }
-}
-
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.None)]
 public partial class AppointmentWithNavigationPropertiesToAppointmentWithNavigationPropertiesDtoMapper : MapperBase<AppointmentWithNavigationProperties, AppointmentWithNavigationPropertiesDto>
 {
     public override partial AppointmentWithNavigationPropertiesDto Map(AppointmentWithNavigationProperties source);
     public override partial void Map(AppointmentWithNavigationProperties source, AppointmentWithNavigationPropertiesDto destination);
+
+    private static Guid IdentityUserIdOrUnassigned(Guid? value) => AttorneyIdentityMapping.OrUnassigned(value);
 }
 
 [Mapper]
@@ -363,6 +428,10 @@ public partial class AppointmentEmployerDetailWithNavigationPropertiesToAppointm
 {
     public override partial AppointmentEmployerDetailWithNavigationPropertiesDto Map(AppointmentEmployerDetailWithNavigationProperties source);
     public override partial void Map(AppointmentEmployerDetailWithNavigationProperties source, AppointmentEmployerDetailWithNavigationPropertiesDto destination);
+
+    // Prompt 15: nested State -> StateDto carries the computed UsageCount target.
+    [MapperIgnoreTarget(nameof(StateDto.UsageCount))]
+    private partial StateDto MapState(State source);
 }
 
 [Mapper]
@@ -398,6 +467,8 @@ public partial class ApplicantAttorneyToApplicantAttorneyDtoMappers : MapperBase
 {
     public override partial ApplicantAttorneyDto Map(ApplicantAttorney source);
     public override partial void Map(ApplicantAttorney source, ApplicantAttorneyDto destination);
+
+    private static Guid IdentityUserIdOrUnassigned(Guid? value) => AttorneyIdentityMapping.OrUnassigned(value);
 }
 
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.None)]
@@ -405,6 +476,8 @@ public partial class ApplicantAttorneyWithNavigationPropertiesToApplicantAttorne
 {
     public override partial ApplicantAttorneyWithNavigationPropertiesDto Map(ApplicantAttorneyWithNavigationProperties source);
     public override partial void Map(ApplicantAttorneyWithNavigationProperties source, ApplicantAttorneyWithNavigationPropertiesDto destination);
+
+    private static Guid IdentityUserIdOrUnassigned(Guid? value) => AttorneyIdentityMapping.OrUnassigned(value);
 }
 
 [Mapper]
@@ -412,6 +485,8 @@ public partial class AppointmentApplicantAttorneyToAppointmentApplicantAttorneyD
 {
     public override partial AppointmentApplicantAttorneyDto Map(AppointmentApplicantAttorney source);
     public override partial void Map(AppointmentApplicantAttorney source, AppointmentApplicantAttorneyDto destination);
+
+    private static Guid IdentityUserIdOrUnassigned(Guid? value) => AttorneyIdentityMapping.OrUnassigned(value);
 }
 
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.None)]
@@ -419,6 +494,8 @@ public partial class AppointmentApplicantAttorneyWithNavigationPropertiesToAppoi
 {
     public override partial AppointmentApplicantAttorneyWithNavigationPropertiesDto Map(AppointmentApplicantAttorneyWithNavigationProperties source);
     public override partial void Map(AppointmentApplicantAttorneyWithNavigationProperties source, AppointmentApplicantAttorneyWithNavigationPropertiesDto destination);
+
+    private static Guid IdentityUserIdOrUnassigned(Guid? value) => AttorneyIdentityMapping.OrUnassigned(value);
 }
 
 [Mapper]
@@ -435,11 +512,43 @@ public partial class ApplicantAttorneyToLookupDtoGuidMapper : MapperBase<Applica
     }
 }
 
+// UM3/UM4 (2026-06-05): Claim Examiner master mappers (firm-less attorney shape).
+[Mapper]
+public partial class ClaimExaminerToClaimExaminerDtoMappers : MapperBase<ClaimExaminer, ClaimExaminerDto>
+{
+    public override partial ClaimExaminerDto Map(ClaimExaminer source);
+    public override partial void Map(ClaimExaminer source, ClaimExaminerDto destination);
+}
+
+[Mapper(RequiredMappingStrategy = RequiredMappingStrategy.None)]
+public partial class ClaimExaminerWithNavigationPropertiesToClaimExaminerWithNavigationPropertiesDtoMapper : MapperBase<ClaimExaminerWithNavigationProperties, ClaimExaminerWithNavigationPropertiesDto>
+{
+    public override partial ClaimExaminerWithNavigationPropertiesDto Map(ClaimExaminerWithNavigationProperties source);
+    public override partial void Map(ClaimExaminerWithNavigationProperties source, ClaimExaminerWithNavigationPropertiesDto destination);
+}
+
+[Mapper]
+public partial class ClaimExaminerToLookupDtoGuidMapper : MapperBase<ClaimExaminer, LookupDto<Guid>>
+{
+    [MapperIgnoreTarget(nameof(LookupDto<Guid>.DisplayName))]
+    public override partial LookupDto<Guid> Map(ClaimExaminer source);
+    [MapperIgnoreTarget(nameof(LookupDto<Guid>.DisplayName))]
+    public override partial void Map(ClaimExaminer source, LookupDto<Guid> destination);
+
+    public override void AfterMap(ClaimExaminer source, LookupDto<Guid> destination)
+    {
+        var name = $"{source.FirstName} {source.LastName}".Trim();
+        destination.DisplayName = string.IsNullOrWhiteSpace(name) ? (source.Email ?? string.Empty) : name;
+    }
+}
+
 [Mapper]
 public partial class DefenseAttorneyToDefenseAttorneyDtoMappers : MapperBase<DefenseAttorney, DefenseAttorneyDto>
 {
     public override partial DefenseAttorneyDto Map(DefenseAttorney source);
     public override partial void Map(DefenseAttorney source, DefenseAttorneyDto destination);
+
+    private static Guid IdentityUserIdOrUnassigned(Guid? value) => AttorneyIdentityMapping.OrUnassigned(value);
 }
 
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.None)]
@@ -447,6 +556,8 @@ public partial class DefenseAttorneyWithNavigationPropertiesToDefenseAttorneyWit
 {
     public override partial DefenseAttorneyWithNavigationPropertiesDto Map(DefenseAttorneyWithNavigationProperties source);
     public override partial void Map(DefenseAttorneyWithNavigationProperties source, DefenseAttorneyWithNavigationPropertiesDto destination);
+
+    private static Guid IdentityUserIdOrUnassigned(Guid? value) => AttorneyIdentityMapping.OrUnassigned(value);
 }
 
 [Mapper]
@@ -454,6 +565,8 @@ public partial class AppointmentDefenseAttorneyToAppointmentDefenseAttorneyDtoMa
 {
     public override partial AppointmentDefenseAttorneyDto Map(AppointmentDefenseAttorney source);
     public override partial void Map(AppointmentDefenseAttorney source, AppointmentDefenseAttorneyDto destination);
+
+    private static Guid IdentityUserIdOrUnassigned(Guid? value) => AttorneyIdentityMapping.OrUnassigned(value);
 }
 
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.None)]
@@ -461,6 +574,8 @@ public partial class AppointmentDefenseAttorneyWithNavigationPropertiesToAppoint
 {
     public override partial AppointmentDefenseAttorneyWithNavigationPropertiesDto Map(AppointmentDefenseAttorneyWithNavigationProperties source);
     public override partial void Map(AppointmentDefenseAttorneyWithNavigationProperties source, AppointmentDefenseAttorneyWithNavigationPropertiesDto destination);
+
+    private static Guid IdentityUserIdOrUnassigned(Guid? value) => AttorneyIdentityMapping.OrUnassigned(value);
 }
 
 [Mapper]
@@ -518,3 +633,24 @@ public partial class AppointmentPrimaryInsuranceToAppointmentPrimaryInsuranceDto
     public override partial AppointmentPrimaryInsuranceDto Map(AppointmentPrimaryInsurance source);
     public override partial void Map(AppointmentPrimaryInsurance source, AppointmentPrimaryInsuranceDto destination);
 }
+
+// Phase 3 (2026-05-02) -- IT Admin SystemParameters AppService.
+// One read mapper (entity -> DTO) and one write mapper
+// (UpdateDto -> entity, audit / id / tenant / concurrency stamp ignored on
+// the destination so the existing aggregate-root invariants are preserved).
+[Mapper]
+public partial class SystemParameterToSystemParameterDtoMapper
+    : MapperBase<SystemParameter, SystemParameterDto>
+{
+    // QA item 13 + #4a: OfficeEmail and EmailEnabled are ABP settings, not entity
+    // columns -- the app service populates them from the setting store, so ignore them
+    // on the entity map.
+    [MapperIgnoreTarget(nameof(SystemParameterDto.OfficeEmail))]
+    [MapperIgnoreTarget(nameof(SystemParameterDto.EmailEnabled))]
+    public override partial SystemParameterDto Map(SystemParameter source);
+
+    [MapperIgnoreTarget(nameof(SystemParameterDto.OfficeEmail))]
+    [MapperIgnoreTarget(nameof(SystemParameterDto.EmailEnabled))]
+    public override partial void Map(SystemParameter source, SystemParameterDto destination);
+}
+

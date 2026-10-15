@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+    <title>Case Tracker missing intakes</title>
+</head>
+<body style="font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 20px; color: #000;">
+    <p>
+        <strong>##MissingIntakeCount##</strong> approved appointment(s) have no Case Tracker intake row.
+    </p>
+    <!--
+      Plain text inside <pre>, for the same reason as CaseTrackerPushFailed.html: the template must not
+      depend on whether the dispatcher HTML-escapes substituted values.
+    -->
+    <pre style="font-family: Consolas, Menlo, monospace; font-size: 13px; background: #f6f8fa; padding: 12px; border-radius: 4px; white-space: pre-wrap;">##MissingIntakeDetail##</pre>
+    <p style="margin-top: 20px; color: #555; font-size: 12px;">
+        Sent weekly to the technical contacts for the Case Tracker integration, only when there is something to
+        report. It identifies offices, confirmation numbers, appointment ids, statuses and dates. No patient
+        details are included in this message.
+    </p>
+</body>
+</html>

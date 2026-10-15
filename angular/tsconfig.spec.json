@@ -3,16 +3,23 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "outDir": "./out-tsc/spec",
-    "types": [
-      "jasmine"
-    ]
+    "types": ["jasmine"]
   },
-  "files": [
-    "src/test.ts",
-    "src/polyfills.ts"
-  ],
-  "include": [
-    "src/**/*.spec.ts",
-    "src/**/*.d.ts"
-  ]
+  "files": ["src/test.ts", "src/polyfills.ts"],
+  /*
+   * ALL sources, not just the specs -- and this is HALF of a two-part change.
+   * The other half is `include` on the karma target in angular.json.
+   *
+   * Coverage is only produced for files the test bundle contains, and the
+   * karma builder discovers that bundle from its `include` globs. Widening
+   * those alone FAILS: 184 files error with "is missing from the TypeScript
+   * compilation", because a file joins this program only by being a spec or by
+   * being imported (directly or transitively) from one. That was the entire
+   * blind spot -- 184 of 269 application sources were invisible to coverage,
+   * not uncovered by it, so the reported figure described a third of the app.
+   *
+   * Narrowing this back to specs re-creates the blind spot silently: the tests
+   * still pass, the number goes back up, and nothing reports a problem.
+   */
+  "include": ["src/**/*.ts"]
 }

@@ -11,6 +11,23 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+# INERT HARNESS (recorded 2026-10-01). This PowerShell E2E harness cannot run against the current
+# app, so it stops here instead of failing later with an unrelated-looking error:
+#   - It signs in with the OAuth password grant (scripts/helpers/Get-AuthToken.ps1). That grant was
+#     removed on 2026-05-19 (audit D-14); both OpenIddict clients are public and use the
+#     authorization code flow with PKCE, so no script can obtain a user token.
+#   - It selects an office with a `__tenant` header. The API ignores that header on purpose: the
+#     office comes from the signed-in user, or from the host name for anonymous requests.
+#   - Its prerequisite check looks for LocalDB; the stack runs SQL Server in Docker.
+# Local demo data now comes from the db-migrator seed: `docker compose run --rm db-migrator`
+# (see docs/runbooks/DEMO-LOGINS.md). HCS_RUN_RETIRED_HARNESS=1 skips this stop, for whoever
+# ports the harness to a working sign-in.
+if ($env:HCS_RUN_RETIRED_HARNESS -ne "1") {
+    throw ("$($MyInvocation.MyCommand.Name) is part of the retired PowerShell E2E harness and cannot run " +
+        "against the current app (password grant removed 2026-05-19; __tenant header ignored). " +
+        "Use 'docker compose run --rm db-migrator' for local demo data. See the comment at the top of this file.")
+}
 $scriptRoot = $PSScriptRoot
 . "$scriptRoot\helpers\Get-AuthToken.ps1"
 . "$scriptRoot\helpers\Invoke-ApiCall.ps1"
@@ -77,14 +94,14 @@ if ($futureSlot) {
                 $ub = @{ availableDate=$slotNow.availableDate; fromTime=$slotNow.fromTime; toTime=$slotNow.toTime; bookingStatusId=8; locationId=$slotNow.locationId; appointmentTypeId=$slotNow.appointmentTypeId; concurrencyStamp=$slotNow.concurrencyStamp }
                 Invoke-ApiCall -Method "PUT" -Url "$ApiBaseUrl/api/app/doctor-availabilities/$($futureSlot.id)" -Body $ub -Token $t1Token -TenantId $t1Id | Out-Null
             }
-        } catch {}
+        } catch { Write-Verbose "slot restore failed during cleanup; the slot is deleted next regardless: $_" }
     }
 }
 
 # ---- E3: Patient /me endpoint ----
 Write-Host "`n--- E3: Patient /me endpoint ---" -ForegroundColor Yellow
 $resp = Invoke-TestApiCall -Method "GET" -Url "$ApiBaseUrl/api/app/patients/me" -Token $patientToken -TenantId $t1Id
-Write-Host "  Status: $($resp.StatusCode), HasData: $($resp.Body -ne $null)" -ForegroundColor $(if($resp.StatusCode -eq 200){"Green"}else{"Red"})
+Write-Host "  Status: $($resp.StatusCode), HasData: $($null -ne $resp.Body)" -ForegroundColor $(if($resp.StatusCode -eq 200){"Green"}else{"Red"})
 $findings += "E3: Patient /me: Status=$($resp.StatusCode)"
 
 # ---- E4: External user lookup data exposure ----
@@ -129,7 +146,7 @@ if ($slotResp.Body) {
             $slotNow = Invoke-ApiCall -Method "GET" -Url "$ApiBaseUrl/api/app/doctor-availabilities/$slotId" -Token $t1Token -TenantId $t1Id
             $ub = @{ availableDate=$slotNow.availableDate; fromTime=$slotNow.fromTime; toTime=$slotNow.toTime; bookingStatusId=8; locationId=$slotNow.locationId; appointmentTypeId=$slotNow.appointmentTypeId; concurrencyStamp=$slotNow.concurrencyStamp }
             Invoke-ApiCall -Method "PUT" -Url "$ApiBaseUrl/api/app/doctor-availabilities/$slotId" -Body $ub -Token $t1Token -TenantId $t1Id | Out-Null
-        } catch {}
+        } catch { Write-Verbose "slot restore failed during cleanup; the slot is deleted next regardless: $_" }
     }
     Invoke-TestApiCall -Method "DELETE" -Url "$ApiBaseUrl/api/app/doctor-availabilities/$slotId" -Token $t1Token -TenantId $t1Id | Out-Null
 }

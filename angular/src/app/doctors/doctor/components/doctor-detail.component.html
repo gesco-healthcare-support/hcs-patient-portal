@@ -24,7 +24,6 @@
                   formControlName="firstName"
                   class="form-control"
                   maxlength="50"
-                  autofocus
                 />
               </div>
 
@@ -71,17 +70,6 @@
                     </option>
                   }
                 </select>
-              </div>
-
-              <div class="mb-3">
-                <label class="form-label" for="doctor-identity-user-id">
-                  {{ '::IdentityUser' | abpLocalization }}
-                </label>
-                <abp-lookup-select
-                  cid="doctor-identity-user-id"
-                  formControlName="identityUserId"
-                  [getFn]="service.getIdentityUserLookup"
-                ></abp-lookup-select>
               </div>
             </div>
           </ng-template>

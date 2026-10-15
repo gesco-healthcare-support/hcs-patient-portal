@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentAccessors;
 using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails;
+using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
 using HealthcareSupport.CaseEvaluation.AppointmentLanguages;
 using HealthcareSupport.CaseEvaluation.AppointmentStatuses;
 using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
@@ -14,10 +15,12 @@ using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Locations;
 using HealthcareSupport.CaseEvaluation.Patients;
 using HealthcareSupport.CaseEvaluation.States;
+using HealthcareSupport.CaseEvaluation.SystemParameters;
 using HealthcareSupport.CaseEvaluation.TestData;
 using HealthcareSupport.CaseEvaluation.WcabOffices;
 using Volo.Abp.Data;
 using Volo.Abp.DependencyInjection;
+using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.MultiTenancy;
 using Volo.Abp.Uow;
@@ -35,9 +38,9 @@ namespace HealthcareSupport.CaseEvaluation.Testing;
 ///
 /// Tenants are created via <c>ITenantManager.CreateAsync(name)</c> -- the same
 /// framework path production uses (DoctorTenantAppService.CreateAsync hits this
-/// transitively through TenantAppService). Returned tenant GUIDs are captured
-/// into <see cref="TenantsTestData"/> static properties so downstream seeds and
-/// tests can reference them.
+/// transitively through TenantAppService). Each new tenant's id is then pinned to
+/// the fixed value in <see cref="TenantsTestData"/>, so every test application
+/// seeds the same tenant ids and downstream seeds and tests can reference them.
 /// </summary>
 public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor, ISingletonDependency
 {
@@ -53,12 +56,14 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
     private readonly IAppointmentAccessorRepository _appointmentAccessorRepository;
     private readonly IAppointmentApplicantAttorneyRepository _appointmentApplicantAttorneyRepository;
     private readonly IAppointmentEmployerDetailRepository _appointmentEmployerDetailRepository;
+    private readonly IAppointmentInjuryDetailRepository _appointmentInjuryDetailRepository;
     private readonly IAppointmentStatusRepository _appointmentStatusRepository;
     private readonly IAppointmentLanguageRepository _appointmentLanguageRepository;
     private readonly IWcabOfficeRepository _wcabOfficeRepository;
     private readonly ITenantManager _tenantManager;
     private readonly IRepository<Tenant, Guid> _tenantRepository;
     private readonly IdentityUsersDataSeedContributor _identityUsersSeeder;
+    private readonly SystemParameterDataSeedContributor _systemParameterSeeder;
     private readonly ICurrentTenant _currentTenant;
     private readonly IUnitOfWorkManager _unitOfWorkManager;
 
@@ -74,12 +79,14 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         IAppointmentAccessorRepository appointmentAccessorRepository,
         IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository,
         IAppointmentEmployerDetailRepository appointmentEmployerDetailRepository,
+        IAppointmentInjuryDetailRepository appointmentInjuryDetailRepository,
         IAppointmentStatusRepository appointmentStatusRepository,
         IAppointmentLanguageRepository appointmentLanguageRepository,
         IWcabOfficeRepository wcabOfficeRepository,
         ITenantManager tenantManager,
         IRepository<Tenant, Guid> tenantRepository,
         IdentityUsersDataSeedContributor identityUsersSeeder,
+        SystemParameterDataSeedContributor systemParameterSeeder,
         ICurrentTenant currentTenant,
         IUnitOfWorkManager unitOfWorkManager)
     {
@@ -94,12 +101,14 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         _appointmentAccessorRepository = appointmentAccessorRepository;
         _appointmentApplicantAttorneyRepository = appointmentApplicantAttorneyRepository;
         _appointmentEmployerDetailRepository = appointmentEmployerDetailRepository;
+        _appointmentInjuryDetailRepository = appointmentInjuryDetailRepository;
         _appointmentStatusRepository = appointmentStatusRepository;
         _appointmentLanguageRepository = appointmentLanguageRepository;
         _wcabOfficeRepository = wcabOfficeRepository;
         _tenantManager = tenantManager;
         _tenantRepository = tenantRepository;
         _identityUsersSeeder = identityUsersSeeder;
+        _systemParameterSeeder = systemParameterSeeder;
         _currentTenant = currentTenant;
         _unitOfWorkManager = unitOfWorkManager;
     }
@@ -112,6 +121,9 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         }
 
         await SeedTenantsAsync();
+        await _unitOfWorkManager.Current!.SaveChangesAsync();
+
+        await SeedSystemParametersAsync();
         await _unitOfWorkManager.Current!.SaveChangesAsync();
 
         await _identityUsersSeeder.SeedAsync(context);
@@ -143,6 +155,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         await SeedAppointmentAccessorsAsync();
         await SeedAppointmentApplicantAttorneysAsync();
         await SeedAppointmentEmployerDetailsAsync();
+        await SeedAppointmentInjuryDetailsAsync();
         await _unitOfWorkManager.Current!.SaveChangesAsync();
 
         _isSeeded = true;
@@ -155,19 +168,49 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         // each CreateAsync so the row exists before downstream FKs reference it.
         using (_currentTenant.Change(null))
         {
-            var tenantA = await _tenantManager.CreateAsync(TenantsTestData.TenantAName);
-            await _tenantRepository.InsertAsync(tenantA);
-            TenantsTestData.TenantARef = tenantA.Id;
-
-            var tenantB = await _tenantManager.CreateAsync(TenantsTestData.TenantBName);
-            await _tenantRepository.InsertAsync(tenantB);
-            TenantsTestData.TenantBRef = tenantB.Id;
+            await CreateTenantWithFixedIdAsync(TenantsTestData.TenantAName, TenantsTestData.TenantARef);
+            await CreateTenantWithFixedIdAsync(TenantsTestData.TenantBName, TenantsTestData.TenantBRef);
         }
+    }
+
+    /// <summary>
+    /// Creates a tenant through the production manager path, then pins its id to the
+    /// fixed <see cref="TenantsTestData"/> value before it is inserted, so every test
+    /// application seeds the same ids (#1034). Throws when the id did not take: a silent
+    /// miss would leave tests reading a tenant id their database does not have.
+    /// </summary>
+    private async Task CreateTenantWithFixedIdAsync(string name, Guid fixedId)
+    {
+        var tenant = await _tenantManager.CreateAsync(name);
+        EntityHelper.TrySetId(tenant, () => fixedId);
+        if (tenant.Id != fixedId)
+        {
+            throw new InvalidOperationException(
+                $"Test tenant '{name}' kept the generated id {tenant.Id} instead of the fixed id {fixedId}; " +
+                "EntityHelper.TrySetId did not set it.");
+        }
+
+        await _tenantRepository.InsertAsync(tenant);
+    }
+
+    private async Task SeedSystemParametersAsync()
+    {
+        // Per-tenant singleton. In production the row is seeded when ABP fires
+        // TenantCreatedEto, which routes to SystemParameterDataSeedContributor.
+        // The in-memory SQLite test rig has no event bus, so we invoke the
+        // production contributor directly per tenant. Using the production
+        // contributor (rather than re-implementing the entity insert) keeps
+        // OLD-parity defaults from SystemParameterConsts in lock-step with
+        // production seeding.
+        await _systemParameterSeeder.SeedAsync(new DataSeedContext(TenantsTestData.TenantARef));
+        await _systemParameterSeeder.SeedAsync(new DataSeedContext(TenantsTestData.TenantBRef));
     }
 
     private async Task SeedLocationsAsync()
     {
-        // Host-scoped seeds: Location, State, AppointmentType are all !IMultiTenant.
+        // Tenant-scoped seeds (#764): Location, State and AppointmentType are all IMultiTenant,
+        // and production seeds them inside each office's own database (every seeder skips host
+        // scope). They are seeded inside tenant A's scope; tenant B gets its own Location1.
         // Location1 references State1 + AppointmentType1 so nav-prop join tests can
         // assert on populated related entities. Location2 and Location3 keep null
         // nav FKs to exercise LEFT JOIN with nulls and satisfy the "varied FKs"
@@ -176,25 +219,29 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         // Runs before Doctor / Patient so the orchestrator's dependency chain
         // stays consistent for future Wave-2 seeds (DoctorAvailability and
         // Appointment both FK into Location).
-        using (_currentTenant.Change(null))
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
         {
             // State1 now seeded by SeedStatesAsync (extracted in B-6 Tier-3 PR-3A).
             // AppointmentType1 now seeded by SeedAppointmentTypesAsync (extracted in B-6 Tier-3 PR-3B).
-            await _locationRepository.InsertAsync(new Location(
+            // I3 (2026-06-08): Location now offers appointment types via the
+            // LocationAppointmentType M2M (the ctor no longer takes a single
+            // AppointmentTypeId). Location1 gets AppointmentType1 so nav-prop
+            // join tests still assert a populated relation; Location2/3 keep none.
+            var location1 = new Location(
                 id: LocationsTestData.Location1Id,
                 stateId: LocationsTestData.State1Id,
-                appointmentTypeId: LocationsTestData.AppointmentType1Id,
                 name: LocationsTestData.Location1Name,
                 parkingFee: LocationsTestData.Location1ParkingFee,
                 isActive: LocationsTestData.Location1IsActive,
                 address: LocationsTestData.Location1Address,
                 city: LocationsTestData.Location1City,
-                zipCode: LocationsTestData.Location1ZipCode));
+                zipCode: LocationsTestData.Location1ZipCode);
+            location1.AddAppointmentType(LocationsTestData.AppointmentType1Id);
+            await _locationRepository.InsertAsync(location1);
 
             await _locationRepository.InsertAsync(new Location(
                 id: LocationsTestData.Location2Id,
                 stateId: null,
-                appointmentTypeId: null,
                 name: LocationsTestData.Location2Name,
                 parkingFee: LocationsTestData.Location2ParkingFee,
                 isActive: LocationsTestData.Location2IsActive,
@@ -205,7 +252,6 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
             await _locationRepository.InsertAsync(new Location(
                 id: LocationsTestData.Location3Id,
                 stateId: null,
-                appointmentTypeId: null,
                 name: LocationsTestData.Location3Name,
                 parkingFee: LocationsTestData.Location3ParkingFee,
                 isActive: LocationsTestData.Location3IsActive,
@@ -213,16 +259,32 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
                 city: LocationsTestData.Location3City,
                 zipCode: LocationsTestData.Location3ZipCode));
         }
+
+        using (_currentTenant.Change(TenantsTestData.TenantBRef))
+        {
+            var location1B = new Location(
+                id: LocationsTestData.Location1TenantBId,
+                stateId: LocationsTestData.State1TenantBId,
+                name: LocationsTestData.Location1Name,
+                parkingFee: LocationsTestData.Location1ParkingFee,
+                isActive: LocationsTestData.Location1IsActive,
+                address: LocationsTestData.Location1Address,
+                city: LocationsTestData.Location1City,
+                zipCode: LocationsTestData.Location1ZipCode);
+            location1B.AddAppointmentType(LocationsTestData.AppointmentType1TenantBId);
+            await _locationRepository.InsertAsync(location1B);
+        }
     }
 
     private async Task SeedDoctorsAsync()
     {
-        // Both doctors scoped to TenantA -- reflects the realistic case of a
-        // practice with multiple practitioners. Doctor2 was previously planned
-        // for TenantB but this complicates host-context tests unnecessarily:
-        // Patient tests don't depend on Doctor tenancy, and keeping the tenant
-        // model "two-tenant for Patients, one-tenant for Doctors" keeps existing
-        // Doctor tests workable with a single tenant-context wrap.
+        // One doctor per tenant -- the one-doctor-per-tenant invariant
+        // (PARITY-FLAG-NEW-006, enforced by DoctorsAppService guards + a
+        // filtered unique index on Doctors(TenantId)). The tenant IS the
+        // doctor, so seeding two doctors in TenantA would violate the index
+        // at schema-creation time in the SQLite test rig. Doctor1 -> TenantA,
+        // Doctor2 -> TenantB. This also lines TenantB's doctor up with its
+        // own DoctorAvailability (Slot3) and Appointment2 seeds below.
         using (_currentTenant.Change(TenantsTestData.TenantARef))
         {
             await _doctorRepository.InsertAsync(new Doctor(
@@ -230,16 +292,17 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
                 firstName: DoctorsTestData.Doctor1FirstName,
                 lastName: DoctorsTestData.Doctor1LastName,
                 email: DoctorsTestData.Doctor1Email,
-                gender: default,
-                identityUserId: IdentityUsersTestData.Doctor1UserId));
+                gender: default));
+        }
 
+        using (_currentTenant.Change(TenantsTestData.TenantBRef))
+        {
             await _doctorRepository.InsertAsync(new Doctor(
                 id: DoctorsTestData.Doctor2Id,
                 firstName: DoctorsTestData.Doctor2FirstName,
                 lastName: DoctorsTestData.Doctor2LastName,
                 email: DoctorsTestData.Doctor2Email,
-                gender: default,
-                identityUserId: IdentityUsersTestData.Doctor2UserId));
+                gender: default));
         }
     }
 
@@ -339,21 +402,26 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         // Runs AFTER SeedLocationsAsync (LocationId + AppointmentTypeId FKs
         // satisfied) and BEFORE SeedAppointmentsAsync (Appointment's
         // DoctorAvailabilityId FK depends on these slots).
+        // 2026-05-15 slot rework: ctor no longer takes appointmentTypeId.
+        // The single-type-per-slot fixture is preserved via the new M2M:
+        // Slot1 + Slot3 accept AppointmentType1 (strict); Slot2 accepts any
+        // type (loose, empty set).
         using (_currentTenant.Change(TenantsTestData.TenantARef))
         {
-            await _doctorAvailabilityRepository.InsertAsync(new DoctorAvailability(
+            var slot1 = new DoctorAvailability(
                 id: DoctorAvailabilitiesTestData.Slot1Id,
                 locationId: LocationsTestData.Location1Id,
-                appointmentTypeId: LocationsTestData.AppointmentType1Id,
                 availableDate: DoctorAvailabilitiesTestData.Slot1AvailableDate,
                 fromTime: DoctorAvailabilitiesTestData.Slot1FromTime,
                 toTime: DoctorAvailabilitiesTestData.Slot1ToTime,
-                bookingStatusId: DoctorAvailabilitiesTestData.Slot1BookingStatus));
+                bookingStatusId: DoctorAvailabilitiesTestData.Slot1BookingStatus);
+            slot1.TenantId = TenantsTestData.TenantARef;
+            slot1.AddAppointmentType(LocationsTestData.AppointmentType1Id);
+            await _doctorAvailabilityRepository.InsertAsync(slot1);
 
             await _doctorAvailabilityRepository.InsertAsync(new DoctorAvailability(
                 id: DoctorAvailabilitiesTestData.Slot2Id,
                 locationId: LocationsTestData.Location2Id,
-                appointmentTypeId: null,
                 availableDate: DoctorAvailabilitiesTestData.Slot2AvailableDate,
                 fromTime: DoctorAvailabilitiesTestData.Slot2FromTime,
                 toTime: DoctorAvailabilitiesTestData.Slot2ToTime,
@@ -362,14 +430,16 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
 
         using (_currentTenant.Change(TenantsTestData.TenantBRef))
         {
-            await _doctorAvailabilityRepository.InsertAsync(new DoctorAvailability(
+            var slot3 = new DoctorAvailability(
                 id: DoctorAvailabilitiesTestData.Slot3Id,
-                locationId: LocationsTestData.Location1Id,
-                appointmentTypeId: LocationsTestData.AppointmentType1Id,
+                locationId: LocationsTestData.Location1TenantBId,
                 availableDate: DoctorAvailabilitiesTestData.Slot3AvailableDate,
                 fromTime: DoctorAvailabilitiesTestData.Slot3FromTime,
                 toTime: DoctorAvailabilitiesTestData.Slot3ToTime,
-                bookingStatusId: DoctorAvailabilitiesTestData.Slot3BookingStatus));
+                bookingStatusId: DoctorAvailabilitiesTestData.Slot3BookingStatus);
+            slot3.TenantId = TenantsTestData.TenantBRef;
+            slot3.AddAppointmentType(LocationsTestData.AppointmentType1TenantBId);
+            await _doctorAvailabilityRepository.InsertAsync(slot3);
         }
     }
 
@@ -404,8 +474,8 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
                 id: AppointmentsTestData.Appointment2Id,
                 patientId: PatientsTestData.Patient2Id,
                 identityUserId: IdentityUsersTestData.Patient2UserId,
-                appointmentTypeId: LocationsTestData.AppointmentType1Id,
-                locationId: LocationsTestData.Location1Id,
+                appointmentTypeId: LocationsTestData.AppointmentType1TenantBId,
+                locationId: LocationsTestData.Location1TenantBId,
                 doctorAvailabilityId: DoctorAvailabilitiesTestData.Slot3Id,
                 appointmentDate: AppointmentsTestData.Appointment2Date,
                 requestConfirmationNumber: AppointmentsTestData.Appointment2RequestConfirmationNumber,
@@ -470,6 +540,51 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         }
     }
 
+    private async Task SeedAppointmentInjuryDetailsAsync()
+    {
+        // AppointmentInjuryDetail is IMultiTenant and is the PARENT of AppointmentBodyPart, so it
+        // is seeded rather than built per-test: two services in this tranche need a stable parent
+        // row, and later tranches will too.
+        //
+        // Detail1 populates WcabOfficeId (nav-prop join branch) and Detail2 leaves it null (null FK
+        // branch), mirroring how SeedAppointmentEmployerDetailsAsync splits StateId below.
+        // Detail2 is the cumulative-injury shape, which is the branch that carries ToDateOfInjury.
+        //
+        // WcabAdj IS PASSED DELIBERATELY EVEN THOUGH ITS PARAMETER DEFAULTS TO NULL. The ctor runs
+        // Check.NotNullOrWhiteSpace(wcabAdj, ...) on it, so the default the signature advertises
+        // throws. See AppointmentInjuryDetailsTestData for the note; the signature is misleading
+        // and is logged to the backlog rather than changed here.
+        //
+        // Runs after SeedAppointmentEmployerDetailsAsync so all appointment-child seeds stay
+        // grouped together.
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            await _appointmentInjuryDetailRepository.InsertAsync(new AppointmentInjuryDetail(
+                id: AppointmentInjuryDetailsTestData.Detail1Id,
+                appointmentId: AppointmentsTestData.Appointment1Id,
+                dateOfInjury: AppointmentInjuryDetailsTestData.Detail1DateOfInjury,
+                claimNumber: AppointmentInjuryDetailsTestData.Detail1ClaimNumber,
+                isCumulativeInjury: AppointmentInjuryDetailsTestData.Detail1IsCumulativeInjury,
+                bodyPartsSummary: AppointmentInjuryDetailsTestData.Detail1BodyPartsSummary,
+                wcabAdj: AppointmentInjuryDetailsTestData.Detail1WcabAdj,
+                wcabOfficeId: WcabOfficesTestData.Office1Id));
+        }
+
+        using (_currentTenant.Change(TenantsTestData.TenantBRef))
+        {
+            await _appointmentInjuryDetailRepository.InsertAsync(new AppointmentInjuryDetail(
+                id: AppointmentInjuryDetailsTestData.Detail2Id,
+                appointmentId: AppointmentsTestData.Appointment2Id,
+                dateOfInjury: AppointmentInjuryDetailsTestData.Detail2DateOfInjury,
+                claimNumber: AppointmentInjuryDetailsTestData.Detail2ClaimNumber,
+                isCumulativeInjury: AppointmentInjuryDetailsTestData.Detail2IsCumulativeInjury,
+                bodyPartsSummary: AppointmentInjuryDetailsTestData.Detail2BodyPartsSummary,
+                toDateOfInjury: AppointmentInjuryDetailsTestData.Detail2ToDateOfInjury,
+                wcabAdj: AppointmentInjuryDetailsTestData.Detail2WcabAdj,
+                wcabOfficeId: null));
+        }
+    }
+
     private async Task SeedAppointmentEmployerDetailsAsync()
     {
         // AppointmentEmployerDetail is IMultiTenant with 6 string fields: 2
@@ -516,8 +631,8 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
 
     private async Task SeedAppointmentTypesAsync()
     {
-        // AppointmentType is host-only (NOT IMultiTenant; NOT AggregateRoot --
-        // it is `FullAuditedEntity<Guid>`). Two types seeded so Tier-3 tests
+        // AppointmentType is per-office (IMultiTenant; not an AggregateRoot --
+        // it is `FullAuditedEntity<Guid>`). Seeded in tenant A's scope (#764). Two types seeded so Tier-3 tests
         // exercise both the Description-populated path (AppointmentType2) and
         // the null-Description path (AppointmentType1):
         //   AppointmentType1 -- TEST-IME-Eval (no Description; previously
@@ -525,7 +640,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         //                       phase replaces that, hence runs BEFORE it).
         //   AppointmentType2 -- TEST-Orthopedic (with Description for the
         //                       optional-field coverage test).
-        using (_currentTenant.Change(null))
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
         {
             await _appointmentTypeRepository.InsertAsync(new AppointmentType(
                 id: AppointmentTypesTestData.AppointmentType1Id,
@@ -535,13 +650,26 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
                 id: AppointmentTypesTestData.AppointmentType2Id,
                 name: AppointmentTypesTestData.AppointmentType2Name,
                 description: AppointmentTypesTestData.AppointmentType2Description));
+
+            // AF3 + AF4 (2026-06-04): the PQME-typed row is NOT seeded here --
+            // the production AppointmentTypeDataSeedContributor already seeds
+            // AME/IME/PQME (canonical GUIDs) and runs in the test app, so the
+            // FK-enforced test DB can already persist a PQME appointment.
+            // Adding it here would be a duplicate-PK identity conflict.
+        }
+
+        using (_currentTenant.Change(TenantsTestData.TenantBRef))
+        {
+            await _appointmentTypeRepository.InsertAsync(new AppointmentType(
+                id: LocationsTestData.AppointmentType1TenantBId,
+                name: AppointmentTypesTestData.AppointmentType1Name));
         }
     }
 
     private async Task SeedWcabOfficesAsync()
     {
-        // WcabOffice is host-only (`FullAuditedAggregateRoot<Guid>`, NOT
-        // IMultiTenant). Two offices seeded so Tier-3 tests cover both
+        // WcabOffice is per-office (`FullAuditedAggregateRoot<Guid>`,
+        // IMultiTenant), seeded in tenant A's scope (#764). Two offices seeded so Tier-3 tests cover both
         // branches of the nullable StateId nav-prop hydration AND a
         // meaningful IsActive filter exclusion case (Office2 IsActive=false).
         // Excel export (`GetListAsExcelFileAsync`) is OUT OF SCOPE for Tier 3
@@ -550,7 +678,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         //              StateId=State1Id, IsActive=true.
         //   Office2 -- TEST-FresnoWcab, only required fields populated,
         //              StateId=null, IsActive=false.
-        using (_currentTenant.Change(null))
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
         {
             await _wcabOfficeRepository.InsertAsync(new WcabOffice(
                 id: WcabOfficesTestData.Office1Id,
@@ -573,12 +701,12 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
 
     private async Task SeedAppointmentLanguagesAsync()
     {
-        // AppointmentLanguage is host-only (NOT IMultiTenant; NOT
-        // AggregateRoot). NameMaxLength = 50. 1 inbound FK from
+        // AppointmentLanguage is per-office (IMultiTenant; not an
+        // AggregateRoot), seeded in tenant A's scope (#764). NameMaxLength = 50. 1 inbound FK from
         // Patient.AppointmentLanguageId (nullable SetNull). Two languages
         // seeded so Tier-3 tests exercise multi-row list + FilterText
         // filtering: Language1 (TEST-English), Language2 (TEST-Spanish).
-        using (_currentTenant.Change(null))
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
         {
             await _appointmentLanguageRepository.InsertAsync(new AppointmentLanguage(
                 id: AppointmentLanguagesTestData.Language1Id,
@@ -592,15 +720,15 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
 
     private async Task SeedAppointmentStatusesAsync()
     {
-        // AppointmentStatus is host-only (NOT IMultiTenant; NOT AggregateRoot)
-        // -- a lookup table parallel to but distinct from the
+        // AppointmentStatus is per-office (IMultiTenant; not an AggregateRoot),
+        // seeded in tenant A's scope (#764) -- a lookup table parallel to but distinct from the
         // `AppointmentStatusType` enum used on Appointment.AppointmentStatus.
         // No FK from Appointment to this entity (gap encoded as Skip Fact).
         // Two statuses seeded so Tier-3 tests exercise multi-row list +
         // FilterText filtering. Names use scratch labels (TEST-PendingLabel,
         // TEST-ApprovedLabel) so DeleteAllAsync(filterText) tests can target
         // scratch-only data without wiping the seeded rows.
-        using (_currentTenant.Change(null))
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
         {
             await _appointmentStatusRepository.InsertAsync(new AppointmentStatus(
                 id: AppointmentStatusesTestData.Status1Id,
@@ -614,9 +742,9 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
 
     private async Task SeedStatesAsync()
     {
-        // State is host-only (NOT IMultiTenant). The IMultiTenant filter does
-        // not apply regardless of CurrentTenant context (external research
-        // Track 1.1), so the `_currentTenant.Change(null)` wrap is parity-only.
+        // State is per-office (IMultiTenant) and production seeds 50 per office
+        // database. Seeded in tenant A's scope (#764); the `Change(null)` that used
+        // to wrap this put the rows in HOST scope, where production has none.
         // Three states seeded so Tier-3 tests can exercise multi-state list +
         // Name-filter assertions:
         //   State1 -- TEST-California (also referenced by Location1 +
@@ -625,7 +753,7 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
         //             inside SeedLocationsAsync, hence runs BEFORE it).
         //   State2 -- TEST-Nevada
         //   State3 -- TEST-Oregon
-        using (_currentTenant.Change(null))
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
         {
             await _stateRepository.InsertAsync(new State(
                 id: StatesTestData.State1Id,
@@ -638,6 +766,13 @@ public class CaseEvaluationIntegrationTestSeedContributor : IDataSeedContributor
             await _stateRepository.InsertAsync(new State(
                 id: StatesTestData.State3Id,
                 name: StatesTestData.State3Name));
+        }
+
+        using (_currentTenant.Change(TenantsTestData.TenantBRef))
+        {
+            await _stateRepository.InsertAsync(new State(
+                id: LocationsTestData.State1TenantBId,
+                name: LocationsTestData.State1Name));
         }
     }
 }

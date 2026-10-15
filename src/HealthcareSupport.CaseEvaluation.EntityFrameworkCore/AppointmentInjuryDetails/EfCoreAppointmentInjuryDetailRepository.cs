@@ -1,7 +1,5 @@
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.AppointmentBodyParts;
-using HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers;
-using HealthcareSupport.CaseEvaluation.AppointmentPrimaryInsurances;
 using HealthcareSupport.CaseEvaluation.WcabOffices;
 using System;
 using System.Collections.Generic;
@@ -33,16 +31,15 @@ public class EfCoreAppointmentInjuryDetailRepository : EfCoreRepository<CaseEval
             Appointment = await dbContext.Set<Appointment>().FirstOrDefaultAsync(a => a.Id == injury.AppointmentId, cancellationToken),
             WcabOffice = injury.WcabOfficeId.HasValue ? await dbContext.Set<WcabOffice>().FirstOrDefaultAsync(w => w.Id == injury.WcabOfficeId.Value, cancellationToken) : null,
             BodyParts = await dbContext.Set<AppointmentBodyPart>().Where(b => b.AppointmentInjuryDetailId == injury.Id).ToListAsync(cancellationToken),
-            ClaimExaminer = await dbContext.Set<AppointmentClaimExaminer>().Where(c => c.AppointmentInjuryDetailId == injury.Id).FirstOrDefaultAsync(cancellationToken),
-            PrimaryInsurance = await dbContext.Set<AppointmentPrimaryInsurance>().Where(p => p.AppointmentInjuryDetailId == injury.Id).FirstOrDefaultAsync(cancellationToken),
         };
     }
 
-    public virtual async Task<List<AppointmentInjuryDetailWithNavigationProperties>> GetListWithNavigationPropertiesAsync(string? filterText = null, Guid? appointmentId = null, string? claimNumber = null, string? sorting = null, int maxResultCount = int.MaxValue, int skipCount = 0, CancellationToken cancellationToken = default)
+    public virtual async Task<List<AppointmentInjuryDetailWithNavigationProperties>> GetListWithNavigationPropertiesAsync(string? filterText = null, Guid? appointmentId = null, string? claimNumber = null, string? sorting = null, int maxResultCount = int.MaxValue, int skipCount = 0, CancellationToken cancellationToken = default, IReadOnlyCollection<Guid>? restrictToAppointmentIds = null)
     {
         var dbContext = await GetDbContextAsync();
         var query = await GetQueryableAsync();
         query = ApplyFilter(query, filterText, appointmentId, claimNumber);
+        if (restrictToAppointmentIds != null) { query = query.Where(e => restrictToAppointmentIds.Contains(e.AppointmentId)); }
         query = query.OrderBy(string.IsNullOrWhiteSpace(sorting) ? AppointmentInjuryDetailConsts.GetDefaultSorting(false) : sorting);
         var injuries = await query.PageBy(skipCount, maxResultCount).ToListAsync(cancellationToken);
         if (injuries.Count == 0) return new List<AppointmentInjuryDetailWithNavigationProperties>();
@@ -51,12 +48,6 @@ public class EfCoreAppointmentInjuryDetailRepository : EfCoreRepository<CaseEval
         var bodyPartsByInjury = (await dbContext.Set<AppointmentBodyPart>().Where(b => injuryIds.Contains(b.AppointmentInjuryDetailId)).ToListAsync(cancellationToken))
             .GroupBy(b => b.AppointmentInjuryDetailId)
             .ToDictionary(g => g.Key, g => g.ToList());
-        var examinersByInjury = (await dbContext.Set<AppointmentClaimExaminer>().Where(c => injuryIds.Contains(c.AppointmentInjuryDetailId)).ToListAsync(cancellationToken))
-            .GroupBy(c => c.AppointmentInjuryDetailId)
-            .ToDictionary(g => g.Key, g => g.First());
-        var insurancesByInjury = (await dbContext.Set<AppointmentPrimaryInsurance>().Where(p => injuryIds.Contains(p.AppointmentInjuryDetailId)).ToListAsync(cancellationToken))
-            .GroupBy(p => p.AppointmentInjuryDetailId)
-            .ToDictionary(g => g.Key, g => g.First());
         var appointmentIds = injuries.Select(x => x.AppointmentId).Distinct().ToList();
         var appointmentsById = (await dbContext.Set<Appointment>().Where(a => appointmentIds.Contains(a.Id)).ToListAsync(cancellationToken))
             .ToDictionary(a => a.Id);
@@ -70,8 +61,6 @@ public class EfCoreAppointmentInjuryDetailRepository : EfCoreRepository<CaseEval
             Appointment = appointmentsById.TryGetValue(injury.AppointmentId, out var ap) ? ap : null,
             WcabOffice = injury.WcabOfficeId.HasValue && wcabOfficesById.TryGetValue(injury.WcabOfficeId.Value, out var wo) ? wo : null,
             BodyParts = bodyPartsByInjury.TryGetValue(injury.Id, out var bp) ? bp : new List<AppointmentBodyPart>(),
-            ClaimExaminer = examinersByInjury.TryGetValue(injury.Id, out var ce) ? ce : null,
-            PrimaryInsurance = insurancesByInjury.TryGetValue(injury.Id, out var pi) ? pi : null,
         }).ToList();
     }
 
@@ -90,9 +79,10 @@ public class EfCoreAppointmentInjuryDetailRepository : EfCoreRepository<CaseEval
         return await query.PageBy(skipCount, maxResultCount).ToListAsync(cancellationToken);
     }
 
-    public virtual async Task<long> GetCountAsync(string? filterText = null, Guid? appointmentId = null, string? claimNumber = null, CancellationToken cancellationToken = default)
+    public virtual async Task<long> GetCountAsync(string? filterText = null, Guid? appointmentId = null, string? claimNumber = null, CancellationToken cancellationToken = default, IReadOnlyCollection<Guid>? restrictToAppointmentIds = null)
     {
         var query = ApplyFilter(await GetQueryableAsync(), filterText, appointmentId, claimNumber);
+        if (restrictToAppointmentIds != null) { query = query.Where(e => restrictToAppointmentIds.Contains(e.AppointmentId)); }
         return await query.LongCountAsync(GetCancellationToken(cancellationToken));
     }
 }

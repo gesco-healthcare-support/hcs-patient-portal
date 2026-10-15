@@ -1,0 +1,168 @@
+<div class="cto-head">
+  <div>
+    <h2>Case Tracker push</h2>
+    <p class="cto-sub">
+      Off by default, per clinic. Enabling one sends its approved appointments to the Case Tracker,
+      including anything already queued while it was off. Starting the feed switches an office to
+      the Case Tracker reading its changes from the portal instead.
+    </p>
+  </div>
+  <button type="button" class="cto-btn" (click)="load()" [disabled]="loading()">
+    <app-icon name="refresh" [size]="14" />
+    Refresh
+  </button>
+</div>
+
+@if (loading()) {
+  <div class="cto-empty">
+    <app-icon name="clock" [size]="26" />
+    Loading clinics...
+  </div>
+} @else if (error() && !offices().length) {
+  <div class="cto-empty cto-error">
+    <app-icon name="alert" [size]="26" />
+    <b>Could not load clinics</b>
+    {{ error() }}
+  </div>
+} @else if (!offices().length) {
+  <div class="cto-empty">
+    <app-icon name="alert" [size]="26" />
+    <b>No clinics found</b>
+    Nothing to enable yet.
+  </div>
+} @else {
+  @if (error()) {
+    <p class="cto-warn">{{ error() }}</p>
+  }
+  <table class="cto-table">
+    <thead>
+      <tr>
+        <th>Clinic</th>
+        <th>Push</th>
+        <th>Mode</th>
+        <th>Queued</th>
+        <th>Last request</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (o of offices(); track o.officeId) {
+        <tr>
+          <td>
+            <strong>{{ o.officeName || '(unnamed)' }}</strong>
+            <div class="cto-dim">{{ o.officeId }}</div>
+          </td>
+          <td>
+            <span class="cto-pill" [class.cto-on]="o.pushEnabled">
+              {{ o.pushEnabled ? 'Enabled' : 'Off' }}
+            </span>
+          </td>
+          <td>
+            <span class="cto-pill" [class.cto-on]="o.feedActive">
+              {{ o.feedActive ? 'Feed' : 'Push' }}
+            </span>
+          </td>
+          <td>
+            @if (o.feedActive) {
+              <!-- Under the feed, what matters is what the Case Tracker has not yet acknowledged. -->
+              <span class="cto-dim">{{ o.outstandingCount ?? 0 }} waiting</span>
+            } @else if (o.pendingCount > 0 && !o.pushEnabled) {
+              <!-- Warned only when it matters: a backlog is harmless while off and a flood when enabled. -->
+              <span class="cto-warn">{{ o.pendingCount }} waiting -- all sent on enable</span>
+            } @else {
+              <span class="cto-dim">{{ o.pendingCount }}</span>
+            }
+          </td>
+          <td>
+            @if (o.feedActive) {
+              {{ o.lastRequestAt ? (o.lastRequestAt | pacificDate: 'short') : 'None yet' }}
+            } @else {
+              <span class="cto-dim">--</span>
+            }
+          </td>
+          <td>
+            @if (isConfirming(o, 'start')) {
+              <span class="cto-confirm">
+                Start the feed for {{ o.officeName || o.officeId }}? The push stops, and the Case
+                Tracker reads this office's changes from the portal.
+              </span>
+              <span class="cto-actions">
+                <button
+                  type="button"
+                  class="cto-btn cto-btn-primary"
+                  (click)="confirmFeed(o)"
+                  [disabled]="saving() === o.officeId"
+                >
+                  {{ saving() === o.officeId ? 'Starting...' : 'Start feed' }}
+                </button>
+                <button
+                  type="button"
+                  class="cto-btn"
+                  (click)="confirming.set(null)"
+                  [disabled]="saving() === o.officeId"
+                >
+                  Cancel
+                </button>
+              </span>
+            } @else if (isConfirming(o, 'return')) {
+              <span class="cto-confirm">
+                Return {{ o.officeName || o.officeId }} to push? Every waiting change is pushed,
+                including changes the feed already delivered.
+              </span>
+              <span class="cto-actions">
+                <button
+                  type="button"
+                  class="cto-btn cto-btn-primary"
+                  (click)="confirmFeed(o)"
+                  [disabled]="saving() === o.officeId"
+                >
+                  {{ saving() === o.officeId ? 'Returning...' : 'Return to push' }}
+                </button>
+                <button
+                  type="button"
+                  class="cto-btn"
+                  (click)="confirming.set(null)"
+                  [disabled]="saving() === o.officeId"
+                >
+                  Cancel
+                </button>
+              </span>
+            } @else {
+              <span class="cto-actions">
+                <button
+                  type="button"
+                  class="cto-btn"
+                  (click)="toggle(o)"
+                  [disabled]="saving() === o.officeId"
+                >
+                  {{
+                    saving() === o.officeId ? 'Saving...' : o.pushEnabled ? 'Turn off' : 'Turn on'
+                  }}
+                </button>
+                @if (o.feedActive) {
+                  <button
+                    type="button"
+                    class="cto-btn"
+                    (click)="askFeed(o, 'return')"
+                    [disabled]="saving() === o.officeId"
+                  >
+                    Return to push
+                  </button>
+                } @else if (o.pushEnabled) {
+                  <button
+                    type="button"
+                    class="cto-btn"
+                    (click)="askFeed(o, 'start')"
+                    [disabled]="saving() === o.officeId"
+                  >
+                    Start feed
+                  </button>
+                }
+              </span>
+            }
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+}

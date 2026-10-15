@@ -4,6 +4,7 @@ using Volo.Abp.Account;
 using Volo.Abp.Identity;
 using Volo.Abp.Mapperly;
 using Volo.Abp.FeatureManagement;
+using Volo.Abp.FluentValidation;
 using Volo.Abp.Modularity;
 using Microsoft.Extensions.DependencyInjection;
 using Volo.Abp.AuditLogging;
@@ -31,9 +32,19 @@ namespace HealthcareSupport.CaseEvaluation;
     typeof(LanguageManagementApplicationModule),
     typeof(FileManagementApplicationModule),
     typeof(AbpGdprApplicationModule),
-    typeof(AbpSettingManagementApplicationModule)
+    typeof(AbpSettingManagementApplicationModule),
+    typeof(AbpFluentValidationModule)
     )]
 public class CaseEvaluationApplicationModule : AbpModule
 {
+    public override void PreConfigureServices(ServiceConfigurationContext context)
+    {
+        context.Services.OnRegistered(ExternalSignups.StockSelfRegistrationRefusal.RegisterIfAccountAppService);
+    }
 
+    public override void ConfigureServices(ServiceConfigurationContext context)
+    {
+        // The stock-account route refusal reads the request path; idempotent where the host already adds it.
+        context.Services.AddHttpContextAccessor();
+    }
 }

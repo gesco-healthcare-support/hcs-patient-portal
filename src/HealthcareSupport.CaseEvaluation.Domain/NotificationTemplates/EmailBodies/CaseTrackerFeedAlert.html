@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+    <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+    <title>Case Tracker feed alert</title>
+</head>
+<body style="font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 20px; color: #000;">
+    <p>
+        Case Tracker changes feed for <strong>##OfficeName##</strong>: <strong>##FeedAlertTitle##</strong>.
+    </p>
+    <!--
+      Plain text inside <pre>, for the same reason as CaseTrackerPushFailed.html: the template must not
+      depend on whether the dispatcher HTML-escapes substituted values.
+    -->
+    <pre style="font-family: Consolas, Menlo, monospace; font-size: 13px; background: #f6f8fa; padding: 12px; border-radius: 4px; white-space: pre-wrap;">##FeedAlertDetail##</pre>
+    <p style="margin-top: 20px; color: #555; font-size: 12px;">
+        Sent to the technical contacts for the Case Tracker integration. It identifies the office, times,
+        counts and at most an appointment id. No patient details are included in this message.
+    </p>
+</body>
+</html>

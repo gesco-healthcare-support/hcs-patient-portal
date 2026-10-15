@@ -26,6 +26,16 @@ public static class LocationsTestData
     public static readonly Guid AppointmentType1Id = Guid.Parse("f1111111-1111-1111-1111-111111111111");
     public const string AppointmentType1Name = "TEST-IME-Eval";
 
+    // --- Tenant B's own catalog rows (#764) ---
+    // The test rig keeps every office in ONE database, so a primary key can exist
+    // only once: tenant A owns the ids above and tenant B needs ids of its own.
+    // Production gives each office its own database and the same catalog ids in
+    // each. Tenant B's slot and appointment point at these, so a join under tenant
+    // B resolves a row that tenant B actually owns.
+    public static readonly Guid State1TenantBId = Guid.Parse("e2222222-2222-2222-2222-222222222222");
+    public static readonly Guid AppointmentType1TenantBId = Guid.Parse("f2222222-2222-2222-2222-222222222222");
+    public static readonly Guid Location1TenantBId = Guid.Parse("a4444444-4444-4444-4444-444444444444");
+
     // --- Location seeds (3 rows: varied ParkingFee / IsActive / nav FKs) ---
     public static readonly Guid Location1Id = Guid.Parse("a1111111-1111-1111-1111-111111111111");
     public static readonly Guid Location2Id = Guid.Parse("a2222222-2222-2222-2222-222222222222");

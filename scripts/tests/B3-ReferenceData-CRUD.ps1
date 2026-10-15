@@ -26,6 +26,175 @@ Write-Host "============================================" -ForegroundColor Cyan
 $hostToken = Get-AuthToken -Username "admin@abp.io" -Password $env:TEST_PASSWORD -AuthServerUrl $AuthServerUrl
 
 # ---- Generic CRUD test function ----
+#
+# Test-EntityCrud runs the same eleven checks against each reference entity. Each check is
+# its own function below; they read $TestResults and $hostToken from the script scope, as
+# the single function they were split out of did.
+
+function Get-ListTotalCount {
+    param([hashtable]$Response)
+
+    if ($Response.Success -and $Response.Body -and $Response.Body.totalCount) {
+        return $Response.Body.totalCount
+    }
+    return 0
+}
+
+function Test-ListCount {
+    param([string]$PhasePrefix, [string]$EntityName, [string]$BaseUrl, [int]$ExpectedCount)
+
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $resp = Invoke-TestApiCall -Method "GET" -Url "$($BaseUrl)?maxResultCount=100" -Token $hostToken
+    $sw.Stop()
+    $actualCount = Get-ListTotalCount -Response $resp
+    Assert-GreaterOrEqual -TestResults $TestResults -TestId "$PhasePrefix.1" -Name "$EntityName list count >= $ExpectedCount" -Actual $actualCount -Expected $ExpectedCount -DurationMs $sw.ElapsedMilliseconds
+}
+
+function Test-GetSeededById {
+    param([string]$PhasePrefix, [string]$EntityName, [string]$BaseUrl, $SeededId)
+
+    if (-not $SeededId) {
+        Add-SkipResult -TestResults $TestResults -TestId "$PhasePrefix.2" -Name "$EntityName GET by ID" -Reason "No seeded ID available"
+        return
+    }
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $resp = Invoke-TestApiCall -Method "GET" -Url "$BaseUrl/$SeededId" -Token $hostToken
+    $sw.Stop()
+    Assert-StatusCode -TestResults $TestResults -TestId "$PhasePrefix.2" -Name "$EntityName GET by ID" -Response $resp -Expected 200 -DurationMs $sw.ElapsedMilliseconds
+}
+
+function Invoke-CreateCheck {
+    <# Test 3. Returns the created id, or $null when the create did not succeed. #>
+    param([string]$PhasePrefix, [string]$EntityName, [string]$BaseUrl, [string]$NameField, [string]$CreateName)
+
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $resp = Invoke-TestApiCall -Method "POST" -Url $BaseUrl -Body @{ $NameField = $CreateName } -Token $hostToken
+    $sw.Stop()
+    Assert-StatusCode -TestResults $TestResults -TestId "$PhasePrefix.3" -Name "$EntityName POST create" -Response $resp -Expected 200 -DurationMs $sw.ElapsedMilliseconds
+    if ($resp.Success -and $resp.Body) { return $resp.Body.id }
+    return $null
+}
+
+function Test-UpdateCreated {
+    param([string]$PhasePrefix, [string]$EntityName, [string]$EntityUrl, [string]$NameField, [string]$UpdateName)
+
+    # GET first to get concurrencyStamp
+    $current = Invoke-TestApiCall -Method "GET" -Url $EntityUrl -Token $hostToken
+    $updateBody = @{ $NameField = $UpdateName }
+    if ($current.Body -and $current.Body.concurrencyStamp) {
+        $updateBody["concurrencyStamp"] = $current.Body.concurrencyStamp
+    }
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $resp = Invoke-TestApiCall -Method "PUT" -Url $EntityUrl -Body $updateBody -Token $hostToken
+    $sw.Stop()
+    Assert-StatusCode -TestResults $TestResults -TestId "$PhasePrefix.4" -Name "$EntityName PUT update" -Response $resp -Expected 200 -DurationMs $sw.ElapsedMilliseconds
+}
+
+function Test-ReadBackUpdated {
+    param([string]$PhasePrefix, [string]$EntityName, [string]$EntityUrl, [string]$NameField, [string]$UpdateName)
+
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $resp = Invoke-TestApiCall -Method "GET" -Url $EntityUrl -Token $hostToken
+    $sw.Stop()
+    $actualName = if ($resp.Body) { $resp.Body.$NameField } else { "" }
+    Assert-AreEqual -TestResults $TestResults -TestId "$PhasePrefix.5" -Name "$EntityName GET shows updated name" -Actual $actualName -Expected $UpdateName -DurationMs $sw.ElapsedMilliseconds
+}
+
+function Test-DeleteCreated {
+    param([string]$PhasePrefix, [string]$EntityName, [string]$EntityUrl)
+
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $resp = Invoke-TestApiCall -Method "DELETE" -Url $EntityUrl -Token $hostToken
+    $sw.Stop()
+    $deleteSuccess = ($resp.StatusCode -eq 200 -or $resp.StatusCode -eq 204)
+    Assert-IsTrue -TestResults $TestResults -TestId "$PhasePrefix.6" -Name "$EntityName DELETE" -Condition $deleteSuccess -Details "Status: $($resp.StatusCode)" -DurationMs $sw.ElapsedMilliseconds
+}
+
+function Test-GoneAfterDelete {
+    param([string]$PhasePrefix, [string]$EntityName, [string]$EntityUrl)
+
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $resp = Invoke-TestApiCall -Method "GET" -Url $EntityUrl -Token $hostToken
+    $sw.Stop()
+    Assert-StatusCode -TestResults $TestResults -TestId "$PhasePrefix.7" -Name "$EntityName GET deleted returns 404" -Response $resp -Expected 404 -DurationMs $sw.ElapsedMilliseconds
+}
+
+function Test-CreatedLifecycle {
+    <# Tests 3-7: create, update, read back, delete, confirm gone. Without a created entity 4-7 are skipped. #>
+    param([string]$PhasePrefix, [string]$EntityName, [string]$BaseUrl, [string]$NameField, [string]$CreateName, [string]$UpdateName)
+
+    $createdId = Invoke-CreateCheck -PhasePrefix $PhasePrefix -EntityName $EntityName -BaseUrl $BaseUrl -NameField $NameField -CreateName $CreateName
+    if (-not $createdId) {
+        foreach ($skipped in @(
+                @{ Step = 4; Name = "$EntityName PUT update" },
+                @{ Step = 5; Name = "$EntityName GET shows updated name" },
+                @{ Step = 6; Name = "$EntityName DELETE" },
+                @{ Step = 7; Name = "$EntityName GET deleted returns 404" })) {
+            Add-SkipResult -TestResults $TestResults -TestId "$PhasePrefix.$($skipped.Step)" -Name $skipped.Name -Reason "No created entity"
+        }
+        return
+    }
+
+    $entityUrl = "$BaseUrl/$createdId"
+    Test-UpdateCreated -PhasePrefix $PhasePrefix -EntityName $EntityName -EntityUrl $entityUrl -NameField $NameField -UpdateName $UpdateName
+    Test-ReadBackUpdated -PhasePrefix $PhasePrefix -EntityName $EntityName -EntityUrl $entityUrl -NameField $NameField -UpdateName $UpdateName
+    Test-DeleteCreated -PhasePrefix $PhasePrefix -EntityName $EntityName -EntityUrl $entityUrl
+    Test-GoneAfterDelete -PhasePrefix $PhasePrefix -EntityName $EntityName -EntityUrl $entityUrl
+}
+
+function Test-FilteredList {
+    param([string]$PhasePrefix, [string]$EntityName, [string]$BaseUrl, $SeededKey)
+
+    if (-not $SeededKey) {
+        Add-SkipResult -TestResults $TestResults -TestId "$PhasePrefix.8" -Name "$EntityName GET with filter" -Reason "No seed data"
+        return
+    }
+    $filterText = $SeededKey.Substring(0, [Math]::Min(5, $SeededKey.Length))
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $resp = Invoke-TestApiCall -Method "GET" -Url "$($BaseUrl)?filterText=$([uri]::EscapeDataString($filterText))&maxResultCount=100" -Token $hostToken
+    $sw.Stop()
+    Assert-StatusCode -TestResults $TestResults -TestId "$PhasePrefix.8" -Name "$EntityName GET with filter" -Response $resp -Expected 200 -DurationMs $sw.ElapsedMilliseconds
+}
+
+function Test-Pagination {
+    param([string]$PhasePrefix, [string]$EntityName, [string]$BaseUrl)
+
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $page1 = Invoke-TestApiCall -Method "GET" -Url "$($BaseUrl)?maxResultCount=3&skipCount=0" -Token $hostToken
+    $page2 = Invoke-TestApiCall -Method "GET" -Url "$($BaseUrl)?maxResultCount=3&skipCount=3" -Token $hostToken
+    $sw.Stop()
+    $paginationWorks = $false
+    if ($page1.Success -and $page2.Success -and $page1.Body.items -and $page2.Body.items) {
+        $page1Ids = @($page1.Body.items | ForEach-Object { $_.id })
+        $page2Ids = @($page2.Body.items | ForEach-Object { $_.id })
+        $overlap = $page1Ids | Where-Object { $page2Ids -contains $_ }
+        $paginationWorks = ($overlap.Count -eq 0 -and $page2Ids.Count -gt 0)
+    }
+    Assert-IsTrue -TestResults $TestResults -TestId "$PhasePrefix.9" -Name "$EntityName pagination works" -Condition $paginationWorks -Details "Page1: $($page1Ids.Count) items, Page2: $($page2Ids.Count) items" -DurationMs $sw.ElapsedMilliseconds
+}
+
+function Test-NameValidation {
+    <# Tests 10 and 11: an empty name is refused; a too-long name is refused or, where there is no limit, accepted and cleaned up. #>
+    param([string]$PhasePrefix, [string]$EntityName, [string]$BaseUrl, [string]$NameField, [int]$MaxNameLength)
+
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $resp = Invoke-TestApiCall -Method "POST" -Url $BaseUrl -Body @{ $NameField = "" } -Token $hostToken
+    $sw.Stop()
+    Assert-StatusCode -TestResults $TestResults -TestId "$PhasePrefix.10" -Name "$EntityName POST empty name returns 400" -Response $resp -Expected 400 -DurationMs $sw.ElapsedMilliseconds
+
+    $longName = "X" * ($MaxNameLength + 1)
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $resp = Invoke-TestApiCall -Method "POST" -Url $BaseUrl -Body @{ $NameField = $longName } -Token $hostToken
+    # Clean up if it actually created (some entities have no max length constraint)
+    if ($resp.StatusCode -eq 200 -and $resp.Body -and $resp.Body.id) {
+        Invoke-TestApiCall -Method "DELETE" -Url "$BaseUrl/$($resp.Body.id)" -Token $hostToken | Out-Null
+    }
+    $sw.Stop()
+    # Some entities (e.g. States) have no max-length constraint; accept 200 or 400
+    $isValidResult = ($resp.StatusCode -eq 400 -or $resp.StatusCode -eq 200)
+    $outcome = if ($resp.StatusCode -eq 200) { 'No max-length constraint' } else { 'Validation applied' }
+    Assert-IsTrue -TestResults $TestResults -TestId "$PhasePrefix.11" -Name "$EntityName POST too-long name behavior" -Condition $isValidResult -Details "Status: $($resp.StatusCode). $outcome" -DurationMs $sw.ElapsedMilliseconds
+}
 
 function Test-EntityCrud {
     param(
@@ -41,130 +210,17 @@ function Test-EntityCrud {
     )
 
     $baseUrl = "$ApiBaseUrl$Endpoint"
+    $firstKey = if ($SeedIds -and $SeedIds.Keys.Count -gt 0) { @($SeedIds.Keys)[0] } else { $null }
+    $firstId = if ($firstKey) { $SeedIds[$firstKey] } else { $null }
 
     Write-Host "`n--- $PhasePrefix $EntityName ---" -ForegroundColor Yellow
 
-    # Test 1: GET list - totalCount matches seeded
-    $sw = [System.Diagnostics.Stopwatch]::StartNew()
-    $resp = Invoke-TestApiCall -Method "GET" -Url "$($baseUrl)?maxResultCount=100" -Token $hostToken
-    $sw.Stop()
-    $actualCount = 0
-    if ($resp.Success -and $resp.Body) {
-        $actualCount = if ($resp.Body.totalCount) { $resp.Body.totalCount } else { 0 }
-    }
-    Assert-GreaterOrEqual -TestResults $TestResults -TestId "$PhasePrefix.1" -Name "$EntityName list count >= $ExpectedCount" -Actual $actualCount -Expected $ExpectedCount -DurationMs $sw.ElapsedMilliseconds
-
-    # Test 2: GET single by ID
-    $firstKey = if ($SeedIds -and $SeedIds.Keys.Count -gt 0) { @($SeedIds.Keys)[0] } else { $null }
-    $firstId = if ($firstKey) { $SeedIds[$firstKey] } else { $null }
-    if ($firstId) {
-        $sw = [System.Diagnostics.Stopwatch]::StartNew()
-        $resp = Invoke-TestApiCall -Method "GET" -Url "$baseUrl/$firstId" -Token $hostToken
-        $sw.Stop()
-        Assert-StatusCode -TestResults $TestResults -TestId "$PhasePrefix.2" -Name "$EntityName GET by ID" -Response $resp -Expected 200 -DurationMs $sw.ElapsedMilliseconds
-    } else {
-        Add-SkipResult -TestResults $TestResults -TestId "$PhasePrefix.2" -Name "$EntityName GET by ID" -Reason "No seeded ID available"
-    }
-
-    # Test 3: POST create new
-    $sw = [System.Diagnostics.Stopwatch]::StartNew()
-    $createBody = @{ $NameField = $CreateName }
-    $resp = Invoke-TestApiCall -Method "POST" -Url $baseUrl -Body $createBody -Token $hostToken
-    $sw.Stop()
-    Assert-StatusCode -TestResults $TestResults -TestId "$PhasePrefix.3" -Name "$EntityName POST create" -Response $resp -Expected 200 -DurationMs $sw.ElapsedMilliseconds
-    $createdId = if ($resp.Success -and $resp.Body) { $resp.Body.id } else { $null }
-
-    # Test 4: PUT update
-    if ($createdId) {
-        # GET first to get concurrencyStamp
-        $current = Invoke-TestApiCall -Method "GET" -Url "$baseUrl/$createdId" -Token $hostToken
-        $updateBody = @{ $NameField = $UpdateName }
-        if ($current.Body -and $current.Body.concurrencyStamp) {
-            $updateBody["concurrencyStamp"] = $current.Body.concurrencyStamp
-        }
-        $sw = [System.Diagnostics.Stopwatch]::StartNew()
-        $resp = Invoke-TestApiCall -Method "PUT" -Url "$baseUrl/$createdId" -Body $updateBody -Token $hostToken
-        $sw.Stop()
-        Assert-StatusCode -TestResults $TestResults -TestId "$PhasePrefix.4" -Name "$EntityName PUT update" -Response $resp -Expected 200 -DurationMs $sw.ElapsedMilliseconds
-    } else {
-        Add-SkipResult -TestResults $TestResults -TestId "$PhasePrefix.4" -Name "$EntityName PUT update" -Reason "No created entity"
-    }
-
-    # Test 5: GET updated - name changed
-    if ($createdId) {
-        $sw = [System.Diagnostics.Stopwatch]::StartNew()
-        $resp = Invoke-TestApiCall -Method "GET" -Url "$baseUrl/$createdId" -Token $hostToken
-        $sw.Stop()
-        $actualName = if ($resp.Body) { $resp.Body.$NameField } else { "" }
-        Assert-AreEqual -TestResults $TestResults -TestId "$PhasePrefix.5" -Name "$EntityName GET shows updated name" -Actual $actualName -Expected $UpdateName -DurationMs $sw.ElapsedMilliseconds
-    } else {
-        Add-SkipResult -TestResults $TestResults -TestId "$PhasePrefix.5" -Name "$EntityName GET shows updated name" -Reason "No created entity"
-    }
-
-    # Test 6: DELETE created
-    if ($createdId) {
-        $sw = [System.Diagnostics.Stopwatch]::StartNew()
-        $resp = Invoke-TestApiCall -Method "DELETE" -Url "$baseUrl/$createdId" -Token $hostToken
-        $sw.Stop()
-        $deleteSuccess = ($resp.StatusCode -eq 200 -or $resp.StatusCode -eq 204)
-        Assert-IsTrue -TestResults $TestResults -TestId "$PhasePrefix.6" -Name "$EntityName DELETE" -Condition $deleteSuccess -Details "Status: $($resp.StatusCode)" -DurationMs $sw.ElapsedMilliseconds
-    } else {
-        Add-SkipResult -TestResults $TestResults -TestId "$PhasePrefix.6" -Name "$EntityName DELETE" -Reason "No created entity"
-    }
-
-    # Test 7: GET deleted - 404
-    if ($createdId) {
-        $sw = [System.Diagnostics.Stopwatch]::StartNew()
-        $resp = Invoke-TestApiCall -Method "GET" -Url "$baseUrl/$createdId" -Token $hostToken
-        $sw.Stop()
-        Assert-StatusCode -TestResults $TestResults -TestId "$PhasePrefix.7" -Name "$EntityName GET deleted returns 404" -Response $resp -Expected 404 -DurationMs $sw.ElapsedMilliseconds
-    } else {
-        Add-SkipResult -TestResults $TestResults -TestId "$PhasePrefix.7" -Name "$EntityName GET deleted returns 404" -Reason "No created entity"
-    }
-
-    # Test 8: GET with filter
-    if ($firstKey) {
-        $filterText = $firstKey.Substring(0, [Math]::Min(5, $firstKey.Length))
-        $sw = [System.Diagnostics.Stopwatch]::StartNew()
-        $resp = Invoke-TestApiCall -Method "GET" -Url "$($baseUrl)?filterText=$([uri]::EscapeDataString($filterText))&maxResultCount=100" -Token $hostToken
-        $sw.Stop()
-        Assert-StatusCode -TestResults $TestResults -TestId "$PhasePrefix.8" -Name "$EntityName GET with filter" -Response $resp -Expected 200 -DurationMs $sw.ElapsedMilliseconds
-    } else {
-        Add-SkipResult -TestResults $TestResults -TestId "$PhasePrefix.8" -Name "$EntityName GET with filter" -Reason "No seed data"
-    }
-
-    # Test 9: GET with pagination
-    $sw = [System.Diagnostics.Stopwatch]::StartNew()
-    $page1 = Invoke-TestApiCall -Method "GET" -Url "$($baseUrl)?maxResultCount=3&skipCount=0" -Token $hostToken
-    $page2 = Invoke-TestApiCall -Method "GET" -Url "$($baseUrl)?maxResultCount=3&skipCount=3" -Token $hostToken
-    $sw.Stop()
-    $paginationWorks = $false
-    if ($page1.Success -and $page2.Success -and $page1.Body.items -and $page2.Body.items) {
-        $page1Ids = @($page1.Body.items | ForEach-Object { $_.id })
-        $page2Ids = @($page2.Body.items | ForEach-Object { $_.id })
-        $overlap = $page1Ids | Where-Object { $page2Ids -contains $_ }
-        $paginationWorks = ($overlap.Count -eq 0 -and $page2Ids.Count -gt 0)
-    }
-    Assert-IsTrue -TestResults $TestResults -TestId "$PhasePrefix.9" -Name "$EntityName pagination works" -Condition $paginationWorks -Details "Page1: $($page1Ids.Count) items, Page2: $($page2Ids.Count) items" -DurationMs $sw.ElapsedMilliseconds
-
-    # Test 10: POST empty name -> 400
-    $sw = [System.Diagnostics.Stopwatch]::StartNew()
-    $resp = Invoke-TestApiCall -Method "POST" -Url $baseUrl -Body @{ $NameField = "" } -Token $hostToken
-    $sw.Stop()
-    Assert-StatusCode -TestResults $TestResults -TestId "$PhasePrefix.10" -Name "$EntityName POST empty name returns 400" -Response $resp -Expected 400 -DurationMs $sw.ElapsedMilliseconds
-
-    # Test 11: POST name too long -> 400 (if entity has max length constraint)
-    $longName = "X" * ($MaxNameLength + 1)
-    $sw = [System.Diagnostics.Stopwatch]::StartNew()
-    $resp = Invoke-TestApiCall -Method "POST" -Url $baseUrl -Body @{ $NameField = $longName } -Token $hostToken
-    # Clean up if it actually created (some entities have no max length constraint)
-    if ($resp.StatusCode -eq 200 -and $resp.Body -and $resp.Body.id) {
-        Invoke-TestApiCall -Method "DELETE" -Url "$baseUrl/$($resp.Body.id)" -Token $hostToken | Out-Null
-    }
-    $sw.Stop()
-    # Some entities (e.g. States) have no max-length constraint; accept 200 or 400
-    $isValidResult = ($resp.StatusCode -eq 400 -or $resp.StatusCode -eq 200)
-    Assert-IsTrue -TestResults $TestResults -TestId "$PhasePrefix.11" -Name "$EntityName POST too-long name behavior" -Condition $isValidResult -Details "Status: $($resp.StatusCode). $(if($resp.StatusCode -eq 200){'No max-length constraint'}else{'Validation applied'})" -DurationMs $sw.ElapsedMilliseconds
+    Test-ListCount -PhasePrefix $PhasePrefix -EntityName $EntityName -BaseUrl $baseUrl -ExpectedCount $ExpectedCount
+    Test-GetSeededById -PhasePrefix $PhasePrefix -EntityName $EntityName -BaseUrl $baseUrl -SeededId $firstId
+    Test-CreatedLifecycle -PhasePrefix $PhasePrefix -EntityName $EntityName -BaseUrl $baseUrl -NameField $NameField -CreateName $CreateName -UpdateName $UpdateName
+    Test-FilteredList -PhasePrefix $PhasePrefix -EntityName $EntityName -BaseUrl $baseUrl -SeededKey $firstKey
+    Test-Pagination -PhasePrefix $PhasePrefix -EntityName $EntityName -BaseUrl $baseUrl
+    Test-NameValidation -PhasePrefix $PhasePrefix -EntityName $EntityName -BaseUrl $baseUrl -NameField $NameField -MaxNameLength $MaxNameLength
 }
 
 # ---- B3.1 States ----

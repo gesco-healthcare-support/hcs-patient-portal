@@ -14,6 +14,16 @@ on:
     - cron: '0 7 * * 1'  # Monday 7 AM UTC
   workflow_dispatch:
 
+# Least-privilege default (phase 2 item 2.3, 2026-09-03). Scorecard
+# `TokenPermissionsID`: a workflow with no top-level block inherits the
+# repository default, which is more than any job here needs.
+#
+# Every job in this file declares its own `permissions`, and a job-level block
+# REPLACES this one rather than merging with it -- so this line cannot reduce
+# any existing job's access. It sets the default for jobs added later.
+permissions:
+  contents: read
+
 jobs:
   analysis:
     name: 'Scorecard: Analysis'
@@ -24,19 +34,19 @@ jobs:
       security-events: write
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
         with:
           persist-credentials: false
-      - uses: ossf/scorecard-action@v2.4.3
+      - uses: ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a  # v2.4.3
         with:
           results_file: results.sarif
           results_format: sarif
           publish_results: true
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: scorecard-results
           path: results.sarif
           retention-days: 14
-      - uses: github/codeql-action/upload-sarif@v4
+      - uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938  # v4.37.9
         with:
           sarif_file: results.sarif

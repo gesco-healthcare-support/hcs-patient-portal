@@ -105,7 +105,7 @@ public abstract class ApplicantAttorneysAppServiceTests<TStartupModule> : CaseEv
         created.City.ShouldBe(input.City);
         created.ZipCode.ShouldBe(input.ZipCode);
         // FKs.
-        created.IdentityUserId.ShouldBe(input.IdentityUserId);
+        created.IdentityUserId.ShouldBe(input.IdentityUserId!.Value);
 
         // Re-fetch via the repository to prove the persistence layer accepted
         // the manager-post-ctor assignments. This test runs in host context so
@@ -133,7 +133,13 @@ public abstract class ApplicantAttorneysAppServiceTests<TStartupModule> : CaseEv
                 City = existing.City,
                 ZipCode = existing.ZipCode,
                 StateId = existing.StateId,
-                IdentityUserId = existing.IdentityUserId,
+                // 2026-05-08: ApplicantAttorney.IdentityUserId became
+                // nullable in fd78159 (allow typed-AA without a linked
+                // user). The Update DTO stays non-nullable -- update
+                // requests must specify a concrete user. Seeded
+                // Attorney1 always has a non-null IdentityUserId so
+                // .Value is safe here.
+                IdentityUserId = existing.IdentityUserId!.Value,
                 ConcurrencyStamp = existing.ConcurrencyStamp
             };
 
@@ -169,35 +175,48 @@ public abstract class ApplicantAttorneysAppServiceTests<TStartupModule> : CaseEv
     // ------------------------------------------------------------------------
 
     [Fact]
-    public async Task CreateAsync_WhenIdentityUserIdIsEmpty_ThrowsUserFriendlyException()
+    public async Task CreateAsync_WithoutIdentityUser_CreatesNoLoginAttorney()
     {
+        // BUG-042 / UM4: attorneys may exist with no login (IdentityUserId null).
+        // The old required-identity gate was removed. The read DTO's IdentityUserId
+        // is a non-nullable Guid, so the absent login surfaces as Guid.Empty.
         var input = new ApplicantAttorneyCreateDto
         {
-            FirmName = "TEST-Whatever",
-            IdentityUserId = Guid.Empty
+            FirmName = "TEST-NoLoginFirm",
+            IdentityUserId = null
         };
 
-        await Should.ThrowAsync<UserFriendlyException>(async () =>
-            await _attorneysAppService.CreateAsync(input));
+        var created = await _attorneysAppService.CreateAsync(input);
+
+        created.ShouldNotBeNull();
+        created.Id.ShouldNotBe(Guid.Empty);
+        created.FirmName.ShouldBe("TEST-NoLoginFirm");
+        created.IdentityUserId.ShouldBe(Guid.Empty);
     }
 
     [Fact]
-    public async Task UpdateAsync_WhenIdentityUserIdIsEmpty_ThrowsUserFriendlyException()
+    public async Task UpdateAsync_WithoutIdentityUser_Succeeds()
     {
-        // The AppService guard fires BEFORE the entity is fetched, so we do not
-        // need to resolve Attorney1 first. An arbitrary Guid + empty
-        // IdentityUserId is enough to trigger the UserFriendlyException path at
-        // ApplicantAttorneysAppService line 103-106. No tenant wrap required
-        // because the code path short-circuits before any repository call.
+        // BUG-042 / UM4: clearing/omitting the login on update is allowed. Use a
+        // fresh no-login attorney so the seeded Attorney1 is left untouched for
+        // sibling tests.
+        var created = await _attorneysAppService.CreateAsync(new ApplicantAttorneyCreateDto
+        {
+            FirmName = "TEST-UpdNoLoginA",
+            IdentityUserId = null
+        });
+
         var update = new ApplicantAttorneyUpdateDto
         {
-            FirmName = "TEST-Whatever",
-            IdentityUserId = Guid.Empty,
-            ConcurrencyStamp = "dummy-stamp"
+            FirmName = "TEST-UpdNoLoginB",
+            IdentityUserId = null,
+            ConcurrencyStamp = created.ConcurrencyStamp
         };
 
-        await Should.ThrowAsync<UserFriendlyException>(async () =>
-            await _attorneysAppService.UpdateAsync(ApplicantAttorneysTestData.Attorney1Id, update));
+        var updated = await _attorneysAppService.UpdateAsync(created.Id, update);
+
+        updated.FirmName.ShouldBe("TEST-UpdNoLoginB");
+        updated.IdentityUserId.ShouldBe(Guid.Empty);
     }
 
     [Fact]

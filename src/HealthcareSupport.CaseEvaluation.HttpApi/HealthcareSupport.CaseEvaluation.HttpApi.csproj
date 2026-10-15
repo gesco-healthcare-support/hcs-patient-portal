@@ -10,6 +10,18 @@
     <ProjectReference Include="..\HealthcareSupport.CaseEvaluation.Application.Contracts\HealthcareSupport.CaseEvaluation.Application.Contracts.csproj" />
   </ItemGroup>
 
+  <!-- Hosting/CaseEvaluationHost.cs, the shared entry point for both web hosts (#775 /
+       #871). These five are exactly what that bootstrap needs, and both consumers
+       (AuthServer and HttpApi.Host, the ONLY projects referencing this one) already
+       declare every one of them at these versions. Nothing else inherits them. -->
+  <ItemGroup>
+    <PackageReference Include="Serilog.AspNetCore" Version="9.0.0" />
+    <PackageReference Include="Serilog.Sinks.Async" Version="2.1.0" />
+    <PackageReference Include="Volo.Abp.Autofac" Version="10.0.2" />
+    <PackageReference Include="Volo.Abp.AspNetCore.Serilog" Version="10.0.2" />
+    <PackageReference Include="Volo.Abp.Studio.Client.AspNetCore" Version="2.1.9" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Volo.Abp.PermissionManagement.HttpApi" Version="10.0.2" />
     <PackageReference Include="Volo.Abp.FeatureManagement.HttpApi" Version="10.0.2" />

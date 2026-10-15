@@ -51,20 +51,6 @@
 
             <div class="col-12 col-sm-auto">
               <div class="mb-3">
-                <label class="form-label" for="identityUserIdFilter">
-                  {{ '::IdentityUser' | abpLocalization }}
-                </label>
-                <abp-lookup-select
-                  cid="identityUserIdFilter"
-                  [getFn]="serviceDetail.getIdentityUserLookup"
-                  [(ngModel)]="filters.identityUserId"
-                  [ngModelOptions]="{ standalone: true }"
-                ></abp-lookup-select>
-              </div>
-            </div>
-
-            <div class="col-12 col-sm-auto">
-              <div class="mb-3">
                 <label class="form-label" for="appointmentTypesFilter">
                   {{ '::AppointmentType' | abpLocalization }}
                 </label>
@@ -141,20 +127,17 @@
                 </button>
 
                 <div ngbDropdownMenu>
+                  <!-- Edit-only: the office has exactly ONE doctor (tenant === doctor),
+                       enforced by the filtered unique index IX_AppEntity_Doctors_TenantId_Unique.
+                       Add was never surfaced here; Delete is removed so the office doctor
+                       cannot be removed via the UI. The Delete app-service stays for future
+                       (multi-doctor) use. -->
                   <button
                     ngbDropdownItem
                     *abpPermission="'CaseEvaluation.Doctors.Edit'"
                     (click)="update(row)"
                   >
                     {{ 'AbpUi::Edit' | abpLocalization }}
-                  </button>
-
-                  <button
-                    ngbDropdownItem
-                    *abpPermission="'CaseEvaluation.Doctors.Delete'"
-                    (click)="delete(row)"
-                  >
-                    {{ 'AbpUi::Delete' | abpLocalization }}
                   </button>
                 </div>
               </div>
@@ -183,19 +166,6 @@
                 ? ('::Enum:Gender.' + row.doctor.gender | abpLocalization)
                 : ''
             }}
-          </ng-template>
-        </ngx-datatable-column>
-        <ngx-datatable-column
-          name="{{ '::IdentityUser' | abpLocalization }}"
-          prop="identityUser.email"
-        >
-          <ng-template let-row="row" ngx-datatable-cell-template>
-            {{ row.identityUser?.email }}
-          </ng-template>
-        </ngx-datatable-column>
-        <ngx-datatable-column name="{{ '::Tenant' | abpLocalization }}" prop="tenant.name">
-          <ng-template let-row="row" ngx-datatable-cell-template>
-            {{ row.tenant?.name }}
           </ng-template>
         </ngx-datatable-column>
       </ngx-datatable>

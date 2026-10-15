@@ -20,8 +20,6 @@ public class DoctorUpdateDto : IHasConcurrencyStamp
     public string Email { get; set; } = null!;
     public Gender Gender { get; set; }
 
-    public Guid? IdentityUserId { get; set; }
-
     public List<Guid> AppointmentTypeIds { get; set; } = new();
 
     public List<Guid> LocationIds { get; set; } = new();

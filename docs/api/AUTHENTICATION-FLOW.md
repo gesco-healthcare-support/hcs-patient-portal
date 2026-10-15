@@ -1,6 +1,8 @@
 # Authentication Flow
 
-[Home](../INDEX.md) > [API](./) > Authentication Flow
+> Purpose: Documents the OpenIddict OAuth2/OIDC authentication flow, registered clients, token validation, and external user registration. Audience: backend and frontend engineers.
+
+[Home](../index.md) > [API](./) > Authentication Flow
 
 **Related:** [API Architecture](API-ARCHITECTURE.md) | [Middleware & Pipeline](MIDDLEWARE-AND-PIPELINE.md) | [Role-Based UI](../frontend/ROLE-BASED-UI.md) | [User Roles and Actors](../business-domain/USER-ROLES-AND-ACTORS.md)
 
@@ -33,7 +35,7 @@ Configured in `OpenIddictDataSeedContributor.CreateApplicationsAsync()`:
 | **Client Type** | Public (no secret) |
 | **Consent Type** | Implicit (no consent screen) |
 | **Display Name** | "Console Test / Angular Application" |
-| **Grant Types** | `authorization_code`, `password`, `client_credentials`, `refresh_token`, `LinkLogin`, `Impersonation` |
+| **Grant Types** | `authorization_code`, `client_credentials`, `refresh_token`, `LinkLogin`, `Impersonation` (the password grant was removed on 2026-05-19) |
 | **Redirect URI** | `{RootUrl}` (typically `http://localhost:4200`) |
 | **Post-Logout Redirect** | `{RootUrl}` |
 | **Logo** | `/images/clients/angular.svg` |
@@ -58,7 +60,7 @@ Configured in `OpenIddictDataSeedContributor.CreateApplicationsAsync()`:
 
 ### API Scope
 
-```
+```text
 Name: CaseEvaluation
 DisplayName: CaseEvaluation API
 Resources: ["CaseEvaluation"]
@@ -115,15 +117,10 @@ After registration, the `GET /api/app/external-users/me` endpoint (authenticated
 
 ## External Login Providers
 
-The API Host configures dynamic external login providers:
-
-| Provider | Configuration Properties |
-|----------|------------------------|
-| **Google** | `ClientId`, `ClientSecret` (secret) |
-| **Microsoft** | `ClientId`, `ClientSecret` (secret) |
-| **Twitter** | `ConsumerKey`, `ConsumerSecret` (secret) |
-
-These are configured dynamically at runtime, allowing tenant-specific external login settings.
+There are none. Google, Microsoft and Twitter sign-in were removed from the AuthServer, the only
+login surface, on 2026-05-19: they were wired with per-office dynamic settings that were never
+populated. The API host still registers dynamic options for them, but with no login surface they
+are inert.
 
 ---
 
@@ -140,7 +137,7 @@ sequenceDiagram
 
     User->>Angular: Navigate to app
     Angular->>Angular: Check for valid token
-    Angular->>AuthServer: Redirect to /connect/authorize<br/>client_id=CaseEvaluation_App<br/>response_type=code<br/>scope=openid profile email roles CaseEvaluation<br/>redirect_uri=http://localhost:4200<br/>code_challenge=... (PKCE)
+    Angular->>AuthServer: Redirect to /connect/authorize<br/>client_id=CaseEvaluation_App<br/>response_type=code<br/>scope=openid offline_access CaseEvaluation<br/>redirect_uri=http://localhost:4200<br/>code_challenge=... (PKCE)
     AuthServer->>User: Show login page
     User->>AuthServer: Enter credentials
     AuthServer->>AuthServer: Validate credentials
@@ -154,31 +151,45 @@ sequenceDiagram
     API-->>Angular: 200 OK + JSON data
 ```
 
+The scope shown is the local development one: `environment.ts` asks for `offline_access CaseEvaluation`, and
+`angular-oauth2-oidc` adds `openid`. The Docker stack and the production image override it through
+`dynamic-env.json` with `offline_access openid profile email phone CaseEvaluation`.
+
 ### External User Registration Sequence
+
+Registration happens on the AuthServer's Razor `/Account/Register` page, not in the Angular app. The page's
+script (`src/HealthcareSupport.CaseEvaluation.AuthServer/wwwroot/global-scripts.js`) adds the role and
+name fields and posts to the API's anonymous sign-up endpoint. There is no office picker: the office comes
+from the invite link's `?__tenant=` value, else the office subdomain, else the `__tenant` cookie, and the
+form is blocked when none resolves.
 
 ```mermaid
 sequenceDiagram
     participant User as New User
-    participant App as Angular App
+    participant Reg as AuthServer /Account/Register<br/>(global-scripts.js)
     participant Public as ExternalSignupController<br/>(api/public/external-signup)
     participant Auth as AuthServer
-    participant API as API Host<br/>(api/app/external-users)
+    participant App as Angular App
+    participant API as API Host
 
-    User->>App: Click "Sign Up"
-    App->>Public: GET /tenant-options<br/>(anonymous)
-    Public-->>App: List of tenants<br/>[{id, displayName}, ...]
-    App->>User: Show tenant selection + registration form
-    User->>App: Fill form + select tenant
-    App->>Public: POST /register<br/>(anonymous)<br/>{userName, email, password, tenantId, ...}
-    Public->>Public: Create user in selected tenant<br/>Assign default role
-    Public-->>App: 200 OK (registered)
-    App->>Auth: Redirect to /connect/authorize<br/>(normal OAuth2 flow)
-    Auth->>User: Login page
-    User->>Auth: Login with new credentials
+    User->>Reg: Open the practice's portal or invite link
+    Reg->>Public: GET /resolve-tenant (office name to id)
+    Public-->>Reg: Office id, or not found (form blocked)
+    User->>Reg: Choose role, fill the form
+    Reg->>Public: POST /register<br/>{userType, firstName + lastName or firmName,<br/>email, password, tenantId, inviteToken}
+    Public->>Public: Create the user in that office<br/>Add the chosen external role
+    Public-->>Reg: 200 OK
+    Reg->>Auth: GET /Account/Logout (clears a prior session)
+    Reg->>User: Invite link: Sign in button<br/>Otherwise: check your email to verify
+    User->>Auth: Sign in (normal code flow from the Angular app)
     Auth-->>App: Access token
-    App->>API: GET /external-users/me<br/>Authorization: Bearer {token}
-    API-->>App: ExternalUserProfileDto
+    App->>API: GET /api/app/external-users/me<br/>(or /api/app/patients/me for a patient)
+    API-->>App: Profile
 ```
+
+An invite link's token confirms the email at registration, so that user can sign in at once; anyone else
+must follow the verification link first (sign-in requires a confirmed email: `CaseEvaluationSettingDefinitionProvider` sets
+`Abp.Identity.SignIn.RequireConfirmedEmail` to true).
 
 ### Token Validation Flow
 

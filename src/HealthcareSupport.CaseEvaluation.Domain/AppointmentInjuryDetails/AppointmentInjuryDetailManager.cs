@@ -7,16 +7,30 @@ using Volo.Abp;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Domain.Services;
 using Volo.Abp.Data;
+using Volo.Abp.Timing;
+using HealthcareSupport.CaseEvaluation.Appointments;
+using HealthcareSupport.CaseEvaluation.Patients;
+using HealthcareSupport.CaseEvaluation.Timing;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
 
 public class AppointmentInjuryDetailManager : DomainService
 {
     protected IAppointmentInjuryDetailRepository _appointmentInjuryDetailRepository;
+    protected IRepository<Appointment, Guid> _appointmentRepository;
+    protected IRepository<Patient, Guid> _patientRepository;
+    protected IClock _clock;
 
-    public AppointmentInjuryDetailManager(IAppointmentInjuryDetailRepository appointmentInjuryDetailRepository)
+    public AppointmentInjuryDetailManager(
+        IAppointmentInjuryDetailRepository appointmentInjuryDetailRepository,
+        IRepository<Appointment, Guid> appointmentRepository,
+        IRepository<Patient, Guid> patientRepository,
+        IClock clock)
     {
         _appointmentInjuryDetailRepository = appointmentInjuryDetailRepository;
+        _appointmentRepository = appointmentRepository;
+        _patientRepository = patientRepository;
+        _clock = clock;
     }
 
     public virtual async Task<AppointmentInjuryDetail> CreateAsync(
@@ -34,7 +48,8 @@ public class AppointmentInjuryDetailManager : DomainService
         Check.Length(claimNumber, nameof(claimNumber), AppointmentInjuryDetailConsts.ClaimNumberMaxLength);
         Check.NotNullOrWhiteSpace(bodyPartsSummary, nameof(bodyPartsSummary));
         Check.Length(bodyPartsSummary, nameof(bodyPartsSummary), AppointmentInjuryDetailConsts.BodyPartsSummaryMaxLength);
-        Check.Length(wcabAdj, nameof(wcabAdj), AppointmentInjuryDetailConsts.WcabAdjMaxLength, 0);
+        Check.NotNullOrWhiteSpace(wcabAdj, nameof(wcabAdj));
+        Check.Length(wcabAdj, nameof(wcabAdj), AppointmentInjuryDetailConsts.WcabAdjMaxLength);
 
         // OLD AppointmentInjuryDetailDomain.AddValidation: same (Appointment, ClaimNumber, DateOfInjury) tuple cannot repeat.
         var queryable = await _appointmentInjuryDetailRepository.GetQueryableAsync();
@@ -46,6 +61,8 @@ public class AppointmentInjuryDetailManager : DomainService
         {
             throw new UserFriendlyException("A claim with the same Claim Number and Date Of Injury already exists for this appointment.");
         }
+
+        await ValidateInjuryDatesAsync(appointmentId, dateOfInjury, isCumulativeInjury, toDateOfInjury);
 
         var entity = new AppointmentInjuryDetail(
             GuidGenerator.Create(),
@@ -77,7 +94,8 @@ public class AppointmentInjuryDetailManager : DomainService
         Check.Length(claimNumber, nameof(claimNumber), AppointmentInjuryDetailConsts.ClaimNumberMaxLength);
         Check.NotNullOrWhiteSpace(bodyPartsSummary, nameof(bodyPartsSummary));
         Check.Length(bodyPartsSummary, nameof(bodyPartsSummary), AppointmentInjuryDetailConsts.BodyPartsSummaryMaxLength);
-        Check.Length(wcabAdj, nameof(wcabAdj), AppointmentInjuryDetailConsts.WcabAdjMaxLength, 0);
+        Check.NotNullOrWhiteSpace(wcabAdj, nameof(wcabAdj));
+        Check.Length(wcabAdj, nameof(wcabAdj), AppointmentInjuryDetailConsts.WcabAdjMaxLength);
 
         var queryable = await _appointmentInjuryDetailRepository.GetQueryableAsync();
         var duplicate = queryable.Any(x =>
@@ -90,6 +108,8 @@ public class AppointmentInjuryDetailManager : DomainService
             throw new UserFriendlyException("A claim with the same Claim Number and Date Of Injury already exists for this appointment.");
         }
 
+        await ValidateInjuryDatesAsync(appointmentId, dateOfInjury, isCumulativeInjury, toDateOfInjury);
+
         var entity = await _appointmentInjuryDetailRepository.GetAsync(id);
         entity.AppointmentId = appointmentId;
         entity.DateOfInjury = dateOfInjury;
@@ -101,5 +121,57 @@ public class AppointmentInjuryDetailManager : DomainService
         entity.WcabOfficeId = wcabOfficeId;
         entity.SetConcurrencyStampIfNotNull(concurrencyStamp);
         return await _appointmentInjuryDetailRepository.UpdateAsync(entity);
+    }
+
+    /// <summary>
+    /// OLD parity (AppointmentDomain.CommonValidation +
+    /// AppointmentInjuryDetailDomain.CommonValidation): an injury date may not be
+    /// in the future nor precede the patient's date of birth, and a cumulative-trauma
+    /// range must run From &lt; To, end on or before today, and span more than a
+    /// single day. Enforced in the manager so both the booking-time cascade and the
+    /// standalone add/edit endpoint are covered.
+    /// </summary>
+    protected virtual async Task ValidateInjuryDatesAsync(
+        Guid appointmentId,
+        DateTime dateOfInjury,
+        bool isCumulativeInjury,
+        DateTime? toDateOfInjury)
+    {
+        // 2026-09-13 (#623): PACIFIC today, not _clock.Now.Date. AbpClockOptions.Kind is
+        // pinned to Utc, so IClock.Now.Date is the UTC date -- which from 4pm or 5pm
+        // Pacific onwards is TOMORROW. This validation rejects a future injury date, so
+        // reading tomorrow as today made it ACCEPT an injury dated one day ahead for the
+        // last 7-8 hours of every Pacific working day. Same fix, same reasoning, as
+        // AppointmentChangeRequestManager.cs:149.
+        var today = PacificTime.TodayFrom(_clock.Now);
+
+        if (dateOfInjury.Date > today)
+        {
+            throw new UserFriendlyException("Injury date cannot be in the future.");
+        }
+
+        var appointment = await _appointmentRepository.GetAsync(appointmentId);
+        var patient = await _patientRepository.GetAsync(appointment.PatientId);
+        if (patient.DateOfBirth.Date > dateOfInjury.Date)
+        {
+            throw new UserFriendlyException("Injury date cannot be earlier than the patient's date of birth.");
+        }
+
+        if (isCumulativeInjury && toDateOfInjury.HasValue)
+        {
+            var toDate = toDateOfInjury.Value.Date;
+            if (dateOfInjury.Date > toDate)
+            {
+                throw new UserFriendlyException("Injury 'From' date must be earlier than the 'To' date.");
+            }
+            if (toDate > today)
+            {
+                throw new UserFriendlyException("Injury 'To' date cannot be in the future.");
+            }
+            if (dateOfInjury.Date == toDate)
+            {
+                throw new UserFriendlyException("Injury 'From' and 'To' dates must be different.");
+            }
+        }
     }
 }

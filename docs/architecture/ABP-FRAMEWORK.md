@@ -1,8 +1,10 @@
-[Home](../INDEX.md) > [Architecture](./) > ABP Framework
+[Home](../index.md) > [Architecture](./) > ABP Framework
 
 # ABP Framework Conventions
 
-ABP Framework (Volo.Abp) is a complete application framework built on top of ASP.NET Core. Note: ABP Framework is the successor to the older ASP.NET Boilerplate — they are different products. It provides a module system, multi-tenancy, permission management, audit logging, localization, identity management, and more. The HCS Case Evaluation Portal uses **ABP 10.0.2** with a **Commercial license**.
+> Purpose: Reference for ABP 10.0.2 conventions used across the Appointment Portal. Audience: backend developers.
+
+ABP Framework (Volo.Abp) is a complete application framework built on top of ASP.NET Core. Note: ABP Framework is the successor to the older ASP.NET Boilerplate -- they are different products. It provides a module system, multi-tenancy, permission management, audit logging, localization, identity management, and more. The Appointment Portal uses **ABP 10.0.2** with a **Commercial license**.
 
 This document describes ABP conventions and patterns used throughout the codebase.
 
@@ -23,6 +25,9 @@ flowchart TB
     EFCore["CaseEvaluationEntityFrameworkCoreModule"]
     HttpApi["CaseEvaluationHttpApiModule"]
     HttpApiHost["CaseEvaluationHttpApiHostModule"]
+    AuthServer["CaseEvaluationAuthServerModule"]
+    DbMigrator["CaseEvaluationDbMigratorModule"]
+    HttpApiClient["CaseEvaluationHttpApiClientModule"]
 
     Domain --> DomainShared
     AppContracts --> DomainShared
@@ -33,6 +38,11 @@ flowchart TB
     HttpApiHost --> HttpApi
     HttpApiHost --> Application
     HttpApiHost --> EFCore
+    AuthServer --> Application
+    AuthServer --> EFCore
+    DbMigrator --> AppContracts
+    DbMigrator --> EFCore
+    HttpApiClient --> AppContracts
 
     style DomainShared fill:#C0504D,color:#fff
     style Domain fill:#C0504D,color:#fff
@@ -41,7 +51,13 @@ flowchart TB
     style EFCore fill:#7B68A6,color:#fff
     style HttpApi fill:#D4A843,color:#fff
     style HttpApiHost fill:#5BA55B,color:#fff
+    style AuthServer fill:#5BA55B,color:#fff
+    style DbMigrator fill:#5BA55B,color:#fff
 ```
+
+Three projects are runnable hosts: `HttpApi.Host` (the API), `AuthServer` (sign-in, OpenIddict) and
+`DbMigrator` (migrations and seeding). `HttpApi.Client` is the typed C# client used by tests and tools.
+List the modules with `git ls-files 'src/*Module.cs'` (10 on 2026-09-28).
 
 ### Module Lifecycle Methods
 
@@ -108,12 +124,17 @@ classDiagram
 
 ### Which Entities Use Which Base Class
 
+As of 2026-09-28 (53 entities in `src/HealthcareSupport.CaseEvaluation.Domain`):
+
 | Base Class | Entities |
 |---|---|
-| `FullAuditedAggregateRoot<Guid>` | Most entities (Appointment, Doctor, Location, Patient, etc.) |
-| `FullAuditedEntity<Guid>` | AppointmentType, AppointmentStatus, AppointmentLanguage, AppointmentAccessor |
-| `AuditedAggregateRoot<Guid>` | Book |
-| `Entity` (no audit) | DoctorAppointmentType, DoctorLocation (junction tables) |
+| `FullAuditedAggregateRoot<Guid>` | 36 -- most entities (Appointment, Doctor, Location, Patient, etc.) |
+| `FullAuditedEntity<Guid>` | 8 -- AppointmentAccessor, AppointmentBodyPart, AppointmentLanguage, AppointmentStatus, AppointmentType, CustomFieldValue, DoctorPreferredLocation, NotificationTemplateType |
+| `AuditedAggregateRoot<Guid>` | 1 -- CaseTrackerFeedState |
+| `CreationAuditedAggregateRoot<Guid>` | 1 -- AppointmentDraft |
+| `Entity` (no audit) | 7 -- six join rows (AppointmentAccessorAppointment, AppointmentDocumentTypeAppointmentType, DoctorAppointmentType, DoctorAvailabilityAppointmentType, DoctorLocation, LocationAppointmentType) and DocumentPackage |
+
+Re-derive with `git grep -hoE "class [A-Za-z]+ *: *(FullAuditedAggregateRoot|FullAuditedEntity|AuditedAggregateRoot|CreationAuditedAggregateRoot|Entity)\b" -- src/HealthcareSupport.CaseEvaluation.Domain`.
 
 **Rule of thumb:** If it is an aggregate root with full lifecycle tracking, use `FullAuditedAggregateRoot<Guid>`. If it is a lookup entity owned by an aggregate, use `FullAuditedEntity<Guid>`. If it is a junction table, use plain `Entity`.
 
@@ -127,7 +148,10 @@ Adding the `IMultiTenant` interface to an entity causes ABP to:
 2. Automatically apply a global EF Core query filter: `WHERE TenantId = @currentTenantId` on every query.
 3. Automatically set `TenantId` to the current tenant when inserting new records.
 
-This means tenant isolation is enforced at the framework level -- application code never needs to filter by tenant manually. See [Multi-Tenancy](MULTI-TENANCY.md) for the full tenant isolation strategy.
+Each office has its own database, so the separate database is the primary isolation boundary; this filter is a
+second line inside it. Some code also filters by `TenantId` explicitly as defence in depth (for example
+`AppointmentVisibilityService`), and host-side reads that span offices disable the filter on purpose. See
+[Multi-Tenancy](MULTI-TENANCY.md) and [Tenancy and Isolation](TENANCY-AND-ISOLATION.md).
 
 ---
 
@@ -174,7 +198,7 @@ Provides: `GetAsync`, `GetListAsync`, `InsertAsync`, `UpdateAsync`, `DeleteAsync
 // Interface (in Domain layer)
 public interface IAppointmentRepository : IRepository<Appointment, Guid>
 {
-    Task<List<Appointment>> GetListWithDetailsAsync(...);
+    Task<List<AppointmentWithNavigationProperties>> GetListWithNavigationPropertiesAsync(...);
 }
 
 // Implementation (in EntityFrameworkCore layer)
@@ -182,7 +206,7 @@ public class EfCoreAppointmentRepository
     : EfCoreRepository<CaseEvaluationDbContext, Appointment, Guid>,
       IAppointmentRepository
 {
-    public async Task<List<Appointment>> GetListWithDetailsAsync(...)
+    public virtual async Task<List<AppointmentWithNavigationProperties>> GetListWithNavigationPropertiesAsync(...)
     {
         // Custom EF Core query with .Include() etc.
     }
@@ -199,7 +223,11 @@ Application services are the primary API for use cases. They coordinate between 
 
 ### Base Class
 
-All application services inherit from `CaseEvaluationAppService`, which extends ABP's `ApplicationService`. This provides:
+Most application services (51 of 56 on 2026-09-28) inherit from `CaseEvaluationAppService`, which extends ABP's
+`ApplicationService`. The other five extend an ABP module service they customize (`DoctorTenantAppService` :
+`TenantAppService`, `CaseEvaluationProfileAppService` : `ProfileAppService`, `UserExtendedAppService` :
+`IdentityUserAppService`) or `ApplicationService` directly (`NotificationTemplatesAppService`,
+`SystemParametersAppService`). The base provides:
 
 | Member | Purpose |
 |---|---|
@@ -227,21 +255,23 @@ public async Task<AppointmentDto> CreateAsync(CreateAppointmentDto input)
 
 Instead of ABP's default AutoMapper, this project uses **Mapperly** -- a compile-time source generator for object mapping.
 
-Mappings are declared in `CaseEvaluationApplicationMappers.cs`:
+Mappings are declared as one small mapper class per source/destination pair, in
+`CaseEvaluationApplicationMappers.cs` and its partial files (`CaseEvaluationApplicationMappers.*.cs`):
 
 ```csharp
 [Mapper]
-public static partial class CaseEvaluationApplicationMappers
+public partial class StateToStateDtoMappers : MapperBase<State, StateDto>
 {
-    public static partial AppointmentDto Map(Appointment source);
+    // UsageCount is computed in StatesAppService.GetListAsync, not auto-mapped.
+    [MapperIgnoreTarget(nameof(StateDto.UsageCount))]
+    public override partial StateDto Map(State source);
 
-    static partial void AfterMap(Appointment source, AppointmentDto target)
-    {
-        // Set display names from navigation properties
-        target.DoctorName = source.Doctor?.Name;
-    }
+    [MapperIgnoreTarget(nameof(StateDto.UsageCount))]
+    public override partial void Map(State source, StateDto destination);
 }
 ```
+
+Application code still calls `ObjectMapper.Map<TSource, TDestination>(...)`; ABP resolves the mapper class.
 
 **Key difference from AutoMapper:** Mapperly generates mapping code at compile time, so there is no reflection overhead at runtime. Unmapped properties produce compiler warnings, catching mapping issues early.
 
@@ -267,12 +297,8 @@ The `::` prefix tells ABP to look in the application's own localization resource
 
 ### Resource Files
 
-Localization JSON files are located in:
-
-```
-Domain.Shared/Localization/CaseEvaluation/en.json
-Domain.Shared/Localization/CaseEvaluation/es.json
-```
+Localization JSON files are located in `Domain.Shared/Localization/CaseEvaluation/`: `en.json` plus one file per
+other language (20 files on 2026-09-28).
 
 ---
 
@@ -310,11 +336,10 @@ Suite generates pairs of files using an abstract/concrete pattern:
 
 **Customization rule:** Always put custom logic in the concrete (derived) class. Never edit the abstract (base) class directly -- your changes will be lost on the next Suite regeneration.
 
-This pattern applies to:
-- Application services (AppService base + concrete)
-- Angular components (abstract component + concrete component)
-- Repository implementations
-- DTOs
+**In this codebase the pattern has almost disappeared.** There are no `*AppServiceBase.cs` files; the application
+services, repositories and DTOs are hand-maintained. The only abstract/concrete pair left is the Angular Doctors list
+(`angular/src/app/doctors/`). The `.suite/entities/*.json` definitions remain, but regenerating from them would
+overwrite hand-written code -- review any Suite output file by file.
 
 ---
 
@@ -346,7 +371,7 @@ Permissions are registered in `CaseEvaluationPermissionDefinitionProvider.cs`, w
 |---|---|
 | Backend (C#) | `[Authorize(CaseEvaluationPermissions.Appointments.Create)]` attribute |
 | Angular routes | `requiredPolicy: 'CaseEvaluation.Appointments'` on route data |
-| Angular templates | `*abpPermission="'CaseEvaluation.Appointments.Create'"` structural directive |
+| Angular components | `PermissionService.getGrantedPolicy(...)` in component code (the usual way here); the `*abpPermission` template directive exists but is rarely used |
 
 ---
 
@@ -380,8 +405,8 @@ Seed contributors are idempotent -- they check whether data already exists befor
 
 ## Related Documentation
 
-- [DDD Layers](DDD-LAYERS.md)
+- [DDD Layers](OVERVIEW.md)
 - [Multi-Tenancy](MULTI-TENANCY.md)
-- [Domain Model](../backend/DOMAIN-MODEL.md)
+- [Domain Model](../database/EF-CORE-DESIGN.md)
 - [Application Services](../backend/APPLICATION-SERVICES.md)
 - [Component Patterns](../frontend/COMPONENT-PATTERNS.md)

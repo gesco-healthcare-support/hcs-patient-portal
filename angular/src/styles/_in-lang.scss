@@ -1,0 +1,82 @@
+/* ============================================================
+   Language Management (Prompt 16, Part B) -- Languages list. Ported from
+   the design handoff (design_handoff_part_B/styles/in-lang.css), Languages
+   section only (Language Texts cancelled). Reuses ia-*, ra-*, af-btn,
+   lw-active.
+   ============================================================ */
+
+.lg-actbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
+.lg-name {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  font-weight: 700;
+  color: var(--n-900);
+}
+.lg-flag {
+  width: 30px;
+  height: 22px;
+  border-radius: 5px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 800;
+  font-family: var(--font-num);
+  letter-spacing: 0.02em;
+  background: var(--blue-700);
+  color: #fff;
+  text-transform: uppercase;
+}
+.lg-culture {
+  font-family: var(--font-num);
+  font-size: 12.5px;
+  color: var(--n-600);
+}
+.lg-default {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 99px;
+  background: var(--st-pending-bg);
+  color: var(--st-pending-fg);
+}
+.lg-rowacts {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: flex-end;
+}
+.lg-setdef {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--blue-700);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+.lg-setdef:hover {
+  background: var(--blue-50);
+}
+.lg-modal-ic {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lg-mono {
+  font-family: var(--font-num);
+}

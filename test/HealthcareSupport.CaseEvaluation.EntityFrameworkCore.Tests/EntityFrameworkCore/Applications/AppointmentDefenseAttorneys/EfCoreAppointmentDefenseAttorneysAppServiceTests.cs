@@ -1,0 +1,7 @@
+using HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
+
+namespace HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
+
+public class EfCoreAppointmentDefenseAttorneysAppServiceTests : AppointmentDefenseAttorneysAppServiceTests<CaseEvaluationEntityFrameworkCoreTestModule>
+{
+}

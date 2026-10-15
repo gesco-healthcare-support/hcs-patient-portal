@@ -9,6 +9,8 @@ public static class ApplicantAttorneyConsts
         return string.Format(DefaultSorting, withEntityName ? "ApplicantAttorney." : string.Empty);
     }
 
+    public const int FirstNameMaxLength = 50;
+    public const int LastNameMaxLength = 50;
     public const int FirmNameMaxLength = 50;
     public const int FirmAddressMaxLength = 100;
     public const int WebAddressMaxLength = 100;
@@ -17,4 +19,5 @@ public static class ApplicantAttorneyConsts
     public const int StreetMaxLength = 255;
     public const int CityMaxLength = 50;
     public const int ZipCodeMaxLength = 10;
+    public const int EmailMaxLength = 100;
 }

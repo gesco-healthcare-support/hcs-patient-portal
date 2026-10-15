@@ -1,0 +1,573 @@
+# In-house hosting (2026-07-09, T7). Reverse proxy for the subdomain-per-service
+# layout. Terminates TLS on 443 and routes by Host to the internal containers,
+# forwarding:
+#   - the ORIGINAL Host header (the apps resolve the office from its leftmost label
+#     via HostAwareDomainTenantResolveContributor -- Host is the ONLY tenant source)
+#   - X-Forwarded-Proto=https so the apps see the original scheme behind TLS
+#     termination (G7: OpenIddict's transport-security check + correct issuer URLs)
+#
+# ${BASE_DOMAIN} (e.g. portal.local locally, portal.example.com on the server) is
+# substituted at container start by the nginx image's envsubst. Only variables that
+# exist in the container ENVIRONMENT are substituted, so nginx's own runtime vars
+# ($host, $scheme, $remote_addr, ...) are preserved -- do NOT add them to the env.
+#
+# server_name specificity resolves overlap: `*.api.${BASE_DOMAIN}` and
+# `*.auth.${BASE_DOMAIN}` are longer (more specific) wildcards than
+# `*.${BASE_DOMAIN}`, so nginx routes falkinstein.api.<domain> to the API even
+# though `*.<domain>` would also match.
+
+# Real client address behind a managed load balancer (#928).
+#
+# WHY THIS EXISTS. On the LAN nginx is the first hop, so $remote_addr IS the caller
+# and $proxy_add_x_forwarded_for appends the right address. Put a cloud load balancer
+# in front and that stops being true: the balancer becomes our peer, $remote_addr
+# becomes the balancer, and every per-IP control downstream collapses into ONE bucket
+# for the whole deployment -- the integration limiter (300/hr, whose stated job is
+# stopping enumeration with a leaked token), external-signup register, password reset,
+# document-upload-by-IP and consent. It also makes an IP allowlist impossible to
+# enforce here at all, which #927 depends on.
+#
+# HOW IT IS SAFE. real_ip_header only rewrites $remote_addr when the CONNECTION comes
+# from an address listed in set_real_ip_from, so with no such line nothing is trusted
+# and nothing is rewritten. That is why the header directive can be unconditional
+# while the trust list stays deployment-specific.
+#
+# WHICH ENTRY NGINX TAKES IS A PER-BALANCER DECISION, NOT A CONSTANT. Both settings are
+# correct for some balancers and wrong for others, so this is a deployment value rather
+# than something to hardcode.
+#
+#   recursion OFF -- nginx takes the LAST entry. Correct where the balancer appends exactly
+#   ONE address, its caller. A client forging "1.2.3.4" then arrives as "1.2.3.4, <real>"
+#   and the last entry wins.
+#
+#   recursion ON  -- nginx walks leftward, skipping entries that ARE in set_real_ip_from,
+#   and stops at the first untrusted one. Required where the balancer appends MORE than one
+#   address. Google Cloud's external Application Load Balancer appends TWO,
+#   "<client-ip>,<load-balancer-ip>", so with recursion off nginx would take the balancer's
+#   own forwarding-rule address and every caller would land in one bucket again -- which is
+#   the defect this block exists to fix.
+#   Ref: https://docs.cloud.google.com/load-balancing/docs/https ("X-Forwarded-For header")
+#
+# Recursion is SAFE here only because set_real_ip_from lists the balancer's own addresses
+# and nothing else. nginx stops at the first entry outside that list, so a forged value
+# further left is never reached. Widening the list to a range the balancer does not own is
+# what would make it spoofable.
+#
+# UNVERIFIED, and worth a real request before trusting either setting: Azure Application
+# Gateway writes x-forwarded-for as a comma-separated list of IP:PORT pairs, and whether
+# nginx's realip module parses an address carrying a port has not been tested here.
+# Ref: https://learn.microsoft.com/en-us/azure/application-gateway/how-application-gateway-works
+#
+# Both variables below are named WITHOUT the dollar-brace form on purpose: envsubst does not
+# know a line is a comment, so writing them that way would substitute the VALUE into this
+# documentation at render time. Harmless for a hostname like BASE_DOMAIN above, not harmless
+# for a value that carries directives and semicolons -- and a value containing a newline
+# would escape the comment entirely and become live configuration.
+#
+# TRUSTED_PROXY_SET_REAL_IP_FROM is EMPTY on the LAN and carries one or more
+# complete directives on a cloud deployment, for example:
+#   TRUSTED_PROXY_SET_REAL_IP_FROM="set_real_ip_from 10.0.0.0/16; set_real_ip_from 10.1.0.0/16;"
+# Whole directives rather than bare addresses because envsubst cannot emit a line
+# conditionally, and "set_real_ip_from ;" is a syntax error that would stop the proxy
+# booting. Compose always DEFINES the variable (empty by default) -- an undefined one
+# would be left as a literal ${...} and fail the same way.
+#
+# Trust only the balancer's own range. Widening it to a range the balancer does not
+# own would let anything in that range set its own $remote_addr, which is exactly the
+# spoofing this control exists to prevent.
+real_ip_header X-Forwarded-For;
+${TRUSTED_PROXY_SET_REAL_IP_FROM}
+${TRUSTED_PROXY_REAL_IP_RECURSIVE}
+
+# WebSocket upgrade passthrough (ABP SignalR notification hub).
+# Access log WITHOUT the query string or the referer (B10).
+#
+# The stock nginx.conf logs format `main`, whose $request carries the query string and whose
+# $http_referer carries the previous page's full URL. Query strings here carry patient search fields,
+# the booking lookup's email and the one-time tokens in emailed links. $uri is the path alone.
+#
+# EVERY server block below repeats `access_log ... portal_noquery;` on purpose. The stock nginx.conf
+# declares `access_log ... main` at http level; a second http-level directive would ADD a log rather
+# than replace it, and a server block with no access_log of its own silently inherits `main`.
+# tests/python/test_nginx_access_log.py fails if a block is added without the line.
+log_format portal_noquery '$remote_addr - $remote_user [$time_local] "$request_method $uri $server_protocol" $status $body_bytes_sent "$http_user_agent" "$http_x_forwarded_for" $host $request_time';
+
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+# ---------------------------------------------------------------- B5: limits and TLS
+#
+# Per-client flood ceilings (B5, D2). Coarse on purpose: nothing has measured real traffic yet
+# (docs/devops/RUNTIME-AND-DATA-PROFILE.md), and a whole clinic shares one public IP, so its staff
+# share one bucket. The app's own per-endpoint limiters stay the fine-grained control. Separate
+# zones, so a burst of API calls from a busy office never blocks sign-in. 10 MB holds about
+# 160,000 client states. $binary_remote_addr is the REAL client only once real_ip above trusts the
+# gateway; on the LAN it is the direct peer.
+limit_req_zone $binary_remote_addr zone=api_per_ip:10m rate=20r/s;
+limit_req_zone $binary_remote_addr zone=auth_per_ip:10m rate=10r/s;
+# Modest ceiling for the MinIO S3 vhost: one legitimate client (the Case Tracker) syncing documents.
+limit_req_zone $binary_remote_addr zone=minio_per_ip:10m rate=50r/s;
+
+# Credential-accepting endpoints on the AuthServer get a MUCH tighter ceiling than the generic
+# auth_per_ip zone above, which at 10 r/s allows roughly 860,000 password guesses a day per address.
+#
+# DONE WITH A MAP, NOT WITH EXTRA location BLOCKS. limit_req_zone does not count a request whose key is
+# empty, so the map yields the client address for a credential request and "" for everything else. That
+# keeps the single `location /` (and its proxy headers) intact and adds no block in which an add_header
+# would have to be repeated. The match runs on $uri, which nginx has already decoded and normalised,
+# case-insensitively (ASP.NET Core routing is case-insensitive, so /account/login reaches the same page),
+# with an optional trailing slash. Only POST is keyed: page loads, the authorize redirect and static
+# assets are never counted.
+#
+# signin_per_ip: 30 r/min, burst 30. A whole clinic signs in from ONE NAT'd public IP: 15-20 staff at 9am
+# plus a few mistyped passwords must not hit 429, and thirty quick requests pass at once. The bucket then
+# refills one every 2 s: 30 x 60 x 24 = 43,200 attempts a day per address, about 20x below the 864,000 a
+# day (10 r/s) the generic zone allowed. Per-account lockout covers guessing at one account; this zone is
+# about spraying from a single address.
+# token_per_ip: /connect/token is also the 15-minute refresh-token exchange every signed-in browser makes,
+# so it needs headroom for a whole office behind one address: 60 r/min, burst 30.
+#
+# The /api/account/ rule is a catch-all on POST so an endpoint the framework adds later is throttled by
+# default; dynamic-claims/ is the one chatty, credential-free exception and is listed first (first match wins).
+map "$request_method:$uri" $signin_throttle_key {
+    default "";
+    ~*^POST:/Account/(Login|ForgotPassword|ResetPassword|ResendVerification|Register|ConfirmUser|EmailConfirmation)/?$ $binary_remote_addr;
+    ~*^POST:/api/account/dynamic-claims/ "";
+    ~*^POST:/api/account/ $binary_remote_addr;
+}
+map "$request_method:$uri" $token_throttle_key {
+    default "";
+    ~*^POST:/connect/token/?$ $binary_remote_addr;
+}
+limit_req_zone $signin_throttle_key zone=signin_per_ip:10m rate=30r/m;
+limit_req_zone $token_throttle_key zone=token_per_ip:10m rate=60r/m;
+# 429 rather than nginx's default 503, so a refusal reads as "slow down", not "server broken".
+# Every refusal is logged at warn, so the ceilings can be tuned from real traffic after the pilot.
+limit_req_status 429;
+limit_req_log_level warn;
+
+# No nginx version in the Server header or on error pages.
+server_tokens off;
+
+# TLS (B5, D1): Mozilla "intermediate" v6.0. It keeps the ECDSA suites because acme.sh issues an
+# ECDSA (ec-256) certificate by default, and an RSA-only list shares no TLS 1.2 suite with one, so
+# every TLS 1.2 handshake would fail. TLS 1.3 suites are not governed by ssl_ciphers.
+ssl_protocols TLSv1.2 TLSv1.3;
+ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305;
+ssl_prefer_server_ciphers off;
+
+# Strict-Transport-Security is set on every named 443 server (not the catch-all refusal, not port 80:
+# a browser ignores it over plain HTTP). max-age is one day to start: raise it once every office is
+# confirmed reachable over HTTPS, and only then consider includeSubDomains. NO `preload` -- it is
+# effectively irreversible and the public DNS name is not settled. includeSubDomains is omitted on
+# purpose: every host here sends its own header, so each is protected on its own visit, and the
+# directive on the apex would bind every office subdomain at once. `add_header` does NOT inherit into a
+# location that declares its own, so the /docs/ location repeats it.
+# HTTP -> HTTPS redirect for every host.
+server {
+    access_log /var/log/nginx/access.log portal_noquery;
+    listen 80 default_server;
+    server_name _;
+    return 301 https://$host$request_uri;
+}
+
+# Catch-all for 443: refuse any Host that matches none of the named server blocks below.
+#
+# Without this, no 443 block carries `default_server`, so nginx falls back to the FIRST 443
+# block in the file -- the AuthServer -- and every unmatched hostname reaches it. That is
+# reconnaissance surface once the app is public.
+#
+# `server_name _` is not special syntax; `_` is simply a name no real Host can equal. The
+# `default_server` flag is what makes this block the fallback, and nginx selects server blocks
+# by NAME SPECIFICITY rather than file order (exact name, then longest `*.` wildcard, then
+# suffix wildcard, then regex, and only then the default). So this block matches ONLY unmatched
+# hosts and its POSITION HERE IS COSMETIC -- it sits first so a reader meets the fallback before
+# the named blocks. Do not "fix" it by moving it.
+#
+# 421 rather than 444 (drop): HTTP/2 is on for every block below and one certificate covers
+# several of these names, so a browser may coalesce connections across them. 421 is the RFC 9110
+# signal telling such a client to retry on a fresh connection; 444 would give it an
+# uninterpretable reset. 444 buys little concealment anyway -- port 80 already answers every
+# host, and the TLS handshake announces the certificate's names before Host is ever read.
+#
+# The ssl_ directives are REQUIRED, not decorative: on 443 the handshake completes before Host
+# is read, so this block serves the certificate whenever SNI is absent or unmatched. Without
+# them the handshake cannot complete.
+server {
+    access_log /var/log/nginx/access.log portal_noquery;
+    listen 443 ssl default_server;
+    http2 on;
+    server_name _;
+
+    ssl_certificate     /etc/nginx/certs/wildcard.crt;
+    ssl_certificate_key /etc/nginx/certs/wildcard.key;
+
+    return 421;
+}
+
+# {office}.auth.<domain> -> AuthServer (OpenIddict + Razor identity UI).
+server {
+    access_log /var/log/nginx/access.log portal_noquery;
+    listen 443 ssl;
+    http2 on;
+    server_name *.auth.${BASE_DOMAIN};
+    # HSTS: see the block comment above the first server.
+    add_header Strict-Transport-Security "max-age=86400" always;
+    # B5: per-client ceiling on sign-in traffic (zone defined at the top).
+    limit_req zone=auth_per_ip burst=50 nodelay;
+    # Tighter dedicated ceilings for credential and token requests (keys defined at the top).
+    limit_req zone=signin_per_ip burst=30 nodelay;
+    limit_req zone=token_per_ip burst=30 nodelay;
+
+    ssl_certificate     /etc/nginx/certs/wildcard.crt;
+    ssl_certificate_key /etc/nginx/certs/wildcard.key;
+
+    # Uploads (profile/document flows) up to the API's 12 MB framework cap + margin.
+    client_max_body_size 15m;
+
+    location / {
+        proxy_pass http://authserver:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host  $host;
+        proxy_set_header Upgrade           $http_upgrade;
+        proxy_set_header Connection        $connection_upgrade;
+    }
+}
+
+# {office}.api.<domain> -> HttpApi.Host.
+server {
+    access_log /var/log/nginx/access.log portal_noquery;
+    listen 443 ssl;
+    http2 on;
+    server_name *.api.${BASE_DOMAIN};
+    # HSTS: see the block comment above the first server.
+    add_header Strict-Transport-Security "max-age=86400" always;
+    # B5: per-client ceiling on API traffic (zone defined at the top).
+    limit_req zone=api_per_ip burst=200 nodelay;
+
+    ssl_certificate     /etc/nginx/certs/wildcard.crt;
+    ssl_certificate_key /etc/nginx/certs/wildcard.key;
+
+    client_max_body_size 15m;
+
+    location / {
+        proxy_pass http://api:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host  $host;
+        proxy_set_header Upgrade           $http_upgrade;
+        proxy_set_header Connection        $connection_upgrade;
+    }
+}
+
+# api.<domain> and auth.<domain> WITHOUT an office label -> a JSON 404 from the proxy itself.
+#
+# #921, raised by the Case Tracker side 2026-09-16 after it caught them. `*.api.${BASE_DOMAIN}`
+# needs a label in FRONT of `api`, so it matches falkinstein.api.<domain> but NOT the bare
+# api.<domain>. The bare name therefore fell through to `*.${BASE_DOMAIN}` below -- an nginx
+# wildcard spans several labels -- and the Angular container answered 200 with an HTML page.
+# A JSON client reads that as an unexplained parse failure. `auth.<domain>` had the same hole.
+#
+# An EXACT server_name outranks every wildcard whatever the file order, the same technique
+# minio.${BASE_DOMAIN} uses below.
+#
+# WHY WE ANSWER HERE RATHER THAN PROXYING TO THE API. The API's resolver chain is two
+# contributors and the domain one extracts NO slug from a bare api.<domain> -- the host is
+# shorter than the ".api.<domain>" suffix it must end with -- so an unauthenticated request
+# would run in HOST context. That would make this an undocumented second alias for the admin
+# surface, reached by slug extraction failing rather than by the reserved-slug rule that puts
+# admin.api.<domain> there on purpose.
+#
+# WHY 404 AND NOT THE 421 ABOVE. 421 means "retry on a different connection" (RFC 9110), so a
+# client that honours it retries a hostname that will never work. The 421 above answers a
+# different question (HTTP/2 coalescing across one shared certificate) and stays as it is.
+#
+# default_type, NOT `add_header Content-Type`: nginx takes the type of a `return` body from
+# default_type, and add_header is dropped on 4xx anyway unless marked `always`. Keep this block
+# free of `location` sections for the same reason -- an inner add_header discards inherited ones.
+#
+# `missing_office_label` is a marker a check can grep for. A 404 alone cannot tell "the proxy
+# refused" from "the API has no such route", which is how a check comes back green having proved
+# nothing. The body names the correct hostname shape; that discloses nothing new, because the
+# certificate announces *.api.<domain> and *.auth.<domain> during the handshake, before Host is
+# read -- the same reasoning the 421 block records.
+#
+# SIDE EFFECT, exactly as for minio: `api` and `auth` become RESERVED office slugs.
+server {
+    access_log /var/log/nginx/access.log portal_noquery;
+    listen 443 ssl;
+    http2 on;
+    server_name api.${BASE_DOMAIN} auth.${BASE_DOMAIN};
+    # HSTS: see the block comment above the first server.
+    add_header Strict-Transport-Security "max-age=86400" always;
+
+    ssl_certificate     /etc/nginx/certs/wildcard.crt;
+    ssl_certificate_key /etc/nginx/certs/wildcard.key;
+
+    default_type application/json;
+    return 404 '{"error":{"code":"missing_office_label","message":"This hostname needs an office label: use <office>.api.${BASE_DOMAIN} or <office>.auth.${BASE_DOMAIN}."}}';
+}
+
+# health.<domain> -> the API's /health-status, and nothing else.
+#
+# The load balancer's health probe asks for health.<domain>. Without this block that name matches
+# `*.${BASE_DOMAIN}` below, so the probe would measure the Angular container instead of the API.
+#
+# The upstream Host is pinned to admin.api.<domain>, so the API resolves the request to host context
+# ON PURPOSE, through the reserved admin slug. Forwarding health.<domain> itself would reach host
+# context only by the domain resolver failing to extract a slug, which is the accident the api/auth
+# block above exists to prevent.
+#
+# Every other path gets a JSON 404 whose `health_probe_only` code a check can grep for, the same
+# reasoning as `missing_office_label` above. `health` becomes a RESERVED office slug.
+server {
+    access_log /var/log/nginx/access.log portal_noquery;
+    listen 443 ssl;
+    http2 on;
+    server_name health.${BASE_DOMAIN};
+    # HSTS: see the block comment above the first server.
+    add_header Strict-Transport-Security "max-age=86400" always;
+
+    ssl_certificate     /etc/nginx/certs/wildcard.crt;
+    ssl_certificate_key /etc/nginx/certs/wildcard.key;
+
+    default_type application/json;
+
+    location = /health-status {
+        proxy_pass http://api:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host              admin.api.${BASE_DOMAIN};
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location / {
+        return 404 '{"error":{"code":"health_probe_only","message":"This hostname only answers /health-status."}}';
+    }
+}
+
+# www.<domain> -> a permanent redirect to the apex.
+#
+# A separate block rather than an `if ($host ...)` inside the apex block: `if` in nginx
+# server/location context has well-known surprises. `www` becomes a RESERVED office slug.
+server {
+    access_log /var/log/nginx/access.log portal_noquery;
+    listen 443 ssl;
+    http2 on;
+    server_name www.${BASE_DOMAIN};
+    # HSTS: see the block comment above the first server.
+    add_header Strict-Transport-Security "max-age=86400" always;
+
+    ssl_certificate     /etc/nginx/certs/wildcard.crt;
+    ssl_certificate_key /etc/nginx/certs/wildcard.key;
+
+    return 301 https://${BASE_DOMAIN}$request_uri;
+}
+
+# <domain> (the apex) -> one static explanation page served by the proxy itself.
+#
+# Without this block the apex matches no name (`*.${BASE_DOMAIN}` never matches the bare domain) and
+# falls to the 421 catch-all. The page names no office and makes no upstream request. The file is
+# mounted read-only from docker/nginx-proxy/apex/ by docker-compose.prod.yml.
+server {
+    access_log /var/log/nginx/access.log portal_noquery;
+    listen 443 ssl;
+    http2 on;
+    server_name ${BASE_DOMAIN};
+    # HSTS: see the block comment above the first server.
+    add_header Strict-Transport-Security "max-age=86400" always;
+
+    ssl_certificate     /etc/nginx/certs/wildcard.crt;
+    ssl_certificate_key /etc/nginx/certs/wildcard.key;
+
+    root /usr/share/nginx/apex;
+    default_type text/html;
+    add_header X-Content-Type-Options nosniff always;
+    add_header Content-Security-Policy "default-src 'none'; style-src 'unsafe-inline'" always;
+
+    location / {
+        try_files /index.html =404;
+    }
+
+    # /docs/ -> the documentation site: static files built by scripts/hosting/build-docs-site.sh into
+    # docker/nginx-proxy/docs-site/ and mounted read-only by docker-compose.prod.yml. No login: the ONLY
+    # protection is the address allow-list below (DOCS_ALLOW_DIRECTIVES), same mechanism as the minio
+    # vhost. Compose always defines it and defaults it to the RFC1918 private ranges (loopback is allowed
+    # here), so the on-prem server is unchanged; an internet-facing deployment must set it to the office
+    # egress address(es) only, or to `deny all;` to publish it to no one. The `deny all;` after it makes a
+    # value with no allow line fail closed; an EMPTY value never reaches this file, because the compose
+    # default replaces it with the private ranges. The apex page above stays public: it names no office
+    # and says nothing about the system.
+    #
+    # A bare /docs would otherwise match `location /` above and answer 200 with the apex page.
+    location = /docs {
+        allow 127.0.0.1;
+        allow ::1;
+        ${DOCS_ALLOW_DIRECTIVES}
+        deny all;
+        absolute_redirect off;
+        return 301 /docs/;
+    }
+
+    # BOTH headers are re-declared here: an add_header inside a location discards every add_header it
+    # would otherwise inherit from the server block (the same trap noted above the api/auth 404 block).
+    # The apex page keeps its own, stricter policy.
+    #
+    # 'unsafe-inline' is needed for scripts because one of the theme's inline bootstrap scripts differs
+    # by page depth, so a hash list cannot cover it; styles need it for inline style attributes. The site
+    # is static, built from this repository, and takes no input except client-side search. Everything it
+    # loads is same-origin: the privacy plugin in mkdocs.yml downloads fonts and the diagram library at
+    # build time. The theme's repository-stats call to api.github.com is blocked by connect-src on
+    # purpose, which leaves that badge empty.
+    location /docs/ {
+        allow 127.0.0.1;
+        allow ::1;
+        ${DOCS_ALLOW_DIRECTIVES}
+        deny all;
+        add_header Strict-Transport-Security "max-age=86400" always;
+        root /usr/share/nginx;
+        default_type application/octet-stream;
+        absolute_redirect off;
+        try_files $uri $uri/ =404;
+        error_page 404 /docs/404.html;
+        add_header X-Content-Type-Options nosniff always;
+        add_header Content-Security-Policy "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" always;
+    }
+}
+
+# minio.<domain> -> MinIO S3 API (Case Tracker document exchange, 2026-08-13).
+#
+# An EXACT server_name, not a wildcard: nginx ranks exact names above every
+# wildcard, so this wins over `*.${BASE_DOMAIN}` below -- which would otherwise
+# serve S3 requests from the Angular container. The side effect is that `minio`
+# becomes a RESERVED office slug, like `admin`.
+#
+# MinIO is NOT published to the host. The proxy reaches it on the compose network,
+# so the only way in stays 443 here. MinIO's own credentials are NOT the only gate: this vhost is
+# restricted to an address allow-list, because the only legitimate callers are the Case Tracker and
+# operators on the private network.
+#
+# MINIO_ALLOW_DIRECTIVES carries COMPLETE allow directives, for the same reason as the trusted-proxy
+# variables at the top (envsubst cannot emit a line per list item). Compose always defines it, and
+# defaults it to the RFC1918 private ranges, so the on-prem server keeps working without any new key in
+# its env file. A deployment reachable from the internet must replace it. The Azure VM sets `deny all;`:
+# the Case Tracker reaches this vhost through Azure Relay instead (docs/integration/case-tracker-relay.md),
+# whose listener runs in this container's network namespace and so arrives from 127.0.0.1, which the
+# server block below always allows. Without Relay, list the Case Tracker egress address(es) where they
+# are fixed; `allow all;` is the last resort, leaving the scoped MinIO credential and the rate limit
+# below as the only protection. The `deny all;` after it makes a value with no allow line fail closed;
+# an EMPTY value never reaches this file, because the compose default replaces it with the private
+# ranges. Named without the dollar-brace form in this comment so envsubst does not expand it here.
+#
+# Addressing is PATH-STYLE (bucket in the path). Virtual-host addressing would put
+# the bucket in the hostname, and the wildcard certificate covers a single label
+# only, so `case-tracker-documents.minio.<domain>` would fail TLS.
+server {
+    access_log /var/log/nginx/access.log portal_noquery;
+    listen 443 ssl;
+    http2 on;
+    server_name minio.${BASE_DOMAIN};
+    # HSTS: see the block comment above the first server.
+    add_header Strict-Transport-Security "max-age=86400" always;
+
+    ssl_certificate     /etc/nginx/certs/wildcard.crt;
+    ssl_certificate_key /etc/nginx/certs/wildcard.key;
+
+    allow 127.0.0.1;
+    allow ::1;
+    ${MINIO_ALLOW_DIRECTIVES}
+    deny all;
+    limit_req zone=minio_per_ip burst=200 nodelay;
+
+    # Objects, not form posts: medical records exceed the 15m used by the app vhosts (the app's own
+    # upload cap is 10 MB; the Case Tracker's document sizes are not documented). 100m is a generous
+    # explicit bound, replacing the former unlimited 0, so one request cannot stream without limit.
+    client_max_body_size 100m;
+
+    # Stream both directions. Without these nginx spools whole objects to disk
+    # before forwarding, which stalls large uploads and doubles disk churn.
+    proxy_request_buffering off;
+    proxy_buffering         off;
+
+    # Large objects over a LAN still beat the 60s default on a slow scan.
+    proxy_connect_timeout 30s;
+    proxy_send_timeout    300s;
+    proxy_read_timeout    300s;
+
+    location / {
+        # Re-resolve the upstream instead of caching its IP at worker start.
+        # A backend rebuild moves container IPs and has silently broken routing
+        # here twice; the variable form forces a lookup per request. Docker's
+        # embedded DNS is 127.0.0.11. Deliberately NO URI part after the
+        # variable: nginx then forwards the client's original request URI
+        # unchanged, which S3 signature v4 requires -- it signs the path.
+        resolver 127.0.0.11 valid=10s;
+        set $minio_upstream http://minio:9000;
+        proxy_pass $minio_upstream;
+
+        proxy_http_version 1.1;
+        # Signature v4 signs the Host header. Rewriting it produces signature
+        # mismatches that read as bad credentials. $http_host, NOT $host: $host drops the port, so a client that
+        # reached this vhost on any port other than 443 -- e.g. through a local Azure Relay forwarder -- signed
+        # "minio.<base>:<port>" and MinIO would check "minio.<base>". Measured 2026-10-13 with real nginx and MinIO:
+        # $host gave SignatureDoesNotMatch, $http_host a 200. For a client on 443 the two are identical.
+        proxy_set_header Host              $http_host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+# {office}.<domain> -> Angular SPA (least specific; api/auth win by specificity).
+server {
+    access_log /var/log/nginx/access.log portal_noquery;
+    listen 443 ssl;
+    http2 on;
+    server_name *.${BASE_DOMAIN};
+    # HSTS: see the block comment above the first server.
+    add_header Strict-Transport-Security "max-age=86400" always;
+
+    ssl_certificate     /etc/nginx/certs/wildcard.crt;
+    ssl_certificate_key /etc/nginx/certs/wildcard.key;
+
+    client_max_body_size 15m;
+
+    # CSP, ENFORCED. The static headers (nosniff, X-Frame-Options, Referrer-Policy,
+    # Permissions-Policy) are set by angular/nginx.conf and pass through proxy_pass; this one lives here
+    # because only the proxy knows ${BASE_DOMAIN}, the origin of the per-office API and AuthServer.
+    # Declared at server level and safe: this block has no location of its own that adds a header.
+    # No report-uri: that would be a new public endpoint. Measured against the built SPA, 2026-10-05:
+    #   script-src 'self'          the production build emits NO inline handlers and no inline script
+    #                              (angular.json sets styles.inlineCritical=false so stylesheets are
+    #                              plain <link>s, not media=print + onload). Do not re-enable it.
+    #   style-src 'unsafe-inline'  index.html carries an inline <style> (page loader) and the Google
+    #                              Fonts stylesheet; a nonce/hash needs a build step.
+    #   no unsafe-eval             @rxweb/reactive-form-validators calls new Function() only for
+    #                              string-expression validators; nothing observed needs it. If a page
+    #                              reports a CSP eval violation, fix the page, do not widen the policy.
+    #   frame-ancestors            enforced now, alongside X-Frame-Options DENY.
+    #   img-src *.api              2026-10-12: the header shows the office logo as a plain <img> from
+    #                              {office}.api.<base>/api/app/branding/logo. Without this the enforced
+    #                              policy refused it (measured in Chrome against the live logo), so no
+    #                              uploaded logo could appear in the header. Same origins as connect-src.
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://*.api.${BASE_DOMAIN}; connect-src 'self' https://*.api.${BASE_DOMAIN} https://*.auth.${BASE_DOMAIN} https://us-street.api.smarty.com https://us-autocomplete-pro.api.smarty.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" always;
+
+    location / {
+        proxy_pass http://angular:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}

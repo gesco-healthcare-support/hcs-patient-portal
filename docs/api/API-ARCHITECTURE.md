@@ -1,8 +1,10 @@
 # API Architecture
 
-[Home](../INDEX.md) > [API](./) > API Architecture
+> Purpose: Documents the HttpApi controller pattern, Swagger/CORS/health-check configuration, and request pipeline for the HCS Patient Portal API. Audience: backend developers.
 
-**Related:** [Endpoints Reference](ENDPOINTS-REFERENCE.md) | [Authentication Flow](AUTHENTICATION-FLOW.md) | [Middleware & Pipeline](MIDDLEWARE-AND-PIPELINE.md) | [Application Services](../backend/APPLICATION-SERVICES.md)
+[Home](../index.md) > [API](./) > API Architecture
+
+**Related:** [Endpoints Reference](API-ARCHITECTURE.md) | [Authentication Flow](AUTHENTICATION-FLOW.md) | [Middleware & Pipeline](MIDDLEWARE-AND-PIPELINE.md) | [Application Services](../backend/APPLICATION-SERVICES.md)
 
 ---
 
@@ -67,7 +69,7 @@ Swagger is configured in `CaseEvaluationHttpApiHostModule.ConfigureSwagger()` vi
 
 - **Doc:** `v1` with title "CaseEvaluation API"
 - **OIDC integration:** Uses `AddAbpSwaggerGenWithOidc` to enable OAuth2 authorization code flow in Swagger UI
-- **Authority:** `AuthServer:Authority` (https://localhost:44368)
+- **Authority:** `AuthServer:Authority` (<https://localhost:44368>)
 - **Scopes:** `["CaseEvaluation"]`
 - **Swagger client:** `CaseEvaluation_Swagger` (configured via `AuthServer:SwaggerClientId` in appsettings.json)
 - **Schema IDs:** Uses `type.FullName` for custom schema IDs to avoid naming collisions
@@ -82,6 +84,7 @@ CORS is configured from `App:CorsOrigins` in `appsettings.json`:
 ```
 
 The configuration:
+
 - Splits origins by comma
 - Trims whitespace and trailing slashes
 - Allows wildcard subdomains (`SetIsOriginAllowedToAllowWildcardSubdomains`)
@@ -93,8 +96,10 @@ In development, this permits the Angular app on `http://localhost:4200` and the 
 
 ## Health Checks
 
-- **Endpoint:** `/health-status` (configured via `App:HealthCheckUrl`)
-- **Health UI:** `/health-ui` with API at `/health-api`
+- **Endpoint:** `/health-status`, a fixed path and open to anyone (the reverse proxy's probe).
+  `App:HealthCheckUrl` and `App:HealthUiCheckUrl` only tell the health UI which URL to poll
+- **Health UI:** `/health-ui` with API at `/health-api`. Outside Development both require a signed-in host user
+  holding `CaseEvaluation.BackgroundJobsDashboard`; see [Background Jobs](../devops/BACKGROUND-JOBS.md#hangfire-itself)
 - **Database check:** `CaseEvaluationDatabaseCheck` queries `IIdentityRoleRepository.GetListAsync(maxResultCount: 1)` to verify DB connectivity
 - **Storage:** In-memory storage for health check UI data
 - **Response format:** Uses `UIResponseWriter.WriteHealthCheckUIResponse` for structured JSON output
@@ -157,6 +162,10 @@ sequenceDiagram
 ```
 
 ### Controller Layer Component Diagram
+
+A selection, not the full set. List every controller with
+`git ls-files 'src/*Controller.cs'`; the Case Tracker integration controllers live separately, in
+`src/HealthcareSupport.CaseEvaluation.HttpApi.Host/Controllers/Integration/`.
 
 ```mermaid
 graph TD

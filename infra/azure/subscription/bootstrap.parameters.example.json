@@ -1,0 +1,33 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "_comment": [
+    "COPY THIS to bootstrap.parameters.json (gitignored) and run as a subscription Owner. See infra/azure/README.md, 'CI'.",
+    "",
+    "githubSubjectPrefix: the default is the IMMUTABLE subject form. Opt the repository into immutable subject claims",
+    "BEFORE the first run, or set the legacy prefix repo:gesco-healthcare-support/hcs-patient-portal instead.",
+    "",
+    "appDeployTargets: leave both names empty for PHASE 1. After the infrastructure deploy's phase 1 has created the",
+    "registry and the VM, fill them in from its outputs (registryLoginServer without the domain, hostName) and run again."
+  ],
+  "parameters": {
+    "location": {
+      "value": "westus2"
+    },
+    "envName": {
+      "value": "pilot"
+    },
+    "githubSubjectPrefix": {
+      "value": "repo:gesco-healthcare-support@274625791/hcs-patient-portal@1205316583"
+    },
+    "whatIfScope": {
+      "value": "resourceGroup"
+    },
+    "appDeployTargets": {
+      "value": {
+        "registryName": "",
+        "vmName": ""
+      }
+    }
+  }
+}

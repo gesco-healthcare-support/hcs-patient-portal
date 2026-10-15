@@ -46,7 +46,10 @@ public class AppointmentStatusesAppService : CaseEvaluationAppService, IAppointm
     [Authorize(CaseEvaluationPermissions.AppointmentStatuses.Delete)]
     public virtual async Task DeleteAsync(Guid id)
     {
-        await _appointmentStatusRepository.DeleteAsync(id);
+        // Route through the manager so the system-row guard applies. There is
+        // no in-use guard (the status lookup is not FK-referenced; appointments
+        // use the AppointmentStatusType enum), so UsageCount stays null.
+        await _appointmentStatusManager.DeleteAsync(id);
     }
 
     [Authorize(CaseEvaluationPermissions.AppointmentStatuses.Create)]
@@ -66,7 +69,12 @@ public class AppointmentStatusesAppService : CaseEvaluationAppService, IAppointm
     [Authorize(CaseEvaluationPermissions.AppointmentStatuses.Delete)]
     public virtual async Task DeleteByIdsAsync(List<Guid> appointmentstatusIds)
     {
-        await _appointmentStatusRepository.DeleteManyAsync(appointmentstatusIds);
+        // Route through the manager (not raw DeleteManyAsync) so the system-row
+        // guard applies to the bulk path too.
+        foreach (var id in appointmentstatusIds)
+        {
+            await _appointmentStatusManager.DeleteAsync(id);
+        }
     }
 
     [Authorize(CaseEvaluationPermissions.AppointmentStatuses.Delete)]

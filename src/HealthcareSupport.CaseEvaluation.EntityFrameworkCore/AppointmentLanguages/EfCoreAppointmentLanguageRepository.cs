@@ -32,6 +32,6 @@ public class EfCoreAppointmentLanguageRepository : EfCoreRepository<CaseEvaluati
 
     protected virtual IQueryable<AppointmentLanguage> ApplyFilter(IQueryable<AppointmentLanguage> query, string? filterText = null)
     {
-        return query.WhereIf(!string.IsNullOrWhiteSpace(filterText), e => e.Name!.Contains(filterText!));
+        return query.WhereIf(!string.IsNullOrWhiteSpace(filterText), e => e.Name.Contains(filterText!));
     }
 }

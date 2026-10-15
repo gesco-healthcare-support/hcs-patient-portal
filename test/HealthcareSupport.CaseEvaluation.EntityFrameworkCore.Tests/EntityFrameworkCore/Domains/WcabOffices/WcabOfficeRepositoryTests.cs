@@ -7,13 +7,13 @@ using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.WcabOffices;
 
-[Collection(CaseEvaluationTestConsts.CollectionDefinitionName)]
 public class WcabOfficeRepositoryTests : CaseEvaluationEntityFrameworkCoreTestBase
 {
     private readonly IWcabOfficeRepository _officeRepository;
 
     public WcabOfficeRepositoryTests()
     {
+        UseAmbientTenant(TenantsTestData.TenantARef);
         _officeRepository = GetRequiredService<IWcabOfficeRepository>();
     }
 

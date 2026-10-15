@@ -1,0 +1,7 @@
+using HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
+
+namespace HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
+
+public class EfCoreAppointmentInjuryDetailsAppServiceTests : AppointmentInjuryDetailsAppServiceTests<CaseEvaluationEntityFrameworkCoreTestModule>
+{
+}

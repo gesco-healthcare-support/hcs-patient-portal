@@ -24,7 +24,7 @@ try
         Write-Host "Publishing Dotnet Project: ${projectFileName}" -ForegroundColor Green -BackgroundColor Black
         dotnet publish -c Release
 
-        if (-Not $?) {
+        if (-not $?) {
             Write-Error "Publishing Dotnet Project failed: $projectFileName"
             exit $LASTEXITCODE
         }
@@ -43,7 +43,7 @@ try
     $localDevFilePath = Join-Path $PSScriptRoot "caseevaluation/values.localdev.yaml"
 
     # If the values.localdev.yaml file does not exist, create it first
-    if (!(Test-Path $localDevFilePath)) {
+    if (-not (Test-Path $localDevFilePath)) {
         New-Item -ItemType File -Path $localDevFilePath | Out-Null
     }
 

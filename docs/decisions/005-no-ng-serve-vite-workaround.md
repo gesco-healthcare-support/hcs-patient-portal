@@ -1,6 +1,8 @@
 # ADR-005: Static Serve Workaround for Angular 20 Vite Bug
 
-**Status:** Accepted
+**Status:** Accepted (re-validated 2026-06-22: still in force -- ABP is pinned at
+10.0.2, so the "revisit at ABP 10.1+" trigger below has not been reached; re-check
+whether `ng serve` works when ABP is next bumped to 10.1+.)
 **Date:** 2026-04-10
 **Verified by:** code-inspect
 
@@ -17,7 +19,7 @@ across chunks, two separate copies of `CORE_OPTIONS` are created. Angular's depe
 injection uses `===` (reference identity) to match tokens. Since the two copies are
 different object references, the DI container cannot find the provider, resulting in:
 
-```
+```text
 NullInjectorError: No provider for CORE_OPTIONS
 ```
 
@@ -25,6 +27,7 @@ This error occurs only with `ng serve` (Vite dev server). The `ng build` command
 esbuild directly and does not exhibit this chunk-splitting behavior.
 
 The `angular.json` in this project confirms the builder configuration:
+
 - Build: `@angular/build:application` (esbuild)
 - Serve: `@angular/build:dev-server` (Vite)
 
@@ -44,11 +47,13 @@ and serves it with a static file server on port 4200.
 ## Consequences
 
 **Easier:**
+
 - Eliminates the `NullInjectorError: CORE_OPTIONS` crash entirely
 - Build output matches what will be deployed (no dev-server-only behaviors)
 - Works reliably with all ABP Angular packages
 
 **Harder:**
+
 - No hot module replacement (HMR) -- every change requires a full rebuild
 - Rebuild cycle is slower than Vite's near-instant HMR (typically 15-30 seconds for
   a development build vs. sub-second Vite updates)

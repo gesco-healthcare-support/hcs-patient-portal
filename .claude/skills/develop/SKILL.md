@@ -39,6 +39,7 @@ Chains plan-feature, implementation, testing, documentation, and shipping phases
    - Route create/update through the DomainManager if one exists for the feature
    - Never edit `angular/src/app/proxy/` — run `abp generate-proxy` instead
    - If EF Core entity changes were made, create a migration:
+
      ```bash
      dotnet ef migrations add <MigrationName> \
        --project src/HealthcareSupport.CaseEvaluation.EntityFrameworkCore \
@@ -46,7 +47,8 @@ Chains plan-feature, implementation, testing, documentation, and shipping phases
      ```
 
 6. Print summary of files changed:
-   ```
+
+   ```text
    Implementation complete:
      Files created: [list]
      Files modified: [list]
@@ -58,6 +60,7 @@ Chains plan-feature, implementation, testing, documentation, and shipping phases
 ## Gate 2 — TESTING
 
 7. Run the project's tests:
+
    ```bash
    dotnet test
    ```
@@ -68,7 +71,8 @@ Chains plan-feature, implementation, testing, documentation, and shipping phases
    - If still failing after 2 attempts: stop and report the failures to the user
 
 9. Print test results:
-   ```
+
+   ```text
    Test results:
      Total: [N]
      Passed: [N]
@@ -89,7 +93,8 @@ Chains plan-feature, implementation, testing, documentation, and shipping phases
     - This regenerates CLAUDE.md, syncs to docs/, verifies accuracy, and syncs to vault
 
 12. Print documentation summary:
-    ```
+
+    ```text
     Documentation updated:
       CLAUDE.md regenerated: [list features]
       docs/ synced: [list features]
@@ -103,7 +108,8 @@ Chains plan-feature, implementation, testing, documentation, and shipping phases
 **Only if the plan flagged `HIPAA_IMPACT: HIGH`:**
 
 13. Print HIPAA review prompt:
-    ```
+
+    ```text
     This change touches PHI-related code. Please confirm:
     
     - [ ] Code changes reviewed for PHI exposure
@@ -128,7 +134,8 @@ Chains plan-feature, implementation, testing, documentation, and shipping phases
     - Stage all relevant files (source code, migrations, docs)
     - Do NOT stage `appsettings.secrets.json` or `.env` files
     - Create a commit with a descriptive message following the project's commit style:
-      ```
+
+      ```text
       [feature/fix/refactor]: [short description]
       
       [longer description of what changed and why]
@@ -138,7 +145,7 @@ Chains plan-feature, implementation, testing, documentation, and shipping phases
 
 16. Ask if the user wants to create a PR:
     > "Changes committed. Create a pull request? (yes/no)"
-    
+
     If yes:
     - Push the branch
     - Create PR using `gh pr create` with summary from the plan
@@ -148,7 +155,7 @@ Chains plan-feature, implementation, testing, documentation, and shipping phases
 
 ## Final Report
 
-```
+```text
 Development complete:
   Task: {description}
   Plan: approved

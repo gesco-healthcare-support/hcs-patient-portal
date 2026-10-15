@@ -1,0 +1,122 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Microsoft.Extensions.Configuration;
+using Volo.Abp;
+
+namespace HealthcareSupport.CaseEvaluation.Hosting;
+
+/// <summary>
+/// T12 (in-house hosting, 2026-07-09) -- fail-fast startup validation of required production
+/// configuration. Called from the AuthServer + HttpApi.Host modules' ConfigureServices.
+///
+/// <para>In a non-Development environment it asserts that the secrets/config the app cannot run
+/// correctly without are present and are not still placeholder values, and throws a single
+/// <see cref="AbpException"/> listing every offending KEY. OWASP: the values are never included
+/// in the message or logged. No-op in Development, where the ABP + LocalDb defaults are used on
+/// purpose.</para>
+/// </summary>
+public static class HostingConfigValidator
+{
+    /// <summary>Tokens that mark an unfilled placeholder rather than a real value.</summary>
+    private static readonly string[] PlaceholderMarkers = { "REPLACE_ME", "CHANGE_ME", "FILL_ME" };
+
+    /// <summary>
+    /// Throws <see cref="AbpException"/> when a required production setting is missing or still a
+    /// placeholder; no-op in Development. Set <paramref name="requireSigningCertificate"/> for the
+    /// AuthServer (it needs the openiddict.pfx passphrase); leave it false for the API. Set
+    /// <paramref name="requireUploadScanner"/> for the API, which stores uploads and scans each one
+    /// with clamd first (B11); the AuthServer stores none.
+    /// </summary>
+    public static void ValidateOrThrow(
+        IConfiguration configuration,
+        bool isDevelopment,
+        bool requireSigningCertificate,
+        bool requireUploadScanner = false)
+    {
+        if (isDevelopment)
+        {
+            return;
+        }
+
+        // (key, predicate) pairs filtered via LINQ so the "any invalid?" check below reads over a
+        // materialized list. This also sidesteps Sonar S2583, whose engine cannot see a local
+        // function mutating a captured list and so wrongly reports the throw below as unreachable.
+        var checks = new List<(string Key, Func<string?, bool> IsInvalid)>
+        {
+            // A LocalDb connection string is the dev default leaking into a container -- treat it as
+            // unset even though it is technically non-blank.
+            ("ConnectionStrings:Default",
+                v => IsBlankOrPlaceholder(v) || v!.Contains("(LocalDb)", StringComparison.OrdinalIgnoreCase)),
+            ("StringEncryption:DefaultPassPhrase", IsBlankOrPlaceholder),
+            ("Redis:Configuration", IsBlankOrPlaceholder),
+            ("AuthServer:Authority", IsBlankOrPlaceholder),
+            ("App:SelfUrl", IsBlankOrPlaceholder),
+
+            // The certificate that encrypts the Data Protection key ring, needed by BOTH processes
+            // because they share one ring (CaseEvaluationKeyRing in HttpApi; the names are pinned
+            // to its constants by DataProtectionKeyRingTests). Without it the ring is stored as
+            // plain XML in Redis.
+            ("DataProtection:CertificatePath", IsBlankOrPlaceholder),
+            ("DataProtection:CertificatePassPhrase", IsBlankOrPlaceholder),
+
+            // B4 (2026-09-25): ASP.NET Core answers EVERY Host when this key is missing -- the default
+            // builder falls back to "*" (aspnetcore v10.0.0 src/DefaultBuilder/src/WebHost.cs:258-272).
+            // A bare "*" anywhere in the list, e.g. "*;localhost", disables the filter just the same.
+            // Subdomain wildcards such as "*.portal.example.com" are what production needs and stay allowed.
+            ("AllowedHosts", v => IsBlankOrPlaceholder(v) || AllowsEveryHost(v!)),
+        };
+
+        if (requireSigningCertificate)
+        {
+            checks.Add(("AuthServer:CertificatePassPhrase", IsBlankOrPlaceholder));
+        }
+
+        // B11: with no clamd host every upload is refused (the scan fails closed), so a missing value
+        // would start a stack that cannot accept a single file. Refusing to start says so up front.
+        if (requireUploadScanner)
+        {
+            checks.Add(("Clamd:Host", IsBlankOrPlaceholder));
+        }
+
+        var invalid = checks
+            .Where(check => check.IsInvalid(configuration[check.Key]))
+            .Select(check => check.Key)
+            .ToList();
+
+        if (invalid.Count > 0)
+        {
+            throw new AbpException(
+                "Production configuration is invalid. The following required settings are missing or " +
+                "still placeholder values: " + string.Join(", ", invalid) + ". Set them via environment " +
+                "variables (see env.prod.example / secrets/env.prod) before starting. The values are not " +
+                "shown here on purpose.");
+        }
+
+        // 2026-08-27: probe the timezone database at startup rather than on first use. Every
+        // human-facing timestamp is rendered in Pacific time, so a container without tzdata cannot
+        // serve correctly -- and the failure would otherwise surface as a thrown packet render or a
+        // mis-scheduled reminder hours later, far from its cause. Touching Zone runs the resolver.
+        _ = Timing.PacificTime.Zone;
+    }
+
+    /// <summary>
+    /// True when a semicolon-separated <c>AllowedHosts</c> list contains a bare <c>*</c> entry, which
+    /// turns host filtering off whatever else the list holds.
+    /// </summary>
+    private static bool AllowsEveryHost(string allowedHosts) =>
+        allowedHosts
+            .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Any(host => host == "*");
+
+    private static bool IsBlankOrPlaceholder(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return true;
+        }
+
+        return PlaceholderMarkers.Any(marker =>
+            value.Contains(marker, StringComparison.OrdinalIgnoreCase));
+    }
+}

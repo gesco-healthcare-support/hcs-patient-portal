@@ -1,281 +1,122 @@
 # Appointment Booking Flow
 
-[Home](../INDEX.md) > [Frontend](./) > Appointment Booking Flow
+> Purpose: Documents the booking wizard: its steps, booking modes, slot picking, drafts, and the single
+> submit call. Audience: frontend developers.
+
+[Home](../index.md) > [Frontend](./) > Appointment Booking Flow
 
 ## Overview
 
-The `AppointmentAddComponent` is the most complex Angular component in the application. It is a standalone, multi-section form that handles the complete appointment booking workflow including patient lookup/creation, cascading dropdown selections, date/time slot picking, authorized user management, and multi-step API calls on save.
+Every booking -- by a patient, an attorney, a claim examiner or office staff -- goes through one page:
+**`/appointments/request`**, which loads `AppointmentWizardComponent`
+(`angular/src/app/appointments/wizard/appointment-wizard.component.ts`). External users reach a chrome-less
+copy of the route and staff reach a copy inside the internal shell; the component is the same (see
+[Routing & Navigation](ROUTING-AND-NAVIGATION.md)). `/appointments/add` no longer exists.
 
-**Source:** `angular/src/app/appointments/appointment-add.component.ts`
-**Route:** `/appointments/add` (protected by `authGuard` only -- no permission required)
+The wizard is split across two classes:
 
-## Component Architecture
+| Class | Holds |
+|-------|-------|
+| `AppointmentAddComponent` (`appointments/appointment-add.component.ts`) | The reactive form, every cascade and lookup, the booking modes, the pre-submit checks and the submit call. No route loads it directly any more; it survives as the base class. |
+| `AppointmentWizardComponent` (extends it) | The stepper, the header and footer, per-step validation, draft save and resume, the leave prompt, and the review step. |
 
-```typescript
-@Component({
-  selector: 'app-appointment-add',
-  standalone: true,
-  imports: [
-    CommonModule, FormsModule, ReactiveFormsModule,
-    NgxDatatableModule, LocalizationPipe, TopHeaderNavbarComponent,
-    LookupSelectComponent, NgxValidateCoreModule,
-    NgbDatepickerModule, NgbNavModule,
-  ],
-  providers: [
-    ListService, AppointmentViewService,
-    { provide: NgbDateAdapter, useClass: DateAdapter },
-    { provide: NgbTimeAdapter, useClass: TimeAdapter },
-  ],
-})
-export class AppointmentAddComponent { ... }
-```
+The section components under `appointments/sections/` render controls only: they receive the parent's
+`FormGroup` (or a slice of its state) as inputs, and no form building or HTTP calls live in them.
 
-Key injected services: `FormBuilder`, `Router`, `ConfigStateService`, `RestService`.
+## Booking modes
 
-## Form Sections
+The mode comes from the query string (`AppointmentAddComponent` constructor, `shared/booking-mode.ts`):
 
-The form uses **NgbNav** (Bootstrap tab navigation) with `activeTabId` controlling the visible section:
+| URL | Mode | What happens |
+|-----|------|--------------|
+| `?type=1` (or no type) | `new` | A fresh booking. The only mode with draft save and resume. |
+| `?type=2` | `reval` | Re-evaluation: the booker looks up a prior approved appointment by confirmation number, and the form is prefilled from it. |
+| `?type=3` (optionally `&source=<confirmation number>`) | `reBook` | Book again from an earlier appointment; with `source` it loads automatically. |
+| `?mode=rerequest&source=<confirmation number>` | `reRequest` | Re-request a rejected appointment, prefilled from it. |
 
-### Tab 1: Appointment Details (`activeTabId = 'appointment'`)
+The three special modes refuse to submit until their source appointment has loaded. At submit the mode is
+sent as `BookingSubmitMode` (`Create`, `ReSubmit`, `Reval`, `ReBook`), and the server re-checks the source.
 
-| Field | Type | Validation | Notes |
-|-------|------|------------|-------|
-| Appointment Type | `LookupSelectComponent` | Required | Lookup from `/api/app/appointments/appointment-type-lookup` |
-| Panel Number | Text input | Max 50 chars | Optional |
-| Location | `LookupSelectComponent` | Required | Lookup from `/api/app/appointments/location-lookup`; triggers cascading updates |
-| Appointment Date | `NgbDatepicker` calendar | Required | Only dates with available slots are selectable |
-| Appointment Time | Dropdown | Required | Populated from available slots for selected date |
-| Due Date | Date picker | Optional | |
-| Appointment Status | Lookup | -- | Auto-set to `AppointmentStatusType.Pending` (1) on create |
-| Confirmation Number | Hidden/auto | -- | Defaults to "A"; server generates final `A00001` format |
+## Steps
 
-### Tab 2: Patient Demographics (`activeTabId = 'patient'`)
+`STEPS` in the wizard, in order:
 
-**For Patient role users:** Profile auto-loaded from `/api/app/patients/me`.
+| # | Key | Renders |
+|---|-----|---------|
+| 1 | `schedule` | `AppointmentAddScheduleComponent`: appointment type, location, panel number, and the date and time picker; the source lookup for the special modes |
+| 2 | `patient` | `AppointmentAddPatientDemographicsComponent` and `AppointmentAddEmployerDetailsComponent` |
+| 3 | `applicant` | `AppointmentAddAttorneySectionComponent` for the applicant attorney |
+| 4 | `defense` | `AppointmentAddAttorneySectionComponent` for the defense attorney |
+| 5 | `insurance` | `AppointmentAddClaimPartiesSectionComponent` with `only="insurance"` |
+| 6 | `examiner` | `AppointmentAddClaimPartiesSectionComponent` with `only="examiner"` |
+| 7 | `claim` | `AppointmentAddClaimInformationComponent`: the injury (Claim Information) list and its modal |
+| 8 | `docs` | `AppointmentAddDocumentsComponent`: documents staged for upload |
+| 9 | `review` | A read-only summary of every step, plus `AppointmentAddAuthorizedUsersComponent` (when shown) and `AppointmentAddCustomFieldsComponent` |
 
-**For Attorney role users:** Can search/select existing patient by email or create new inline. Uses `/api/app/patients/for-appointment-booking/by-email` and `/api/app/patients/for-appointment-booking/get-or-create`.
+**Continue** validates only the current step's controls (`WIZARD_STEP_CONTROLS`, via
+`wizard/step-errors.util.ts`) and lists what is missing at the top of the step. Which fields are required, and
+where that is enforced, is in [Appointment Required Fields](../appointment-required-fields.md).
 
-| Field | Type | Validation |
-|-------|------|------------|
-| First Name | Text | Required, max 50 |
-| Last Name | Text | Required, max 50 |
-| Middle Name | Text | Max 50 |
-| Email | Text (disabled for Patient role) | Required, max 50, email format |
-| Gender | Dropdown (enum) | Optional |
-| Date of Birth | Date picker | Optional (required if creating new patient as Attorney) |
-| Cell Phone | Text | Max 12 |
-| Phone Number | Text | Max 20 |
-| Phone Number Type | Dropdown (Work=28, Home=29) | Optional |
-| SSN | Text | Max 20 |
-| Street | Text | Max 255 |
-| Address | Text | Max 100 |
-| City | Text | Max 50 |
-| State | Lookup | Optional |
-| Zip Code | Text | Max 15 |
-| Appointment Language | Lookup | Optional |
-| Needs Interpreter | Checkbox | Optional |
-| Interpreter Vendor Name | Text | Max 255 |
-| Referred By | Text | Max 50 |
+## Who fills in the patient
 
-### Tab 3: Authorized Users (`activeTabId = 'authorized-users'`)
+| Booker | Patient step |
+|--------|--------------|
+| Patient | Their own profile loads from `/api/app/patients/me`; the email is read-only. |
+| Attorney, claim examiner or staff | Search for an existing patient by email (a typeahead over `/api/app/appointments/patient-lookup`), or enter a new one. For an external booker the new patient's email is required only when there is no applicant attorney. |
 
-Manages `AppointmentAccessor` records -- other users who can access this appointment.
+An attorney booker's own attorney step is prefilled from their profile when it is still blank.
 
-| Feature | Detail |
-|---------|--------|
-| Add/Edit modal | `isAuthorizedUserModalOpen` controls visibility |
-| User selection | Dropdown of external users loaded from `/api/app/external-users/by-role` |
-| Access Type | View (23) or Edit (24) |
-| Storage | `appointmentAuthorizedUsers: AppointmentAuthorizedUserDraft[]` array |
-| Display | ngx-datatable showing name, email, role, access type |
+## Picking a slot
 
-### Tab 4: Employer Details (within the form)
+The date and time picker is `AvailabilityCalendarComponent` (`appointments/availability-calendar/`). Once a
+location and an appointment type are chosen, it calls `GET /api/app/doctor-availabilities/lookup`, which returns
+only slots that are open, still have room, and offer that type (see
+[Doctor Availability](../business-domain/DOCTOR-AVAILABILITY.md)).
 
-| Field | Type | Validation |
-|-------|------|------------|
-| Employer Name | Text | Max 255 |
-| Employer Occupation | Text | Max 255 |
-| Employer Phone | Text | Max 12 |
-| Employer Street | Text | Max 255 |
-| Employer City | Text | Max 255 |
-| Employer State | Lookup | Optional |
-| Employer Zip | Text | Max 10 |
+- Dates earlier than 3 days out, and later than 90 days out, cannot be picked (`leadDays`, `ceilingDays`).
+- An external booker who picks a date more than 60 days out gets a notice to contact the office instead
+  (`maxBookingDays`: 60 for external users, 90 for staff).
+- These client rules only mirror the server. `BookingPolicyValidator` is authoritative and reads the office's
+  `SystemParameter.AppointmentLeadTime`.
 
-### Applicant Attorney Section
+## Drafts
 
-| Field | Type | Validation |
-|-------|------|------------|
-| Enabled toggle | Checkbox | -- |
-| First/Last Name | Text | Max 50 each |
-| Email | Text | Max 50 |
-| Firm Name | Text | Max 50 |
-| Web Address | Text | Max 100 |
-| Phone / Fax | Text | Max 20 / 19 |
-| Address fields | Text | Various max lengths |
+For a `new` booking, the wizard saves a server draft (`AppointmentDraftService`) when the booker presses
+**Continue** and when they choose **Save** on the leave prompt. When the page opens it offers to resume the
+booker's draft, and a successful booking discards it. Leaving a partly filled new booking triggers
+`appointmentWizardCanDeactivateGuard`, which offers Save, Discard or Stay.
 
-## Cascading Dropdown Logic
+## Submit
 
-```mermaid
-flowchart TD
-    A[User selects Location] --> B[locationId valueChanges fires]
-    B --> C[updateLocationSelection<br/>isLocationSelected = true]
-    B --> D[loadAvailableDatesBySelection]
-    D --> E{locationId AND<br/>appointmentTypeId<br/>both set?}
-    E -->|No| F[Clear available dates<br/>and time slots]
-    E -->|Yes| G["GET /api/app/doctor-availabilities/available-dates<br/>?locationId=X&appointmentTypeId=Y"]
-    G --> H[Populate availableDateKeys Set<br/>and availableSlotsByDate Map]
-    H --> I[Calendar re-renders<br/>markAppointmentDateDisabled uses availableDateKeys]
+`onSubmit()` in `AppointmentAddComponent`:
 
-    J[User selects Date on Calendar] --> K[appointmentDate valueChanges fires]
-    K --> L[onAppointmentDateChanged]
-    L --> M[Look up slots from<br/>availableSlotsByDate Map]
-    M --> N[Populate appointmentTimeOptions<br/>dropdown with time+doctorAvailabilityId]
+1. **Client checks**, each of which stops the submit with a message: the source appointment has loaded (special
+   modes); a patient is chosen or the new patient's required fields are filled; the form is valid; at least one
+   Claim Information entry exists; for a Panel QME marked as having a strike list, one staged document is marked
+   as the strike list; every document labeled "Other" has a name. A second click while a submit is running is
+   ignored.
+2. **Address standardization** -- `standardizeAddressesBeforeSubmit()` offers USPS-standardized versions of the
+   entered addresses; any provider error lets the submit continue.
+3. **One call** -- `POST /api/app/appointments/submit` (`AppointmentsAppService.SubmitAsync`) with an
+   `AppointmentSubmitDto` built in `appointments/shared/submit-payload.mapper.ts`. The server resolves or creates
+   the patient, creates the appointment and writes every child group (employer, attorneys, insurance, claim
+   examiner, injuries, authorized users, custom fields) in **one transaction** (`[UnitOfWork]`), so a failure
+   leaves nothing behind.
+4. **Documents** upload afterwards, one by one, because a file upload cannot join the database transaction. A
+   failed upload is kept on the page for retry; the appointment already exists.
+5. **Staff bookings are approved** straight away: `POST /api/app/appointment-approvals/{id}/approve`, tried at
+   most twice, with a warning if it does not go through.
+6. **Navigate** -- staff to `/appointments`, external users to `/`.
 
-    O[User selects Time Slot] --> P[appointmentTime valueChanges fires]
-    P --> Q[onAppointmentTimeChanged]
-    Q --> R[Set doctorAvailabilityId<br/>in form from selected slot]
-
-    S[User selects Appointment Type] --> T[appointmentTypeId valueChanges fires]
-    T --> D
-```
-
-## 3-Day Booking Rule
-
-The component enforces a minimum booking window:
-
-```typescript
-readonly minimumBookingDays = 3;
-```
-
-- `markAppointmentDateDisabled()` returns `true` for dates within 3 days of today
-- `isBeforeMinimumBookingDate()` compares selected date against `today + 3 days`
-- `showMinimumBookingRuleWarning` getter displays a warning message when a too-early date is selected
-- Warning message: "You can book appointment after 3 days of today's date."
-
-## Calendar Behavior
-
-Uses `NgbDatepicker` from `@ng-bootstrap/ng-bootstrap`:
-
-- **Available dates** are highlighted using `isAvailableAppointmentDate()` custom day template
-- **Disabled dates** are controlled by `markAppointmentDateDisabled()`:
-  - Dates before minimum booking window (3 days)
-  - Dates with no available doctor slots
-  - All dates disabled if no appointment type is selected yet
-- **Loading state:** `isAvailableDatesLoading` shows spinner while fetching available dates from API
-
-## Save Flow
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant Component as AppointmentAddComponent
-    participant API as Backend API
-
-    User->>Component: Click Save
-    Component->>Component: Validate form
-
-    alt Attorney creating new patient
-        Component->>API: POST /api/app/patients/for-appointment-booking/get-or-create
-        API-->>Component: PatientWithNavigationPropertiesDto
-        Component->>Component: Set patientId in form
-    end
-
-    Component->>API: PUT /api/app/patients/{id} (updatePatientProfile)
-    API-->>Component: Updated patient
-
-    Component->>API: POST /api/app/appointments
-    Note right of API: payload includes:<br/>appointmentStatus: Pending(1)<br/>patientId, locationId,<br/>appointmentTypeId,<br/>doctorAvailabilityId
-    API-->>Component: Created AppointmentDto
-
-    alt Has employer details
-        Component->>API: POST /api/app/appointment-employer-details
-        API-->>Component: Created employer detail
-    end
-
-    alt Has applicant attorney
-        Component->>API: POST or PUT /api/app/applicant-attorneys<br/>(upsert with appointment link)
-        API-->>Component: Created/updated attorney
-    end
-
-    alt Has authorized users
-        loop For each authorized user
-            Component->>API: POST /api/app/appointment-accessors
-            API-->>Component: Created accessor
-        end
-    end
-
-    Component->>Component: router.navigateByUrl('/')
-```
-
-### Save Steps in Detail
-
-1. **Validate form** -- Check required fields; for Attorney users creating new patients, verify firstName, lastName, email, dateOfBirth
-2. **Create Patient** (if new, Attorney flow) -- `POST /api/app/patients/for-appointment-booking/get-or-create` with patient data; falls back to `GET /by-email` if response is empty
-3. **Update Patient Profile** -- `PUT /api/app/patients/{id}` with latest form values
-4. **Create Appointment** -- `POST /api/app/appointments` with `AppointmentCreateDto`:
-   - `appointmentStatus: AppointmentStatusType.Pending` (1)
-   - `requestConfirmationNumber: "A"` (server generates final number like A00001)
-   - Combined `appointmentDate` (date + time merged)
-   - References: `patientId`, `appointmentTypeId`, `locationId`, `doctorAvailabilityId`, `identityUserId`
-5. **Create Employer Details** (if provided) -- `POST /api/app/appointment-employer-details`
-6. **Upsert Applicant Attorney** (if provided) -- Creates or updates the applicant attorney record and links to appointment
-7. **Create Appointment Accessors** (for each authorized user) -- `POST /api/app/appointment-accessors`
-8. **Navigate home** -- `router.navigateByUrl('/')`
-
-## Form Tab Navigation
-
-```mermaid
-stateDiagram-v2
-    [*] --> Appointment: Initial load
-    Appointment --> Patient: Tab click
-    Patient --> Appointment: Tab click
-    Patient --> AuthorizedUsers: Tab click
-    AuthorizedUsers --> Patient: Tab click
-    Appointment --> AuthorizedUsers: Tab click
-    AuthorizedUsers --> Appointment: Tab click
-
-    state Appointment {
-        [*] --> SelectType
-        SelectType --> SelectLocation
-        SelectLocation --> PickDate
-        PickDate --> PickTime
-    }
-
-    state Patient {
-        [*] --> LoadProfile
-        LoadProfile --> EditDemographics
-        EditDemographics --> EditAddress
-    }
-
-    state AuthorizedUsers {
-        [*] --> ViewList
-        ViewList --> AddModal: Add User
-        AddModal --> ViewList: Save/Cancel
-        ViewList --> EditModal: Edit User
-        EditModal --> ViewList: Save/Cancel
-    }
-```
-
-## Role-Specific Behavior
-
-| Behavior | Patient Role | Attorney Role (Applicant/Defense) |
-|----------|-------------|-----------------------------------|
-| Patient loading | Auto-loads own profile via `/api/app/patients/me` | Can search by email or create new |
-| Email field | Disabled (pre-filled) | Enabled for search/entry |
-| Patient selection | Not applicable (always self) | Dropdown of existing patients + new |
-| Applicant Attorney section | Visible, editable | Auto-populated if user is Applicant Attorney |
-| `TopHeaderNavbarComponent` | Shown (external user layout) | Shown (external user layout) |
-
-## Form Validation
-
-- **Reactive Forms** with `Validators.required`, `Validators.maxLength()`, `Validators.email`
-- **ngx-validate** (`@ngx-validate/core`) for validation message rendering
-- **Custom validation:** `isFieldInvalid()` helper checks `invalid && (dirty || touched)`
-- **Cross-field:** Attorney flow requires firstName + lastName + email + dateOfBirth when creating new patient
+If the slot was taken or closed in the meantime, the server answers with
+`CaseEvaluation:Appointment.BookingSlotFull`, `BookingSlotClosed` or `BookingSlotTypeMismatch`; the page shows
+the message and clears the chosen time so the booker can pick again.
 
 ---
 
 **Related Documentation:**
+
 - [Application Services](../backend/APPLICATION-SERVICES.md)
 - [Appointment Lifecycle](../business-domain/APPOINTMENT-LIFECYCLE.md)
 - [Doctor Availability](../business-domain/DOCTOR-AVAILABILITY.md)
+- [Appointment Required Fields](../appointment-required-fields.md)

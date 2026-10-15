@@ -32,8 +32,6 @@ public class GetPatientsInput : PagedAndSortedResultRequestDto
 
     public string? ZipCode { get; set; }
 
-    public string? RefferedBy { get; set; }
-
     public string? CellPhoneNumber { get; set; }
 
     public string? Street { get; set; }
