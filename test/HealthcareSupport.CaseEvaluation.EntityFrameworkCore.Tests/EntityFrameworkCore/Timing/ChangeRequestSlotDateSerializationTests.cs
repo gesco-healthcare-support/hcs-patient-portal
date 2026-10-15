@@ -1,10 +1,6 @@
 using System.Text.Json;
 using HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
-using Microsoft.Extensions.Options;
 using Shouldly;
-using Volo.Abp.Json.SystemTextJson;
-using Volo.Abp.Json.SystemTextJson.JsonConverters;
-using Volo.Abp.Json.SystemTextJson.Modifiers;
 using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Timing;
@@ -22,12 +18,11 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Timing;
 /// Utc that stamps the bare slot date as UTC midnight. A Pacific browser then renders it as the
 /// evening before.</para>
 ///
-/// <para>WHY THE OPTIONS ARE BUILT HERE AND NOT TAKEN FROM <c>IJsonSerializer</c>. ABP's own
+/// <para>WHY <see cref="HttpApiJsonOptions"/> AND NOT <c>IJsonSerializer</c>. ABP's own
 /// serializer registers the converter with <c>SkipDateTimeNormalization()</c>, so it never adds a
 /// Z and cannot show this defect. The HTTP API is configured separately, by ABP's
-/// <c>MvcCoreBuilderExtensions.AddAbpJson</c>, WITHOUT the skip. The options below mirror that
-/// method (Web defaults, the same resolver and modifier) so this asserts what a browser
-/// receives.</para>
+/// <c>MvcCoreBuilderExtensions.AddAbpJson</c>, WITHOUT the skip, and those are the options used
+/// here. Every other DTO date is pinned in <see cref="DtoDateTimeWireTests"/>.</para>
 ///
 /// <para>The <c>CreationTime</c> assertion is the control. It carries the same Unspecified value
 /// and no exemption, so it MUST gain a Z; if it does not, these options are not running the
@@ -47,7 +42,7 @@ public class ChangeRequestSlotDateSerializationTests : CaseEvaluationEntityFrame
                 CurrentRoundProposedDate = slotDate,
                 CreationTime = slotDate,
             },
-            ApiJsonOptions());
+            HttpApiJsonOptions.Create(ServiceProvider));
 
         serialized.ShouldContain(
             "\"creationTime\":\"2026-10-20T00:00:00Z\"",
@@ -61,20 +56,5 @@ public class ChangeRequestSlotDateSerializationTests : CaseEvaluationEntityFrame
             "\"currentRoundProposedDate\":\"2026-10-20T00:00:00\"",
             Case.Sensitive,
             "The proposed reschedule date is a calendar date and must reach the client with no zone.");
-    }
-
-    /// <summary>The DateTime-relevant part of ABP's <c>AddAbpJson</c> (ABP 10.0).</summary>
-    private JsonSerializerOptions ApiJsonOptions()
-    {
-        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
-        var resolver = new AbpDefaultJsonTypeInfoResolver(
-            GetRequiredService<IOptions<AbpSystemTextJsonSerializerModifiersOptions>>());
-        resolver.Modifiers.Add(
-            new AbpDateTimeConverterModifier(
-                    GetRequiredService<AbpDateTimeConverter>(),
-                    GetRequiredService<AbpNullableDateTimeConverter>())
-                .CreateModifyAction());
-        options.TypeInfoResolver = resolver;
-        return options;
     }
 }
