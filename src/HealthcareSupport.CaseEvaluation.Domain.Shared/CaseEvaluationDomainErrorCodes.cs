@@ -650,6 +650,16 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:AppointmentChangeRequest.NewSlotNotAvailable";
 
     /// <summary>
+    /// 2026-10-15 -- raised when a reschedule proposes the slot the appointment already holds,
+    /// either at a staff-filed submit or at the staff "Set date" step. Found on the test server:
+    /// "Set date" accepted the appointment's own slot, so both parties were asked to consent to
+    /// moving it to where it already was, and agreeing would have closed the case as Rescheduled.
+    /// Localization key <c>CaseEvaluation:AppointmentChangeRequest.NewSlotIsCurrentSlot</c>.
+    /// </summary>
+    public const string ChangeRequestNewSlotIsCurrentSlot =
+        "CaseEvaluation:AppointmentChangeRequest.NewSlotIsCurrentSlot";
+
+    /// <summary>
     /// Phase 16 (2026-05-04) -- raised when a reschedule request is
     /// submitted without a new slot id (NewDoctorAvailabilityId is
     /// empty). Mirrors OLD <c>AppointmentChangeRequestDomain.cs:103-106</c>

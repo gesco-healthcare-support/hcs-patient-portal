@@ -270,6 +270,7 @@ public class AppointmentChangeRequestManager : DomainService
         DoctorAvailability? newSlot = null;
         if (newDoctorAvailabilityId.HasValue)
         {
+            RescheduleRequestValidators.EnsureNotCurrentSlot(appointment.DoctorAvailabilityId, newDoctorAvailabilityId.Value);
             newSlot = await _doctorAvailabilityRepository.FindAsync(newDoctorAvailabilityId.Value);
             if (newSlot == null)
             {

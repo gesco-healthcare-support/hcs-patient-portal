@@ -1,5 +1,7 @@
+using System;
 using HealthcareSupport.CaseEvaluation.Enums;
 using Shouldly;
+using Volo.Abp;
 using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
@@ -57,5 +59,16 @@ public class RescheduleRequestValidatorsUnitTests
     public void IsSlotAvailable_AllowsOnlyAvailable(BookingStatus status, bool expected)
     {
         RescheduleRequestValidators.IsSlotAvailable(status).ShouldBe(expected);
+    }
+
+    [Fact]
+    public void EnsureNotCurrentSlot_RefusesTheAppointmentsOwnSlot_AndAllowsAnyOther()
+    {
+        var current = Guid.NewGuid();
+
+        var ex = Should.Throw<BusinessException>(() => RescheduleRequestValidators.EnsureNotCurrentSlot(current, current));
+        ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.ChangeRequestNewSlotIsCurrentSlot);
+
+        Should.NotThrow(() => RescheduleRequestValidators.EnsureNotCurrentSlot(current, Guid.NewGuid()));
     }
 }
