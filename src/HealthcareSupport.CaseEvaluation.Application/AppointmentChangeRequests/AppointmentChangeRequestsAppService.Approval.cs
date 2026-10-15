@@ -193,6 +193,8 @@ public class AppointmentChangeRequestsApprovalAppService :
         }
 
         var appointment = await _appointmentRepository.GetAsync(changeRequest.AppointmentId);
+        // Before anything is resent or proposed: the appointment's own slot is not a new date.
+        RescheduleRequestValidators.EnsureNotCurrentSlot(appointment.DoctorAvailabilityId, input.DoctorAvailabilityId);
         var slot = await _doctorAvailabilityRepository.GetAsync(input.DoctorAvailabilityId);
 
         // Same lead-time + horizon gates the booking and submit paths enforce, applied at the
@@ -587,6 +589,7 @@ public class AppointmentChangeRequestsApprovalAppService :
                     r.SideAConsentStatus,
                     r.SideBConsentStatus,
                     r.SendAttempts,
+                    r.ProposedOutcome,
                 }));
         var roundsByChangeRequestId = roundRows
             .GroupBy(r => r.AppointmentChangeRequestId)
@@ -600,7 +603,8 @@ public class AppointmentChangeRequestsApprovalAppService :
                         current.ProposedDoctorAvailabilityId,
                         current.SideAConsentStatus,
                         current.SideBConsentStatus,
-                        current.SendAttempts);
+                        current.SendAttempts,
+                        current.ProposedOutcome);
                 });
 
         // Slots for BOTH the requestor's proposal (after 4b most rows have none) and each

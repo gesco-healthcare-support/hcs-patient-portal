@@ -196,7 +196,10 @@ export function matchesPeopleFilters(row: PersonRow, filters: PeopleFilters): bo
   if (filters.genderId != null && row.genderId !== filters.genderId) {
     return false;
   }
-  const dob = row.dateOfBirth ?? '';
+  // Date part only: the API sends "1985-09-03T00:00:00Z" and the filter holds "1985-09-03", and as
+  // strings the longer one sorts greater, so a whole-string compare dropped a person born ON the
+  // Max date (found 2026-10-15).
+  const dob = (row.dateOfBirth ?? '').slice(0, 10);
   if (filters.dobMin && (!dob || dob < filters.dobMin)) {
     return false;
   }

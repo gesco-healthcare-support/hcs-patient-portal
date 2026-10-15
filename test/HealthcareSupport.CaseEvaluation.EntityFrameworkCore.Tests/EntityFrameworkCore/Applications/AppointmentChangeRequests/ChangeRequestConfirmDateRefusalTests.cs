@@ -62,11 +62,32 @@ public class ChangeRequestConfirmDateRefusalTests : CaseEvaluationTestBase<CaseE
         (await InOfficeAAsync(() => _requests.GetAsync(requestId))).RequestStatus.ShouldBe(RequestStatusType.Pending);
     }
 
+    [Fact]
+    public async Task ConfirmDate_OnTheAppointmentsOwnSlot_IsRefused_AndOpensNoRound()
+    {
+        // Found 2026-10-15 on the test server: "Set date" accepted the appointment's own slot, so
+        // both parties were asked to agree to moving it to where it already was. The slot is free and
+        // inside the policy window, so without the guard this WOULD open a round.
+        var day = PacificTime.TodayFrom(DateTime.UtcNow).AddDays(30);
+        var ownSlot = await InsertSlotAsync(day, 9, BookingStatus.Available);
+        var appointmentId = await InsertAppointmentWithOfficeTypeAsync(ownSlot, day);
+        var requestId = await InOfficeAAsync(async () => (await _requests.InsertAsync(new AppointmentChangeRequest(
+            Guid.NewGuid(), TenantsTestData.TenantARef, appointmentId, ChangeRequestType.Reschedule,
+            cancellationReason: null, reScheduleReason: "TEST-reschedule reason", newDoctorAvailabilityId: null), autoSave: true)).Id);
+
+        var ex = await Should.ThrowAsync<BusinessException>(() => InOfficeAAsync(() => _decisions.ConfirmRescheduleDateAsync(
+            requestId, new ConfirmRescheduleDateInput { RescheduleOutcome = AppointmentStatusType.RescheduledNoBill, DoctorAvailabilityId = ownSlot })));
+
+        ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.ChangeRequestNewSlotIsCurrentSlot);
+        (await InOfficeAAsync(() => _rounds.CountAsync(r => r.AppointmentChangeRequestId == requestId))).ShouldBe(0);
+        (await InOfficeAAsync(() => _requests.GetAsync(requestId))).RequestStatus.ShouldBe(RequestStatusType.Pending);
+    }
+
     /// <summary>
     /// An Approved appointment in office A whose appointment type office A owns. The booking-policy
     /// check reads the type, and the seeded types are host rows that an office cannot see.
     /// </summary>
-    private Task<Guid> InsertAppointmentWithOfficeTypeAsync() =>
+    private Task<Guid> InsertAppointmentWithOfficeTypeAsync(Guid? slotId = null, DateTime? appointmentDate = null) =>
         InOfficeAAsync(async () =>
         {
             var type = await _types.InsertAsync(new AppointmentType(Guid.NewGuid(), "TEST-Type-" + Guid.NewGuid().ToString("N")[..6]), autoSave: true);
@@ -76,8 +97,8 @@ public class ChangeRequestConfirmDateRefusalTests : CaseEvaluationTestBase<CaseE
                 identityUserId: null,
                 appointmentTypeId: type.Id,
                 locationId: LocationsTestData.Location1Id,
-                doctorAvailabilityId: DoctorAvailabilitiesTestData.Slot1Id,
-                appointmentDate: PacificTime.TodayFrom(DateTime.UtcNow).AddDays(20),
+                doctorAvailabilityId: slotId ?? DoctorAvailabilitiesTestData.Slot1Id,
+                appointmentDate: appointmentDate ?? PacificTime.TodayFrom(DateTime.UtcNow).AddDays(20),
                 requestConfirmationNumber: "TEST-" + Guid.NewGuid().ToString("N")[..8],
                 appointmentStatus: AppointmentStatusType.Approved)
             {

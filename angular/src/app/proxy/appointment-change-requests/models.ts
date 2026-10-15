@@ -1,8 +1,8 @@
 import type { FullAuditedEntityDto, PagedAndSortedResultRequestDto } from '@abp/ng.core';
 import type { ChangeRequestConsentStatus } from './change-request-consent-status.enum';
+import type { AppointmentStatusType } from '../enums/appointment-status-type.enum';
 import type { ChangeRequestType } from './change-request-type.enum';
 import type { RequestStatusType } from '../enums/request-status-type.enum';
-import type { AppointmentStatusType } from '../enums/appointment-status-type.enum';
 import type { ChangeRequestSide } from './change-request-side.enum';
 
 export interface AppointmentChangeRequestDto extends FullAuditedEntityDto<string> {
@@ -20,6 +20,7 @@ export interface AppointmentChangeRequestDto extends FullAuditedEntityDto<string
   currentRoundSideAStatus?: ChangeRequestConsentStatus | null;
   currentRoundSideBStatus?: ChangeRequestConsentStatus | null;
   currentRoundSendAttempts?: number | null;
+  currentRoundProposedOutcome?: AppointmentStatusType | null;
   changeRequestType?: ChangeRequestType;
   cancellationReason?: string | null;
   reScheduleReason?: string | null;

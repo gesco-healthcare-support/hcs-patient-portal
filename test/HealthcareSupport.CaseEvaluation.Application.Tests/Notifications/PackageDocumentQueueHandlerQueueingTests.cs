@@ -43,7 +43,9 @@ public class PackageDocumentQueueHandlerQueueingTests
         public List<Document> Documents { get; } = new();
         public List<AppointmentDocumentType> Types { get; } = new();
         public AppointmentDocumentManager Manager { get; } =
-            Substitute.For<AppointmentDocumentManager>(Substitute.For<IRepository<AppointmentDocument, Guid>>());
+            Substitute.For<AppointmentDocumentManager>(
+                Substitute.For<IRepository<AppointmentDocument, Guid>>(),
+                Substitute.For<IRepository<AppointmentDocumentVersion, Guid>>());
 
         public PackageDocumentQueueHandler Build()
         {

@@ -1,4 +1,4 @@
-# Azure infrastructure: build and lint the Bicep, preview every infra pull request, deploy from `production`.
+# Azure infrastructure: build and lint the Bicep, preview every infra pull request, deploy from `production` BY HAND.
 #
 # THREE JOBS, THREE LEVELS OF TRUST.
 #
@@ -7,7 +7,8 @@
 #            `...:pull_request` and whose rights are Reader plus what-if/validate. It proves on every run that it
 #            cannot write (the probe step). It names NO environment: naming one would change its subject.
 #   deploy   `production` only, behind the `azure-production-infra` environment (branch policy `production`,
-#            required reviewer). Signs in as the infra identity.
+#            required reviewer). Signs in as the infra identity. Started BY HAND (workflow_dispatch), never by
+#            a push: it applies main.bicep, the full design, and the go-live is the one-VM fast path.
 #
 # THE REPOSITORY IS PUBLIC, AND SO ARE THESE LOGS AND ANY PR COMMENT. A default what-if prints every changed
 # property, office allow-list addresses included; a default `az deployment group create` prints every non-secure
@@ -33,14 +34,13 @@ on:
       - "infra/azure/**"
       - ".github/workflows/infra.yml"
       - "scripts/infra-ci.py"
-  push:
-    branches:
-      - production
-    paths:
-      - "infra/azure/**"
-  # For a parameter-only change, such as DEPLOY_GATEWAY=true for phase 2 of the first deploy. Parameters live in
-  # the environment, not in the repository, so no push carries them. The deploy job and the environment's branch
-  # policy both refuse any ref other than `production`.
+  # NO `push:` TRIGGER, ON PURPOSE (2026-10-14). The deploy job applies main.bicep, the full multi-service design.
+  # The go-live is the one-VM fast path (infra/azure/fastpath), deployed by hand, and nothing here deploys it.
+  # With a push trigger, the first staging -> production promotion carrying any infra/azure change would start a
+  # deploy of the design that was NOT chosen: it fails today (no environment, no secrets) and would succeed the
+  # day the environment holds them. `scripts/infra-ci.py check` fails the build if a push trigger comes back.
+  # Start the deploy from the Actions tab on `production`, for a template or a parameter change alike (such as
+  # DEPLOY_GATEWAY=true for phase 2). The deploy job and the environment's branch policy both refuse any other ref.
   workflow_dispatch:
 
 permissions:
@@ -75,8 +75,11 @@ jobs:
       - name: Build and lint every template
         run: |
           failed=0
+          # fastpath/ is the one-VM go-live template, deployed by hand. It is built and linted like the rest;
+          # nothing in this workflow deploys it (the deploy job deploys main.bicep only).
           for f in infra/azure/main.bicep infra/azure/modules/*.bicep \
-                   infra/azure/subscription/*.bicep infra/azure/subscription/modules/*.bicep; do
+                   infra/azure/subscription/*.bicep infra/azure/subscription/modules/*.bicep \
+                   infra/azure/fastpath/*.bicep infra/azure/fastpath/modules/*.bicep; do
             build=$(bicep build "$f" --stdout 2>&1 >/dev/null) || failed=1
             lint=$(bicep lint "$f" 2>&1) || failed=1
             if [ -n "$build$lint" ]; then

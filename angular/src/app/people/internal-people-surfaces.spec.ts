@@ -71,6 +71,9 @@ describe('InternalPeopleComponent surfaces', () => {
       create: jasmine.createSpy('create').and.returnValue(of({})),
       update: jasmine.createSpy('update').and.returnValue(of({})),
       delete: jasmine.createSpy('delete').and.returnValue(of(undefined)),
+      patientDetail: jasmine
+        .createSpy('patientDetail')
+        .and.callFake((id: string) => of(row({ id, firstName: 'Fetched' }))),
     };
     toaster = {
       success: jasmine.createSpy('success'),
@@ -193,13 +196,24 @@ describe('InternalPeopleComponent surfaces', () => {
   });
 
   describe('row click', () => {
-    it('opens the detail view on a patient row', () => {
+    it('opens the detail view on a patient row, from the logged single-record read', () => {
+      // 2026-10-14: the detail shows the record fetched through the read the server records as
+      // PatientViewed, not the row the bulk list already held.
       const c = create({ policies: [`${PATIENTS}.Edit`] });
       enter('patients');
-      const r = row();
-      c.onRowClick(r);
-      expect(c.detailRow()).toBe(r);
+      c.onRowClick(row());
+      expect(gateway['patientDetail']).toHaveBeenCalledWith('p-1');
+      expect(c.detailRow()?.firstName).toBe('Fetched');
       expect(c.form()).toBeNull();
+    });
+
+    it('opens nothing when the patient record cannot be read', () => {
+      const c = create();
+      enter('patients');
+      gateway['patientDetail'].and.returnValue(throwError(() => new Error('synthetic refusal')));
+      c.openDetail(row());
+      expect(c.detailRow()).toBeNull();
+      expect(toaster.error).toHaveBeenCalled();
     });
 
     it('opens the edit modal on a non-patient row when editing is allowed', () => {

@@ -1,0 +1,57 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "baseDomain": {
+      "value": "portal.example.com"
+    },
+    "adminSshPublicKey": {
+      "value": "ssh-ed25519 AAAA...replace-with-the-public-key... admin@example"
+    },
+    "envName": {
+      "value": "prod"
+    },
+    "dataDiskSizeGb": {
+      "value": 128
+    },
+    "dataDiskSku": {
+      "value": "Premium_ZRS"
+    },
+    "encryptionAtHost": {
+      "value": true
+    },
+    "sshAllowedSourcePrefixes": {
+      "value": []
+    },
+    "deployBastion": {
+      "value": false
+    },
+    "backupStorageSku": {
+      "value": "Standard_GRS"
+    },
+    "dbBackupArchiveAfterDays": {
+      "value": 365
+    },
+    "requireInfrastructureEncryption": {
+      "value": true
+    },
+    "caaReportEmail": {
+      "value": ""
+    },
+    "deployCaseTrackerRelay": {
+      "value": false
+    },
+    "relayAlertEmail": {
+      "value": ""
+    },
+    "deployUptimeCheck": {
+      "value": true
+    },
+    "uptimeAlertEmail": {
+      "value": "replace-with-the-ops-address@example.com"
+    },
+    "uptimeFrequencySeconds": {
+      "value": 900
+    }
+  }
+}

@@ -47,6 +47,20 @@ endpoints. Always use `HttpClient.get` with `responseType: 'blob'` -- create a t
 `<a>` anchor, click it programmatically, then revoke the object URL. Applies to both
 `AppointmentDocumentsComponent` and `AppointmentPacketComponent`.
 
+### Calendar dates arrive WITH a Z -- never parse them as instants
+
+A calendar date (date of birth, date of injury, appointment date, slot date, due date) reaches the
+browser as UTC midnight, e.g. `"1985-09-03T00:00:00Z"` (measured 2026-10-15; only the two
+change-request slot dates are exempt -- `DtoDateTimeWireTests` keeps the list). So:
+
+- display it with the `calendarDate` pipe, or parse it with `parseCalendarDate()`, which drop the Z;
+- never `new Date(x)`, the `pacificDate` pipe or Angular's `date` pipe on it: in Pacific time that is
+  the previous day;
+- compare or key on `x.slice(0, 10)`, never the whole string: `"1985-09-03T00:00:00Z" > "1985-09-03"`
+  is true, which is how the People DOB "max" filter dropped people born on that day;
+- send a date range's END as `${date}T23:59:59`: the server compares `<= max`, and a bare date is
+  midnight, which is how the Reports screen dropped every appointment on its last day.
+
 ### AddressValidationProvider -- abstract class DI token, not an interface
 
 `AddressValidationProvider` is an abstract class used as the DI token (Angular cannot

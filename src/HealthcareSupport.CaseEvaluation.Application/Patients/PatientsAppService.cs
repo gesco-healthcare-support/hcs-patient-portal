@@ -21,6 +21,7 @@ using Volo.Abp.MultiTenancy;
 using HealthcareSupport.CaseEvaluation.Permissions;
 using HealthcareSupport.CaseEvaluation.Patients;
 using HealthcareSupport.CaseEvaluation.Appointments;
+using HealthcareSupport.CaseEvaluation.PhiAccess;
 
 namespace HealthcareSupport.CaseEvaluation.Patients;
 
@@ -136,6 +137,7 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
 
             var dto = ObjectMapper.Map<PatientWithNavigationProperties, PatientWithNavigationPropertiesDto>(patientWithNav);
             ApplySsnVisibility(dto);
+            await PhiAccessRecorder.RecordAsync(PhiAccessAction.PatientViewed, new PhiAccessTarget(id, null));
             return dto;
         }
     }
@@ -166,8 +168,13 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
         var isHost = CurrentTenant.Id == null;
         using (isHost ? _dataFilter.Disable() : null)
         {
-            var dto = ObjectMapper.Map<PatientWithNavigationProperties, PatientWithNavigationPropertiesDto>((await _patientRepository.GetWithNavigationPropertiesAsync(id))!);
+            var patientWithNav = await _patientRepository.GetWithNavigationPropertiesAsync(id);
+            var dto = ObjectMapper.Map<PatientWithNavigationProperties, PatientWithNavigationPropertiesDto>(patientWithNav!);
             ApplySsnVisibility(dto);
+            if (patientWithNav?.Patient != null)
+            {
+                await PhiAccessRecorder.RecordAsync(PhiAccessAction.PatientViewed, new PhiAccessTarget(id, null));
+            }
             return dto;
         }
     }
@@ -198,6 +205,7 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
             }
             var dto = ObjectMapper.Map<PatientWithNavigationProperties, PatientWithNavigationPropertiesDto>(existing);
             ApplySsnVisibility(dto);
+            await PhiAccessRecorder.RecordAsync(PhiAccessAction.PatientViewed, new PhiAccessTarget(existing.Patient.Id, null));
             return dto;
         }
     }
@@ -530,6 +538,7 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
         {
             var dto = ObjectMapper.Map<Patient, PatientDto>(await _patientRepository.GetAsync(id));
             ApplySsnVisibility(dto);
+            await PhiAccessRecorder.RecordAsync(PhiAccessAction.PatientViewed, new PhiAccessTarget(id, null));
             return dto;
         }
     }
@@ -539,12 +548,10 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
     // this returns the full value. Two gates: the Patients.RevealSsn permission
     // (declarative) AND the internal-or-owner check in SsnRevealAccess (so a
     // Patient can reveal only their OWN SSN, while internal staff may reveal any).
-    // NOT AUDITED (corrected 2026-10-07): this is a GET, and the HTTP audit log
-    // does not record GET requests -- AbpAuditingOptions.IsEnabledForGetRequests
-    // is false (the ABP default, measured: zero GET rows in AbpAuditLogs across
-    // databases that have served GETs). So reveals are permission- and owner-gated
-    // but leave no audit trail today. Do not rely on one until per-method read
-    // auditing (or a purpose-built access log) is added.
+    // RECORDED IN THE PHI ACCESS LOG (2026-10-13), not the HTTP audit log: this is
+    // a GET, and AbpAuditingOptions.IsEnabledForGetRequests is false (the ABP
+    // default), so the audit log never saw a reveal. Each successful reveal now
+    // writes a PatientSsnRevealed row, and a reveal that cannot be recorded fails.
     [Authorize(CaseEvaluationPermissions.Patients.RevealSsn)]
     public virtual async Task<SsnRevealDto> GetFullSsnAsync(Guid id)
     {
@@ -560,6 +567,7 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
             throw new AbpAuthorizationException("Not authorized to reveal this patient's SSN.");
         }
 
+        await PhiAccessRecorder.RecordAsync(PhiAccessAction.PatientSsnRevealed, new PhiAccessTarget(id, null));
         return new SsnRevealDto { SocialSecurityNumber = patient.SocialSecurityNumber };
     }
 
@@ -731,7 +739,7 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
     // read- AND write-path return now masks SSN to the last 4 for ALL callers
     // (internal staff and the record owner included). The full value crosses
     // the wire only via GetFullSsnAsync (the dedicated reveal endpoint, which is
-    // permission- and owner-gated but not audited -- see its own note), whose
+    // permission- and owner-gated and recorded in the PHI access log), whose
     // internal-or-owner authorization lives in the pure SsnRevealAccess helper.
     // See docs/plans/2026-05-29-ssn-redact-on-type.md.
     private static void ApplySsnVisibility(PatientDto? dto)

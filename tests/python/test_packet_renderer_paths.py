@@ -51,12 +51,32 @@ def _install_stubs():
 
     weasyprint = types.ModuleType("weasyprint")
     weasyprint.HTML = object
+    weasyprint_urls = types.ModuleType("weasyprint.urls")
+
+    class URLFetcher:
+        """Stand-in for weasyprint.urls.URLFetcher: records the URLs that reach the real fetch."""
+
+        def __init__(self, **kwargs):
+            self.init_kwargs = kwargs
+            self.fetched = []
+
+        def fetch(self, url, headers=None):
+            self.fetched.append(url)
+            return ("fetched", url)
+
+    weasyprint_urls.URLFetcher = URLFetcher
+    weasyprint.urls = weasyprint_urls
 
     pikepdf = types.ModuleType("pikepdf")
     for name in ("Pdf", "Name", "Array", "Dictionary", "String"):
         setattr(pikepdf, name, object)
 
-    return {"flask": flask, "weasyprint": weasyprint, "pikepdf": pikepdf}
+    return {
+        "flask": flask,
+        "weasyprint": weasyprint,
+        "weasyprint.urls": weasyprint_urls,
+        "pikepdf": pikepdf,
+    }
 
 
 def load_app():
@@ -65,7 +85,7 @@ def load_app():
     Fresh each time: `GENERATORS_ROOT` is resolved at import, so a cached module
     would hide a resolution change rather than exercise it.
     """
-    saved = {k: sys.modules.get(k) for k in ("flask", "weasyprint", "pikepdf", "post_process")}
+    saved = {k: sys.modules.get(k) for k in ("flask", "weasyprint", "weasyprint.urls", "pikepdf", "post_process")}
     sys.modules.update(_install_stubs())
     try:
         spec = importlib.util.spec_from_file_location("packet_renderer_app", APP_PY)

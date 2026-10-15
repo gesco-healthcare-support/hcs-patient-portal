@@ -2,6 +2,7 @@ using HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
 using HealthcareSupport.CaseEvaluation.Enums;
 using System;
 using Volo.Abp.Application.Dtos;
+using Volo.Abp.Timing;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
 
@@ -44,7 +45,12 @@ public class AppointmentChangeRequestDto : FullAuditedEntityDto<Guid>
     /// from <see cref="NewDoctorAvailabilityId"/> so the queue can show what was asked for instead
     /// of a bare GUID. Null when nothing was proposed, which after 4b is the normal external case.
     /// Same population caveat as <see cref="AppointmentLocationId"/>.
+    ///
+    /// <para>A CALENDAR DATE, so exempt from normalization: without the attribute ABP's API
+    /// serializer stamps it UTC midnight and a Pacific browser shows the day before (found
+    /// 2026-10-14; <c>ChangeRequestSlotDateSerializationTests</c>).</para>
     /// </summary>
+    [DisableDateTimeNormalization]
     public DateTime? RequestedSlotDate { get; set; }
 
     /// <inheritdoc cref="RequestedSlotDate"/>
@@ -66,6 +72,8 @@ public class AppointmentChangeRequestDto : FullAuditedEntityDto<Guid>
     public Guid? CurrentRoundProposedSlotId { get; set; }
 
     /// <inheritdoc cref="CurrentConsentRoundNumber"/>
+    /// <remarks>A calendar date; exempt for the reason on <see cref="RequestedSlotDate"/>.</remarks>
+    [DisableDateTimeNormalization]
     public DateTime? CurrentRoundProposedDate { get; set; }
 
     /// <inheritdoc cref="CurrentConsentRoundNumber"/>
@@ -79,6 +87,15 @@ public class AppointmentChangeRequestDto : FullAuditedEntityDto<Guid>
 
     /// <inheritdoc cref="CurrentConsentRoundNumber"/>
     public int? CurrentRoundSendAttempts { get; set; }
+
+    /// <summary>
+    /// 2026-10-14 -- the billing outcome staff chose when they set the date (RescheduledNoBill or
+    /// RescheduledLate); the reschedule completes with it once both sides agree. Null on a round
+    /// opened before outcomes were chosen at Set date. The approve modal shows it read-only and
+    /// sends it back on the manual fallback, so staff are not asked twice. Same population caveat
+    /// as <see cref="AppointmentLocationId"/>.
+    /// </summary>
+    public AppointmentStatusType? CurrentRoundProposedOutcome { get; set; }
 
     public ChangeRequestType ChangeRequestType { get; set; }
 

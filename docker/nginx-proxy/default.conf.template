@@ -404,8 +404,10 @@ server {
     # protection is the address allow-list below (DOCS_ALLOW_DIRECTIVES), same mechanism as the minio
     # vhost. Compose always defines it and defaults it to the RFC1918 private ranges (loopback is allowed
     # here), so the on-prem server is unchanged; an internet-facing deployment must set it to the office
-    # egress address(es) only. The `deny all;` after it makes an EMPTY value fail closed. The apex page
-    # above stays public: it names no office and says nothing about the system.
+    # egress address(es) only, or to `deny all;` to publish it to no one. The `deny all;` after it makes a
+    # value with no allow line fail closed; an EMPTY value never reaches this file, because the compose
+    # default replaces it with the private ranges. The apex page above stays public: it names no office
+    # and says nothing about the system.
     #
     # A bare /docs would otherwise match `location /` above and answer 200 with the apex page.
     location = /docs {
@@ -458,9 +460,14 @@ server {
 # MINIO_ALLOW_DIRECTIVES carries COMPLETE allow directives, for the same reason as the trusted-proxy
 # variables at the top (envsubst cannot emit a line per list item). Compose always defines it, and
 # defaults it to the RFC1918 private ranges, so the on-prem server keeps working without any new key in
-# its env file. A deployment reachable from the internet must set it to the Case Tracker egress
-# address(es) only. The `deny all;` after it makes an EMPTY value fail closed. Named without the
-# dollar-brace form in this comment so envsubst does not expand it here.
+# its env file. A deployment reachable from the internet must replace it. The Azure VM sets `deny all;`:
+# the Case Tracker reaches this vhost through Azure Relay instead (docs/integration/case-tracker-relay.md),
+# whose listener runs in this container's network namespace and so arrives from 127.0.0.1, which the
+# server block below always allows. Without Relay, list the Case Tracker egress address(es) where they
+# are fixed; `allow all;` is the last resort, leaving the scoped MinIO credential and the rate limit
+# below as the only protection. The `deny all;` after it makes a value with no allow line fail closed;
+# an EMPTY value never reaches this file, because the compose default replaces it with the private
+# ranges. Named without the dollar-brace form in this comment so envsubst does not expand it here.
 #
 # Addressing is PATH-STYLE (bucket in the path). Virtual-host addressing would put
 # the bucket in the hostname, and the wildcard certificate covers a single label
@@ -510,8 +517,11 @@ server {
 
         proxy_http_version 1.1;
         # Signature v4 signs the Host header. Rewriting it produces signature
-        # mismatches that read as bad credentials.
-        proxy_set_header Host              $host;
+        # mismatches that read as bad credentials. $http_host, NOT $host: $host drops the port, so a client that
+        # reached this vhost on any port other than 443 -- e.g. through a local Azure Relay forwarder -- signed
+        # "minio.<base>:<port>" and MinIO would check "minio.<base>". Measured 2026-10-13 with real nginx and MinIO:
+        # $host gave SignatureDoesNotMatch, $http_host a 200. For a client on 443 the two are identical.
+        proxy_set_header Host              $http_host;
         proxy_set_header X-Real-IP         $remote_addr;
         proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;

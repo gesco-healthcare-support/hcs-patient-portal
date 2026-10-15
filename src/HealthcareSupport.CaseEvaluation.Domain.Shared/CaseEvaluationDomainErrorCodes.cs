@@ -567,6 +567,31 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:Document.ImmutableForExternalUser";
 
     /// <summary>
+    /// 2026-10-14 -- raised by <c>DocumentUploadGate.EnsureRejected</c> when "Upload
+    /// replacement" names a document that is not Rejected. Localization key
+    /// <c>CaseEvaluation:Document.ReplaceRequiresRejected</c>.
+    /// </summary>
+    public const string DocumentReplaceRequiresRejected =
+        "CaseEvaluation:Document.ReplaceRequiresRejected";
+
+    /// <summary>
+    /// 2026-10-14 -- raised by <c>DocumentUploadGate.EnsurePackageRow</c> when the package
+    /// upload names an ad-hoc upload or a joint declaration. Localization key
+    /// <c>CaseEvaluation:Document.NotAPackageRow</c>.
+    /// </summary>
+    public const string DocumentNotAPackageRow =
+        "CaseEvaluation:Document.NotAPackageRow";
+
+    /// <summary>
+    /// 2026-10-14 -- a download of a requested document that has no file yet (a queued
+    /// placeholder). Refused before anything is recorded in the PHI access log, which used to
+    /// record a download that then failed. Localization key
+    /// <c>CaseEvaluation:Document.NotUploadedYet</c>.
+    /// </summary>
+    public const string DocumentNotUploadedYet =
+        "CaseEvaluation:Document.NotUploadedYet";
+
+    /// <summary>
     /// Phase 14 (2026-05-04) -- raised by
     /// <c>DocumentUploadGate.EnsureVerificationCodeMatches</c> when
     /// the supplied verification code does not match the document's
@@ -623,6 +648,16 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string ChangeRequestNewSlotNotAvailable =
         "CaseEvaluation:AppointmentChangeRequest.NewSlotNotAvailable";
+
+    /// <summary>
+    /// 2026-10-15 -- raised when a reschedule proposes the slot the appointment already holds,
+    /// either at a staff-filed submit or at the staff "Set date" step. Found on the test server:
+    /// "Set date" accepted the appointment's own slot, so both parties were asked to consent to
+    /// moving it to where it already was, and agreeing would have closed the case as Rescheduled.
+    /// Localization key <c>CaseEvaluation:AppointmentChangeRequest.NewSlotIsCurrentSlot</c>.
+    /// </summary>
+    public const string ChangeRequestNewSlotIsCurrentSlot =
+        "CaseEvaluation:AppointmentChangeRequest.NewSlotIsCurrentSlot";
 
     /// <summary>
     /// Phase 16 (2026-05-04) -- raised when a reschedule request is

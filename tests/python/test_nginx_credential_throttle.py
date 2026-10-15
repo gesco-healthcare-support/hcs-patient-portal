@@ -113,6 +113,13 @@ class MinioVhost(unittest.TestCase):
         self.assertLess(allow, deny, "deny all must come after every allow")
         self.assertRegex(self.body, r"allow\s+127\.0\.0\.1\s*;")
 
+    def test_the_host_header_reaches_minio_with_its_port(self):
+        # S3 signature v4 signs the Host header the client sent, port included. $host drops the port, so a client
+        # that came in through a local Azure Relay forwarder on a port other than 443 got SignatureDoesNotMatch
+        # (measured 2026-10-13 against real nginx and MinIO). $http_host forwards it as sent.
+        self.assertRegex(self.body, r"proxy_set_header\s+Host\s+\$http_host\s*;")
+        self.assertNotRegex(self.body, r"proxy_set_header\s+Host\s+\$host\s*;")
+
     def test_body_size_is_bounded_and_requests_are_limited(self):
         self.assertNotRegex(self.body, r"client_max_body_size\s+0\s*;")
         self.assertRegex(self.body, r"client_max_body_size\s+\d+m\s*;")
@@ -132,6 +139,13 @@ class MinioVhost(unittest.TestCase):
         env = ENV_EXAMPLE.read_text(encoding="utf-8")
         self.assertRegex(env, r"(?m)^# MINIO_ALLOW_DIRECTIVES=")
         self.assertNotRegex(env, r"(?m)^MINIO_ALLOW_DIRECTIVES=")
+
+    def test_env_example_closes_it_with_deny_all_not_an_empty_value(self):
+        # compose's ":-" default replaces an EMPTY value with the private ranges, so "leave it empty"
+        # never closed the vhost. The example once said it did; pin the instruction that works.
+        env = ENV_EXAMPLE.read_text(encoding="utf-8")
+        self.assertIn('set "deny all;"', env)
+        self.assertNotRegex(env, r"An empty value \(or a typo that leaves no allow line\) denies everyone")
 
 
 class DocsAllowList(unittest.TestCase):
@@ -166,6 +180,10 @@ class DocsAllowList(unittest.TestCase):
         env = ENV_EXAMPLE.read_text(encoding="utf-8")
         self.assertRegex(env, r"(?m)^# DOCS_ALLOW_DIRECTIVES=")
         self.assertNotRegex(env, r"(?m)^DOCS_ALLOW_DIRECTIVES=")
+
+    def test_env_example_closes_it_with_deny_all_not_an_empty_value(self):
+        env = ENV_EXAMPLE.read_text(encoding="utf-8")
+        self.assertIn('#   DOCS_ALLOW_DIRECTIVES="deny all;"', env)
 
 
 if __name__ == "__main__":

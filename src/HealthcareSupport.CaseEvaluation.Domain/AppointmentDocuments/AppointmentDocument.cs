@@ -199,14 +199,13 @@ public class AppointmentDocument : FullAuditedAggregateRoot<Guid>, IMultiTenant
 
         // Placeholder file metadata satisfies the public constructor's
         // non-null guards; real values are written by the upload path.
-        const string PendingPlaceholder = "(pending-upload)";
         var entity = new AppointmentDocument(
             id: id,
             tenantId: tenantId,
             appointmentId: appointmentId,
             documentName: documentName,
-            fileName: PendingPlaceholder,
-            blobName: PendingPlaceholder,
+            fileName: AppointmentDocumentConsts.PendingUploadPlaceholder,
+            blobName: AppointmentDocumentConsts.PendingUploadPlaceholder,
             contentType: null,
             fileSize: 0,
             uploadedByUserId: Guid.Empty,

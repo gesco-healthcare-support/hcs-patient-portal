@@ -17,6 +17,7 @@ using HealthcareSupport.CaseEvaluation.Localization;
 using HealthcareSupport.CaseEvaluation.Locations;
 using HealthcareSupport.CaseEvaluation.Patients;
 using HealthcareSupport.CaseEvaluation.Permissions;
+using HealthcareSupport.CaseEvaluation.PhiAccess;
 using HealthcareSupport.CaseEvaluation.Shared;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Localization;
@@ -214,6 +215,9 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         ApplyPatientSsnVisibility(dto);
         // Phase 4d (2026-08-05) -- null unless this appointment replaced another one.
         dto.RescheduleChain = await _rescheduleChainResolver.ResolveOneAsync(withNavigation.Appointment);
+        // 2026-10-13 -- opening an appointment opens its patient's record, so it is a PHI read.
+        await PhiAccessRecorder.RecordAsync(PhiAccessAction.AppointmentViewed,
+            new PhiAccessTarget(withNavigation.Appointment.PatientId, id));
         return dto;
     }
 
@@ -303,6 +307,8 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         ApplyPatientSsnVisibility(dto);
         // Phase 4d (2026-08-05) -- null unless this appointment replaced another one.
         dto.RescheduleChain = await _rescheduleChainResolver.ResolveOneAsync(appointment);
+        await PhiAccessRecorder.RecordAsync(PhiAccessAction.AppointmentViewed,
+            new PhiAccessTarget(appointment.PatientId, appointment.Id));
         return dto;
     }
 

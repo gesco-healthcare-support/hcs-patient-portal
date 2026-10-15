@@ -72,6 +72,19 @@ class SdkPinAgreement(unittest.TestCase):
                 with self.subTest(file=str(path.relative_to(REPO_ROOT)), line=match.group(0)):
                     self.assertTrue(match.group("tag").startswith(major_minor), match.group("tag"))
 
+    def test_every_runtime_stage_ships_the_same_digest(self):
+        # The three shipped images must run the same .NET runtime. 2026-10-14: all three were on a 10.0.11 build
+        # from August while 10.0.12 and 10.0.13 carried security fixes, because Dependabot's docker updates target a
+        # branch that never reaches main (#1277). A bump that moved one stage and missed another would split the
+        # runtime between the API, the sign-in server and the migrator, and nothing else would notice.
+        digests = {}
+        for path, text in self.files:
+            for match in from_lines(text, RUNTIME_IMAGE):
+                digests[str(path.relative_to(REPO_ROOT))] = match.group("digest")
+        self.assertGreaterEqual(len(digests), 3, digests)
+        self.assertNotIn(None, digests.values(), f"a runtime stage is not pinned by digest: {digests}")
+        self.assertEqual(len(set(digests.values())), 1, digests)
+
     def test_every_dockerfile_with_an_sdk_stage_copies_global_json_into_it(self):
         # The pin only reaches the build if the file is in the image; the stage's own SDK would
         # otherwise be used whatever global.json says.
