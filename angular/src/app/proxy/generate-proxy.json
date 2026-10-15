@@ -14925,6 +14925,78 @@
             }
           }
         },
+        "HealthcareSupport.CaseEvaluation.Controllers.Appointments.AppointmentListExportController": {
+          "controllerName": "AppointmentListExport",
+          "controllerGroupName": "AppointmentListExport",
+          "isRemoteService": true,
+          "isIntegrationService": false,
+          "apiVersion": null,
+          "type": "HealthcareSupport.CaseEvaluation.Controllers.Appointments.AppointmentListExportController",
+          "interfaces": [
+            {
+              "type": "HealthcareSupport.CaseEvaluation.Appointments.IAppointmentListExportAppService",
+              "name": "IAppointmentListExportAppService",
+              "methods": [
+                {
+                  "name": "RecordCsvExportAsync",
+                  "parametersOnMethod": [
+                    {
+                      "name": "input",
+                      "typeAsString": "HealthcareSupport.CaseEvaluation.Appointments.RecordAppointmentListExportInput, HealthcareSupport.CaseEvaluation.Application.Contracts",
+                      "type": "HealthcareSupport.CaseEvaluation.Appointments.RecordAppointmentListExportInput",
+                      "typeSimple": "HealthcareSupport.CaseEvaluation.Appointments.RecordAppointmentListExportInput",
+                      "isOptional": false,
+                      "defaultValue": null
+                    }
+                  ],
+                  "returnValue": {
+                    "type": "System.Void",
+                    "typeSimple": "System.Void"
+                  }
+                }
+              ]
+            }
+          ],
+          "actions": {
+            "RecordCsvExportAsyncByInput": {
+              "uniqueName": "RecordCsvExportAsyncByInput",
+              "name": "RecordCsvExportAsync",
+              "httpMethod": "POST",
+              "url": "api/app/appointment-list-exports/csv",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "input",
+                  "typeAsString": "HealthcareSupport.CaseEvaluation.Appointments.RecordAppointmentListExportInput, HealthcareSupport.CaseEvaluation.Application.Contracts",
+                  "type": "HealthcareSupport.CaseEvaluation.Appointments.RecordAppointmentListExportInput",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.Appointments.RecordAppointmentListExportInput",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "input",
+                  "name": "input",
+                  "jsonName": null,
+                  "type": "HealthcareSupport.CaseEvaluation.Appointments.RecordAppointmentListExportInput",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.Appointments.RecordAppointmentListExportInput",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Body",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "System.Void",
+                "typeSimple": "System.Void"
+              },
+              "allowAnonymous": false,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.Appointments.IAppointmentListExportAppService"
+            }
+          }
+        },
         "HealthcareSupport.CaseEvaluation.Controllers.AppointmentStatuses.AppointmentStatusController": {
           "controllerName": "AppointmentStatus",
           "controllerGroupName": "AppointmentStatus",
@@ -54390,6 +54462,28 @@
           "maximum": null,
           "regex": null,
           "isNullable": true
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.Appointments.RecordAppointmentListExportInput": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "AppointmentIds",
+          "jsonName": null,
+          "type": "[System.Guid]",
+          "typeSimple": "[string]",
+          "isRequired": true,
+          "minLength": 1,
+          "maxLength": 500,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
         }
       ]
     },

@@ -314,6 +314,126 @@ public abstract class PhiAccessLogTests<TStartupModule>
         (await RowsAsync()).ShouldBeEmpty();
     }
 
+    // ------------------------------------------------------------------ gaps closed 2026-10-14
+
+    [Fact]
+    public async Task Opening_the_same_appointment_again_within_a_minute_is_recorded_once()
+    {
+        // The appointment page reloads the appointment after each action on it; each reload used to
+        // write another view row.
+        await AsStaff(() => _appointments.GetWithNavigationPropertiesAsync(AppointmentId));
+        await AsStaff(() => _appointments.GetWithNavigationPropertiesAsync(AppointmentId));
+
+        (await SingleRowAsync(PhiAccessAction.AppointmentViewed)).AppointmentId.ShouldBe(AppointmentId);
+    }
+
+    [Fact]
+    public async Task Opening_the_same_patient_again_within_a_minute_is_recorded_once()
+    {
+        await AsStaff(() => _patients.GetAsync(PatientId));
+        await AsStaff(() => _patients.GetWithNavigationPropertiesAsync(PatientId));
+
+        (await SingleRowAsync(PhiAccessAction.PatientViewed)).PatientId.ShouldBe(PatientId);
+    }
+
+    [Fact]
+    public async Task A_view_after_the_window_is_recorded_again()
+    {
+        await AsStaff(() => _log.InsertAsync(
+            new PhiAccessLogEntry(Guid.NewGuid(), OfficeA, StaffUserId, null, PhiAccessAction.AppointmentViewed,
+                new PhiAccessTarget(PatientId, AppointmentId), DateTime.UtcNow - PhiAccessRecorder.RepeatViewWindow - TimeSpan.FromSeconds(5)),
+            autoSave: true));
+
+        await AsStaff(() => _appointments.GetWithNavigationPropertiesAsync(AppointmentId));
+
+        (await RowsAsync()).Count(r => r.Action == PhiAccessAction.AppointmentViewed).ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task Someone_else_viewing_the_same_appointment_is_still_recorded()
+    {
+        await AsStaff(() => _appointments.GetWithNavigationPropertiesAsync(AppointmentId));
+        await As(StrangerUserId, Staff, () => _appointments.GetWithNavigationPropertiesAsync(AppointmentId));
+
+        (await RowsAsync()).Select(r => r.UserId).OrderBy(id => id).ShouldBe(new Guid?[] { StaffUserId, StrangerUserId });
+    }
+
+    [Fact]
+    public async Task Downloads_are_never_collapsed_because_each_is_a_disclosure()
+    {
+        var document = await InsertDocumentAsync();
+
+        await AsStaff(() => _documents.DownloadAsync(document.Id));
+        await AsStaff(() => _documents.DownloadAsync(document.Id));
+
+        (await RowsAsync()).Count(r => r.Action == PhiAccessAction.DocumentDownloaded).ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task Downloading_a_requested_document_with_no_file_yet_is_refused_and_records_nothing()
+    {
+        var placeholder = await AsStaff(() => _documentRepository.InsertAsync(
+            new AppointmentDocument(Guid.NewGuid(), OfficeA, AppointmentId, "Synthetic request",
+                AppointmentDocumentConsts.PendingUploadPlaceholder, AppointmentDocumentConsts.PendingUploadPlaceholder,
+                null, 0, StaffUserId),
+            autoSave: true));
+
+        (await Should.ThrowAsync<BusinessException>(() => AsStaff(() => _documents.DownloadAsync(placeholder.Id))))
+            .Code.ShouldBe(CaseEvaluationDomainErrorCodes.DocumentNotUploadedYet);
+
+        (await RowsAsync()).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Exporting_the_appointment_list_records_each_appointment_once()
+    {
+        var exports = GetRequiredService<IAppointmentListExportAppService>();
+
+        await AsStaff(async () =>
+        {
+            await exports.RecordCsvExportAsync(new RecordAppointmentListExportInput
+            {
+                AppointmentIds = new List<Guid> { AppointmentId, AppointmentId },
+            });
+            return true;
+        });
+
+        var row = await SingleRowAsync(PhiAccessAction.AppointmentListCsvExported);
+        row.AppointmentId.ShouldBe(AppointmentId);
+        row.PatientId.ShouldBe(PatientId);
+    }
+
+    [Fact]
+    public async Task An_export_naming_an_appointment_the_caller_may_not_read_is_refused_whole()
+    {
+        var exports = GetRequiredService<IAppointmentListExportAppService>();
+
+        await Should.ThrowAsync<BusinessException>(() =>
+            As(StrangerUserId, "Applicant Attorney", async () =>
+            {
+                await exports.RecordCsvExportAsync(new RecordAppointmentListExportInput
+                {
+                    AppointmentIds = new List<Guid> { AppointmentId },
+                });
+                return true;
+            }));
+
+        (await RowsAsync()).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task An_empty_export_is_refused_by_validation()
+    {
+        var exports = GetRequiredService<IAppointmentListExportAppService>();
+
+        await Should.ThrowAsync<Volo.Abp.Validation.AbpValidationException>(() =>
+            AsStaff(async () =>
+            {
+                await exports.RecordCsvExportAsync(new RecordAppointmentListExportInput());
+                return true;
+            }));
+    }
+
     // ------------------------------------------------------------------ the recorder itself
 
     [Fact]

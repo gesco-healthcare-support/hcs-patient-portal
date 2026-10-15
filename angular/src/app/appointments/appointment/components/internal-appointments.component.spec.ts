@@ -6,6 +6,7 @@ import { Confirmation, ConfirmationService, ToasterService } from '@abp/ng.theme
 
 import { InternalAppointmentsComponent } from './internal-appointments.component';
 import { AppointmentService } from '../../../proxy/appointments/appointment.service';
+import { AppointmentListExportService } from '../../../proxy/appointments/appointment-list-export.service';
 import { AppointmentChangeRequestService } from '../../../proxy/appointment-change-requests/appointment-change-request.service';
 import { AppointmentStatusType } from '../../../proxy/enums/appointment-status-type.enum';
 import { ChangeRequestType } from '../../../proxy/appointment-change-requests/change-request-type.enum';
@@ -32,6 +33,7 @@ import { ChangeRequestType } from '../../../proxy/appointment-change-requests/ch
  */
 describe('InternalAppointmentsComponent', () => {
   let service: Record<string, jasmine.Spy>;
+  let recordCsvExport: jasmine.Spy;
   let toaster: { success: jasmine.Spy; error: jasmine.Spy };
   let confirmationWarn: jasmine.Spy;
   let router: { navigate: jasmine.Spy; navigateByUrl: jasmine.Spy };
@@ -75,6 +77,7 @@ describe('InternalAppointmentsComponent', () => {
         .and.returnValue(of({ items: [] })),
       delete: jasmine.createSpy('delete').and.returnValue(of(undefined)),
     };
+    recordCsvExport = jasmine.createSpy('recordCsvExport').and.returnValue(of(undefined));
     toaster = { success: jasmine.createSpy('success'), error: jasmine.createSpy('error') };
     confirmationWarn = jasmine.createSpy('warn').and.returnValue(of(Confirmation.Status.confirm));
     router = {
@@ -86,6 +89,7 @@ describe('InternalAppointmentsComponent', () => {
       imports: [InternalAppointmentsComponent],
       providers: [
         { provide: AppointmentService, useValue: service },
+        { provide: AppointmentListExportService, useValue: { recordCsvExport } },
         {
           provide: PermissionService,
           useValue: { getGrantedPolicy: (p: string) => granted.has(p) },
@@ -922,6 +926,42 @@ describe('InternalAppointmentsComponent', () => {
       const click = stubDownload();
       c.exportCsv();
       expect(click).not.toHaveBeenCalled();
+      expect(recordCsvExport).not.toHaveBeenCalled();
+    });
+
+    it('records the export for every selected appointment before building the file', () => {
+      // 2026-10-14 access-log audit: the file is built in the browser, so without this call
+      // the server never learns an export happened.
+      const c = create();
+      started(c);
+      c.toggleSelect(row());
+      c.toggleSelect(row({ id: 'appt-2', requestConfirmationNumber: 'C0002' }));
+      const click = stubDownload();
+      click.and.callFake(() => expect(recordCsvExport).toHaveBeenCalled());
+
+      c.exportCsv();
+
+      const [input, options] = recordCsvExport.calls.mostRecent().args;
+      expect(input.appointmentIds).toEqual(['appt-1', 'appt-2']);
+      expect(options).toEqual({ skipHandleError: true });
+      expect(click).toHaveBeenCalledTimes(1);
+    });
+
+    it('builds no file and says so when the export cannot be recorded', () => {
+      const c = create();
+      started(c);
+      c.toggleSelect(row());
+      const click = stubDownload();
+      recordCsvExport.and.returnValue(throwError(() => new Error('synthetic refusal')));
+
+      c.exportCsv();
+
+      expect(click).not.toHaveBeenCalled();
+      expect(URL.createObjectURL).not.toHaveBeenCalled();
+      expect(toaster.error).toHaveBeenCalledWith(
+        'The export could not be recorded, so no file was created. Try again.',
+        'Export failed',
+      );
     });
 
     it('exports the selected rows', () => {

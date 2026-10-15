@@ -16,6 +16,7 @@ import { forkJoin } from 'rxjs';
 import { filter, switchMap } from 'rxjs/operators';
 
 import { AppointmentService } from '../../../proxy/appointments/appointment.service';
+import { AppointmentListExportService } from '../../../proxy/appointments/appointment-list-export.service';
 import type {
   AppointmentWithNavigationPropertiesDto,
   GetAppointmentsInput,
@@ -93,6 +94,7 @@ const PAGE_SIZES = [10, 25, 50] as const;
 })
 export class InternalAppointmentsComponent implements OnInit {
   private readonly appointmentService = inject(AppointmentService);
+  private readonly exportRecorder = inject(AppointmentListExportService);
   private readonly permissionService = inject(PermissionService);
   private readonly confirmation = inject(ConfirmationService);
   private readonly toaster = inject(ToasterService);
@@ -542,11 +544,29 @@ export class InternalAppointmentsComponent implements OnInit {
       });
   }
 
+  /**
+   * 2026-10-14 access-log audit: the file is built in the browser from rows already on screen,
+   * so the server never saw the export. It is now recorded FIRST (one access-log row per
+   * appointment, each read-guarded), and the file is built only once that succeeds -- an
+   * export the log does not hold never reaches the user's disk.
+   */
   protected exportCsv(): void {
     const rows = Array.from(this.selected().values());
     if (rows.length === 0) {
       return;
     }
+    const appointmentIds = rows.map((r) => this.rowId(r)).filter((id) => id !== '');
+    this.exportRecorder.recordCsvExport({ appointmentIds }, { skipHandleError: true }).subscribe({
+      next: () => this.buildCsv(rows),
+      error: () =>
+        this.toaster.error(
+          'The export could not be recorded, so no file was created. Try again.',
+          'Export failed',
+        ),
+    });
+  }
+
+  private buildCsv(rows: Row[]): void {
     const headers = [
       'Confirmation #',
       'Patient',

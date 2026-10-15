@@ -24,6 +24,7 @@ public class PhiAccessActionContractTests
         ["ReportPdfExported"] = 6,
         ["ReportCsvExported"] = 7,
         ["DemographicsExported"] = 8,
+        ["AppointmentListCsvExported"] = 9,
     };
 
     [Fact]

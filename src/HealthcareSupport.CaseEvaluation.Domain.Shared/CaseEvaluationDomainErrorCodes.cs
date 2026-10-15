@@ -583,6 +583,15 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:Document.NotAPackageRow";
 
     /// <summary>
+    /// 2026-10-14 -- a download of a requested document that has no file yet (a queued
+    /// placeholder). Refused before anything is recorded in the PHI access log, which used to
+    /// record a download that then failed. Localization key
+    /// <c>CaseEvaluation:Document.NotUploadedYet</c>.
+    /// </summary>
+    public const string DocumentNotUploadedYet =
+        "CaseEvaluation:Document.NotUploadedYet";
+
+    /// <summary>
     /// Phase 14 (2026-05-04) -- raised by
     /// <c>DocumentUploadGate.EnsureVerificationCodeMatches</c> when
     /// the supplied verification code does not match the document's
