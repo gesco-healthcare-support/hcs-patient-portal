@@ -428,6 +428,7 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         await _readAccessGuard.EnsureCanReadAsync(appointment);
 
         var isInternal = await IsInternalActorAsync();
+        DocumentUploadGate.EnsurePackageRow(document);
         DocumentUploadGate.EnsureAppointmentApprovedAndNotPastDueDate(appointment);
         DocumentUploadGate.EnsureNotImmutable(document, isInternal);
 
@@ -440,6 +441,54 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
             TenantId = _currentTenant.Id,
             IsAdHoc = false,
             IsJointDeclaration = false,
+            UploadedByUserId = CurrentUser.Id,
+            OccurredAt = DateTime.UtcNow,
+        });
+
+        return ObjectMapper.Map<AppointmentDocument, AppointmentDocumentDto>(document);
+    }
+
+    /// <summary>
+    /// 2026-10-14 -- "Upload replacement" on a REJECTED document, of any kind (ad-hoc upload,
+    /// package document or joint declaration). Replaces the file IN PLACE, as OLD did
+    /// (parity-v2 E6): the same row keeps its identity and its link to a required document,
+    /// the rejection is cleared, and the file it replaces is kept and recorded as an
+    /// <see cref="AppointmentDocumentVersion"/> (seven-year retention). Before this, the only
+    /// way to fix a rejected document in the UI was a NEW upload: no version row, the rejected
+    /// row stayed Rejected, and a required document never counted as received.
+    ///
+    /// <para>Same guards as every authenticated upload: the per-appointment read guard, the
+    /// appointment-status and due-date gate, and the upload scanner inside the store. A party's
+    /// replacement lands Uploaded for review; a staff replacement lands Accepted, as every
+    /// staff upload does.</para>
+    /// </summary>
+    [Authorize(CaseEvaluationPermissions.AppointmentDocuments.Create)]
+    [UnitOfWork]
+    [DisableValidation]
+    public virtual async Task<AppointmentDocumentDto> ReplaceRejectedDocumentAsync(
+        Guid documentId,
+        string fileName,
+        string? contentType,
+        long fileSize,
+        Stream content)
+    {
+        var document = await _documentRepository.GetAsync(documentId);
+        var appointment = await _appointmentRepository.GetAsync(document.AppointmentId);
+        await _readAccessGuard.EnsureCanReadAsync(appointment);
+
+        DocumentUploadGate.EnsureRejected(document);
+        DocumentUploadGate.EnsureAppointmentApprovedAndNotPastDueDate(appointment);
+        var isInternal = await IsInternalActorAsync();
+
+        await OverwriteUploadedFileAsync(document, fileName, contentType, fileSize, content, isInternal);
+
+        await _localEventBus.PublishAsync(new AppointmentDocumentUploadedEto
+        {
+            AppointmentId = appointment.Id,
+            AppointmentDocumentId = document.Id,
+            TenantId = _currentTenant.Id,
+            IsAdHoc = document.IsAdHoc,
+            IsJointDeclaration = document.IsJointDeclaration,
             UploadedByUserId = CurrentUser.Id,
             OccurredAt = DateTime.UtcNow,
         });
@@ -672,6 +721,12 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         // appointment so an external party can only download files on
         // appointments they are a party to.
         await _readAccessGuard.EnsureCanReadAsync(entity.AppointmentId);
+        // 2026-10-14: a queued placeholder has no file. Refuse it BEFORE recording, or the access
+        // log holds a download that never happened (the open below would fail).
+        if (string.Equals(entity.BlobName, AppointmentDocumentConsts.PendingUploadPlaceholder, StringComparison.Ordinal))
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.DocumentNotUploadedYet);
+        }
         // Recorded before the file is opened, so a failed log write leaves no open stream behind.
         await PhiAccessRecorder.RecordAsync(PhiAccessAction.DocumentDownloaded,
             new PhiAccessTarget(null, entity.AppointmentId, entity.Id));

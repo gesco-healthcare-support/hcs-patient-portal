@@ -44,9 +44,49 @@ public class PhiAccessRecorder : DomainService
         _unitOfWorkManager = unitOfWorkManager;
     }
 
-    public virtual Task RecordAsync(PhiAccessAction action, PhiAccessTarget target)
+    /// <summary>
+    /// 2026-10-14: a VIEW of the same record by the same person (and the same impersonator) within
+    /// this window is recorded once. The appointment page reloads the appointment after each action
+    /// taken on it, and each reload wrote another AppointmentViewed row, burying the views that
+    /// mean something. Exports and downloads are never collapsed: each is a separate disclosure.
+    /// The check runs on the server, so no caller can switch its own logging off.
+    /// </summary>
+    public static readonly TimeSpan RepeatViewWindow = TimeSpan.FromMinutes(1);
+
+    public virtual async Task RecordAsync(PhiAccessAction action, PhiAccessTarget target)
     {
-        return RecordManyAsync(action, new[] { target });
+        if (IsView(action) && await WasJustRecordedAsync(action, target))
+        {
+            return;
+        }
+
+        await RecordManyAsync(action, new[] { target });
+    }
+
+    private static bool IsView(PhiAccessAction action) =>
+        action is PhiAccessAction.PatientViewed or PhiAccessAction.AppointmentViewed;
+
+    /// <summary>One indexed lookup on (user, time). Fails closed like the write: an error propagates.</summary>
+    private async Task<bool> WasJustRecordedAsync(PhiAccessAction action, PhiAccessTarget target)
+    {
+        var since = Clock.Now - RepeatViewWindow;
+        var userId = _currentUser.Id;
+        var impersonatorUserId = _currentUser.FindImpersonatorUserId();
+        var patientId = target.PatientId;
+        var appointmentId = target.AppointmentId;
+        var documentId = target.DocumentId;
+
+        var queryable = await _repository.GetQueryableAsync();
+        return await AsyncExecuter.AnyAsync(queryable.Where(e =>
+            e.Action == action
+            && e.UserId == userId
+            && e.ImpersonatorUserId == impersonatorUserId
+            && e.AppointmentId == appointmentId
+            // An appointment target arrives without its patient (the recorder fills it in), so the
+            // patient is compared only when the target names one.
+            && (patientId == null || e.PatientId == patientId)
+            && e.DocumentId == documentId
+            && e.AccessedAt >= since));
     }
 
     /// <summary>

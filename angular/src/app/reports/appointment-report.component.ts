@@ -273,7 +273,9 @@ export class AppointmentReportComponent implements OnInit {
     if (raw.locationId) params = params.set('locationId', raw.locationId);
     if (raw.appointmentStatus) params = params.set('appointmentStatus', raw.appointmentStatus);
     if (raw.appointmentDateMin) params = params.set('appointmentDateMin', raw.appointmentDateMin);
-    if (raw.appointmentDateMax) params = params.set('appointmentDateMax', raw.appointmentDateMax);
+    if (raw.appointmentDateMax) {
+      params = params.set('appointmentDateMax', inclusiveEnd(raw.appointmentDateMax)!);
+    }
 
     try {
       const response = await firstValueFrom(
@@ -444,10 +446,20 @@ export class AppointmentReportComponent implements OnInit {
         ? (Number(raw.appointmentStatus) as AppointmentStatusType)
         : undefined,
       appointmentDateMin: raw.appointmentDateMin || undefined,
-      appointmentDateMax: raw.appointmentDateMax || undefined,
+      appointmentDateMax: inclusiveEnd(raw.appointmentDateMax),
       sorting: sortingClause(this.sort) || undefined,
       skipCount: this.pageIndex * this.pageSize,
       maxResultCount: this.pageSize,
     };
   }
+}
+
+/**
+ * The "to" date as the END of that day. The server compares `AppointmentDate <= max`, and the
+ * appointment date carries the slot time, so a bare "2026-10-20" (midnight) dropped every
+ * Oct 20 appointment from the report, its PDF and its CSV (found 2026-10-15). The staff
+ * appointment list already sends its max this way.
+ */
+function inclusiveEnd(date: string | null | undefined): string | undefined {
+  return date ? `${date}T23:59:59` : undefined;
 }

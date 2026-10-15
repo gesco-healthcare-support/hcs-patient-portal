@@ -818,6 +818,179 @@ public abstract class AppointmentDocumentsServiceFlowTests<TStartupModule>
         (await ReloadAsync(document.Id)).VerificationCode.ShouldBeNull();
     }
 
+    // ------------------------------------------------------------------ replacing a rejected document (2026-10-14)
+    //
+    // "Upload replacement" on a rejected row. Before this the UI could only add a NEW document, so
+    // no version row was written, the rejected row stayed Rejected and a required document never
+    // counted as received.
+
+    private async Task SeedAppointmentStatusAsync(AppointmentStatusType status) =>
+        await WithUnitOfWorkAsync(async () =>
+        {
+            var appointment = await _appointmentRepository.GetAsync(AppointmentId);
+            appointment.SeedStatus(status);
+            await _appointmentRepository.UpdateAsync(appointment, autoSave: true);
+        });
+
+    [Fact]
+    public async Task A_rejected_upload_is_replaced_in_place_and_its_old_file_kept_on_record()
+    {
+        AppointmentDocument document = null!;
+        AppointmentDocumentDto result = null!;
+        await AsStaff(async () =>
+        {
+            document = await InsertDocumentAsync(d =>
+            {
+                d.IsAdHoc = true;
+                d.Status = DocumentStatus.Rejected;
+                d.RejectionReason = "Unreadable scan";
+            });
+            result = await _documents.ReplaceRejectedDocumentAsync(document.Id, "rescanned.pdf", "application/pdf", 20, Pdf());
+        });
+
+        result.Id.ShouldBe(document.Id);
+        result.FileName.ShouldBe("rescanned.pdf");
+        result.Status.ShouldBe(DocumentStatus.Accepted);
+        result.RejectionReason.ShouldBeNull();
+        await _blobs.DidNotReceiveWithAnyArgs().DeleteAsync(default!, default);
+        Published<AppointmentDocumentUploadedEto>().ShouldHaveSingleItem().IsAdHoc.ShouldBeTrue();
+
+        var version = (await VersionsOfAsync(document.Id)).ShouldHaveSingleItem();
+        version.BlobName.ShouldBe("office-a/old-blob");
+        version.Status.ShouldBe(DocumentStatus.Rejected);
+        version.RejectionReason.ShouldBe("Unreadable scan");
+        (await ReloadAsync(document.Id)).BlobName.ShouldBe(SavedBlobNames().ShouldHaveSingleItem());
+    }
+
+    [Theory]
+    [InlineData(DocumentStatus.Pending)]
+    [InlineData(DocumentStatus.Uploaded)]
+    [InlineData(DocumentStatus.Accepted)]
+    public async Task Replacing_refuses_a_document_that_is_not_rejected(DocumentStatus status)
+    {
+        AppointmentDocument document = null!;
+        await AsStaff(async () =>
+        {
+            document = await InsertDocumentAsync(d => d.Status = status);
+            (await Should.ThrowAsync<BusinessException>(() =>
+                    _documents.ReplaceRejectedDocumentAsync(document.Id, "x.pdf", "application/pdf", 20, Pdf())))
+                .Code.ShouldBe(CaseEvaluationDomainErrorCodes.DocumentReplaceRequiresRejected);
+        });
+
+        SavedBlobNames().ShouldBeEmpty();
+        (await VersionsOfAsync(document.Id)).ShouldBeEmpty();
+        (await ReloadAsync(document.Id)).Status.ShouldBe(status);
+    }
+
+    [Fact]
+    public async Task Replacing_is_refused_to_someone_with_no_access_to_the_appointment()
+    {
+        // The per-appointment guard, not the permission: this caller holds the permission (the
+        // test harness allows every permission) but is not a party to the appointment.
+        AppointmentDocument document = null!;
+        await AsStaff(async () => document = await InsertDocumentAsync(d => d.Status = DocumentStatus.Rejected));
+
+        await AsStaff(async () =>
+            (await Should.ThrowAsync<BusinessException>(() =>
+                    _documents.ReplaceRejectedDocumentAsync(document.Id, "x.pdf", "application/pdf", 20, Pdf())))
+                .Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentAccessDenied),
+            IdentityUsersTestData.PatientRoleName);
+
+        SavedBlobNames().ShouldBeEmpty();
+        (await VersionsOfAsync(document.Id)).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task A_rejected_document_can_be_replaced_while_the_request_is_back_with_the_requester()
+    {
+        // A staff send-back can flag "documents" to ask for a re-upload; the upload gate used to
+        // refuse every upload in exactly that state.
+        await AsStaff(async () =>
+        {
+            await SeedAppointmentStatusAsync(AppointmentStatusType.InfoRequested);
+            var document = await InsertDocumentAsync(d => d.Status = DocumentStatus.Rejected);
+            (await _documents.ReplaceRejectedDocumentAsync(document.Id, "x.pdf", "application/pdf", 20, Pdf()))
+                .Status.ShouldBe(DocumentStatus.Accepted);
+        });
+    }
+
+    [Fact]
+    public async Task Replacing_is_refused_once_the_appointment_no_longer_takes_uploads()
+    {
+        AppointmentDocument document = null!;
+        await AsStaff(async () =>
+        {
+            await SeedAppointmentStatusAsync(AppointmentStatusType.CancelledNoBill);
+            document = await InsertDocumentAsync(d => d.Status = DocumentStatus.Rejected);
+            (await Should.ThrowAsync<BusinessException>(() =>
+                    _documents.ReplaceRejectedDocumentAsync(document.Id, "x.pdf", "application/pdf", 20, Pdf())))
+                .Code.ShouldBe(CaseEvaluationDomainErrorCodes.DocumentUploadAfterApproval);
+        });
+
+        SavedBlobNames().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task A_replaced_required_document_counts_as_received_once_accepted()
+    {
+        // In place, the row keeps the SourceDocumentId that ties it to the requirement. A NEW upload
+        // never carried one, so the requirement stayed outstanding however often it was re-sent.
+        var consent = Guid.NewGuid();
+        MissingRequiredDocumentsResultDto before = null!, after = null!;
+        await AsStaff(async () =>
+        {
+            await WithUnitOfWorkAsync(async () =>
+            {
+                await _masterRepository.InsertAsync(new Document(consent, TenantsTestData.TenantARef, "Example consent", "docs/consent", "application/pdf"), autoSave: true);
+                var package = new PackageDetail(Guid.NewGuid(), TenantsTestData.TenantARef, "Example package", LocationsTestData.AppointmentType1Id);
+                package.DocumentPackages.Add(new DocumentPackage(package.Id, consent));
+                await _packageRepository.InsertAsync(package, autoSave: true);
+            });
+            var document = await InsertDocumentAsync(d =>
+            {
+                d.SourceDocumentId = consent;
+                d.Status = DocumentStatus.Rejected;
+            });
+
+            before = await _documents.GetMissingRequiredDocumentsAsync(AppointmentId);
+            await _documents.ReplaceRejectedDocumentAsync(document.Id, "consent.pdf", "application/pdf", 20, Pdf());
+            after = await _documents.GetMissingRequiredDocumentsAsync(AppointmentId);
+        });
+
+        before.Missing.ShouldHaveSingleItem().State.ShouldBe(RequiredDocumentState.Rejected);
+        after.RequiredCount.ShouldBe(1);
+        after.Missing.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task A_package_upload_refuses_an_ad_hoc_upload_or_a_joint_declaration()
+    {
+        // The package path took ANY document id, so it could overwrite an ad-hoc upload or a joint
+        // declaration; those are replaced through the rejected-row path instead.
+        await AsStaff(async () =>
+        {
+            var adHoc = await InsertDocumentAsync(d =>
+            {
+                d.IsAdHoc = true;
+                d.Status = DocumentStatus.Rejected;
+            });
+            var jointDeclaration = await InsertDocumentAsync(d =>
+            {
+                d.IsJointDeclaration = true;
+                d.Status = DocumentStatus.Rejected;
+            });
+
+            foreach (var id in new[] { adHoc.Id, jointDeclaration.Id })
+            {
+                (await Should.ThrowAsync<BusinessException>(() =>
+                        _documents.UploadPackageDocumentAsync(id, "x.pdf", "application/pdf", 20, Pdf())))
+                    .Code.ShouldBe(CaseEvaluationDomainErrorCodes.DocumentNotAPackageRow);
+            }
+        });
+
+        SavedBlobNames().ShouldBeEmpty();
+    }
+
     // ------------------------------------------------------------------ joint declaration
 
     [Fact]

@@ -575,15 +575,31 @@ describe('ExternalAppointmentDetailComponent', () => {
       expect(c.isLanguage('city')).toBeFalse();
     });
 
-    it('acknowledges a document replacement', () => {
+    it('marks the documents item done when a document is actually provided', () => {
+      // 2026-10-14: driven by the Documents panel's documentProvided event (an upload or a
+      // replacement), not by a self-reported "I uploaded the replacement" click.
       const c = create();
       c.ngOnInit();
       withFlags(c, ['documents']);
 
-      c.ackDocumentReplaced();
+      c.onDocumentProvided();
 
       expect(c.isFixed('documents')).toBeTrue();
       expect(toaster.success).toHaveBeenCalled();
+    });
+
+    it('ignores an upload when documents were not flagged, and announces it only once', () => {
+      const c = create();
+      c.ngOnInit();
+      withFlags(c, ['city']);
+      c.onDocumentProvided();
+      expect(c.isFixed('documents')).toBeFalse();
+      expect(toaster.success).not.toHaveBeenCalled();
+
+      withFlags(c, ['documents']);
+      c.onDocumentProvided();
+      c.onDocumentProvided();
+      expect(toaster.success).toHaveBeenCalledTimes(1);
     });
 
     it('refuses to acknowledge claim information with no rows', () => {
@@ -639,7 +655,7 @@ describe('ExternalAppointmentDetailComponent', () => {
       c.onEdit('city', 'Van Nuys');
       expect(c.canResubmit).toBeFalse();
 
-      c.ackDocumentReplaced();
+      c.onDocumentProvided();
 
       expect(c.canResubmit).toBeTrue();
       expect(c.progressPct).toBe(100);

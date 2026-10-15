@@ -1,5 +1,24 @@
 version: 2
 
+# NO VERSION-UPDATE PULL REQUESTS, IN ANY ECOSYSTEM (decided 2026-10-14).
+# Every entry below has open-pull-requests-limit: 0. That supersedes the
+# per-ecosystem reasons further down for github-actions, docker, dotnet-sdk,
+# pip and docker-compose, which are kept as the record of why they were once
+# 5. The file stays, so the config and its history stay.
+#
+# WHAT THIS DOES NOT CHANGE:
+# - Dependabot ALERTS. They come from the dependency graph and a repository
+#   setting, not from this file, and keep reporting every advisory.
+# - Dependabot SECURITY-UPDATE pull requests. That is a separate repository
+#   setting (enabled as of 2026-10-14); they target the default branch and
+#   this limit does not govern them. Turning them off is that setting.
+#
+# THE COST, STATED ONCE: the SHA-pinned actions and digest-pinned images
+# below no longer get a proposed refresh, and Docker gets no security updates
+# at all. A monthly manual patch check (after Microsoft's Patch Tuesday)
+# replaces these PRs and has to cover the actions, every image digest, the
+# .NET SDK pin and the packet renderer's requirements, not only NuGet and npm.
+
 # All version-update PRs target the long-lived chore/dependency-updates
 # integration branch, NOT main. See
 # docs/superpowers/specs/2026-05-21-dependency-integration-branch-design.md
@@ -88,10 +107,10 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-    # 5 is Dependabot's own default, not a number picked here. It is what keeps
-    # the SHA pins in .github/workflows/ refreshable; see the note at the top of
-    # this file for why this ecosystem alone is not 0.
-    open-pull-requests-limit: 5
+    # Was 5 (Dependabot's own default) to keep the SHA pins in
+    # .github/workflows/ refreshable; 0 since 2026-10-14, see the top of this
+    # file. The monthly patch check is now their only refresh path.
+    open-pull-requests-limit: 0
     labels: ["dependencies", "ci"]
     target-branch: "chore/dependency-updates"
 
@@ -111,7 +130,7 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0
     labels: ["dependencies", "docker"]
     target-branch: "chore/dependency-updates"
 
@@ -119,27 +138,27 @@ updates:
   # (setup-dotnet `global-json-file`) and the images pin the matching
   # `sdk:<version>` tag, so a bump here and the docker entry's sdk bump belong
   # together: rollForward latestPatch lets either land first within one feature
-  # band, but a new band needs both. Version updates are ON for the same reason
-  # as github-actions: an exact pin with no refresh path freezes.
+  # band, but a new band needs both. Version updates were ON so the exact pin
+  # did not freeze; 0 since 2026-10-14 (top of file), so the monthly check moves it.
   - package-ecosystem: "dotnet-sdk"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0
     labels: ["dependencies", "backend"]
     target-branch: "chore/dependency-updates"
 
   # The packet renderer's hash-pinned requirements.txt, compiled by pip-compile
   # from requirements.in (decision 18; B8, 2026-09-25). Dependabot recompiles the
-  # whole file, hashes included. Version updates ON: the ABP/Angular constraint
-  # that keeps nuget and npm at 0 says nothing about this service.
+  # whole file, hashes included. Version updates were ON (the ABP/Angular
+  # constraint says nothing about this service); 0 since 2026-10-14, top of file.
   - package-ecosystem: "pip"
     directory: "/docker/packet-renderer"
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0
     labels: ["dependencies", "backend"]
     target-branch: "chore/dependency-updates"
 
@@ -155,7 +174,7 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0
     labels: ["dependencies", "docker"]
     target-branch: "chore/dependency-updates"
     ignore:

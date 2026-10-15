@@ -15,6 +15,7 @@ import type { StateDto } from '../proxy/states/models';
 import type { Gender } from '../proxy/enums/gender.enum';
 import type { PhoneNumberType } from '../proxy/enums/phone-number-type.enum';
 import type { PersonFormState, PersonRow, PeopleSectionKey } from './people.util';
+import type { PatientWithNavigationPropertiesDto } from '../proxy/patients/models';
 
 const PAGE = { maxResultCount: 500, skipCount: 0 };
 
@@ -32,6 +33,40 @@ export interface LookupOption {
  * {@link activeInvitedEmails} resolves. Attorney DTOs carry no email field, so
  * their create/update omit it.
  */
+/**
+ * One patient list item as a directory row. Shared by the list and by the single-record detail
+ * fetch, so the two cannot drift.
+ */
+export function toPatientRow(n: PatientWithNavigationPropertiesDto): PersonRow {
+  const p = n.patient;
+  return {
+    id: p?.id ?? '',
+    firstName: p?.firstName ?? '',
+    lastName: p?.lastName ?? '',
+    email: p?.email ?? null,
+    phoneNumber: p?.phoneNumber ?? null,
+    identityUserId: p?.identityUserId ?? null,
+    portal: p?.identityUserId ? 'linked' : 'none',
+    middleName: p?.middleName ?? null,
+    genderId: p?.genderId ?? null,
+    dateOfBirth: p?.dateOfBirth ?? null,
+    cellPhoneNumber: p?.cellPhoneNumber ?? null,
+    phoneNumberTypeId: p?.phoneNumberTypeId ?? null,
+    socialSecurityNumber: p?.socialSecurityNumber ?? null,
+    apptNumber: p?.apptNumber ?? null,
+    street: p?.street ?? null,
+    city: p?.city ?? null,
+    stateId: p?.stateId ?? null,
+    stateName: n.state?.name ?? null,
+    zipCode: p?.zipCode ?? null,
+    appointmentLanguageId: p?.appointmentLanguageId ?? null,
+    languageName: n.appointmentLanguage?.name ?? null,
+    othersLanguageName: p?.othersLanguageName ?? null,
+    interpreterVendorName: p?.interpreterVendorName ?? null,
+    concurrencyStamp: p?.concurrencyStamp,
+  } as PersonRow;
+}
+
 @Injectable({ providedIn: 'root' })
 export class PeopleSectionGateway {
   private readonly patients = inject(PatientService);
@@ -41,42 +76,19 @@ export class PeopleSectionGateway {
   private readonly externalSignup = inject(ExternalSignupStaffService);
   private readonly appointments = inject(AppointmentService);
 
+  /**
+   * 2026-10-14: ONE patient record, through the single-record read the server records in the
+   * PHI access log (PatientViewed). The detail view used to render the row the bulk list had
+   * already loaded, so opening a patient recorded nothing.
+   */
+  patientDetail(id: string): Observable<PersonRow> {
+    return this.patients.getWithNavigationProperties(id).pipe(map(toPatientRow));
+  }
+
   list(section: PeopleSectionKey): Observable<PersonRow[]> {
     switch (section) {
       case 'patients':
-        return this.patients.getList(PAGE).pipe(
-          map((r) =>
-            (r.items ?? []).map((n) => {
-              const p = n.patient;
-              return {
-                id: p?.id ?? '',
-                firstName: p?.firstName ?? '',
-                lastName: p?.lastName ?? '',
-                email: p?.email ?? null,
-                phoneNumber: p?.phoneNumber ?? null,
-                identityUserId: p?.identityUserId ?? null,
-                portal: p?.identityUserId ? 'linked' : 'none',
-                middleName: p?.middleName ?? null,
-                genderId: p?.genderId ?? null,
-                dateOfBirth: p?.dateOfBirth ?? null,
-                cellPhoneNumber: p?.cellPhoneNumber ?? null,
-                phoneNumberTypeId: p?.phoneNumberTypeId ?? null,
-                socialSecurityNumber: p?.socialSecurityNumber ?? null,
-                apptNumber: p?.apptNumber ?? null,
-                street: p?.street ?? null,
-                city: p?.city ?? null,
-                stateId: p?.stateId ?? null,
-                stateName: n.state?.name ?? null,
-                zipCode: p?.zipCode ?? null,
-                appointmentLanguageId: p?.appointmentLanguageId ?? null,
-                languageName: n.appointmentLanguage?.name ?? null,
-                othersLanguageName: p?.othersLanguageName ?? null,
-                interpreterVendorName: p?.interpreterVendorName ?? null,
-                concurrencyStamp: p?.concurrencyStamp,
-              } as PersonRow;
-            }),
-          ),
-        );
+        return this.patients.getList(PAGE).pipe(map((r) => (r.items ?? []).map(toPatientRow)));
       case 'aa':
         return this.aa
           .getList(PAGE)

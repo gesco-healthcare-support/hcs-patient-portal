@@ -172,14 +172,29 @@
                 </div>
               }
             </div>
-            <button
-              type="button"
-              class="btn btn-outline-primary btn-sm"
-              (click)="download(doc)"
-              title="Download"
-            >
-              <i class="fa fa-download"></i>
-            </button>
+            <!-- 2026-10-14: replaces the rejected file in place (kept on record server-side). -->
+            @if (canUpload && doc.status === DocumentStatus.Rejected) {
+              <button
+                type="button"
+                class="btn btn-outline-primary btn-sm replace-btn"
+                (click)="startReplace(doc, replacePicker)"
+                [disabled]="replacingDoc !== null"
+              >
+                <i class="fa fa-upload me-1"></i>
+                {{ replacingDoc?.id === doc.id ? 'Uploading...' : 'Upload replacement' }}
+              </button>
+            }
+            <!-- 2026-10-14: a requested document still awaiting its file has nothing to download. -->
+            @if (doc.status !== DocumentStatus.Pending) {
+              <button
+                type="button"
+                class="btn btn-outline-primary btn-sm download-btn"
+                (click)="download(doc)"
+                title="Download"
+              >
+                <i class="fa fa-download"></i>
+              </button>
+            }
             @if (canApprove && doc.status !== DocumentStatus.Accepted) {
               <button
                 type="button"
@@ -215,6 +230,16 @@
         }
       </div>
     }
+    <!-- One picker serves every "Upload replacement" button; startReplace remembers the row. -->
+    <input
+      #replacePicker
+      id="document-replace-input"
+      type="file"
+      class="d-none"
+      aria-label="Choose the replacement file"
+      [accept]="acceptAttribute"
+      (change)="onReplacementSelected($event)"
+    />
   </div>
 </div>
 

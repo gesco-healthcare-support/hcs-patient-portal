@@ -93,6 +93,15 @@ export class AppointmentDocumentService {
     { apiName: this.apiName,...config });
   
 
+  replaceRejected = (appointmentId: string, id: string, form: UploadAppointmentDocumentForm, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, AppointmentDocumentDto>({
+      method: 'POST',
+      url: `/api/app/appointments/${appointmentId}/documents/${id}/replace`,
+      body: form.file,
+    },
+    { apiName: this.apiName,...config });
+  
+
   upload = (appointmentId: string, form: UploadAppointmentDocumentForm, config?: Partial<Rest.Config>) =>
     this.restService.request<any, AppointmentDocumentDto>({
       method: 'POST',

@@ -33,9 +33,9 @@ Case Tracker S3 client
   ciphertext. The two WebSocket legs are TLS as well.
 - **nginx sees these connections from 127.0.0.1**, because the listener shares nginx's network namespace. The MinIO
   vhost always allows loopback, so it can deny every other address.
-- **The per-office read-only MinIO users still apply** (`scripts/hosting/minio-case-tracker-access.sh`:
-  `s3:GetObject` on one office's prefix only). Relay controls who can reach nginx; the MinIO user controls what can
-  be read.
+- **The read-only MinIO user still applies** (`scripts/hosting/minio-case-tracker-access.sh --shared`: one key,
+  `s3:GetObject` on each listed office's prefix only; per-office keys remain possible). Relay controls who can reach
+  nginx; the MinIO user controls what can be read.
 
 ## Credentials: two keys and one identity, each able to do one thing
 
@@ -44,7 +44,7 @@ Case Tracker S3 client
 | VM listener | the VM's managed identity, granted **Azure Relay Listener** on this hybrid connection only | listen; no key on the VM |
 | VM listener, fallback only | SAS rule `vm-listen` (Listen) | listen. Its keys are not handed out unless the identity path fails |
 | Case Tracker | SAS rule `case-tracker-send` (Send) | send. A leaked copy cannot listen, so it cannot impersonate the portal |
-| Case Tracker, to MinIO | the per-office read-only MinIO user | read one office's documents |
+| Case Tracker, to MinIO | the shared read-only MinIO user `ct-shared` | read the listed offices' documents |
 
 The hybrid connection requires client authorization, so an anonymous sender is refused. No key is a template
 output. An Owner reads a rule's keys with
@@ -123,7 +123,7 @@ per-office MinIO credentials by a private channel.
 3. **S3 settings, set together** (a per-field fallback makes a partial change fail as an authentication error):
    - endpoint `https://minio.<base>` (or `https://minio.<base>:9443`);
    - path-style addressing, region `us-east-1`;
-   - the per-office read-only MinIO access key and secret.
+   - the shared read-only MinIO access key and secret (`secrets/case-tracker-minio-shared.txt`).
 
    No truststore change is needed: Let's Encrypt chains to roots the JDK already ships.
 4. **Firewall:** outbound TCP 443 to `<namespace>.servicebus.windows.net`. Hybrid Connections uses only WebSockets
@@ -137,7 +137,7 @@ per-office MinIO credentials by a private channel.
 | Listener crash-looping | the same | the alert above; and after five quick exits the unit fails and emails via `hcs-portal-backup-alert@` |
 | Reverse proxy recreated by a deploy | a short gap (up to about 15 s) | nothing needed: the script re-attaches the listener |
 | Case Tracker forwarder down, or its key wrong or rotated | connection refused locally, or the relay refuses the sender | the Case Tracker's own errors; Relay metric `SenderConnections-ClientError` |
-| Its MinIO credential wrong or rotated | `403 InvalidAccessKeyId` or `SignatureDoesNotMatch` | the Case Tracker's own errors; reissue with `minio-case-tracker-access.sh --rotate` |
+| Its MinIO credential wrong or rotated | `403 InvalidAccessKeyId` or `SignatureDoesNotMatch` | the Case Tracker's own errors; reissue with `minio-case-tracker-access.sh --shared <office ids> --rotate` |
 | Its hosts entry or endpoint wrong | TLS name mismatch, or a request to the wrong host | the Case Tracker's own errors |
 | Azure Relay regional outage | as listener down | the alert; no portal function other than Case Tracker document reads is affected |
 

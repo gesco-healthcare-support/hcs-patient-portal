@@ -30,4 +30,10 @@ public enum PhiAccessAction
 
     /// <summary>Exported one appointment's demographics sheet as a PDF.</summary>
     DemographicsExported = 8,
+
+    /// <summary>
+    /// Exported selected rows of the internal appointment list as a CSV (built in the browser,
+    /// recorded by the server first). One row per appointment in it.
+    /// </summary>
+    AppointmentListCsvExported = 9,
 }

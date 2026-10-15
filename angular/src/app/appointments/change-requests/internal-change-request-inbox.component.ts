@@ -29,8 +29,10 @@ import {
   canConfirmDate,
   canFinalizeReschedule,
   consentStatusLabel,
+  effectiveRescheduleOutcome,
   formatSlotLabel,
   requiresAdminReason,
+  rescheduleModalTitle,
   rescheduleStage,
   // Aliased: the component exposes same-named template helpers that delegate here.
   rowActionLabel as rowActionLabelFor,
@@ -432,7 +434,46 @@ export class InternalChangeRequestInboxComponent implements OnInit {
 
   /** Whether "Finalize reschedule" may fire. */
   protected canFinalize(row: AppointmentChangeRequestDto): boolean {
-    return canFinalizeReschedule({ stage: this.stage(row), outcome: this.outcome() });
+    return canFinalizeReschedule({ stage: this.stage(row), outcome: this.effectiveOutcome(row) });
+  }
+
+  /** 2026-10-14: the modal's title names the step a reschedule is really on. */
+  protected modalTitle(row: AppointmentChangeRequestDto): string {
+    return this.isReschedule(row) ? rescheduleModalTitle(this.stage(row)) : 'Approve cancellation';
+  }
+
+  /**
+   * Approve is offered for a cancellation (staff still approve after consent, Q11) and, for a
+   * reschedule, only in the fallback where both sides agreed but it did not complete on its own.
+   * While consent is pending there is nothing for staff to approve, so no dead button is shown.
+   */
+  protected showApprove(row: AppointmentChangeRequestDto): boolean {
+    return !this.isReschedule(row) || this.stage(row) === 'granted';
+  }
+
+  /** The outcome select shows only where the outcome is still staff's to choose. */
+  protected showOutcomeSelect(row: AppointmentChangeRequestDto): boolean {
+    return (
+      !this.isReschedule(row) ||
+      (this.stage(row) === 'granted' && (row.currentRoundProposedOutcome ?? null) === null)
+    );
+  }
+
+  /** "No bill" / "Late" for the outcome chosen at Set date, or null when none was. */
+  protected chosenOutcomeLabel(row: AppointmentChangeRequestDto): string | null {
+    const chosen = row.currentRoundProposedOutcome;
+    return this.outcomeOptions(row).find((opt) => opt.value === chosen)?.label ?? null;
+  }
+
+  /** What Approve sends: for a reschedule, the outcome chosen at Set date when there is one. */
+  protected effectiveOutcome(row: AppointmentChangeRequestDto): AppointmentStatusType | null {
+    if (!this.isReschedule(row)) {
+      return this.outcome();
+    }
+    return effectiveRescheduleOutcome(
+      row.currentRoundProposedOutcome,
+      this.outcome(),
+    ) as AppointmentStatusType | null;
   }
 
   /** The date both sides are being asked to agree to, or null before anything is confirmed. */
@@ -556,8 +597,11 @@ export class InternalChangeRequestInboxComponent implements OnInit {
 
   protected confirmApprove(): void {
     const m = this.modal();
-    const out = this.outcome();
-    if (m?.kind !== 'approve' || !m.row.id || out === null || this.isBusy()) {
+    if (m?.kind !== 'approve' || !m.row.id || this.isBusy()) {
+      return;
+    }
+    const out = this.effectiveOutcome(m.row);
+    if (out === null) {
       return;
     }
     // Defense-in-depth: the Approve button is disabled when consent blocks

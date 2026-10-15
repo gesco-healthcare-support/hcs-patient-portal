@@ -261,20 +261,24 @@
                   @if (!isFixed('documents')) {
                     <div class="sb-flaghint">
                       <app-icon name="alert" [size]="13" />
-                      {{ hintFor('documents') || 'Upload a replacement document below.' }}
+                      {{
+                        hintFor('documents') ||
+                          'Upload a replacement in Documents below (use "Upload replacement" on a rejected document).'
+                      }}
                     </div>
+                    <!-- 2026-10-14: marked done by an actual upload (documentProvided), not a click. -->
                     <button
                       class="af-btn af-btn--ghost af-btn--sm"
                       type="button"
-                      (click)="ackDocumentReplaced()"
+                      (click)="scrollTo('ad-sec-documents')"
                     >
                       <app-icon name="arrowUp" [size]="14" />
-                      I uploaded the replacement
+                      Go to Documents
                     </button>
                   } @else {
                     <span class="sb-confirm">
                       <app-icon name="check" [size]="13" />
-                      Replacement noted -- upload it in Documents below.
+                      Document received.
                     </span>
                   }
                 </div>
@@ -950,6 +954,7 @@
             id="appointment-documents-anchor"
             [appointmentId]="appointment.appointment?.id ?? null"
             (documentsChanged)="packetPanel.refresh()"
+            (documentProvided)="onDocumentProvided()"
           />
           <app-appointment-packet
             #packetPanel

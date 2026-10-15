@@ -52,6 +52,7 @@ public class ControllerDelegationTests
         "AppointmentDocumentController.DownloadAsync(Guid,Guid)",
         "AppointmentDocumentController.GetListAsync(Guid)",
         "AppointmentDocumentController.RejectAsync(Guid,Guid,RejectDocumentInput)",
+        "AppointmentDocumentController.ReplaceRejectedAsync(Guid,Guid,UploadAppointmentDocumentForm)",
         "AppointmentDocumentController.UploadAsync(Guid,UploadAppointmentDocumentForm)",
         "AppointmentDocumentController.UploadJointDeclarationAsync(Guid,UploadAppointmentDocumentForm)",
         "AppointmentDocumentController.UploadPackageAsync(Guid,Guid,UploadAppointmentDocumentForm)",
