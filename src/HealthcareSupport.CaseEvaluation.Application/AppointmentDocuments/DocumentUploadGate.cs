@@ -37,8 +37,10 @@ internal static class DocumentUploadGate
     /// Mirrors OLD <c>UpdateValidation</c> at
     /// <c>P:\PatientPortalOld\PatientAppointment.Domain\AppointmentRequestModule\AppointmentDocumentDomain.cs</c>:95-105.
     /// Throws <c>BusinessException(DocumentUploadAfterApproval)</c>
-    /// when the appointment status is not Pending/Approved/RescheduleRequested
-    /// (F3 2026-05-29: documents may be uploaded from request time),
+    /// when the appointment status is not Pending/Approved/RescheduleRequested/InfoRequested
+    /// (F3 2026-05-29: documents may be uploaded from request time; 2026-10-14: and while
+    /// the request is back with the requester -- a staff send-back can flag "documents"
+    /// precisely to ask for a re-upload, which this gate used to refuse),
     /// or <c>DocumentUploadAfterDueDate</c> when the appointment is
     /// past <see cref="Appointment.DueDate"/>. NULL <c>DueDate</c> is
     /// treated as "no due-date gate" (the appointment was created
@@ -54,7 +56,8 @@ internal static class DocumentUploadGate
         // after approval -- users must supply documents to get approved.
         if (status != AppointmentStatusType.Pending &&
             status != AppointmentStatusType.Approved &&
-            status != AppointmentStatusType.RescheduleRequested)
+            status != AppointmentStatusType.RescheduleRequested &&
+            status != AppointmentStatusType.InfoRequested)
         {
             throw new BusinessException(
                 CaseEvaluationDomainErrorCodes.DocumentUploadAfterApproval);
@@ -111,6 +114,37 @@ internal static class DocumentUploadGate
         {
             throw new BusinessException(
                 CaseEvaluationDomainErrorCodes.JdfUploaderMustBeBookingAttorney);
+        }
+    }
+
+    /// <summary>
+    /// 2026-10-14 -- the replace-in-place path is for a REJECTED document only. It is what
+    /// "Upload replacement" on a rejected row calls (OLD re-uploaded a rejected document on
+    /// the same row and cleared its rejection, parity-v2 E6); any other status has its own
+    /// route, so letting this one take them would widen what a party can overwrite.
+    /// </summary>
+    public static void EnsureRejected(AppointmentDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        if (document.Status != DocumentStatus.Rejected)
+        {
+            throw new BusinessException(
+                CaseEvaluationDomainErrorCodes.DocumentReplaceRequiresRejected);
+        }
+    }
+
+    /// <summary>
+    /// 2026-10-14 -- the package path writes into a QUEUED package row (one the package queue
+    /// created for a required document). It accepted any document id, so it could overwrite an
+    /// ad-hoc upload or a joint declaration; those are replaced through the rejected-row path.
+    /// </summary>
+    public static void EnsurePackageRow(AppointmentDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        if (document.IsAdHoc || document.IsJointDeclaration)
+        {
+            throw new BusinessException(
+                CaseEvaluationDomainErrorCodes.DocumentNotAPackageRow);
         }
     }
 

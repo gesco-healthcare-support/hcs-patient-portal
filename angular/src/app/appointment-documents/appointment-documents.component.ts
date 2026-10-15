@@ -109,6 +109,12 @@ const PANEL_STRIKE_LIST_LABEL = 'Panel Strike List';
 export class AppointmentDocumentsComponent implements OnChanges {
   @Input() appointmentId: string | null = null;
   @Output() readonly documentsChanged = new EventEmitter<void>();
+  /**
+   * 2026-10-14: fires only when a file was actually PROVIDED -- a new upload or a replacement --
+   * unlike documentsChanged, which also fires on approve, reject and delete. The external fix-it
+   * flow marks its "documents" item done from this instead of from a self-reported click.
+   */
+  @Output() readonly documentProvided = new EventEmitter<void>();
 
   private readonly service = inject(AppointmentDocumentService);
   private readonly toaster = inject(ToasterService);
@@ -176,6 +182,14 @@ export class AppointmentDocumentsComponent implements OnChanges {
   get canApprove(): boolean {
     return this.permission.getGrantedPolicy('CaseEvaluation.AppointmentDocuments.Approve');
   }
+
+  /** Whoever may upload may replace a rejected document (the server re-checks, with the party guard). */
+  get canUpload(): boolean {
+    return this.permission.getGrantedPolicy('CaseEvaluation.AppointmentDocuments.Create');
+  }
+
+  /** The rejected document an "Upload replacement" is in flight for, or null. */
+  replacingDoc: AppointmentDocumentDto | null = null;
 
   // Distinct admin categories present in the loaded documents (only those whose
   // label resolves), for the filter dropdown.
@@ -393,10 +407,76 @@ export class AppointmentDocumentsComponent implements OnChanges {
           }
           this.refresh();
           this.documentsChanged.emit();
+          this.documentProvided.emit();
           this.isUploading = false;
         },
         error: () => {
           this.isUploading = false;
+        },
+      });
+  }
+
+  /**
+   * 2026-10-14 -- "Upload replacement" on a rejected row: remembers the row, then opens the
+   * shared hidden file picker. The choice arrives in onReplacementSelected.
+   */
+  startReplace(doc: AppointmentDocumentDto, picker: HTMLInputElement): void {
+    if (this.replacingDoc) {
+      return;
+    }
+    this.replacingDoc = doc;
+    picker.value = '';
+    picker.click();
+  }
+
+  onReplacementSelected(event: Event): void {
+    const file = (event.target as HTMLInputElement).files?.[0] ?? null;
+    const doc = this.replacingDoc;
+    if (!file || !doc) {
+      this.replacingDoc = null;
+      return;
+    }
+    this.replace(doc, file);
+  }
+
+  /**
+   * Replaces a REJECTED document's file in place (POST .../documents/{id}/replace). The server
+   * keeps the replaced file on record and clears the rejection; the same row then waits for
+   * review again, so a required document counts once it is accepted. Before this the only fix was
+   * a NEW upload, which left the rejected row and its requirement outstanding.
+   */
+  replace(doc: AppointmentDocumentDto, file: File): void {
+    if (!this.appointmentId || !doc.id) {
+      this.replacingDoc = null;
+      return;
+    }
+    if (file.size > this.maxBytes) {
+      this.toaster.error(`File exceeds the ${this.maxBytes / (1024 * 1024)} MB upload cap.`);
+      this.replacingDoc = null;
+      return;
+    }
+    const form = new FormData();
+    form.append('file', file, file.name);
+    this.replacingDoc = doc;
+    this.restService
+      .request<FormData, AppointmentDocumentDto>(
+        {
+          method: 'POST',
+          url: `/api/app/appointments/${this.appointmentId}/documents/${doc.id}/replace`,
+          body: form,
+        },
+        { apiName: 'Default' },
+      )
+      .subscribe({
+        next: () => {
+          this.toaster.success('Replacement uploaded.');
+          this.replacingDoc = null;
+          this.refresh();
+          this.documentsChanged.emit();
+          this.documentProvided.emit();
+        },
+        error: () => {
+          this.replacingDoc = null;
         },
       });
   }

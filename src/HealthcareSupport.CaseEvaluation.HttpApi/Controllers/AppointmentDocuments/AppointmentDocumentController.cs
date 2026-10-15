@@ -137,6 +137,30 @@ public class AppointmentDocumentController : AbpController
     }
 
     /// <summary>
+    /// 2026-10-14 -- "Upload replacement" on a rejected document (authenticated). Replaces
+    /// the file in place and keeps the replaced one on record.
+    /// </summary>
+    [HttpPost("{id}/replace")]
+    [Consumes("multipart/form-data")]
+    public virtual async Task<AppointmentDocumentDto> ReplaceRejectedAsync(
+        Guid appointmentId,
+        Guid id,
+        [FromForm] UploadAppointmentDocumentForm form)
+    {
+        if (form?.File == null || form.File.Length == 0)
+        {
+            throw new UserFriendlyException("File is required.");
+        }
+        await using var stream = form.File.OpenReadStream();
+        return await _service.ReplaceRejectedDocumentAsync(
+            id,
+            form.File.FileName,
+            form.File.ContentType,
+            form.File.Length,
+            stream);
+    }
+
+    /// <summary>
     /// Phase 14 (2026-05-04) -- AME Joint Declaration Form upload.
     /// Creates a new <c>IsJointDeclaration = true</c> row.
     /// </summary>

@@ -9009,6 +9009,131 @@
               "allowAnonymous": null,
               "implementFrom": "HealthcareSupport.CaseEvaluation.Controllers.AppointmentDocuments.AppointmentDocumentController"
             },
+            "ReplaceRejectedAsyncByAppointmentIdAndIdAndForm": {
+              "uniqueName": "ReplaceRejectedAsyncByAppointmentIdAndIdAndForm",
+              "name": "ReplaceRejectedAsync",
+              "httpMethod": "POST",
+              "url": "api/app/appointments/{appointmentId}/documents/{id}/replace",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "appointmentId",
+                  "typeAsString": "System.Guid, System.Private.CoreLib",
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null
+                },
+                {
+                  "name": "id",
+                  "typeAsString": "System.Guid, System.Private.CoreLib",
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null
+                },
+                {
+                  "name": "form",
+                  "typeAsString": "HealthcareSupport.CaseEvaluation.Controllers.AppointmentDocuments.UploadAppointmentDocumentForm, HealthcareSupport.CaseEvaluation.HttpApi",
+                  "type": "HealthcareSupport.CaseEvaluation.Controllers.AppointmentDocuments.UploadAppointmentDocumentForm",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.Controllers.AppointmentDocuments.UploadAppointmentDocumentForm",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "appointmentId",
+                  "name": "appointmentId",
+                  "jsonName": null,
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": [],
+                  "bindingSourceId": "Path",
+                  "descriptorName": ""
+                },
+                {
+                  "nameOnMethod": "id",
+                  "name": "id",
+                  "jsonName": null,
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": [],
+                  "bindingSourceId": "Path",
+                  "descriptorName": ""
+                },
+                {
+                  "nameOnMethod": "form",
+                  "name": "DocumentName",
+                  "jsonName": null,
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Form",
+                  "descriptorName": "form"
+                },
+                {
+                  "nameOnMethod": "form",
+                  "name": "AppointmentDocumentTypeId",
+                  "jsonName": null,
+                  "type": "System.Guid?",
+                  "typeSimple": "string?",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Form",
+                  "descriptorName": "form"
+                },
+                {
+                  "nameOnMethod": "form",
+                  "name": "OtherDocumentTypeName",
+                  "jsonName": null,
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Form",
+                  "descriptorName": "form"
+                },
+                {
+                  "nameOnMethod": "form",
+                  "name": "File",
+                  "jsonName": null,
+                  "type": "Microsoft.AspNetCore.Http.IFormFile",
+                  "typeSimple": "Microsoft.AspNetCore.Http.IFormFile",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "FormFile",
+                  "descriptorName": "form"
+                },
+                {
+                  "nameOnMethod": "form",
+                  "name": "IsPanelStrikeList",
+                  "jsonName": null,
+                  "type": "System.Boolean?",
+                  "typeSimple": "boolean?",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Form",
+                  "descriptorName": "form"
+                }
+              ],
+              "returnValue": {
+                "type": "HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocumentDto",
+                "typeSimple": "HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocumentDto"
+              },
+              "allowAnonymous": null,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.Controllers.AppointmentDocuments.AppointmentDocumentController"
+            },
             "UploadJointDeclarationAsyncByAppointmentIdAndForm": {
               "uniqueName": "UploadJointDeclarationAsyncByAppointmentIdAndForm",
               "name": "UploadJointDeclarationAsync",

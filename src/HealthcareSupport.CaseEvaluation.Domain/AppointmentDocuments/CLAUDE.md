@@ -72,6 +72,18 @@ naming a file that was never stored. The record joins the same unit of work, so 
 rolls it back and the compensating delete removes only the new file. Do not reintroduce a delete of
 the replaced blob: it used to run before the commit, and a failed commit then lost both files.
 
+### Replacing a rejected document (2026-10-14)
+
+"Upload replacement" on a rejected row calls `ReplaceRejectedDocumentAsync`
+(`POST api/app/appointments/{aid}/documents/{id}/replace`). It replaces the file IN PLACE, as OLD
+did (parity-v2 E6), for any kind of row (ad-hoc, package, joint declaration), so the row keeps its
+`SourceDocumentId` and a replaced required document counts once accepted. It goes through the same
+`OverwriteUploadedFileAsync` (version row, scanner in the store), the read guard and the status gate.
+`DocumentUploadGate.EnsureRejected` keeps it to Rejected rows; `EnsurePackageRow` now keeps the
+package path to package rows. The status gate also admits InfoRequested, because a staff send-back
+can flag "documents" to ask for exactly this. Before this, the UI's only fix was a NEW upload: no
+version row, the rejected row stayed Rejected, and the requirement stayed outstanding.
+
 ### Document-type + required-document tracking (PR2/PR3)
 
 `AppointmentDocument` carries three nullable columns from the document-type feature:

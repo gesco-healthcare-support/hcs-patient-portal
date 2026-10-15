@@ -172,6 +172,22 @@ public class AppointmentDocumentControllersTests
     }
 
     [Fact]
+    public async Task Replacing_a_rejected_document_refuses_an_empty_file_and_otherwise_replaces_the_named_row()
+    {
+        var controller = Documents();
+        await Should.ThrowAsync<UserFriendlyException>(() =>
+            controller.ReplaceRejectedAsync(AppointmentId, DocumentId, new UploadAppointmentDocumentForm { File = FormFiles.Empty() }));
+        _documents.ReceivedCalls().ShouldBeEmpty();
+
+        var expected = new AppointmentDocumentDto();
+        var form = new UploadAppointmentDocumentForm { File = FormFiles.WithContent(out var stream) };
+        _documents.ReplaceRejectedDocumentAsync(DocumentId, FormFiles.FileName, FormFiles.ContentType, form.File.Length, stream)
+            .Returns(expected);
+
+        (await controller.ReplaceRejectedAsync(AppointmentId, DocumentId, form)).ShouldBeSameAs(expected);
+    }
+
+    [Fact]
     public async Task Joint_declaration_upload_refuses_an_empty_file_and_otherwise_names_the_form()
     {
         var controller = Documents();
