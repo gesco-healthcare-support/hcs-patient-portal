@@ -8,7 +8,7 @@
 | `AppointmentChangeRequestManager.cs` | Domain service: submit + (Phase 17) approve / reject flows |
 | `AppointmentChangeRequestDocument.cs` | Supporting document attached to a change request |
 | `CancellationRequestValidators.cs` | Static guards: status + cancel-time window |
-| `RescheduleRequestValidators.cs` | Static guards: status + slot availability |
+| `RescheduleRequestValidators.cs` | Static guards: status, slot availability, and (2026-10-15) never the appointment's own slot |
 | `IAppointmentChangeRequestRepository.cs` | Repository contract; the same file also declares `IAppointmentChangeRequestDocumentRepository` for supporting documents |
 | `ChangeRequestConsentManager.cs` | Two-sided consent: issues each side's single-use token (only its SHA-256 hash is stored), validates it, records the decision. Also declares `ChangeRequestConsentMatch`: a raw token resolved to its change request, the round that owns it (null for a cancellation) and the side |
 | `ChangeRequestConsentRound.cs` | One consent round per staff-proposed date: per-side token hash, expiry and decision. Rounds are rows so the record of who declined which date survives |
@@ -33,6 +33,13 @@ may send only a reason. A proposed slot transitions `Available -> Reserved` imme
 `Approved -> RescheduleRequested` via `AppointmentManager.RequestRescheduleAsync` (state
 machine -- do NOT set `AppointmentStatus` directly); a staff-filed request on a Pending
 appointment skips that step and stays Pending. On supervisor reject, a held slot is released.
+
+**The new date is never the current one** (2026-10-15). Both the staff-filed submit and the staff
+"Set date" step (`ConfirmRescheduleDateAsync`) refuse a proposed slot equal to the appointment's
+own `DoctorAvailabilityId` (`RescheduleRequestValidators.EnsureNotCurrentSlot`,
+`ChangeRequestNewSlotIsCurrentSlot`). The availability check cannot catch it: under the capacity
+model a booked slot can still read Available. Found on the test server, where "Set date" had asked
+both parties to consent to moving an appointment to where it already was.
 
 **Consent (phase 4c).** Staff commit to a date, which opens a `ChangeRequestConsentRound`
 that both sides must accept -- through their emailed tokens or, since 2026-10-10, from inside

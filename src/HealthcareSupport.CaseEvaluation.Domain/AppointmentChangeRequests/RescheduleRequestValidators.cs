@@ -1,4 +1,6 @@
+using System;
 using HealthcareSupport.CaseEvaluation.Enums;
+using Volo.Abp;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
 
@@ -57,5 +59,21 @@ public static class RescheduleRequestValidators
     public static bool IsSlotAvailable(BookingStatus slotStatus)
     {
         return slotStatus == BookingStatus.Available;
+    }
+
+    /// <summary>
+    /// 2026-10-15 -- throws when a reschedule proposes the slot the appointment already holds.
+    /// Moving an appointment to where it already is asks both parties to consent to nothing, and
+    /// completing it closes the original as Rescheduled and books a copy onto the same slot. The
+    /// slot-status check above does not catch it: under the capacity model a booked slot can
+    /// still read Available. Shared by the staff-filed submit and the staff "Set date" step.
+    /// </summary>
+    public static void EnsureNotCurrentSlot(Guid currentSlotId, Guid proposedSlotId)
+    {
+        if (proposedSlotId == currentSlotId)
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.ChangeRequestNewSlotIsCurrentSlot)
+                .WithData("slotId", proposedSlotId);
+        }
     }
 }

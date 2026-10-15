@@ -342,6 +342,7 @@
     "CaseEvaluation:AppointmentChangeRequest.CancelTimeWindow": "This appointment cannot be cancelled or rescheduled because the date is too close. Cancellations require at least {cancelTimeDays} day(s) advance notice.",
     "CaseEvaluation:AppointmentChangeRequest.EditAccessRequired": "You do not have edit access to this appointment.",
     "CaseEvaluation:AppointmentChangeRequest.NewSlotNotAvailable": "The selected new appointment slot is no longer available.",
+    "CaseEvaluation:AppointmentChangeRequest.NewSlotIsCurrentSlot": "The new date must be different from the appointment's current date and time. Pick another slot.",
     "CaseEvaluation:AppointmentChangeRequest.NewSlotRequired": "Please select a new appointment date and time.",
     "CaseEvaluation:AppointmentChangeRequest.RescheduleReasonRequired": "Please provide a reason for the reschedule.",
     "CancellationReason": "Cancellation Reason",

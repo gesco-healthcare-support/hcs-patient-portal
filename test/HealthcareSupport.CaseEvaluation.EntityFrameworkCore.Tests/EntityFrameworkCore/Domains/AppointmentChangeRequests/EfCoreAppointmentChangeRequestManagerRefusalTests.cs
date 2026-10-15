@@ -144,6 +144,22 @@ public class EfCoreAppointmentChangeRequestManagerRefusalTests : CaseEvaluationE
     }
 
     [Fact]
+    public async Task Reschedule_ToTheAppointmentsOwnSlot_IsRefused_AndWritesNoRequest()
+    {
+        // 2026-10-15: the slot reads Available, as a booked slot can under the capacity model, so
+        // the availability check alone would accept it and hold the appointment's own slot.
+        var ownSlot = await InsertSlotAsync(FarFuture().AddDays(5), BookingStatus.Available);
+        var appointmentId = await InsertAppointmentAsync(AppointmentStatusType.Approved, ownSlot);
+
+        var ex = await Should.ThrowAsync<BusinessException>(() => InTenantAAsync(() =>
+            _manager.SubmitRescheduleAsync(appointmentId, ownSlot, "TEST-reason", false, false, null)));
+
+        ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.ChangeRequestNewSlotIsCurrentSlot);
+        (await CountRequestsAsync(appointmentId)).ShouldBe(0);
+        (await InTenantAAsync(() => _slots.GetAsync(ownSlot))).BookingStatusId.ShouldBe(BookingStatus.Available);
+    }
+
+    [Fact]
     public async Task Cancellation_OfAnotherOfficesAppointment_IsNotFound_AndWritesNoRequest()
     {
         // Office decoy: an approved, cancellable appointment exists in TenantB. TenantA must not be
