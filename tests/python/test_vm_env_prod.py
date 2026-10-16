@@ -112,7 +112,7 @@ class GenerateWritesTheVmDecisions(unittest.TestCase):
                     "DBMIGRATOR_ENVIRONMENT": "Production", "BASE_DOMAIN": "medlegal.evaluators.com",
                     "CASE_TRACKER_BASE_URL": "", "CASE_TRACKER_INTAKE_TOKEN": "", "ADMIN_PASSWORD_VAULT_URI": "",
                     "TRUSTED_PROXY_SET_REAL_IP_FROM": "", "TRUSTED_PROXY_REAL_IP_RECURSIVE": "",
-                    "ADMIN_PASSWORD_DIRECTORY": "/run/admin-passwords"}
+                    "ADMIN_PASSWORD_DIRECTORY": "/run/admin-passwords", "ACME_CHALLENGE": "dns-01"}
         self.assertEqual({key: self.values.get(key) for key in expected}, expected)
 
     def test_what_stays_off_stays_commented(self):
@@ -267,6 +267,17 @@ class CheckRefusesAnUnsafeFile(unittest.TestCase):
 
     def test_the_vault_store(self):
         self.assert_refused("ADMIN_PASSWORD_VAULT_URI", "https://vault.example.com/", "must be empty")
+
+    def test_an_acme_challenge_the_renewal_script_would_refuse(self):
+        # renew-tls-cert.sh compares exactly, so a different case is as wrong as a different method.
+        for value in ("dns", "http01", "HTTP-01", "tls-alpn-01", "dns-01,http-01"):
+            with self.subTest(value=value):
+                self.assert_refused("ACME_CHALLENGE", value, "ACME_CHALLENGE must be dns-01 or http-01")
+
+    def test_either_acme_challenge_or_the_default_passes(self):
+        for value in ("dns-01", "http-01", "", None):
+            with self.subTest(value=value):
+                self.assertEqual(self.problems_with("ACME_CHALLENGE", value), [])
 
     def test_the_file_shape(self):
         self.assertTrue(any("set twice" in p for p in vm_env.check_text(self.good + "APP_NAME=Again\n")))
