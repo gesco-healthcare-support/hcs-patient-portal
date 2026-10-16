@@ -401,6 +401,9 @@ __pycache__/
 # scripts/hosting/build-docs-site.sh, rebuilt on every deploy, never committed.
 /docker/nginx-proxy/docs-site/
 
+# Let's Encrypt HTTP-01 challenge files (scripts/hosting/renew-tls-cert.sh, ACME_CHALLENGE=http-01).
+/docker/nginx-proxy/acme-webroot/
+
 # MkDocs privacy plugin cache (its default cache_dir). A local `mkdocs build` downloads the site's
 # fonts and diagram library here; the server build keeps its cache inside the builder container.
 /.cache/

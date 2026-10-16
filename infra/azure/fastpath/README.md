@@ -89,7 +89,8 @@ definition and role assignments.
 Before the first deploy:
 
 1. The resource group exists, in West US 2.
-2. The DNS zone named exactly as the base domain exists in that resource group.
+2. The DNS zone named exactly as the base domain exists in that resource group. Not needed when
+   `manageDnsZone` is false; see "If the names are A records at the registrar" below.
 3. An SSH key pair exists. Only the public half goes in the parameters (`ssh-keygen -t ed25519`).
 4. The subscription has the encryption-at-host feature registered. Once per subscription, and it takes a few
    minutes:
@@ -112,7 +113,8 @@ az deployment group what-if -g <resource-group> -f main.bicep -p @main.parameter
 az deployment group create -g <resource-group> -f main.bicep -p @main.parameters.json -n portal-fastpath
 ```
 
-The outputs give the public IP, the VM's identity, the backup account name and the zone's name servers.
+The outputs give the public IP, the VM's identity, the backup account name and the zone's name servers (empty when
+`manageDnsZone` is false).
 
 ## After the template, before the application
 
@@ -153,7 +155,8 @@ The template stops at an empty VM with Docker installed on the data disk. The re
 3. **Load the two MinIO images from the rescue archive.** They cannot be pulled from any registry (see `../README.md`,
    step 6 of "After the template").
 4. Issue the TLS certificate with `scripts/hosting/renew-tls-cert.sh` (Let's Encrypt, DNS-01 against the zone, as the
-   VM's identity, which already has DNS Zone Contributor). Run `sudo bash scripts/hosting/renew-tls-cert.sh --staging`
+   VM's identity, which already has DNS Zone Contributor; with A records instead, steps 4 and 5 change order, see
+   below). Run `sudo bash scripts/hosting/renew-tls-cert.sh --staging`
    FIRST: it proves the zone, the identity and the role against Let's Encrypt's staging CA and installs nothing. Then
    run it without `--staging`, and install `hcs-portal-tls-renew.{service,timer}` from `scripts/hosting/systemd` so it
    renews itself. The script's header says what each step checks.
@@ -162,6 +165,35 @@ The template stops at an empty VM with Docker installed on the data disk. The re
    the rest. Then install the backup units (`docs/runbooks/hosting-backup-restore.md`).
    Run `scripts/hosting/backup-azure-blob.sh --dry-run` before enabling the timers: it is the first real test of the
    VM's identity against the backup account.
+
+## If the names are A records at the registrar (no Azure DNS zone)
+
+The default is a delegated zone: the parent domain's owner adds four NS records once, and from then on this template
+manages the records and the certificate is a DNS-01 wildcard. If the parent domain's owner prefers to keep the
+records themselves, deploy with `manageDnsZone` set to false. Then no zone is needed or touched, the VM gets no DNS
+role, and the certificate is issued with HTTP-01, which cannot do wildcards. What changes:
+
+1. **Deploy first, then DNS.** The records point at the VM's static IP, which exists only after the deployment.
+   Read `publicIpAddress` from the outputs (`dnsNameServers` is empty). The registrar then needs four A records,
+   all to that address, with a short TTL: `<base>`, `*.<base>`, `*.api.<base>`, `*.auth.<base>`. A CAA record
+   `0 issue "letsencrypt.org"` at the registrar is optional but recommended.
+2. **Wait for public DNS.** `nslookup <base> 8.8.8.8` and `nslookup admin.<base> 8.8.8.8` must return the VM's
+   address before any issuance: Let's Encrypt fetches the challenge from that address on port 80.
+3. **env.prod:** `ACME_CHALLENGE=http-01`.
+4. **The certificate comes after the stack, not before.** nginx serves the challenge, and it will not start without
+   a certificate file. So:
+   1. run `sudo bash scripts/hosting/renew-tls-cert.sh` once, which writes a 2-day self-signed placeholder and stops;
+   2. bring the stack up (step 5 above);
+   3. run the script with `--staging` (it proves port 80 is reachable from Let's Encrypt and installs nothing), then
+      without it;
+   4. install the renewal timer as in step 4.
+5. **Every office is a name on the certificate.** HTTP-01 lists each name, and the script reads the offices from the
+   host database on every run. After creating an office, run the script; the daily timer would otherwise add it
+   within a day, and until then that office's addresses show a certificate warning. One certificate holds at most
+   100 names, which is about 30 offices; the script refuses more.
+
+Port 80 is already open in `modules/network.bicep`. It redirects everything to HTTPS except
+`/.well-known/acme-challenge/`, which serves only the files the renewal script writes.
 
 ## The outside "site is down" check
 

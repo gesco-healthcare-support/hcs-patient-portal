@@ -5,6 +5,9 @@
     "baseDomain": {
       "value": "portal.example.com"
     },
+    "manageDnsZone": {
+      "value": true
+    },
     "adminSshPublicKey": {
       "value": "ssh-ed25519 AAAA...replace-with-the-public-key... admin@example"
     },
