@@ -59,7 +59,7 @@ EXPECTED = {
 
 def render(name):
     html = app._TEMPLATE_FILES[name].read_text(encoding="utf-8")
-    tokens = {token: SYNTHETIC_VALUE for token in sorted(set(app.TOKEN_REGEX.findall(html)))}
+    tokens = dict.fromkeys(sorted(set(app.TOKEN_REGEX.findall(html))), SYNTHETIC_VALUE)
     body = json.dumps({"template": name, "tokens": tokens}).encode("utf-8")
     request = urllib.request.Request(RENDER_URL, data=body, headers={"Content-Type": "application/json"})
     try:
