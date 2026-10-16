@@ -136,9 +136,11 @@ configuration removes them, and tests pin that: `TenantResolverChainTests` (Appl
 
 ### 3.2 How an office database is addressed
 
-Each office's connection string is stored on its SaaS tenant record. It is **derived**, not
-hand-configured: `TenantConnectionStringProvider` takes the host `Default` connection string (or
-an override key `App:TenantDbTemplate`) and swaps the database name to `CaseEvaluation_{slug}`.
+Each office's SaaS tenant record stores only its database name (`Database=CaseEvaluation_{slug}`).
+The connection is **derived** on every request, not hand-configured: `OfficeConnectionStringResolver`
+reads that name and `TenantConnectionStringProvider` applies it to the host `Default` connection
+string (or an override key `App:TenantDbTemplate`). An office with no usable database setting is
+refused rather than routed to the host database.
 
 Consequence for infrastructure design: **office databases can be relocated to a different SQL
 instance by setting one configuration key.** No code change.

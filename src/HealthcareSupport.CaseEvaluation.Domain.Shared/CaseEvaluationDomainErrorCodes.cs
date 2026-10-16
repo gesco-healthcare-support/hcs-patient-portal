@@ -1271,6 +1271,15 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:AdminPassword.IsAKnownDefault";
 
     /// <summary>
+    /// An office's database is fixed when the office is created: its row stores only the database
+    /// name, and the server and login come from configuration. So the SaaS screens' connection-string
+    /// editor (and a create request that carries connection strings) is refused rather than accepted
+    /// and ignored, and rather than pointing an office at some other database.
+    /// </summary>
+    public const string OfficeDatabaseSettingIsFixed =
+        "CaseEvaluation:Office.DatabaseSettingIsFixed";
+
+    /// <summary>
     /// Raised by <c>UserExtendedAppService</c> when a caller who is not IT Admin or admin tries to
     /// change a privileged account, change roles outside the staff roles, or change their own roles.
     /// </summary>
