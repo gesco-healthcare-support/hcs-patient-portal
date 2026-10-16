@@ -101,6 +101,7 @@ public sealed class OfficeConnectionSqlServerTests
             InitialCatalog = "CaseEvaluation",
             UserID = login,
             Password = password,
+            Encrypt = true,
             TrustServerCertificate = true,
         }.ConnectionString;
 
