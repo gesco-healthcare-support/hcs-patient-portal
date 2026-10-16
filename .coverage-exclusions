@@ -277,6 +277,17 @@ tests/python/**
 # is sonar.coverage.exclusions, NOT sonar.exclusions -- analysis is unaffected.
 tools/packet-templates/tests/**
 
+# Test code, not application code -- the same reasoning as the two Python entries above, for
+# the real-render check packet-render.yml runs INSIDE the packet-renderer image (2026-10-15).
+# Sonar's Python analyzer reports it as FIL, so without this entry its pull request read
+# `new_coverage 0.0 < 80`. It cannot be covered from the Python suite: it imports the running
+# service and pikepdf inside the image, and its result is the workflow job itself.
+#
+# MEASURED with the gate's own glob_to_regex against all 4,125 tracked files: matches EXACTLY
+# tests/packet-render/render_real_packets.py and nothing else. tests/ is coverage-omitted in
+# pyproject.toml already, so the Python denominator is unaffected either way.
+tests/packet-render/**
+
 # Test code, not application code -- the C# suites, and the entry the three above
 # should have had from the start. They are `tests/` PLURAL; the C# projects live in
 # `test/` SINGULAR and matched none of them, so every C# test file has been sitting

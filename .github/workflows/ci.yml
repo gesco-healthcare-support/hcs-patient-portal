@@ -1595,6 +1595,16 @@ jobs:
       # Kept as a correction rather than deleted, per this file's convention: an entry that argues
       # FROM a measurement outlives the measurement, and this one was found only because the
       # change that invalidated it went looking for entries citing the old number.
+      #
+      # RE-DERIVED 2026-10-15, when scripts/hosting/vm-env-prod.py joined the denominator:
+      #
+      #     main, CI run 38802172717    96.86% (2714/2802 lines over 13 files)
+      #     with the new file           96.87% (2907/3001 lines over 14 files)
+      #
+      # The second figure was measured on Windows, where the two POSIX file-mode tests skip, so CI
+      # reads the same or a little higher. The new file comes in at 97% of its lines, so it did not
+      # pull the figure down. 90 STAYS: the headroom above it is deliberate (see above), and
+      # closing that gap is a decision for its own pull request, not a side effect of a file landing.
       FLOOR_PYTHON: "90"
       # The changed-lines floor, per Adrian's settled decision and the EARS
       # criterion in 02-enforcement.md. Unlike the two absolute floors this one

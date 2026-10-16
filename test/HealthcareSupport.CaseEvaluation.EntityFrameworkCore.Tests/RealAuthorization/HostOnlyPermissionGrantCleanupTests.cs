@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Identity;
+using HealthcareSupport.CaseEvaluation.MultiTenancy;
 using HealthcareSupport.CaseEvaluation.Permissions;
 using Shouldly;
 using Volo.Abp.Data;
@@ -192,8 +193,10 @@ public class HostOnlyPermissionGrantCleanupTests : CaseEvaluationRealAuthorizati
     private static async Task<Guid> CreateOfficeAsync(
         ITenantManager tenantManager, IRepository<Tenant, Guid> tenantRepository, string name)
     {
+        // Both cleanup offices map to the one shared cleanup database
+        // (RealAuthorizationConnectionStringProvider), which is what these tests rely on.
         var office = await tenantManager.CreateAsync(name);
-        office.SetDefaultConnectionString(RealAuthorizationTestDatabase.CleanupOfficesConnectionString);
+        office.SetDefaultConnectionString(TenantNaming.BuildStoredConnectionString(TenantNaming.DeriveSlug(name)));
         await tenantRepository.InsertAsync(office, autoSave: true);
         return office.Id;
     }

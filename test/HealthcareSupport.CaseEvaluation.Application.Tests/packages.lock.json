@@ -10,12 +10,12 @@
       },
       "MessagePack": {
         "type": "Direct",
-        "requested": "[3.1.7, )",
-        "resolved": "3.1.7",
-        "contentHash": "gXpifaxbhfBqh8bVToQn9j+OgCnhXWMbRCV7RQIbCVa9CNJG1fY6oHAYYl+ER3Tb9uUIHiQ5QbGiGwwFhoagbA==",
+        "requested": "[3.1.9, )",
+        "resolved": "3.1.9",
+        "contentHash": "9IuUiOycxveb2R4RER5yQl7qYHMeRRMghOFuI/c+A8aX8j0zEzJ9QJD0u3Sr3MrNewUUkqOcTVLW9Zn6odZyIQ==",
         "dependencies": {
-          "MessagePack.Annotations": "3.1.7",
-          "MessagePackAnalyzer": "3.1.7",
+          "MessagePack.Annotations": "3.1.9",
+          "MessagePackAnalyzer": "3.1.9",
           "Microsoft.NET.StringTools": "17.11.4"
         }
       },
@@ -408,13 +408,13 @@
       },
       "MessagePack.Annotations": {
         "type": "Transitive",
-        "resolved": "3.1.7",
-        "contentHash": "IW1yX9viarFl/Dsio5G+pM90JkOSW4xhAiJcKxPPF5rzyp2/yCpieWju8G99QLEmaQeze2uQMEskUBA59YZmkw=="
+        "resolved": "3.1.9",
+        "contentHash": "bd+/udHmQECcfdcnlLHXR+/5Oc+UdQTEwZI5M1xw8Olymcb7SPXHleMxkkBkSLiK2+fpmY+0uAR7Jy3oiPPhKA=="
       },
       "MessagePackAnalyzer": {
         "type": "Transitive",
-        "resolved": "3.1.7",
-        "contentHash": "ZF+OOJTRS7Ogzb4gG36hPKVQk3kEbp6kkUcdRjhddDq/uSGcV4BKIdYiyJipExXyE/zsqYb0ic215O9kI+fjPA=="
+        "resolved": "3.1.9",
+        "contentHash": "/nMSlVz4p8BjlPbgxgBfE9kHyObHvmjczShWp2rGeKMH7oVEyPd0a3Fcd6yO3Xf36Jsf2ax/VvhV28Z7F5ibmQ=="
       },
       "Microsoft.AspNetCore.Authentication.Google": {
         "type": "Transitive",
@@ -3787,7 +3787,7 @@
           "HealthcareSupport.CaseEvaluation.Application.Contracts": "[1.0.0, )",
           "HealthcareSupport.CaseEvaluation.Domain": "[1.0.0, )",
           "HtmlSanitizer": "[9.0.892, )",
-          "MessagePack": "[3.1.7, )",
+          "MessagePack": "[3.1.9, )",
           "MiniExcel": "[1.41.4, )",
           "QuestPDF": "[2026.2.4, )",
           "Scriban": "[7.2.5, )",
@@ -3811,7 +3811,7 @@
         "type": "Project",
         "dependencies": {
           "HealthcareSupport.CaseEvaluation.Domain.Shared": "[1.0.0, )",
-          "MessagePack": "[3.1.7, )",
+          "MessagePack": "[3.1.9, )",
           "Scriban": "[7.2.5, )",
           "System.Security.Cryptography.Xml": "[10.0.13, )",
           "Volo.Abp.Account.Pro.Admin.Application.Contracts": "[10.0.2, )",
@@ -3842,7 +3842,7 @@
           "HealthcareSupport.CaseEvaluation.HttpApi": "[1.0.0, )",
           "IdentityModel": "[7.0.0, )",
           "KubernetesClient": "[18.0.5, )",
-          "MessagePack": "[3.1.7, )",
+          "MessagePack": "[3.1.9, )",
           "Microsoft.AspNetCore.Authentication.Google": "[10.0.0, )",
           "Microsoft.AspNetCore.Authentication.MicrosoftAccount": "[10.0.0, )",
           "Microsoft.AspNetCore.Authentication.Twitter": "[10.0.0, )",
@@ -3869,7 +3869,7 @@
         "dependencies": {
           "HealthcareSupport.CaseEvaluation.Domain.Shared": "[1.0.0, )",
           "MailKit": "[4.16.0, )",
-          "MessagePack": "[3.1.7, )",
+          "MessagePack": "[3.1.9, )",
           "MimeKit": "[4.16.0, )",
           "QuestPDF": "[2026.2.4, )",
           "Scriban": "[7.2.5, )",
@@ -3899,7 +3899,7 @@
       "healthcaresupport.caseevaluation.domain.shared": {
         "type": "Project",
         "dependencies": {
-          "MessagePack": "[3.1.7, )",
+          "MessagePack": "[3.1.9, )",
           "Microsoft.Extensions.FileProviders.Embedded": "[10.0.0, )",
           "Scriban": "[7.2.5, )",
           "System.Security.Cryptography.Xml": "[10.0.13, )",
@@ -3924,7 +3924,7 @@
         "dependencies": {
           "HealthcareSupport.CaseEvaluation.Domain": "[1.0.0, )",
           "HealthcareSupport.CaseEvaluation.TestBase": "[1.0.0, )",
-          "MessagePack": "[3.1.7, )",
+          "MessagePack": "[3.1.9, )",
           "Microsoft.NET.Test.Sdk": "[17.14.1, )",
           "Scriban": "[7.2.5, )",
           "System.Security.Cryptography.Xml": "[10.0.13, )"
@@ -3934,7 +3934,7 @@
         "type": "Project",
         "dependencies": {
           "HealthcareSupport.CaseEvaluation.Domain": "[1.0.0, )",
-          "MessagePack": "[3.1.7, )",
+          "MessagePack": "[3.1.9, )",
           "Microsoft.EntityFrameworkCore.Tools": "[10.0.0, )",
           "Scriban": "[7.2.5, )",
           "System.Security.Cryptography.Xml": "[10.0.13, )",
@@ -3958,7 +3958,7 @@
         "type": "Project",
         "dependencies": {
           "HealthcareSupport.CaseEvaluation.Application.Contracts": "[1.0.0, )",
-          "MessagePack": "[3.1.7, )",
+          "MessagePack": "[3.1.9, )",
           "Scriban": "[7.2.5, )",
           "Serilog.AspNetCore": "[9.0.0, )",
           "Serilog.Sinks.Async": "[2.1.0, )",
@@ -3994,7 +3994,7 @@
           "HealthcareSupport.CaseEvaluation.HttpApi": "[1.0.0, )",
           "IdentityModel": "[7.0.0, )",
           "KubernetesClient": "[18.0.5, )",
-          "MessagePack": "[3.1.7, )",
+          "MessagePack": "[3.1.9, )",
           "Microsoft.AspNetCore.Authentication.Google": "[10.0.0, )",
           "Microsoft.AspNetCore.Authentication.JwtBearer": "[10.0.0, )",
           "Microsoft.AspNetCore.Authentication.MicrosoftAccount": "[10.0.0, )",
@@ -4022,7 +4022,7 @@
           "Bogus": "[35.6.5, )",
           "Bogus.Healthcare": "[35.6.5, )",
           "HealthcareSupport.CaseEvaluation.Domain": "[1.0.0, )",
-          "MessagePack": "[3.1.7, )",
+          "MessagePack": "[3.1.9, )",
           "Microsoft.NET.Test.Sdk": "[17.14.1, )",
           "NSubstitute": "[5.3.0, )",
           "Scriban": "[7.2.5, )",

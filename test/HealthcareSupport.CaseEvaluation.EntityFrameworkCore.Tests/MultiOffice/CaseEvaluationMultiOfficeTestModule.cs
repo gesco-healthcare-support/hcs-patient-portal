@@ -1,5 +1,7 @@
+using HealthcareSupport.CaseEvaluation.Data;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Hosting.Internal;
 using Volo.Abp;
@@ -26,9 +28,10 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.MultiOffice;
 /// <see cref="CaseEvaluationEntityFrameworkCoreTestModule"/>, which routes every tenant
 /// to ONE shared in-memory SQLite connection (good for row-filter tests, blind to
 /// separate-database routing), this module gives the host and each office their OWN
-/// named in-memory database and lets ABP's stock MultiTenantConnectionStringResolver
-/// route by the connection string stored on each tenant record. That is what makes a
-/// genuine physical cross-office isolation assertion possible.
+/// named in-memory database and lets the PRODUCTION OfficeConnectionStringResolver route by
+/// the database name stored on each office record (only the slug-to-SQLite step is swapped,
+/// see <see cref="MultiOfficeConnectionStringProvider"/>). That is what makes a genuine
+/// physical cross-office isolation assertion possible.
 ///
 /// It deliberately does NOT depend on the CaseEvaluation test-base chain: that chain
 /// runs the full integration seeder (which seeds catalogs at host scope and wires
@@ -116,6 +119,11 @@ public class CaseEvaluationMultiOfficeTestModule : AbpModule
         // Open the keeper connections and create the schema in each named database
         // before any unit of work runs.
         MultiOfficeTestDatabase.EnsureInitialized();
+
+        // The office resolver composes each office's connection from its stored database name
+        // through this seam; here a slug maps to that office's named SQLite database.
+        context.Services.Replace(
+            ServiceDescriptor.Transient<ITenantConnectionStringProvider, MultiOfficeConnectionStringProvider>());
 
         // Route EVERY DbContext to the per-request resolved connection string instead
         // of a single fixed connection. For host scope the resolver returns

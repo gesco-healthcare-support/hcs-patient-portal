@@ -1,8 +1,9 @@
 namespace HealthcareSupport.CaseEvaluation.Data;
 
 /// <summary>
-/// Builds the per-office ("tenant") connection string used by database-per-office
-/// provisioning. This is the cloud-agnostic seam: the dev/default implementation
+/// Builds the per-office ("tenant") connection string, at office creation and on every
+/// office request (<see cref="OfficeConnectionStringResolver"/>); it is never stored.
+/// This is the cloud-agnostic seam: the dev/default implementation
 /// derives the connection string from the host "Default" (or an optional
 /// App:TenantDbTemplate override), while a production implementation can instead
 /// resolve a managed-store secret reference -- without the provisioning code

@@ -19,6 +19,12 @@ misconfiguration fails closed rather than silently exposing data.
 
 ## Decision
 
+> **Updated 2026-10-16 (point 1).** The tenant record now stores only the database name, and
+> `OfficeConnectionStringResolver` replaces the stock resolver: it builds each office's connection
+> from configuration on every request and refuses an office with no usable setting instead of
+> falling back to the host database. See `docs/architecture/OFFICES-AND-HOSTING.md`, "What an
+> office row stores". The text below is the original decision.
+
 1. **One database per office.** Each office's connection string is stored on its SaaS
    tenant record via `tenant.SetDefaultConnectionString(...)`
    (`DoctorTenantAppService`, `FalkinsteinTenantDataSeedContributor`). ABP's stock

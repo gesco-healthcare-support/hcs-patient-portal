@@ -66,9 +66,11 @@ retry.
 
 **Learned:**
 
-- **Office connection strings are stored in the host database**, built from the SQL credentials in
-  force when each office was created. So a restore must use the same `MSSQL_SA_PASSWORD` as the
-  source, and changing that password needs the stored strings updated in the same step.
+- **Office connection strings were stored in the host database** at the time, built from the SQL
+  credentials in force when each office was created, so that rehearsal had to use the source's
+  `MSSQL_SA_PASSWORD`. **Changed 2026-10-16:** office rows now store only their database name, and
+  every office connects with the login in `ConnectionStrings:Default`, so a restore uses whatever
+  SQL login the restored environment is configured with.
 - Upload malware scanning was not running in that rehearsal, so uploads remain unexercised there.
 
 **History, kept:** no full restore on real data had ever been performed by a person before
@@ -277,12 +279,11 @@ a throwaway compose project, with outbound mail and the Case Tracker neutralised
 #### What must exist BEFORE you start, or the recovery stops part-way
 
 1. **The off-VM copy of `secrets/`.** The nightly backup does not include it. Four things in it matter:
-   - **The application's SQL password must be the SAME as the lost VM's**: `SQL_APP_LOGIN` and `SQL_APP_PASSWORD`
-     where the app has its own login (the Azure VM, `scripts/hosting/sql-app-login.sh`), otherwise
-     `MSSQL_SA_PASSWORD`. Each office's connection string is built from `ConnectionStrings:Default` and stored on
-     the tenant row in the host database (`DoctorTenantAppService`, `SetDefaultConnectionString`), and requests are
-     routed with the stored copy. With a different password, the host database works and **every office fails to
-     log in to SQL Server**.
+   - **The application's SQL login**: `SQL_APP_LOGIN` and `SQL_APP_PASSWORD` where the app has its own login (the
+     Azure VM, `scripts/hosting/sql-app-login.sh`), otherwise `MSSQL_SA_PASSWORD`. Each office's tenant row stores
+     only its database name, and every office connects with the login in `ConnectionStrings:Default` at request
+     time (`OfficeConnectionStringResolver`). So what matters is that the login configured in `env.prod` exists on
+     the new SQL Server and can open the restored databases; nothing on the office rows has to match.
    - `openiddict.pfx` and its passphrase. A new certificate also works, but signs everyone out, which a restore
      does anyway.
    - `dataprotection.pfx` and its passphrase.
@@ -444,9 +445,9 @@ present, because a successful restore of the wrong file is still a successful re
 ### Full restore
 
 Same sequence, restoring the host `CaseEvaluation` database and every `CaseEvaluation_<slug>`
-database while the applications are stopped. Restore the host database first: the office
-connection strings are stored on the tenant rows in it, so an office database restored against a
-host database that does not know about that office is not reachable.
+database while the applications are stopped. Restore the host database first: each office's
+tenant row (which names its database) is in it, so an office database restored against a host
+database that does not know about that office is not reachable.
 
 ## Verify a backup is restorable
 
