@@ -1,3 +1,4 @@
+using HealthcareSupport.CaseEvaluation.Data;
 using HealthcareSupport.CaseEvaluation.EntityFrameworkCore.MultiOffice;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -40,10 +41,15 @@ public class BookingAtomicityTestModule : AbpModule
 
         // Registered after the multi-office module's UseSqlite, so this one is the default that
         // applies. The parameterless overload reads the already-resolved connection string: the
-        // host database for host scope, the office's stored string inside the office.
+        // host database for host scope, the office's composed string inside the office.
         Configure<AbpDbContextOptions>(options =>
         {
             options.Configure(configurationContext => configurationContext.UseSqlServer());
         });
+
+        // The multi-office module maps office databases to SQLite. Here the production provider is
+        // put back, so the office row stores only its database name and the office connection is
+        // built from the host Default by swapping the catalog, exactly as on a server.
+        context.Services.Replace(ServiceDescriptor.Transient<ITenantConnectionStringProvider, TenantConnectionStringProvider>());
     }
 }

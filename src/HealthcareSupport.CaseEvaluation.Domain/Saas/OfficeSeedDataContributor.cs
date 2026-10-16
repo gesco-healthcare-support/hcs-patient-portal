@@ -1,5 +1,5 @@
 using HealthcareSupport.CaseEvaluation.Branding;
-using HealthcareSupport.CaseEvaluation.Data;
+using HealthcareSupport.CaseEvaluation.MultiTenancy;
 using Microsoft.Extensions.Logging;
 using Volo.Abp.Data;
 using Volo.Abp.DependencyInjection;
@@ -12,8 +12,8 @@ namespace HealthcareSupport.CaseEvaluation.Saas;
 
 /// <summary>
 /// Registers every office in <see cref="OfficeSeedData"/> (one synthetic TEST office) as a Volo.Saas
-/// tenant with its own connection string (database CaseEvaluation_{slug}, derived from the
-/// host Default via the B3 secret seam) and seeds each office's host-side branding display
+/// tenant whose row names its own database (CaseEvaluation_{slug}; the server and login are composed
+/// from configuration at runtime) and seeds each office's host-side branding display
 /// name. The migrator loop (CaseEvaluationDbMigrationService) then creates + migrates +
 /// seeds each office database. Replaces the single-office FalkinsteinTenantDataSeedContributor.
 ///
@@ -27,7 +27,6 @@ public class OfficeSeedDataContributor : IDataSeedContributor, ITransientDepende
     private readonly ITenantManager _tenantManager;
     private readonly IRepository<Tenant, Guid> _tenantRepository;
     private readonly ICurrentTenant _currentTenant;
-    private readonly ITenantConnectionStringProvider _connectionStringProvider;
     private readonly IRepository<OfficeBranding, Guid> _brandingRepository;
     private readonly IGuidGenerator _guidGenerator;
     private readonly ILogger<OfficeSeedDataContributor> _logger;
@@ -36,7 +35,6 @@ public class OfficeSeedDataContributor : IDataSeedContributor, ITransientDepende
         ITenantManager tenantManager,
         IRepository<Tenant, Guid> tenantRepository,
         ICurrentTenant currentTenant,
-        ITenantConnectionStringProvider connectionStringProvider,
         IRepository<OfficeBranding, Guid> brandingRepository,
         IGuidGenerator guidGenerator,
         ILogger<OfficeSeedDataContributor> logger)
@@ -44,7 +42,6 @@ public class OfficeSeedDataContributor : IDataSeedContributor, ITransientDepende
         _tenantManager = tenantManager;
         _tenantRepository = tenantRepository;
         _currentTenant = currentTenant;
-        _connectionStringProvider = connectionStringProvider;
         _brandingRepository = brandingRepository;
         _guidGenerator = guidGenerator;
         _logger = logger;
@@ -66,11 +63,12 @@ public class OfficeSeedDataContributor : IDataSeedContributor, ITransientDepende
                 var tenant = await _tenantRepository.FirstOrDefaultAsync(t => t.Name == office.TenantName);
                 if (tenant == null)
                 {
-                    // Connection string is derived from the host Default (never hardcoded);
-                    // ABP encrypts it at rest and routes the office's queries to its database.
+                    // The row stores the office's database name and nothing else. NOT encrypted at
+                    // rest (an older comment here said it was); it no longer needs to be, because the
+                    // server and login are composed from configuration on every request
+                    // (OfficeConnectionStringResolver).
                     tenant = await _tenantManager.CreateAsync(office.TenantName);
-                    tenant.SetDefaultConnectionString(
-                        _connectionStringProvider.BuildConnectionString(office.Slug));
+                    tenant.SetDefaultConnectionString(TenantNaming.BuildStoredConnectionString(office.Slug));
                     await _tenantRepository.InsertAsync(tenant, autoSave: true);
                     _logger.LogInformation(
                         "OfficeSeedDataContributor: created tenant '{Name}' ({Id}) with its own database.",

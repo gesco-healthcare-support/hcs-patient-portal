@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.EntityFrameworkCore.MultiOffice;
 using HealthcareSupport.CaseEvaluation.Integration.CaseTracker.SqlServer;
+using HealthcareSupport.CaseEvaluation.MultiTenancy;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -43,8 +44,8 @@ public static class BookingAtomicityHarness
     private static readonly SemaphoreSlim SetupLock = new(1, 1);
     private static Databases? _databases;
 
-    /// <summary>The two connection strings, and the office seeded into the second.</summary>
-    public sealed record Databases(string Host, string Office, SeededOffice Seeded);
+    /// <summary>The host connection string, and the office seeded into the office database.</summary>
+    public sealed record Databases(string Host, SeededOffice Seeded);
 
     /// <summary>
     /// Creates, migrates and seeds the databases on first call; returns the same ones afterwards.
@@ -66,8 +67,13 @@ public static class BookingAtomicityHarness
                 return _databases;
             }
 
-            var host = Catalog(fixture, "BookingAtomicityHost");
-            var office = Catalog(fixture, "BookingAtomicityOffice");
+            var host = Catalog(fixture, $"BookingAtomicityHost_{Guid.NewGuid():N}");
+
+            // The office database carries the production name, CaseEvaluation_{slug}, because the
+            // office row stores only that name and the resolver builds the connection from the host
+            // Default by swapping the catalog. The slug is new per run, as the host catalog is.
+            var officeSlug = "atom-" + Guid.NewGuid().ToString("N")[..10];
+            var office = TenantNaming.BuildConnectionString(host, officeSlug);
 
             await using (var hostContext = new CaseEvaluationDbContext(
                 new DbContextOptionsBuilder<CaseEvaluationDbContext>().UseSqlServer(host).Options))
@@ -79,8 +85,8 @@ public static class BookingAtomicityHarness
                 await officeContext.Database.MigrateAsync();
             }
 
-            var seeded = await SeedOfficeAsync(host, office);
-            _databases = new Databases(host, office, seeded);
+            var seeded = await SeedOfficeAsync(host, officeSlug);
+            _databases = new Databases(host, seeded);
             return _databases;
         }
         finally
@@ -91,8 +97,8 @@ public static class BookingAtomicityHarness
 
     /// <summary>
     /// Starts a fresh ABP application on <see cref="BookingAtomicityTestModule"/>, whose host scope
-    /// resolves to <paramref name="hostConnectionString"/>. The office's own string is read from its
-    /// tenant record, as it is in production.
+    /// resolves to <paramref name="hostConnectionString"/>. The office's connection is built from the
+    /// database name on its tenant record, as it is in production.
     /// </summary>
     public static async Task<IAbpApplicationWithInternalServiceProvider> StartApplicationAsync(string hostConnectionString)
     {
@@ -114,7 +120,7 @@ public static class BookingAtomicityHarness
         return application;
     }
 
-    private static async Task<SeededOffice> SeedOfficeAsync(string host, string office)
+    private static async Task<SeededOffice> SeedOfficeAsync(string host, string officeSlug)
     {
         using var application = await StartApplicationAsync(host);
         var services = application.ServiceProvider;
@@ -124,7 +130,7 @@ public static class BookingAtomicityHarness
         using (var uow = unitOfWorkManager.Begin(requiresNew: true, isTransactional: true))
         {
             var tenant = await services.GetRequiredService<ITenantManager>().CreateAsync(OfficeName);
-            tenant.SetDefaultConnectionString(office);
+            tenant.SetDefaultConnectionString(TenantNaming.BuildStoredConnectionString(officeSlug));
             await services.GetRequiredService<IRepository<Tenant, Guid>>().InsertAsync(tenant, autoSave: true);
             officeId = tenant.Id;
             await uow.CompleteAsync();
@@ -142,13 +148,13 @@ public static class BookingAtomicityHarness
     }
 
     /// <summary>
-    /// A connection string for a NEW database on the shared server. Named per run, so a re-run
-    /// against a container that outlived a previous run starts from empty databases.
+    /// A connection string for a NEW database on the shared server. Callers name it per run, so a
+    /// re-run against a container that outlived a previous run starts from empty databases.
     /// </summary>
     private static string Catalog(SqlServerFeedFixture fixture, string name) =>
         new SqlConnectionStringBuilder(fixture.FeedDatabase)
         {
-            InitialCatalog = $"{name}_{Guid.NewGuid():N}",
+            InitialCatalog = name,
         }.ConnectionString;
 
     /// <summary>

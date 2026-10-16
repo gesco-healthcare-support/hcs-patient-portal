@@ -4,6 +4,7 @@ using System.IO;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments;
+using HealthcareSupport.CaseEvaluation.Data;
 using Microsoft.EntityFrameworkCore;
 using Shouldly;
 using Volo.Abp.Data;
@@ -89,6 +90,43 @@ public class MultiOfficeHarnessSelfValidationTests : CaseEvaluationMultiOfficeTe
                 var visibleInOfficeA = await dbContext.Set<Appointment>()
                     .AnyAsync(a => a.Id == officeA.AppointmentId);
                 visibleInOfficeA.ShouldBeTrue();
+            }
+        }, requiresNew: true);
+    }
+
+    /// <summary>
+    /// The routing above runs through the production resolver, not ABP's stock one: each office row stores
+    /// the database name only, and <see cref="OfficeConnectionStringResolver"/> composes the office's
+    /// connection from it. The stock resolver would hand the bare stored value to SQLite instead.
+    /// </summary>
+    [Fact]
+    public async Task Routing_goes_through_the_office_resolver_from_the_database_name_alone()
+    {
+        var (officeA, officeB) = await GetSeededOfficesAsync();
+        var resolver = GetRequiredService<IConnectionStringResolver>();
+
+        resolver.ShouldBeOfType<OfficeConnectionStringResolver>();
+        using (_currentTenant.Change(null))
+        {
+            (await resolver.ResolveAsync()).ShouldBe(MultiOfficeTestDatabase.HostConnectionString);
+        }
+
+        using (_currentTenant.Change(officeA.OfficeId))
+        {
+            (await resolver.ResolveAsync()).ShouldBe(MultiOfficeTestDatabase.OfficeAConnectionString);
+        }
+
+        using (_currentTenant.Change(officeB.OfficeId))
+        {
+            (await resolver.ResolveAsync()).ShouldBe(MultiOfficeTestDatabase.OfficeBConnectionString);
+        }
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(officeA.OfficeId))
+            {
+                var dbContext = await _dbContextProvider.GetDbContextAsync();
+                dbContext.Database.GetConnectionString().ShouldBe(MultiOfficeTestDatabase.OfficeAConnectionString);
             }
         }, requiresNew: true);
     }

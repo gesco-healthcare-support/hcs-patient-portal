@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Branding;
 using HealthcareSupport.CaseEvaluation.Doctors;
+using HealthcareSupport.CaseEvaluation.MultiTenancy;
 using HealthcareSupport.CaseEvaluation.Saas;
 using HealthcareSupport.CaseEvaluation.TestData;
 using Shouldly;
@@ -16,12 +17,12 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Seeding;
 
 /// <summary>
 /// <see cref="OfficeSeedDataContributor"/> in every environment: the host pass registers exactly
-/// ONE synthetic office (the tenant, its office-database connection string and its branding), and
+/// ONE synthetic office (the tenant, the database name its row stores, and its branding), and
 /// a rerun adds nothing. <see cref="OfficeSeedData"/> holds only synthetic values, because the repo
 /// is public.
 ///
-/// <para>Runs on the office-infrastructure fake from <see cref="DoctorTenantProvisioningTestModule"/>:
-/// the rig has no connection-string template, so the real provider throws.</para>
+/// <para>Runs on <see cref="DoctorTenantProvisioningTestModule"/>, as the practice-creation tests do. The
+/// contributor no longer builds a connection string at all: it stores the database name only.</para>
 /// </summary>
 public class TestOfficeSeedTests : CaseEvaluationTestBase<DoctorTenantProvisioningTestModule>
 {
@@ -70,7 +71,7 @@ public class TestOfficeSeedTests : CaseEvaluationTestBase<DoctorTenantProvisioni
 
         var registered = after.Where(t => t.Name == office.TenantName).ShouldHaveSingleItem();
         var withDetails = await InHostAsync(() => _tenants.GetAsync(registered.Id));
-        withDetails.FindDefaultConnectionString().ShouldBe(FakeOfficeInfrastructure.ConnectionStringFor(office.Slug));
+        withDetails.FindDefaultConnectionString().ShouldBe(TenantNaming.BuildStoredConnectionString(office.Slug));
         var branding = (await InHostAsync(() => _brandings.GetListAsync(b => b.OfficeId == registered.Id))).ShouldHaveSingleItem();
         branding.DisplayName.ShouldBe(office.DisplayName);
     }
