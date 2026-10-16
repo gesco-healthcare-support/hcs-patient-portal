@@ -9,11 +9,19 @@ What these tests pin:
     one the running container never sees), the previous pair is kept as .prev, and nginx is checked and reloaded;
   - nothing is installed when lego fails, when a name is missing, or when the key does not match;
   - a reload that does not take, or a served certificate close to expiry, fails the run (which alerts);
-  - --staging proves issuance and installs nothing.
+  - --staging proves issuance and installs nothing;
+  - ACME_CHALLENGE=http-01 (the fallback when the public names are A records, 2026-10-15): lego is asked for every
+    name EXPLICITLY (base, the proxy's own hosts, admin, and three per office read from SaasTenants), through the
+    webroot nginx serves on port 80, with no Azure sign-in at all; the webroot is proven before Let's Encrypt is
+    asked; an office added since the last issuance gets a new certificate at once; a fresh VM gets a placeholder so
+    nginx can start; office names that are not DNS labels, or that collide with a reserved host, and more than 100
+    names are refused.
 
 lego and nginx are fakes here: `docker` is a script that, for the lego container, issues a real self-signed
 certificate with openssl for the names it was given, and for `nginx -s reload` copies the installed certificate to
-the file the script reads as "served" (TLS_SERVED_CERT_FILE, the script's test-only switch). openssl is real
+the file the script reads as "served" (TLS_SERVED_CERT_FILE, the script's test-only switch); `docker compose exec
+sql-server` prints FAKE_OFFICES as the office list; `curl` answers the HTTP-01 webroot probe from the webroot on disk
+(unless FAKE_WEBROOT_BROKEN). openssl is real
 throughout, so every certificate check runs against a real certificate. The real thing -- Let's Encrypt, Azure
 DNS, the managed identity -- can only be proven on the VM: run it with --staging first.
 
@@ -23,6 +31,7 @@ C:/Program Files/Git/usr/bin/bash.exe, or these tests are skipped.
 
 import os
 import pathlib
+import re
 import shutil
 import stat
 import subprocess
@@ -45,7 +54,7 @@ FAKE_DOCKER = r"""#!/usr/bin/env bash
 if [[ "$1" == run ]]; then
   data=""; domains=(); prev=""
   for a in "$@"; do
-    [[ "$prev" == -v ]] && data="${a%:/data}"
+    [[ "$prev" == -v && "$a" == *:/data ]] && data="${a%:/data}"
     [[ "$prev" == --domains ]] && domains+=("$a")
     prev="$a"
   done
@@ -63,6 +72,7 @@ if [[ "$1" == run ]]; then
 fi
 if [[ "$1" == compose ]]; then
   case "$*" in
+    *"exec -T sql-server"*) printf '%b' "${FAKE_OFFICES:-}"; exit "${FAKE_SQL_RC:-0}" ;;
     *"ps -q --status running reverse-proxy"*) [[ -n "${FAKE_PROXY_RUNNING:-}" ]] && echo deadbeef; exit 0 ;;
     *"exec -T reverse-proxy nginx -t"*) exit "${FAKE_NGINX_T_RC:-0}" ;;
     *"exec -T reverse-proxy nginx -s reload"*)
@@ -75,7 +85,12 @@ exit 2
 
 # Instance metadata: answers the compute document only when asked with the Metadata header.
 FAKE_CURL = r"""#!/usr/bin/env bash
+{ printf '%s\x1f' "$@"; printf '\n'; } >> "$FAKE_DIR/curl.log"
 case "$*" in
+  *"/.well-known/acme-challenge/"*)
+    [[ -n "${FAKE_WEBROOT_BROKEN:-}" ]] && { echo "<html>404 Not Found</html>"; exit 0; }
+    url="${@: -1}"; cat "$FAKE_WEBROOT/.well-known/acme-challenge/${url##*/}" 2>/dev/null
+    exit 0 ;;
   *"Metadata: true"*169.254.169.254*)
     printf '{"location":"westus2","name":"vm-portal-prod","resourceGroupName":"rg-appointment-portal-prod","subscriptionId":"%s","vmId":"x"}' "$FAKE_SUBSCRIPTION"
     exit 0 ;;
@@ -90,8 +105,9 @@ def openssl(*args, input_path=None):
     return result.returncode, result.stdout
 
 
-@unittest.skipUnless(BASH and shutil.which("openssl"), "needs a POSIX bash (set TEST_BASH on Windows) and openssl")
-class RenewTlsCert(unittest.TestCase):
+class _Harness(unittest.TestCase):
+    """setUp, the fakes and the helpers; no tests of its own."""
+
     def setUp(self):
         self.dir = pathlib.Path(tempfile.mkdtemp(prefix="tls-renew-"))
         (self.dir / "bin").mkdir()
@@ -120,10 +136,12 @@ class RenewTlsCert(unittest.TestCase):
                    FAKE_PROXY_RUNNING="1",
                    ENV_FILE=shell_path(self.dir / "env.prod"),
                    ACME_DIR=shell_path(self.dir / "acme"),
+                   ACME_WEBROOT=shell_path(self.dir / "webroot"),
+                   FAKE_WEBROOT=shell_path(self.dir / "webroot"),
                    TLS_SERVED_CERT_FILE=shell_path(self.served),
                    TLS_VERIFY_WAIT="0")
-        env.pop("AZURE_SUBSCRIPTION_ID", None)
-        env.pop("AZURE_RESOURCE_GROUP", None)
+        for key in ("AZURE_SUBSCRIPTION_ID", "AZURE_RESOURCE_GROUP", "ACME_CHALLENGE"):
+            env.pop(key, None)
         env.update(extra)
         env["PATH"] = (shell_path(self.dir / "bin") + ":/usr/bin:/bin" if sys.platform == "win32"
                        else str(self.dir / "bin") + os.pathsep + os.environ.get("PATH", ""))
@@ -143,6 +161,14 @@ class RenewTlsCert(unittest.TestCase):
     def fingerprint(self, path):
         return openssl("x509", "-noout", "-fingerprint", "-sha256", input_path=path)[1].strip()
 
+    def sans(self, path):
+        text = openssl("x509", "-noout", "-ext", "subjectAltName", input_path=path)[1]
+        parts = ",".join(text.splitlines()).split(",")
+        return [part.strip()[len("DNS:"):] for part in parts if part.strip().startswith("DNS:")]
+
+
+@unittest.skipUnless(BASH and shutil.which("openssl"), "needs a POSIX bash (set TEST_BASH on Windows) and openssl")
+class RenewTlsCert(_Harness):
     def test_first_run_issues_installs_reloads_and_verifies(self):
         code, output = self.run_script()
         self.assertEqual(code, 0, output)
@@ -266,6 +292,165 @@ class RenewTlsCert(unittest.TestCase):
         self.assertNotEqual(code, 0)
         self.assertIn("not a plain lowercase DNS name", output)
         self.assertEqual(self.docker_calls(), [])
+
+    def test_an_unknown_challenge_is_refused_before_anything_runs(self):
+        code, output = self.run_script(ACME_CHALLENGE="tls-alpn-01")
+        self.assertNotEqual(code, 0)
+        self.assertIn("must be dns-01 or http-01", output)
+        self.assertEqual(self.docker_calls(), [])
+
+
+PROXY_HOSTS = ("api", "auth", "health", "minio", "www")
+
+
+def http01_names(offices):
+    names = [BASE] + [f"{h}.{BASE}" for h in PROXY_HOSTS] + [f"admin.{BASE}", f"admin.api.{BASE}", f"admin.auth.{BASE}"]
+    for office in offices:
+        names += [f"{office}.{BASE}", f"{office}.api.{BASE}", f"{office}.auth.{BASE}"]
+    return names
+
+
+@unittest.skipUnless(BASH and shutil.which("openssl"), "needs a POSIX bash (set TEST_BASH on Windows) and openssl")
+class RenewTlsCertHttp01(_Harness):
+    """ACME_CHALLENGE=http-01: the fallback when the public names are A records at the registrar (2026-10-15)."""
+
+    OFFICES = ("falkinstein", "test-office")
+
+    def setUp(self):
+        super().setUp()
+        with (self.dir / "env.prod").open("a", encoding="utf-8", newline="\n") as env:
+            env.write("ACME_CHALLENGE=http-01\n")
+
+    def run_http(self, *args, offices=OFFICES, **extra):
+        extra.setdefault("FAKE_OFFICES", "".join(f"{office}\n" for office in offices))
+        return self.run_script(*args, **extra)
+
+    def issued(self, offices=OFFICES):
+        """A fresh VM: the first run writes the placeholder, the second issues the real certificate."""
+        code, output = self.run_http(offices=offices)
+        self.assertEqual(code, 0, output)
+        self.assertIn("placeholder", output)
+        (self.dir / "docker.log").unlink(missing_ok=True)
+        code, output = self.run_http(offices=offices)
+        self.assertEqual(code, 0, output)
+        return output
+
+    def lego_runs(self):
+        return [c for c in self.docker_calls() if c and c[0] == "run"]
+
+    def test_lego_is_asked_for_every_name_through_the_webroot_and_never_signs_in_to_azure(self):
+        output = self.issued()
+        self.assertIn("DONE: serving", output)
+        call = self.lego_call()
+        domains = [call[i + 1] for i, a in enumerate(call) if a == "--domains"]
+        self.assertEqual(domains, http01_names(self.OFFICES))
+        self.assertIn("--http", call)
+        self.assertEqual(call[call.index("--http.webroot") + 1], "/webroot")
+        self.assertTrue(any(a.endswith(":/webroot") for a in call), call)
+        self.assertNotIn("--dns", call)
+        self.assertNotIn("--network", call)
+        self.assertFalse([a for a in call if a.startswith("AZURE_")], call)
+        self.assertNotIn("169.254.169.254", (self.dir / "curl.log").read_text(encoding="utf-8"))
+        self.assertEqual(sorted(self.sans(self.cert)), sorted(http01_names(self.OFFICES)))
+
+    def test_a_fresh_vm_gets_a_short_lived_placeholder_so_nginx_can_start(self):
+        code, output = self.run_http()
+        self.assertEqual(code, 0, output)
+        self.assertIn("placeholder", output)
+        self.assertEqual(self.docker_calls(), [], "no office query, no lego, no nginx before the stack exists")
+        self.assertTrue(self.key.exists())
+        self.assertIn(f"admin.{BASE}", self.sans(self.cert))
+        rc, _ = openssl("x509", "-noout", "-checkend", str(3 * 86400), input_path=self.cert)
+        self.assertNotEqual(rc, 0, "the placeholder must not outlive a few days")
+
+    def test_an_office_added_since_the_last_issuance_gets_a_new_certificate_at_once(self):
+        self.issued(offices=("falkinstein",))
+        code, output = self.run_http(offices=("falkinstein", "newoffice"), FAKE_LEGO_NOCHANGE="1")
+        self.assertEqual(code, 0, output)
+        self.assertIn("lacks", output)
+        self.assertIn(f"newoffice.auth.{BASE}", self.sans(self.cert))
+        self.assertTrue(list((self.dir / "acme" / "certificates").glob("portal.crt.superseded-*")))
+
+    def test_a_day_with_no_new_office_changes_nothing(self):
+        self.issued()
+        before = self.cert.read_bytes()
+        code, output = self.run_http(FAKE_LEGO_NOCHANGE="1")
+        self.assertEqual(code, 0, output)
+        self.assertNotIn("lacks", output)
+        self.assertIn("already the current one", output)
+        self.assertEqual(self.cert.read_bytes(), before)
+
+    def test_a_webroot_nginx_does_not_serve_stops_before_lets_encrypt_is_asked(self):
+        self.issued()
+        before = self.cert.read_bytes()
+        (self.dir / "docker.log").unlink()
+        code, output = self.run_http(FAKE_WEBROOT_BROKEN="1")
+        self.assertNotEqual(code, 0)
+        self.assertIn("does not serve", output)
+        self.assertEqual(self.lego_runs(), [])
+        self.assertEqual(self.cert.read_bytes(), before)
+        self.assertEqual(list((self.dir / "webroot" / ".well-known" / "acme-challenge").iterdir()), [],
+                         "the probe file is removed")
+
+    def test_a_stopped_reverse_proxy_fails_the_run(self):
+        self.issued()
+        (self.dir / "docker.log").unlink()
+        code, output = self.run_http(FAKE_PROXY_RUNNING="")
+        self.assertNotEqual(code, 0)
+        self.assertIn("reverse proxy is not running", output)
+        self.assertEqual(self.lego_runs(), [])
+
+    def test_an_office_list_that_cannot_be_read_fails_the_run(self):
+        self.issued()
+        code, output = self.run_http(FAKE_SQL_RC="1")
+        self.assertNotEqual(code, 0)
+        self.assertIn("cannot read the office list", output)
+
+    def test_an_office_name_that_is_not_a_dns_label_is_refused(self):
+        self.issued()
+        (self.dir / "docker.log").unlink()
+        code, output = self.run_http(offices=("falkinstein", "bad_name"))
+        self.assertNotEqual(code, 0)
+        self.assertIn("not a valid DNS label", output)
+        self.assertEqual(self.lego_runs(), [])
+
+    def test_an_office_named_like_a_reserved_host_is_refused(self):
+        self.issued()
+        code, output = self.run_http(offices=("minio",))
+        self.assertNotEqual(code, 0)
+        self.assertIn("collides with a reserved host", output)
+
+    def test_more_than_one_hundred_names_are_refused(self):
+        self.issued()
+        (self.dir / "docker.log").unlink()
+        code, output = self.run_http(offices=tuple(f"office{i}" for i in range(31)))
+        self.assertNotEqual(code, 0)
+        self.assertIn("at most 100", output)
+        self.assertEqual(self.lego_runs(), [])
+
+    def test_staging_proves_the_challenge_path_and_installs_nothing(self):
+        self.assertEqual(self.run_http()[0], 0)
+        placeholder = self.cert.read_bytes()
+        code, output = self.run_http("--staging")
+        self.assertEqual(code, 0, output)
+        self.assertIn("Nothing was installed", output)
+        self.assertEqual(self.cert.read_bytes(), placeholder)
+        self.assertIn("https://acme-staging-v02.api.letsencrypt.org/directory", self.lego_call())
+
+
+class TheProxyHostsMatchTenantNaming(unittest.TestCase):
+    """HTTP-01 lists the proxy's own hosts by name, so the script's list must be TenantNaming.ProxyReservedSlugs.
+    A host added on one side only would be refused a certificate (or certified for a name nginx does not serve)."""
+
+    def test_the_script_names_exactly_the_proxy_reserved_slugs(self):
+        naming = (REPO_ROOT / "src" / "HealthcareSupport.CaseEvaluation.Domain.Shared" / "MultiTenancy"
+                  / "TenantNaming.cs").read_text(encoding="utf-8")
+        csharp = re.search(r"ProxyReservedSlugs\s*=\s*new HashSet<string>\([^)]*\)\s*\{([^}]*)\}", naming)
+        self.assertIsNotNone(csharp, "TenantNaming.ProxyReservedSlugs not found")
+        script = re.search(r"^PROXY_HOSTS=\(([^)]*)\)", SCRIPT.read_text(encoding="utf-8"), re.MULTILINE)
+        self.assertIsNotNone(script, "PROXY_HOSTS not found in the script")
+        self.assertEqual(set(script.group(1).split()), set(re.findall(r'"([a-z0-9-]+)"', csharp.group(1))))
+        self.assertEqual(set(PROXY_HOSTS), set(script.group(1).split()))
 
 
 @unittest.skipUnless(BASH, "needs a POSIX bash (set TEST_BASH on Windows)")

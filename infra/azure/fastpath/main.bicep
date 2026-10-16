@@ -19,8 +19,11 @@ param location string = resourceGroup().location
 @maxLength(8)
 param envName string = 'prod'
 
-@description('Public base domain, e.g. portal.example.com. Offices resolve as {office}.<base>, {office}.api.<base> and {office}.auth.<base>. An Azure DNS zone with EXACTLY this name must already exist in this resource group; this template adds records to it and never creates or deletes it.')
+@description('Public base domain, e.g. portal.example.com. Offices resolve as {office}.<base>, {office}.api.<base> and {office}.auth.<base>. With manageDnsZone (the default), an Azure DNS zone with EXACTLY this name must already exist in this resource group; this template adds records to it and never creates or deletes it.')
 param baseDomain string
+
+@description('True (default): the base domain is DELEGATED to an Azure DNS zone in this resource group. The template writes the A and CAA records and lets the VM write ACME TXT records there (the certificate is issued with DNS-01 wildcards). False: the names are A records kept at the registrar by hand (the fallback, 2026-10-15). Then no zone is needed or touched, the VM gets no DNS role, and the certificate is issued with HTTP-01 (ACME_CHALLENGE=http-01 in env.prod; port 80 is already open). The A records can only be added once this deployment has output publicIpAddress.')
+param manageDnsZone bool = true
 
 @description('Administrator user on the VM. apadmin matches the office server, so every unit file in scripts/hosting/systemd works unchanged.')
 param adminUsername string = 'apadmin'
@@ -214,7 +217,7 @@ resource documentsWriter 'Microsoft.Authorization/roleAssignments@2022-04-01' = 
   }
 }
 
-resource dnsZoneWriter 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource dnsZoneWriter 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (manageDnsZone) {
   scope: dnsZone
   name: guid(dnsZone.id, vmName, dnsZoneContributorRoleId)
   properties: {
@@ -272,7 +275,7 @@ module backup 'modules/backup-storage.bicep' = {
   }
 }
 
-module dns 'modules/dns-records.bicep' = {
+module dns 'modules/dns-records.bicep' = if (manageDnsZone) {
   name: 'fastpath-dns-records'
   params: {
     zoneName: baseDomain
@@ -308,7 +311,7 @@ output publicIpAddress string = network.outputs.publicIpAddress
 output vmName string = vmName
 output vmPrincipalId string = host.outputs.principalId
 output backupStorageAccountName string = backup.outputs.accountName
-output dnsNameServers array = dns.outputs.nameServers
+output dnsNameServers array = dns.?outputs.nameServers ?? []
 output relayNamespaceName string = relay.?outputs.namespaceName ?? ''
 output relayHybridConnectionName string = relay.?outputs.hybridConnectionName ?? ''
 output uptimeWebTestName string = uptime.?outputs.webTestName ?? ''

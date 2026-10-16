@@ -615,6 +615,11 @@ services:
       # written by scripts/hosting/build-docs-site.sh, which the deploy runs BEFORE compose so the
       # directory exists and belongs to the deploy user (compose would otherwise create it as root).
       - ./docker/nginx-proxy/docs-site:/usr/share/nginx/docs:ro
+      # Let's Encrypt HTTP-01 challenge files, written by scripts/hosting/renew-tls-cert.sh (as root) when
+      # ACME_CHALLENGE=http-01, and served on port 80 at /.well-known/acme-challenge/. Gitignored. Empty
+      # under DNS-01 and on the office server; compose creates it (as root) if missing, which is fine here
+      # because only the root-run renewal script writes into it.
+      - ./docker/nginx-proxy/acme-webroot:/usr/share/nginx/acme:ro
       - "${TLS_CERT_PATH}:/etc/nginx/certs/wildcard.crt:ro"
       - "${TLS_KEY_PATH}:/etc/nginx/certs/wildcard.key:ro"
     depends_on:
