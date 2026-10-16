@@ -155,8 +155,9 @@ public static class TenantNaming
     /// Builds an office connection string from a base connection string (the host
     /// "Default", or an optional per-environment override) by pointing it at the
     /// office database "CaseEvaluation_{slug}" -- keeping the base server, auth, and
-    /// options. Deriving from the base avoids duplicating the SQL credentials into
-    /// a second config key (they stay in the single secret-managed Default).
+    /// options. The result is composed at runtime and never stored: the office row holds
+    /// only <see cref="BuildStoredConnectionString"/>, so the SQL login stays in
+    /// configuration alone.
     /// The catalog is set via the synonym-safe "Database" keyword; any existing
     /// "Database"/"Initial Catalog" on the base is replaced. Throws
     /// <see cref="ArgumentException"/> for a blank base or an invalid slug.
@@ -176,5 +177,70 @@ public static class TenantNaming
         builder["Database"] = databaseName;
 
         return builder.ConnectionString;
+    }
+
+    /// <summary>
+    /// The value stored on an office's tenant row: "Database=CaseEvaluation_{slug}" and nothing
+    /// else. Server, login and options are NOT stored; each request composes them from
+    /// configuration (<c>OfficeConnectionStringResolver</c>), so changing the login is a
+    /// configuration change and the row cannot point at another server. Throws
+    /// <see cref="ArgumentException"/> for an invalid slug.
+    /// </summary>
+    public static string BuildStoredConnectionString(string slug)
+    {
+        var builder = new DbConnectionStringBuilder { ["Database"] = GetDatabaseName(slug) };
+        return builder.ConnectionString;
+    }
+
+    /// <summary>
+    /// Reads the office slug back out of a stored value. Its Database (or Initial Catalog) must
+    /// be "CaseEvaluation_{slug}" with a valid slug; ONLY that is read, so a server or login in
+    /// an older row is ignored. False for a blank or malformed value, no catalog, the host
+    /// catalog "CaseEvaluation", or any other name -- the caller then refuses the office rather
+    /// than guess a database for it.
+    /// </summary>
+    public static bool TryGetSlugFromStoredConnectionString(string? stored, out string slug)
+    {
+        slug = string.Empty;
+        if (string.IsNullOrWhiteSpace(stored))
+        {
+            return false;
+        }
+
+        DbConnectionStringBuilder builder;
+        try
+        {
+            builder = new DbConnectionStringBuilder { ConnectionString = stored };
+        }
+        catch (ArgumentException)
+        {
+            // A malformed value is an answer, not an error to surface: it names no database.
+            return false;
+        }
+
+        var catalog = CatalogOf(builder);
+        if (catalog == null || !catalog.StartsWith(DatabaseNamePrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var candidate = catalog.Substring(DatabaseNamePrefix.Length);
+        if (!IsValidSlug(candidate))
+        {
+            return false;
+        }
+
+        slug = candidate;
+        return true;
+    }
+
+    private static string? CatalogOf(DbConnectionStringBuilder builder)
+    {
+        if (builder.TryGetValue("Database", out var database) && database is string named && named.Length > 0)
+        {
+            return named;
+        }
+
+        return builder.TryGetValue("Initial Catalog", out var initial) ? initial as string : null;
     }
 }

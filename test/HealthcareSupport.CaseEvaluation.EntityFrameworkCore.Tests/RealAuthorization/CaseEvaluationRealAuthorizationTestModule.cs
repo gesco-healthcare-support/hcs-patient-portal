@@ -1,5 +1,7 @@
+using HealthcareSupport.CaseEvaluation.Data;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Hosting.Internal;
 using Volo.Abp;
@@ -49,7 +51,7 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.RealAuthorization
 ///
 /// <para>The module list below is <c>CaseEvaluationMultiOfficeTestModule</c>'s, and the
 /// configuration mirrors it, because the data-layer requirements are identical: named
-/// per-database SQLite routed by the tenant's stored connection string. The one difference
+/// per-database SQLite routed by the database name stored on each office row. The one difference
 /// is the authorization pipeline, which is the entire point of the file.</para>
 /// </summary>
 [DependsOn(
@@ -137,9 +139,14 @@ public class CaseEvaluationRealAuthorizationTestModule : AbpModule
 
         RealAuthorizationTestDatabase.EnsureInitialized();
 
+        // The production OfficeConnectionStringResolver composes each office's connection from the
+        // database name on its row through this seam; here a slug maps to a named SQLite database.
+        context.Services.Replace(
+            ServiceDescriptor.Transient<ITenantConnectionStringProvider, RealAuthorizationConnectionStringProvider>());
+
         // Route every DbContext to the per-request resolved connection string: host scope
         // gets ConnectionStrings:Default (set to this harness's host database in the test
-        // base), a tenant gets that tenant's stored office connection string.
+        // base), an office gets the connection composed from its stored database name.
         Configure<AbpDbContextOptions>(options =>
         {
             options.Configure(configurationContext =>

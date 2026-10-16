@@ -27,6 +27,7 @@ public class CaseEvaluationDbMigrationService : ITransientDependency
     private readonly ICurrentTenant _currentTenant;
     private readonly AdminSeedPasswordResolver _adminSeedPasswordResolver;
     private readonly AdminPasswordRotator _adminPasswordRotator;
+    private readonly OfficeDatabaseSettingRewriter _officeDatabaseSettingRewriter;
 
     public CaseEvaluationDbMigrationService(
         IDataSeeder dataSeeder,
@@ -34,7 +35,8 @@ public class CaseEvaluationDbMigrationService : ITransientDependency
         ICurrentTenant currentTenant,
         AdminSeedPasswordResolver adminSeedPasswordResolver,
         AdminPasswordRotator adminPasswordRotator,
-        IEnumerable<ICaseEvaluationDbSchemaMigrator> dbSchemaMigrators)
+        IEnumerable<ICaseEvaluationDbSchemaMigrator> dbSchemaMigrators,
+        OfficeDatabaseSettingRewriter officeDatabaseSettingRewriter)
     {
         _dataSeeder = dataSeeder;
         _tenantRepository = tenantRepository;
@@ -42,6 +44,7 @@ public class CaseEvaluationDbMigrationService : ITransientDependency
         _adminSeedPasswordResolver = adminSeedPasswordResolver;
         _adminPasswordRotator = adminPasswordRotator;
         _dbSchemaMigrators = dbSchemaMigrators;
+        _officeDatabaseSettingRewriter = officeDatabaseSettingRewriter;
 
         Logger = NullLogger<CaseEvaluationDbMigrationService>.Instance;
     }
@@ -64,28 +67,29 @@ public class CaseEvaluationDbMigrationService : ITransientDependency
 
         if (MultiTenancyConsts.IsEnabled)
         {
+            // Rows written by an older build carry a whole connection string; bring them to the
+            // database-name-only form first. Idempotent, and routing does not depend on it.
+            await _officeDatabaseSettingRewriter.RewriteAsync();
 
             var tenants = await _tenantRepository.GetListAsync(includeDetails: true);
 
-            var migratedDatabaseSchemas = new HashSet<string>();
             foreach (var tenant in tenants)
             {
+                // The template this loop came from migrated an office only when it had a connection
+                // string and then SEEDED it regardless, so an office with none was seeded into the HOST
+                // database. Under database-per-office that office is broken, not shared: refuse it and
+                // say so. OfficeConnectionStringResolver refuses its requests for the same reason.
+                if (!TenantNaming.TryGetSlugFromStoredConnectionString(tenant.FindDefaultConnectionString(), out _))
+                {
+                    Logger.LogError(
+                        "Office {TenantId} ({TenantName}) has no office database setting, so it was NOT migrated or "
+                        + "seeded (it would otherwise have been seeded into the host database).", tenant.Id, tenant.Name);
+                    continue;
+                }
+
                 using (_currentTenant.Change(tenant.Id))
                 {
-                    if (tenant.ConnectionStrings.Count > 0)
-                    {
-                        var tenantConnectionStrings = tenant.ConnectionStrings
-                            .Select(x => x.Value)
-                            .ToList();
-
-                        if (!migratedDatabaseSchemas.IsSupersetOf(tenantConnectionStrings))
-                        {
-                            await MigrateDatabaseSchemaAsync(tenant);
-
-                            migratedDatabaseSchemas.AddIfNotContains(tenantConnectionStrings);
-                        }
-                    }
-
+                    await MigrateDatabaseSchemaAsync(tenant);
                     await SeedDataAsync(tenant);
                 }
 

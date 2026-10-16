@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.EntityFrameworkCore.MultiOffice;
 using HealthcareSupport.CaseEvaluation.Identity;
+using HealthcareSupport.CaseEvaluation.MultiTenancy;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Volo.Abp;
@@ -126,9 +127,11 @@ public abstract class CaseEvaluationRealAuthorizationTestBase
                 Guid officeId;
                 using (currentTenant.Change(null))
                 {
+                    // The database name only, as production stores it; the resolver composes the
+                    // connection through RealAuthorizationConnectionStringProvider.
                     var office = await tenantManager.CreateAsync(OfficeName);
                     office.SetDefaultConnectionString(
-                        RealAuthorizationTestDatabase.OfficeConnectionString);
+                        TenantNaming.BuildStoredConnectionString(TenantNaming.DeriveSlug(OfficeName)));
                     await tenantRepository.InsertAsync(office, autoSave: true);
                     officeId = office.Id;
                 }

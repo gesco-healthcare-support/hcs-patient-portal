@@ -413,8 +413,8 @@ The other tenant operations (update, delete, connection strings) are inherited f
    The reserved name `admin` is refused.
 2. **Build and check the connection string.** Build the office's connection string and check that its server is
    reachable before creating anything.
-3. **Create the tenant.** In one host transaction, create the tenant and store its connection string. A failure rolls
-   back the tenant, and no database is provisioned.
+3. **Create the tenant.** In one host transaction, create the tenant and store its database name (never the server or
+   login). A failure rolls back the tenant, and no database is provisioned.
 4. **Provision the database.** Call `IOfficeDatabaseProvisioner.ProvisionAsync` outside that transaction, because a
    separate database cannot share it. It creates the office database and seeds it, including the admin user and, for New
    Practice, the owner doctor. If provisioning fails, the tenant row remains, and a retry completes it, because the

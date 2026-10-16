@@ -96,6 +96,9 @@
        and plan to either upgrade ABP past 10.x (no current 10.x release
        upgrades the Scriban dep; 10.1.1 still pins Scriban &gt;= 6.3.0)
        or render through the same TemplateVariableSubstitutor pipeline. -->
+  <!-- EDITING THESE COMMENTS: never put two hyphens in a row inside one. XML forbids it, and on
+       2026-10-16 such a comment made restore exit 0 while silently dropping EVERY pin below from the
+       lock files. After any edit, check this file parses and that only the intended versions moved. -->
   <ItemGroup>
     <PackageReference Include="Scriban" Version="7.2.5" />
     <!-- Override transitive 9.0.0 pulled by Microsoft.Build.Tasks.Core; 10.0.x
@@ -127,8 +130,14 @@
          without an API break. Without this pin, TreatWarningsAsErrors elevates
          NU1903 to a restore error and every backend image (db-migrator / api /
          authserver) fails `dotnet restore`. Same pin-the-patched-version approach
-         as the Scriban 7.2.0 entry above. -->
-    <PackageReference Include="MessagePack" Version="3.1.7" />
+         as the Scriban 7.2.0 entry above.
+         2026-10-16: GHSA-qhrr-8q5h-9q3h (published 2026-10-15, Moderate: nested
+         arrays can exceed the buffer length limits) affects >= 3.0.0 and < 3.1.9,
+         so 3.1.7 now trips NU1902 and fails every restore, CI included. 3.1.9 is the
+         first patched release on the same 3.1.x line (on nuget.org since
+         2026-09-17), so MagicOnion's `MessagePack >= 3.1.1` is still met with no API
+         break. -->
+    <PackageReference Include="MessagePack" Version="3.1.9" />
   </ItemGroup>
 
   <!-- AngleSharp GHSA-pgww-w46g-26qg / CVE-2026-54570 (2026-07-20): NuGetAudit

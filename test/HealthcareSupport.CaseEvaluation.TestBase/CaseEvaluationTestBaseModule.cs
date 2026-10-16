@@ -41,9 +41,9 @@ public class CaseEvaluationTestBaseModule : AbpModule
             Identity.AdminPasswords.PublishedDefaultAdminPasswordStore>();
 
         // The synthetic TEST office is registered by OfficeSeedDataContributor in every real
-        // environment, but the rigs seed their own offices (TenantA/TenantB) and have no office-database
-        // connection template, so that contributor cannot run in the start-up seed. TestOfficeSeedTests
-        // exercises it directly, over a fake connection-string provider.
+        // environment, but the rigs seed their own offices (TenantA/TenantB), and a third office in the
+        // start-up seed would appear in every test that counts offices. TestOfficeSeedTests exercises it
+        // directly.
         Configure<AbpDataSeedOptions>(options =>
         {
             options.Contributors.RemoveAll(type => type == typeof(Saas.OfficeSeedDataContributor));

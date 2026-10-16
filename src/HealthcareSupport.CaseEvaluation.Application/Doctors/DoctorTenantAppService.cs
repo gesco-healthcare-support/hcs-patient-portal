@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Branding;
 using HealthcareSupport.CaseEvaluation.Data;
@@ -63,10 +64,52 @@ namespace HealthcareSupport.CaseEvaluation.Doctors
             Check.NotNullOrWhiteSpace(input.Name, nameof(input.Name));
             Check.NotNullOrWhiteSpace(input.AdminPassword, nameof(input.AdminPassword));
             Check.NotNullOrWhiteSpace(input.AdminEmailAddress, nameof(input.AdminEmailAddress));
+            RefuseSuppliedConnectionStrings(input.ConnectionStrings);
 
             // The office name IS the subdomain, so it must be a single DNS-safe token.
             var slug = DeriveSlugOrThrow(input.Name!);
             return await CreateTenantWithOfficeDatabaseAsync(input, slug, null, null, null);
+        }
+
+        /// <summary>
+        /// The office's database as its row stores it: "Database=CaseEvaluation_{slug}", never a server
+        /// or login. A row written by an older build is shown the same way, read through the same parser
+        /// the resolver uses, so this screen never displays credentials. Named databases are not used by
+        /// offices, so the list is always empty.
+        /// </summary>
+        [Authorize(SaasHostPermissions.Tenants.ManageConnectionStrings)]
+        public override async Task<SaasTenantConnectionStringsDto> GetConnectionStringsAsync(Guid id)
+        {
+            var tenant = await _tenantRepository.GetAsync(id);
+            return new SaasTenantConnectionStringsDto
+            {
+                Default = TenantNaming.TryGetSlugFromStoredConnectionString(tenant.FindDefaultConnectionString(), out var slug)
+                    ? TenantNaming.BuildStoredConnectionString(slug)
+                    : null,
+                Databases = new List<SaasTenantDatabaseConnectionStringsDto>(),
+            };
+        }
+
+        /// <summary>
+        /// Refused. An office's database is fixed at creation and its server and login come from
+        /// configuration, so there is nothing here an operator may change. Accepting a value would
+        /// let this screen point an office at another database, including another office's.
+        /// </summary>
+        [Authorize(SaasHostPermissions.Tenants.ManageConnectionStrings)]
+        public override Task UpdateConnectionStringsAsync(Guid id, SaasTenantConnectionStringsDto input)
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.OfficeDatabaseSettingIsFixed);
+        }
+
+        // The stock create screen can carry connection strings. Refused rather than ignored, for the
+        // reason above, and so that nothing it carries is ever stored on the row.
+        private static void RefuseSuppliedConnectionStrings(SaasTenantConnectionStringsDto? supplied)
+        {
+            if (supplied != null &&
+                (!supplied.Default.IsNullOrWhiteSpace() || (supplied.Databases?.Count ?? 0) > 0))
+            {
+                throw new BusinessException(CaseEvaluationDomainErrorCodes.OfficeDatabaseSettingIsFixed);
+            }
         }
 
         /// <summary>
@@ -135,8 +178,8 @@ namespace HealthcareSupport.CaseEvaluation.Doctors
         }
 
         // Shared create used by both the stock override and the New Practice flow.
-        // Reachability-check the office connection string up front, register the tenant +
-        // store its connection string in one host transaction (the TenantCreatedEto is
+        // Reachability-check the full office connection string up front (held in memory only),
+        // register the tenant + store its DATABASE NAME in one host transaction (the TenantCreatedEto is
         // outbox-deferred to this commit, so a failure rolls the tenant back and never
         // provisions a database), then provision the office database out-of-band (a
         // separate database cannot share the host transaction). Doctor fields flow to the
@@ -164,8 +207,10 @@ namespace HealthcareSupport.CaseEvaluation.Doctors
             {
                 tenant = await base.CreateAsync(input);
 
+                // The row stores the database name only; OfficeConnectionStringResolver composes the
+                // server and login from configuration on every request.
                 var tenantEntity = await _tenantRepository.GetAsync(tenant.Id);
-                tenantEntity.SetDefaultConnectionString(connectionString);
+                tenantEntity.SetDefaultConnectionString(TenantNaming.BuildStoredConnectionString(slug));
                 await _tenantRepository.UpdateAsync(tenantEntity);
 
                 await uow.CompleteAsync();

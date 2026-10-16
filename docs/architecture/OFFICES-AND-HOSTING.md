@@ -99,17 +99,40 @@ With neither configured it throws `AbpException` naming both keys. The override 
 office databases on a separate SQL instance without duplicating credentials.
 
 The point of deriving rather than configuring is that SQL credentials stay in the single
-secret-managed `Default` and are never copied into a second config key.
+secret-managed `Default` and are never copied into a second config key, nor onto any office row.
+
+### What an office row stores
+
+Only the database name: `Database=CaseEvaluation_{slug}`, written by
+`TenantNaming.BuildStoredConnectionString`. The server and the login are not on the row; they
+come from configuration every time an office connects. So changing the SQL login's password is
+`ALTER LOGIN`, the new value in configuration, and a restart of the services that read it. No
+office row changes.
 
 ### When it is used
 
 - **Office creation.** `DoctorTenantAppService.CreateTenantWithOfficeDatabaseAsync` builds the
-  connection string, reachability-checks it with `IConnectionStringChecker` before creating
-  anything, then stores it on the tenant row with `SetDefaultConnectionString` inside the host
-  transaction, and provisions the office database out of band afterwards.
-- **Seeding.** `OfficeSeedDataContributor` builds it per office from the office slug.
-- **Every subsequent query.** ABP's stock `MultiTenantConnectionStringResolver` reads the string
-  stored on the tenant record. Nothing in this repo re-derives it per request.
+  full connection string only to reachability-check it with `IConnectionStringChecker` before
+  creating anything. It then stores the database name on the tenant row with
+  `SetDefaultConnectionString` inside the host transaction, and provisions the office database out
+  of band afterwards.
+- **Seeding.** `OfficeSeedDataContributor` stores the database name the same way.
+- **Every subsequent query.** `OfficeConnectionStringResolver`
+  (`src/HealthcareSupport.CaseEvaluation.Domain/Data/`) replaces ABP's stock
+  `MultiTenantConnectionStringResolver`. For an office it reads the database name from the tenant
+  record and builds the connection with `TenantConnectionStringProvider` on every request. Host
+  context (no current office) gets the configured `Default`, as before.
+- **An office it cannot place is refused.** No tenant record, no database setting, or a setting
+  that names no office database (`TenantNaming.TryGetSlugFromStoredConnectionString` decides)
+  throws `OfficeDatabaseNotConfiguredException`. The stock resolver would instead fall back to the
+  global `Default`, which is the host database.
+- **Rows an older build wrote** carry a whole connection string. The resolver reads only their
+  database name, and the DbMigrator rewrites them to the database-name-only form before its office
+  loop (`OfficeDatabaseSettingRewriter`, idempotent). The same loop skips, and logs by id, an
+  office with no usable setting rather than seeding it into the host database.
+- **The connection-strings screen** (Volo Saas) shows the database name only. Saving it is
+  refused with `CaseEvaluation:Office.DatabaseSettingIsFixed`, and so is a stock create that
+  supplies connection strings: an office's database is fixed when the office is created.
 
 ## Reserved slugs: two separate sets
 
