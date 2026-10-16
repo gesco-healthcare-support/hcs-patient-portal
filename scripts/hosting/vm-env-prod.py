@@ -85,6 +85,9 @@ PLAN: dict[str, str] = {
     # CLOSED. Empty would NOT be: see the module docstring.
     "MINIO_ALLOW_DIRECTIVES": f'"{DENY_ALL}"', "DOCS_ALLOW_DIRECTIVES": f'"{DENY_ALL}"',
     "TLS_CERT_PATH": KEEP, "TLS_KEY_PATH": KEEP, "ACME_EMAIL": ALERT,
+    # dns-01 while the base domain is delegated to the Azure DNS zone; http-01 when the names are A records at the
+    # registrar (fastpath README, "If the names are A records at the registrar").
+    "ACME_CHALLENGE": "dns-01",
     "OPENIDDICT_PFX_PATH": KEEP, "AUTHSERVER_CERT_PASSPHRASE": SECRET,
     "DATAPROTECTION_PFX_PATH": KEEP, "DATAPROTECTION_CERT_PASSPHRASE": SECRET,
     "MSSQL_SA_PASSWORD": SECRET, "SQL_APP_LOGIN": "portal_app", "SQL_APP_PASSWORD": SECRET,
@@ -256,6 +259,9 @@ LENGTHS = {
 
 UNSAFE_IN_SQL_PASSWORD = re.compile(r"[;'\"{}$`\s]")
 
+# The two ways renew-tls-cert.sh proves the domain. It refuses any other value before it starts.
+ACME_CHALLENGES = ("dns-01", "http-01")
+
 
 def _placeholders(values: dict[str, str]) -> list[str]:
     return [f"{key} still holds a placeholder" for key, value in values.items()
@@ -321,7 +327,14 @@ def _sql(values: dict[str, str]) -> list[str]:
     return problems
 
 
-RULES = (_placeholders, _required, _exact, _environment, _tokens, _lengths, _sql)
+def _acme(values: dict[str, str]) -> list[str]:
+    # Absent or empty is fine: renew-tls-cert.sh then uses dns-01.
+    if values.get("ACME_CHALLENGE", "") not in ("", *ACME_CHALLENGES):
+        return ["ACME_CHALLENGE must be dns-01 or http-01: renew-tls-cert.sh refuses anything else"]
+    return []
+
+
+RULES = (_placeholders, _required, _exact, _environment, _tokens, _lengths, _sql, _acme)
 
 
 def _mode_problems(path: Path) -> list[str]:
