@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
+using HealthcareSupport.CaseEvaluation.MultiTenancy;
 using HealthcareSupport.CaseEvaluation.Permissions;
 using HealthcareSupport.CaseEvaluation.Security;
 using HealthcareSupport.CaseEvaluation.Settings;
@@ -325,7 +326,8 @@ public class HostOnlyIntegrationAdminAuthorizationTests : CaseEvaluationRealAuth
                 using (_currentTenant.Change(null))
                 {
                     var office = await tenantManager.CreateAsync(SecondOfficeName);
-                    office.SetDefaultConnectionString(RealAuthorizationTestDatabase.SecondOfficeConnectionString);
+                    office.SetDefaultConnectionString(
+                        TenantNaming.BuildStoredConnectionString(TenantNaming.DeriveSlug(SecondOfficeName)));
                     await tenantRepository.InsertAsync(office, autoSave: true);
                     officeId = office.Id;
 

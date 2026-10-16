@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.MultiTenancy;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Volo.Abp;
@@ -114,13 +115,17 @@ public abstract class CaseEvaluationMultiOfficeTestBase
                 Guid officeBId;
                 using (currentTenant.Change(null))
                 {
+                    // Stored exactly as production stores it: the database name only. The
+                    // resolver composes the connection (MultiOfficeConnectionStringProvider).
                     var a = await tenantManager.CreateAsync(OfficeAName);
-                    a.SetDefaultConnectionString(MultiOfficeTestDatabase.OfficeAConnectionString);
+                    a.SetDefaultConnectionString(
+                        TenantNaming.BuildStoredConnectionString(TenantNaming.DeriveSlug(OfficeAName)));
                     await tenantRepository.InsertAsync(a, autoSave: true);
                     officeAId = a.Id;
 
                     var b = await tenantManager.CreateAsync(OfficeBName);
-                    b.SetDefaultConnectionString(MultiOfficeTestDatabase.OfficeBConnectionString);
+                    b.SetDefaultConnectionString(
+                        TenantNaming.BuildStoredConnectionString(TenantNaming.DeriveSlug(OfficeBName)));
                     await tenantRepository.InsertAsync(b, autoSave: true);
                     officeBId = b.Id;
                 }

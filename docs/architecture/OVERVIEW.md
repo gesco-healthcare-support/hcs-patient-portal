@@ -185,8 +185,10 @@ aggregate living inside an office's database, so one office holds many doctors. 
 is an office-creation flow keyed on an office subdomain slug.
 
 **Isolation is physical, not a filter.** Each office gets its own SQL Server database named
-`CaseEvaluation_{slug}`, derived from the host `Default` connection string by swapping the catalog
-and stored on the tenant record. A query on an office connection cannot reach another office's
+`CaseEvaluation_{slug}`, derived from the host `Default` connection string by swapping the catalog.
+The tenant record stores only the database name; the server and login come from configuration on
+every request (`OfficeConnectionStringResolver`), and an office with no usable database setting is
+refused rather than sent to the host database. A query on an office connection cannot reach another office's
 rows at all, because they are not in that database. The `IMultiTenant` filter still applies and is
 defence in depth on top of that.
 

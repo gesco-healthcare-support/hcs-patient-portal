@@ -8,14 +8,15 @@ namespace HealthcareSupport.CaseEvaluation.Data;
 /// <summary>
 /// Dev/default <see cref="ITenantConnectionStringProvider"/>: derives the office
 /// connection string from the host "Default" connection string by pointing it at
-/// the office database "CaseEvaluation_{slug}". The SQL credentials therefore stay
-/// in the single, secret-managed Default and are never duplicated into a second
-/// config key. Set "App:TenantDbTemplate" to override the base server/auth (e.g.
-/// to place office databases on a separate SQL instance). Auto-registered by ABP
-/// convention, so it is available in every host that loads the Domain module
-/// (HttpApi.Host runtime provisioning + the DbMigrator bulk path). Routing of
-/// tenant queries stays with the stock ABP MultiTenantConnectionStringResolver,
-/// which reads the connection string this provider stored on the tenant record.
+/// the office database "CaseEvaluation_{slug}". The SQL login therefore lives in
+/// the single, secret-managed Default and nowhere else. Set "App:TenantDbTemplate"
+/// to override the base server/auth (e.g. to place office databases on a separate
+/// SQL instance). Auto-registered by ABP convention, so it is available in every
+/// host that loads the Domain module (api, authserver, migrator).
+///
+/// <para>Called on EVERY office request, not only at creation: <see cref="OfficeConnectionStringResolver"/>
+/// reads the office's database name from its row (the row stores nothing else) and asks this for the
+/// full string. Office creation calls it too, only to check the server is reachable.</para>
 /// </summary>
 public class TenantConnectionStringProvider : ITenantConnectionStringProvider, ITransientDependency
 {

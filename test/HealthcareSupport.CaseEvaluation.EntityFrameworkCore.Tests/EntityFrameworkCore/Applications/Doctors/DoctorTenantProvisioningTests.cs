@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Branding;
 using HealthcareSupport.CaseEvaluation.Data;
 using HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
+using HealthcareSupport.CaseEvaluation.MultiTenancy;
 using HealthcareSupport.CaseEvaluation.Practices;
 using HealthcareSupport.CaseEvaluation.TestData;
 using Microsoft.Extensions.DependencyInjection;
@@ -40,12 +41,18 @@ public sealed class FakeOfficeInfrastructure : ITenantConnectionStringProvider, 
 
     public List<ProvisionCall> Calls { get; } = new();
 
+    /// <summary>Every string the reachability check was given: the FULL composed one, never the stored one.</summary>
+    public List<string> CheckedConnectionStrings { get; } = new();
+
     public string BuildConnectionString(string slug) => ConnectionStringFor(slug);
 
     public static string ConnectionStringFor(string slug) => "TEST-office-connection-" + slug;
 
-    public Task<AbpConnectionStringCheckResult> CheckAsync(string connectionString) =>
-        Task.FromResult(new AbpConnectionStringCheckResult { Connected = DatabaseServerReachable, DatabaseExists = false });
+    public Task<AbpConnectionStringCheckResult> CheckAsync(string connectionString)
+    {
+        CheckedConnectionStrings.Add(connectionString);
+        return Task.FromResult(new AbpConnectionStringCheckResult { Connected = DatabaseServerReachable, DatabaseExists = false });
+    }
 
     public Task ProvisionAsync(Guid tenantId, string adminEmailAddress, string adminPassword,
         string? doctorFirstName = null, string? doctorLastName = null, string? doctorEmail = null)
@@ -132,7 +139,9 @@ public class DoctorTenantProvisioningTests : CaseEvaluationTestBase<DoctorTenant
         _office.Calls.ShouldContain(new FakeOfficeInfrastructure.ProvisionCall(
             created.Id, $"{slug}@test.local", "TEST-Ada", "TEST-Lovelace", $"{slug}@test.local"));
         var tenant = await InHostAsync(() => _tenants.GetAsync(created.Id));
-        tenant.FindDefaultConnectionString().ShouldBe(FakeOfficeInfrastructure.ConnectionStringFor(slug));
+        // The row stores the database name only; the full string was used for the reachability check alone.
+        tenant.FindDefaultConnectionString().ShouldBe(TenantNaming.BuildStoredConnectionString(slug));
+        _office.CheckedConnectionStrings.ShouldContain(FakeOfficeInfrastructure.ConnectionStringFor(slug));
         (await BrandingFor(TenantsTestData.TenantARef)).ShouldBe("TEST-Office A Display");
         (await BrandingFor(created.Id)).ShouldBe(PracticeNaming.DefaultDisplayName("TEST-Ada", "TEST-Lovelace"));
     }
@@ -192,7 +201,7 @@ public class DoctorTenantProvisioningTests : CaseEvaluationTestBase<DoctorTenant
         var kept = await InHostAsync(() => _tenantStore.FirstOrDefaultAsync(t => t.Name == slug));
         // Reload through the Saas repository: it includes the connection strings the plain one leaves unloaded.
         var tenant = await InHostAsync(() => _tenants.GetAsync(kept.ShouldNotBeNull().Id));
-        tenant.FindDefaultConnectionString().ShouldBe(FakeOfficeInfrastructure.ConnectionStringFor(slug));
+        tenant.FindDefaultConnectionString().ShouldBe(TenantNaming.BuildStoredConnectionString(slug));
         (await BrandingFor(tenant.Id)).ShouldBeNull();
     }
 
@@ -210,7 +219,97 @@ public class DoctorTenantProvisioningTests : CaseEvaluationTestBase<DoctorTenant
 
         _office.Calls.ShouldContain(new FakeOfficeInfrastructure.ProvisionCall(created.Id, $"{slug}@test.local", null, null, null));
         (await InHostAsync(() => _tenants.GetAsync(created.Id))).FindDefaultConnectionString()
-            .ShouldBe(FakeOfficeInfrastructure.ConnectionStringFor(slug));
+            .ShouldBe(TenantNaming.BuildStoredConnectionString(slug));
+    }
+
+    [Fact]
+    public async Task StockCreate_WithSuppliedConnectionStrings_IsRefusedAndCreatesNothing()
+    {
+        var slug = NewSlug();
+        var supplied = new[]
+        {
+            new SaasTenantConnectionStringsDto { Default = $"Database=CaseEvaluation_{slug}" },
+            new SaasTenantConnectionStringsDto
+            {
+                Databases = new List<SaasTenantDatabaseConnectionStringsDto>
+                {
+                    new() { DatabaseName = "AbpAuditLogging", ConnectionString = "Database=CaseEvaluation_other" },
+                },
+            },
+        };
+
+        foreach (var strings in supplied)
+        {
+            var ex = await Should.ThrowAsync<BusinessException>(() => _service.CreateAsync(new SaasTenantCreateDto
+            {
+                Name = slug,
+                AdminEmailAddress = $"{slug}@test.local",
+                AdminPassword = "TEST-Passw0rd!",
+                ConnectionStrings = strings,
+            }));
+
+            ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.OfficeDatabaseSettingIsFixed);
+        }
+
+        (await InHostAsync(() => _tenantStore.FirstOrDefaultAsync(t => t.Name == slug))).ShouldBeNull();
+        _office.Calls.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task GetConnectionStrings_ShowsTheDatabaseNameOnly_EvenForARowAnOlderBuildWrote()
+    {
+        var slug = NewSlug();
+        var created = await _service.CreatePracticeAsync(new CreatePracticeInput
+        {
+            Slug = slug,
+            DoctorFirstName = "TEST-Barbara",
+            DoctorLastName = "TEST-Liskov",
+            DoctorEmail = $"{slug}@test.local",
+        });
+
+        (await InHostAsync(() => _service.GetConnectionStringsAsync(created.Id))).Default
+            .ShouldBe(TenantNaming.BuildStoredConnectionString(slug));
+
+        // An older build stored a whole connection string. The screen still shows the database only.
+        await InHostAsync(async () =>
+        {
+            var tenant = await _tenants.GetAsync(created.Id);
+            tenant.SetDefaultConnectionString($"Server=sql-server;Database=CaseEvaluation_{slug};User Id=TEST;Password=x");
+            await _tenants.UpdateAsync(tenant, autoSave: true);
+            return true;
+        });
+
+        var shown = await InHostAsync(() => _service.GetConnectionStringsAsync(created.Id));
+        shown.Default.ShouldBe(TenantNaming.BuildStoredConnectionString(slug));
+        shown.Default.ShouldNotContain("Password");
+        shown.Default.ShouldNotContain("User Id");
+        shown.Databases.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task UpdateConnectionStrings_IsRefused_AndTheRowIsUnchanged()
+    {
+        var slug = NewSlug();
+        var created = await _service.CreatePracticeAsync(new CreatePracticeInput
+        {
+            Slug = slug,
+            DoctorFirstName = "TEST-Frances",
+            DoctorLastName = "TEST-Allen",
+            DoctorEmail = $"{slug}@test.local",
+        });
+
+        var ex = await Should.ThrowAsync<BusinessException>(() => InHostAsync(async () =>
+        {
+            await _service.UpdateConnectionStringsAsync(created.Id, new SaasTenantConnectionStringsDto
+            {
+                Default = $"Database=CaseEvaluation_{TenantsTestData.TenantAName.ToLowerInvariant()}",
+            });
+            return true;
+        }));
+
+        ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.OfficeDatabaseSettingIsFixed);
+        (await InHostAsync(() => _tenants.GetAsync(created.Id))).FindDefaultConnectionString()
+            .ShouldBe(TenantNaming.BuildStoredConnectionString(slug));
     }
 
     private Task<string?> BrandingFor(Guid officeId) =>

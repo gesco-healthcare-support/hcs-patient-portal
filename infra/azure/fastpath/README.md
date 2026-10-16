@@ -138,8 +138,9 @@ The template stops at an empty VM with Docker installed on the data disk. The re
    the office server, it writes:
 
    - `MSSQL_PID=Express` (licensed for production; the default, Developer, is not);
-   - `SQL_APP_LOGIN` and `SQL_APP_PASSWORD`, the application's own SQL login instead of `sa`. The password is
-     chosen once, before the first office exists: it is stored in every office's connection string;
+   - `SQL_APP_LOGIN` and `SQL_APP_PASSWORD`, the application's own SQL login instead of `sa`. Office rows store
+     only their database name and every office connects with this login, so the password can be changed later
+     with `ALTER LOGIN`, the new value in `env.prod`, and a recreate of api, authserver and db-migrator;
    - `MINIO_ALLOW_DIRECTIVES="deny all;"` and `DOCS_ALLOW_DIRECTIVES="deny all;"`. Empty is NOT closed:
      compose then falls back to the private address ranges;
    - MinIO keys of at most 20 characters and secrets of at most 40, which is all MinIO accepts;

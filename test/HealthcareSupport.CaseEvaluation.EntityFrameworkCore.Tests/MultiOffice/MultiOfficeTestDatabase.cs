@@ -21,11 +21,13 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.MultiOffice;
 /// between units of work and every per-office connection would silently get a fresh,
 /// empty database (a false-positive "isolation" pass).
 ///
-/// Routing mirrors production exactly: ABP's stock MultiTenantConnectionStringResolver
-/// reads the connection string stored on each tenant record
-/// (<c>tenant.SetDefaultConnectionString(...)</c>, as DoctorTenantAppService does), so
-/// the harness needs no custom resolver -- only these distinct connection strings and
-/// the matching <c>UseSqlite(context.ConnectionString)</c> registration in the module.
+/// Routing mirrors production: each office row stores ONLY its database name
+/// (<c>TenantNaming.BuildStoredConnectionString</c>, as DoctorTenantAppService does), and the
+/// production <c>OfficeConnectionStringResolver</c> composes the connection from it through
+/// <c>ITenantConnectionStringProvider</c>. The one substitution is that provider:
+/// <see cref="MultiOfficeConnectionStringProvider"/> maps an office slug to its named SQLite
+/// database instead of a SQL Server catalog. The module then opens it with
+/// <c>UseSqlite(context.ConnectionString)</c>.
 /// </summary>
 public static class MultiOfficeTestDatabase
 {
@@ -33,10 +35,19 @@ public static class MultiOfficeTestDatabase
     // SQLite default is OFF), matching the single-connection harness.
     public const string HostConnectionString =
         "Data Source=F1MultiOfficeHost;Mode=Memory;Cache=Shared;Foreign Keys=True";
-    public const string OfficeAConnectionString =
-        "Data Source=F1MultiOfficeA;Mode=Memory;Cache=Shared;Foreign Keys=True";
-    public const string OfficeBConnectionString =
-        "Data Source=F1MultiOfficeB;Mode=Memory;Cache=Shared;Foreign Keys=True";
+
+    // The slugs of CaseEvaluationMultiOfficeTestBase.OfficeAName / OfficeBName (TenantNaming.DeriveSlug
+    // lowercases). A slug that does not match would compose a database nobody created, and every query in
+    // that office would then fail on a missing table -- loudly, not as a silent pass.
+    public const string OfficeASlug = "f-office-a";
+    public const string OfficeBSlug = "f-office-b";
+
+    public static readonly string OfficeAConnectionString = OfficeConnectionStringFor(OfficeASlug);
+    public static readonly string OfficeBConnectionString = OfficeConnectionStringFor(OfficeBSlug);
+
+    /// <summary>The named in-memory database of the office with this slug.</summary>
+    public static string OfficeConnectionStringFor(string slug) =>
+        $"Data Source=F1MultiOffice_{slug};Mode=Memory;Cache=Shared;Foreign Keys=True";
 
     private static readonly object SyncRoot = new();
     private static readonly List<SqliteConnection> Keepers = new();

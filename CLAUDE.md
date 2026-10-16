@@ -102,9 +102,12 @@ both needs a migration in BOTH sets.
 - An office's subdomain slug IS its lowercased name.
   `TenantNaming.DeriveSlug` VALIDATES rather than transforms, because the resolver matches
   the slug back to the tenant's stored `Name`; a transformed slug would stop resolving.
-- Database name is `CaseEvaluation_{slug}`; the host database is `CaseEvaluation`. The
-  office connection string is derived from the single secret-managed `Default` by swapping
-  the catalog, so SQL credentials are never duplicated into a second config key.
+- Database name is `CaseEvaluation_{slug}`; the host database is `CaseEvaluation`. An
+  office's tenant row stores ONLY its database name; `OfficeConnectionStringResolver` builds
+  the connection from the single secret-managed `Default` on every request by swapping the
+  catalog, so SQL credentials are never duplicated into a second config key or onto an office
+  row. An office with no usable database setting is REFUSED, never routed to the host database
+  (ABP's stock resolver falls back to it).
 - **Two reserved slug sets, for different reasons.** `admin` maps to the Volo SaaS Host
   surface. `TenantNaming.ProxyReservedSlugs` = `{api, auth, minio, health, www}` are the
   single-label hosts the reverse proxy answers itself with an exact `server_name`, which
