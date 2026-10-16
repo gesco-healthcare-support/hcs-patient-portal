@@ -1,0 +1,67 @@
+name: Packet Render
+
+# Builds the packet-renderer image exactly as a deploy does, renders the four real packets through it, and checks
+# each PDF against pinned page and fillable-box counts (tests/packet-render/render_real_packets.py says what and why).
+#
+# WHY. Nothing else in CI renders a PDF: the golden hashes cover the generators' HTML, the Python suite runs the PDF
+# libraries against a stub, and packet-real-pdf.yml runs pikepdf over a PDF it builds itself. WeasyPrint 70 turned
+# every packet into an HTTP 500 (2026-10-12) with all of CI green; only a hand render caught it.
+#
+# NOT a required check, and path-filtered for that reason: a required job that skips reports success.
+#
+# WHICH CHANGES CAN BREAK IT, and so must run it:
+#   - docker/packet-renderer/**   the Dockerfile (base-image digest, apt packages, fonts), app.py, requirements.*
+#   - tools/packet-templates/**   the generators, post_process.py and the images they inline
+#   - tests/packet-render/**      the check and its pins
+#   - .dockerignore               it decides what reaches the image's build context
+#   - this file
+# And one that changes nothing in the repository: the Dockerfile installs Debian's CURRENT Pango, HarfBuzz and font
+# packages (not pinned), so the rendering can move under a fixed commit. The weekly run catches that drift.
+on:
+  pull_request:
+    paths:
+      - 'docker/packet-renderer/**'
+      - 'tools/packet-templates/**'
+      - 'tests/packet-render/**'
+      - '.dockerignore'
+      - '.github/workflows/packet-render.yml'
+  schedule:
+    - cron: '41 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    name: 'Packet: render the four real packets'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+
+      - name: Build the packet-renderer image as a deploy does
+        run: docker build -f docker/packet-renderer/Dockerfile -t packet-renderer:ci .
+
+      # --network none: every template inlines its images, and the service refuses any non-data URL, so a render
+      # needs no network. A render that tried to fetch something would fail here rather than quietly succeed.
+      - name: Start it with no network, and wait until it is healthy
+        run: |
+          set -euo pipefail
+          docker run -d --name packet-renderer --network none packet-renderer:ci
+          for _ in $(seq 1 60); do
+            if docker exec packet-renderer curl -fsS http://127.0.0.1:3001/health; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::the packet-renderer never reported healthy"
+          exit 1
+
+      - name: Render the four packets and check them against their pins
+        run: docker exec -i packet-renderer python - < tests/packet-render/render_real_packets.py
+
+      # Template names and byte sizes only: the service never logs tokens, and these are synthetic anyway.
+      - name: Show the renderer's log
+        if: failure()
+        run: docker logs packet-renderer
