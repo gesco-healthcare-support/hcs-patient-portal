@@ -245,6 +245,38 @@ not, until step 1 moves it). The rest is the go-live runbook:
    Then install the backup units (`docs/runbooks/hosting-backup-restore.md`). Run
    `scripts/hosting/backup-azure-blob.sh --dry-run` before enabling the timers. It is the first real test of the
    VM's identity against the backup account, and it also checks that SQL Server can write `backups/`.
+6. **Re-address the host admin before its first sign-in.** On a fresh build, the migrator seeds the host admin
+   (user name `admin`) with ABP's default address, `admin@abp.io`, and an unconfirmed email.
+   - The portal requires a confirmed email to sign in.
+   - Confirming that address, or any password reset for it, would send mail to an outside company's domain.
+   - So point the account at a mailbox the operators own, and mark it confirmed. That is one UPDATE of that row in
+     the host database: in a transaction, refused unless it changes exactly one row, and with fresh stamps so
+     nothing issued for the old address survives.
+
+   ```sql
+   SET XACT_ABORT ON; BEGIN TRAN;
+   UPDATE CaseEvaluation.dbo.AbpUsers
+      SET Email = N'<operator mailbox>', NormalizedEmail = UPPER(N'<operator mailbox>'), EmailConfirmed = 1,
+          SecurityStamp = UPPER(REPLACE(CONVERT(nvarchar(36), NEWID()), N'-', N'')),
+          ConcurrencyStamp = LOWER(REPLACE(CONVERT(nvarchar(36), NEWID()), N'-', N''))
+    WHERE UserName = N'admin' AND TenantId IS NULL AND Email = N'admin@abp.io';
+   IF @@ROWCOUNT <> 1 BEGIN ROLLBACK; THROW 50001, 'expected exactly one row', 1; END
+   COMMIT;
+   ```
+
+   Then sign in at `https://admin.<base>` with the password in `secrets/admin-passwords/admin-password-host`, and
+   change it straight away.
+   - Nothing forces that change on a first creation: the forced change applies only to a password the migrator
+     rotated.
+   - After the change, the file is stale. Keep the new password off the VM.
+7. **Test against a practice created through New Practice**, the path a real office takes, not against the
+   seeded TEST office. Outside Development, the TEST office gets an admin role but no admin account, and nothing
+   in the app adds the first account to an office that already exists.
+   - New Practice creates the office admin (the doctor's email) with an unconfirmed email and a password nobody
+     knows.
+   - So the first visit is the office's own sign-in page, `https://<office>.auth.<base>/Account/ResendVerification`,
+     to confirm the address. Only then use "Forgot password".
+   - Forgot password on an unconfirmed address shows the usual success message but sends nothing.
 
 ## If the names are A records at the registrar (no Azure DNS zone)
 
