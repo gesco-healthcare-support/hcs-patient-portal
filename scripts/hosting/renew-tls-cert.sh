@@ -107,7 +107,8 @@ compose() { docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"; }
 proxy_running() { [[ -n "$(compose ps -q --status running reverse-proxy 2> /dev/null)" ]]; }
 # The DNS names a certificate covers, one per line.
 sans_of() {
-  openssl x509 -noout -ext subjectAltName -in "$1" 2>/dev/null | tr ',' '\n' | sed -n 's/^[[:space:]]*DNS://p'
+  local cert="$1"
+  openssl x509 -noout -ext subjectAltName -in "$cert" 2>/dev/null | tr ',' '\n' | sed -n 's/^[[:space:]]*DNS://p'
 }
 # The wanted names the certificate in $1 does not cover, space-separated; empty when it covers them all.
 missing_names() {

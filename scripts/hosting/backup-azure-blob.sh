@@ -43,7 +43,8 @@
 #                                                          check it byte for byte, and restore it into a
 #                                                          scratch database that is then dropped
 #   scripts/hosting/backup-azure-blob.sh --dry-run         dump nothing, upload nothing, touch no marker;
-#                                                          list what would be copied
+#                                                          list what would be copied. Like every run, it
+#                                                          first proves SQL Server can write BACKUP_DIR
 #
 # Config, read from secrets/env.prod (never echoed):
 #   AZURE_BACKUP_STORAGE_ACCOUNT      required: the backup storage account's name
@@ -114,6 +115,16 @@ docker network inspect "$DOCKER_NET" > /dev/null 2>&1 || fail "docker network ${
 
 mkdir -p "$BACKUP_DIR" "$MARKER_DIR"
 backup_abs="$(cd "$BACKUP_DIR" && pwd)"
+
+# SQL Server writes the dumps itself, as the container's mssql user (uid 10001), into /var/opt/mssql/backups,
+# which compose bind-mounts from BACKUP_DIR. When BACKUP_DIR does not exist at the first `up`, Docker creates it
+# root-owned, mode 755, and every BACKUP DATABASE then fails with "Operating system error 5(Access is denied.)".
+# A dry run dumps nothing, so it used to pass while the first real run failed (first VM bring-up, 2026-10-19).
+# So every run, dry or not, first writes and removes one empty file there AS the container's own user.
+probe="/var/opt/mssql/backups/.write-probe-$$"
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" exec -T sql-server \
+  bash -c 'touch "$0" && rm -f "$0"' "$probe" < /dev/null > /dev/null 2>&1 \
+  || fail "SQL Server (uid 10001 in its container) cannot write its backup folder ${BACKUP_DIR}, or sql-server is not running. Fix the folder with: sudo chown 10001 ${BACKUP_DIR} && sudo chmod 775 ${BACKUP_DIR}"
 stage="${MARKER_DIR}/azure-stage"
 mkdir -p "$stage"
 

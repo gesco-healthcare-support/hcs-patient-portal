@@ -101,6 +101,26 @@ Before the first deploy:
    ```
 
    Without it the VM is refused. Setting `encryptionAtHost` to false skips this, at the cost described above.
+5. The resource providers the template uses are registered: Compute, Network, Storage, Insights and
+   OperationalInsights. **Once the feature above shows Registered, register Compute again**, or the feature does
+   not reach the provider:
+
+   ```bash
+   for p in Compute Network Storage Insights OperationalInsights; do az provider register -n Microsoft.$p; done
+   az provider show -n Microsoft.Compute --query registrationState -o tsv   # wait for Registered
+   ```
+
+6. **The subscription has vCPU quota for the VM's family in the region.** A new subscription can start at 0 for a
+   family. A quota request in the portal can then be refused automatically, and the way out is a support request
+   (issue type "Service and subscription limits (quotas)", quota type "Compute-VM (cores-vCPUs) subscription limit
+   increases"), which is answered in business hours. On a first deploy it took a weekend. So check this early, before the deploy is scheduled:
+
+   ```bash
+   az vm list-usage -l westus2 --query "[?name.value=='standardDSv5Family' || name.value=='cores']" -o table
+   ```
+
+   `Standard_D4s_v5` needs 4 free in the DSv5 family AND in the regional total. The template's `what-if` fails
+   only on `QuotaExceeded` when this is short.
 
 ```bash
 git clone https://github.com/gesco-healthcare-support/hcs-patient-portal.git
@@ -118,11 +138,60 @@ The outputs give the public IP, the VM's identity, the backup account name and t
 
 ## After the template, before the application
 
-The template stops at an empty VM with Docker installed on the data disk. The rest is the go-live runbook:
+The template stops at an empty VM with Docker installed and its `data-root` on the data disk (its image store is
+not, until step 1 moves it). The rest is the go-live runbook:
 
 1. Confirm cloud-init finished and Docker really is on the data disk: `findmnt /srv` shows the data disk and
    `docker info --format '{{.DockerRootDir}}'` prints `/srv/docker`. If cloud-init could not find the disk, it
    stopped before installing Docker on purpose; see "Known gaps".
+
+   **Then move Docker's image store to the data disk, before the first image is loaded or built.** Docker 29
+   uses the containerd image store, so images and build cache live in `/var/lib/containerd` on the OS disk, NOT
+   under `data-root`, and `DockerRootDir` printing `/srv/docker` does not show it. On the first VM the build
+   alone put 13 GB on the 64 GB OS disk. Bind-mount the store from the data disk, and make containerd and Docker
+   refuse to start without that disk: `/srv` is mounted `nofail`, so the boot does not wait for it.
+
+   ```bash
+   sudo systemctl stop docker.socket docker.service containerd.service
+   sudo install -d -m 700 /srv/containerd
+   sudo rsync -aHAX --numeric-ids /var/lib/containerd/ /srv/containerd/
+   sudo mv /var/lib/containerd /var/lib/containerd.old && sudo install -d -m 700 /var/lib/containerd
+   echo '/srv/containerd /var/lib/containerd none bind,nofail,x-systemd.requires-mounts-for=/srv 0 0' \
+     | sudo tee -a /etc/fstab
+   sudo install -d /etc/systemd/system/containerd.service.d /etc/systemd/system/docker.service.d
+   printf '[Unit]\nRequiresMountsFor=/srv /var/lib/containerd\n' \
+     | sudo tee /etc/systemd/system/containerd.service.d/10-data-disk.conf
+   printf '[Unit]\nRequiresMountsFor=/srv/docker\n' | sudo tee /etc/systemd/system/docker.service.d/10-data-disk.conf
+   sudo systemctl daemon-reload
+   sudo systemctl start var-lib-containerd.mount containerd.service docker.socket docker.service
+   findmnt -no SOURCE --target /var/lib/containerd   # the data disk, ending in [/containerd]
+   systemctl show -p RequiresMountsFor containerd.service docker.service
+   docker image ls                                   # the same images as before the move
+   sudo rm -rf --one-file-system /var/lib/containerd.old   # only after the line above is checked
+   ```
+
+   - **A bind mount, not containerd's `root =` setting:** `/etc/containerd/config.toml` belongs to the
+     containerd package, and an upgrade that reset it would quietly put the store back on the OS disk.
+   - **`nofail` on the bind mount too:** a mount that fails without it sends the boot to emergency mode, and on
+     Azure that means no SSH. The `RequiresMountsFor` drop-ins are what keep containerd and Docker from starting
+     on an empty directory instead.
+   - **Later, check that it held:** `sudo du -sh /var/lib/containerd` grows while `df -h /` stays put.
+   - **Once the stack runs, reboot once** (`sudo systemctl reboot`) and check that every container comes back
+     healthy by itself.
+   - **The disks' device names can swap between boots** (`sda` / `sdb`), which is why every mount uses a label or
+     a path, never `/dev/sdX`.
+
+   Then set the VM's clock to the offices' time zone. The image starts on UTC, and the backup and certificate timers
+   use local time (`OnCalendar=01:30`), so on UTC the nightly backup would run in the evening. No container
+   mounts the host's time zone, so this changes only the timers and the journal:
+
+   ```bash
+   sudo timedatectl set-timezone America/Los_Angeles
+   ```
+
+   These are steps, deliberately not in the template's cloud-init, and so is the backup folder in step 5. The
+   VM's custom data cannot be changed on an existing VM, so editing it would make every later redeploy of this
+   template fail against the running VM.
 2. Clone the repository to `/home/apadmin/hcs-patient-portal`. From its root, write a NEW `secrets/env.prod`
    with the generator, fill in what it lists, then check it:
 
@@ -160,11 +229,22 @@ The template stops at an empty VM with Docker installed on the data disk. The re
    FIRST: it proves the zone, the identity and the role against Let's Encrypt's staging CA and installs nothing. Then
    run it without `--staging`, and install `hcs-portal-tls-renew.{service,timer}` from `scripts/hosting/systemd` so it
    renews itself. The script's header says what each step checks.
-5. Bring the stack up: start `sql-server`, create the application's login with
-   `sudo bash scripts/hosting/sql-app-login.sh` (it verifies the login is not sysadmin), then the migrator, then
-   the rest. Then install the backup units (`docs/runbooks/hosting-backup-restore.md`).
-   Run `scripts/hosting/backup-azure-blob.sh --dry-run` before enabling the timers: it is the first real test of the
-   VM's identity against the backup account.
+5. Bring the stack up. Before the FIRST `up`, create the folder SQL Server writes its dumps into, owned by its
+   container user. Otherwise Docker creates it owned by root, and every backup fails with
+   `Operating system error 5(Access is denied.)`:
+
+   ```bash
+   sudo install -d -o 10001 -g "$(id -gn)" -m 775 backups   # uid 10001 = the SQL container's mssql user
+   ```
+
+   Then start `sql-server`, create the application's login with `sudo bash scripts/hosting/sql-app-login.sh` (it
+   verifies the login is not sysadmin), run the migrator and wait for it to exit 0, then start the rest. A plain
+   `scripts/hosting/dc.sh up -d` (and `--force-recreate reverse-proxy`, through its dependencies) starts the two
+   one-shot containers again, `db-migrator` and `minio-init`. That is harmless: both are idempotent and exit 0.
+
+   Then install the backup units (`docs/runbooks/hosting-backup-restore.md`). Run
+   `scripts/hosting/backup-azure-blob.sh --dry-run` before enabling the timers. It is the first real test of the
+   VM's identity against the backup account, and it also checks that SQL Server can write `backups/`.
 
 ## If the names are A records at the registrar (no Azure DNS zone)
 
@@ -174,9 +254,13 @@ records themselves, deploy with `manageDnsZone` set to false. Then no zone is ne
 role, and the certificate is issued with HTTP-01, which cannot do wildcards. What changes:
 
 1. **Deploy first, then DNS.** The records point at the VM's static IP, which exists only after the deployment.
-   Read `publicIpAddress` from the outputs (`dnsNameServers` is empty). The registrar then needs four A records,
-   all to that address, with a short TTL: `<base>`, `*.<base>`, `*.api.<base>`, `*.auth.<base>`. A CAA record
-   `0 issue "letsencrypt.org"` at the registrar is optional but recommended.
+   Read `publicIpAddress` from the outputs (`dnsNameServers` is empty). The registrar then needs two A records,
+   both to that address, with a short TTL: `<base>` and `*.<base>`.
+   - A DNS wildcard also answers deeper names such as `<office>.api.<base>`, but only while no record exists
+     between them. So add **no other record under `<base>`**: an explicit `api.<base>` would stop `*.<base>`
+     answering `<office>.api.<base>`.
+   - Four records (`<base>`, `*.<base>`, `*.api.<base>`, `*.auth.<base>`) also work.
+   - A CAA record `0 issue "letsencrypt.org"` at the registrar is optional but recommended.
 2. **Wait for public DNS.** `nslookup <base> 8.8.8.8` and `nslookup admin.<base> 8.8.8.8` must return the VM's
    address before any issuance: Let's Encrypt fetches the challenge from that address on port 80.
 3. **env.prod:** `ACME_CHALLENGE=http-01`.
@@ -227,21 +311,24 @@ The VM side is `scripts/hosting/relay-listener.sh` with `hcs-portal-relay.servic
 
 ## Known gaps, honestly
 
-- **Never deployed.** In particular, none of the following has been checked against Azure:
-  - that creating an account with immutability support AND infrastructure encryption on, while the blob service
-    enables versioning, is accepted in one deployment;
-  - that `Standard_D4s_v5` offers encryption at host in West US 2 together with Trusted Launch. Microsoft says
-    support varies by size and region; check before deploying with
-    `az vm list-skus -l westus2 --size Standard_D4s_v5 --query "[].capabilities[?name=='EncryptionAtHostSupported']"`;
-  - that the outside check's location ids and its two-of-three alert rule are accepted as written;
-  - that the custom role's three data actions are all `rclone` needs. The backup script was proven against the
-    Azurite emulator, which does not enforce roles.
+- **Deployed once, with `manageDnsZone` false (2026-10-19).** That first deployment settled:
+  - Azure accepted, as written, a backup account with immutability support AND infrastructure encryption, with
+    the blob service enabling versioning;
+  - `Standard_D4s_v5` with encryption at host and Trusted Launch in West US 2;
+  - the outside check's location ids and its two-of-three alert rule;
+  - the custom role's three data actions are all `rclone` needs: the first nightly run uploaded and checked a
+    matched set, and the weekly run downloaded the host dump back and restored it, all as the VM's identity;
+  - cloud-init found the data disk and put Docker's `data-root` on it;
+  - after the image store was moved (step 1), a reboot brought every container back healthy by itself.
+
+  **Still never run:** the template with a DNS zone (`manageDnsZone` true, DNS-01), and a redeploy over the
+  running VM, which is what switching on Azure Relay does.
 - **The data disk's device name.** cloud-init looks for LUN 0 at `/dev/disk/azure/data/by-lun/0` and then
   `/dev/disk/azure/scsi1/lun0`. Ubuntu 24.04 images on Azure have shipped both naming schemes. If neither appears,
   cloud-init stops before installing Docker, and `/var/log/cloud-init-output.log` says so. That is deliberate:
   otherwise Docker would quietly put every database and document on the OS disk.
 - **Role assignments can lag** by a few minutes after a deployment. A first backup run straight after deploying may
-  be refused; run it again.
+  be refused; run it again. (On the first deployment the backup ran hours later and was not refused.)
 - **Platform patching reboots the VM** when an update needs it. Docker restarts the containers, but uploads return
   503 for about a minute while ClamAV loads its signatures, as they do after any restart.
 - **One VM, one zone.** No high availability. The data disk can be zone-redundant (`Premium_ZRS`, the default), but
