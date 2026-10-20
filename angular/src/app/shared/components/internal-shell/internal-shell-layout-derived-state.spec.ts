@@ -687,11 +687,27 @@ describe('InternalShellLayoutComponent derived state', () => {
       expect(tenantOptions).not.toHaveBeenCalled();
     });
 
-    it('asks the tenant lookup for an in-office supervisor', () => {
+    it('asks the assignments service for an in-office supervisor', () => {
+      /**
+       * The internal-users office list is host-only, so the server refuses it from
+       * inside an office. Every in-office switcher, supervisor included, takes its
+       * targets from the impersonation-claim lookup instead.
+       */
       const c = createComponent();
       c.user.set({ roles: ['Staff Supervisor'] });
       c.hostScope.set(false);
       c.impersonating.set(true);
+
+      c.toggleSwitcher();
+
+      expect(switchableOffices).toHaveBeenCalled();
+      expect(tenantOptions).not.toHaveBeenCalled();
+    });
+
+    it('asks the tenant lookup for a host supervisor', () => {
+      const c = createComponent();
+      c.user.set({ roles: ['Staff Supervisor'] });
+      c.hostScope.set(true);
 
       c.toggleSwitcher();
 
@@ -705,7 +721,7 @@ describe('InternalShellLayoutComponent derived state', () => {
        * the filter is a no-op and this passes with `excludeCurrentOffice` deleted.
        */
       const c = createComponent();
-      tenantOptions.and.returnValue(
+      switchableOffices.and.returnValue(
         of({
           items: [
             { id: 'office-a', displayName: 'Office A' },

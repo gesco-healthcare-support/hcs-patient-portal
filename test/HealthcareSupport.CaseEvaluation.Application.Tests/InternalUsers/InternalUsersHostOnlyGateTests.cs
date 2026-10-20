@@ -24,8 +24,9 @@ using Xunit;
 namespace HealthcareSupport.CaseEvaluation.InternalUsers;
 
 /// <summary>
-/// <c>GET /api/app/internal-users/tenants</c> returns every office's id and name. It used to be
-/// readable without signing in, from every host. These pin who is ADMITTED and who is REFUSED.
+/// Internal users are HOST operators, and the four internal-users methods (create, list, password
+/// reset and the office list) are managed from the host alone. These pin who the authorization
+/// check ADMITS and who it REFUSES, for every method.
 ///
 /// <para><b>Why not the usual harness.</b> Both test harnesses call
 /// <c>AddAlwaysAllowAuthorization()</c>, so a call through the app service there is admitted whatever
@@ -40,34 +41,33 @@ namespace HealthcareSupport.CaseEvaluation.InternalUsers;
 /// host and in an office. <c>RolePermissionSurfaceSnapshotTests</c> keeps that file equal to a real
 /// seeding run, so a grant change reaches these tests without anyone copying it here.</para>
 ///
-/// <para><b>The callers, established from the code:</b></para>
-/// <list type="bullet">
-///   <item>the internal-users form (<c>internal-users-form.component.ts</c>), used by holders of
-///   <c>InternalUsers.Create</c>;</item>
-///   <item>the internal shell's office switcher (<c>internal-shell-layout.component.ts</c>,
-///   <c>loadSwitchTargets</c>), from host scope for any operator who is not Intake;</item>
-///   <item>the same switcher from INSIDE an office while switched in. That session is not the host
-///   operator: <c>HostIntakeImpersonationExtensionGrant</c> signs them in as their own per-office
-///   shadow user, holding the office <c>admin</c> role (IT Admin) or the office Staff Supervisor role
-///   (anyone else holding <c>Saas.Tenants.Impersonation</c>). A host-only permission would refuse
-///   exactly this caller.</item>
-/// </list>
-/// <para>An in-office Intake operator is NOT a caller: the switcher sends them to
-/// <c>IntakeAssignments.GetSwitchableOffices</c>. They are refused here, which is recorded below.</para>
-///
-/// <para>A refusal cannot be seen in the UI: the switcher's error handler shows an empty office list
-/// with no message. That is why the in-office caller is asserted here.</para>
+/// <para><b>The callers.</b> At the host: IT Admin, Staff Supervisor and the host <c>admin</c>, who
+/// run the internal-users screen and the shell's office switcher at host scope. Inside an office:
+/// the office's own <c>admin</c>, and a host operator switched in, who is signed in as their own
+/// per-office shadow user holding the office <c>admin</c> role (IT Admin) or the office Staff
+/// Supervisor role (anyone else holding <c>Saas.Tenants.Impersonation</c>). Every caller inside an
+/// office is refused; the in-office switcher asks <c>IntakeAssignments.GetSwitchableOffices</c>
+/// instead. The method body also refuses an office caller on its own
+/// (<c>InternalUsersHostCallerGuardTests</c>), for the day a permission's side is widened.</para>
 /// </summary>
-public sealed partial class InternalUsersTenantOptionsGateTests : IAsyncLifetime
+public sealed partial class InternalUsersHostOnlyGateTests : IAsyncLifetime
 {
     private static readonly Guid Office = Guid.Parse("00000000-0000-0000-0000-00000000a001");
     private static readonly Guid HostOperator = Guid.Parse("00000000-0000-0000-0000-00000000b001");
+
+    private static readonly string[] Methods =
+    {
+        nameof(InternalUsersAppService.CreateAsync),
+        nameof(InternalUsersAppService.GetInternalUsersAsync),
+        nameof(InternalUsersAppService.SendPasswordResetEmailAsync),
+        nameof(InternalUsersAppService.GetTenantOptionsAsync),
+    };
 
     private IAbpApplicationWithInternalServiceProvider _app = null!;
 
     public async Task InitializeAsync()
     {
-        _app = await AbpApplicationFactory.CreateAsync<TenantOptionsGateModule>();
+        _app = await AbpApplicationFactory.CreateAsync<HostOnlyGateModule>();
         await _app.InitializeAsync();
     }
 
@@ -77,80 +77,114 @@ public sealed partial class InternalUsersTenantOptionsGateTests : IAsyncLifetime
         _app.Dispose();
     }
 
-    [Fact]
-    public async Task An_anonymous_caller_is_refused_on_the_host()
+    public static TheoryData<string> EveryMethod()
     {
-        (await AdmitsAsync(Anonymous(), tenantId: null)).ShouldBeFalse();
+        var data = new TheoryData<string>();
+        foreach (var method in Methods)
+        {
+            data.Add(method);
+        }
+        return data;
     }
 
-    [Fact]
-    public async Task An_anonymous_caller_is_refused_on_an_office_host()
-    {
-        (await AdmitsAsync(Anonymous(), tenantId: Office)).ShouldBeFalse();
-    }
+    public static TheoryData<string, string> HostOperatorRoles() =>
+        EveryMethodWith("IT Admin", "Staff Supervisor", "admin");
 
-    /// <summary>Caller kind 1: a host-scope operator who is not Intake.</summary>
+    public static TheoryData<string, string> ShadowOfficeRoles() =>
+        EveryMethodWith("admin", "Staff Supervisor", "Intake Staff");
+
+    public static TheoryData<string, string> OfficeRoles() =>
+        EveryMethodWith(
+            "admin", "Staff Supervisor", "Intake Staff",
+            "Patient", "Applicant Attorney", "Defense Attorney", "Claim Examiner");
+
     [Theory]
-    [InlineData("IT Admin")]
-    [InlineData("Staff Supervisor")]
-    [InlineData("admin")]
-    public async Task A_host_operator_is_admitted(string hostRole)
+    [MemberData(nameof(EveryMethod))]
+    public async Task An_anonymous_caller_is_refused_on_the_host(string method)
     {
-        (await AdmitsAsync(SignedIn(hostRole, tenantId: null), tenantId: null)).ShouldBeTrue();
+        (await AdmitsAsync(method, Anonymous(), tenantId: null)).ShouldBeFalse();
+    }
+
+    [Theory]
+    [MemberData(nameof(EveryMethod))]
+    public async Task An_anonymous_caller_is_refused_on_an_office_host(string method)
+    {
+        (await AdmitsAsync(method, Anonymous(), tenantId: Office)).ShouldBeFalse();
     }
 
     /// <summary>
-    /// Caller kind 2: a host operator switched into an office, as the shadow user the grant signs
-    /// them in as. The session carries the SHADOW's office role, not the operator's host role.
+    /// The host operators who run the screen. Without this positive control, a harness that refused
+    /// everyone would make every refusal below pass.
     /// </summary>
     [Theory]
-    [InlineData("admin")]
-    [InlineData("Staff Supervisor")]
-    public async Task A_host_operator_switched_into_an_office_is_admitted(string shadowOfficeRole)
+    [MemberData(nameof(HostOperatorRoles))]
+    public async Task A_host_operator_is_admitted(string method, string hostRole)
+    {
+        (await AdmitsAsync(method, SignedIn(hostRole, tenantId: null), tenantId: null)).ShouldBeTrue();
+    }
+
+    [Theory]
+    [MemberData(nameof(EveryMethod))]
+    public async Task A_host_intake_operator_is_refused(string method)
+    {
+        // The switcher does not offer them an office list at host scope (canSwitch is false).
+        (await AdmitsAsync(method, SignedIn("Intake Staff", tenantId: null), tenantId: null)).ShouldBeFalse();
+    }
+
+    /// <summary>
+    /// Every role an office session can hold, the office's own <c>admin</c> and Staff Supervisor
+    /// included. Until 2026-10-20 those two were admitted.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(OfficeRoles))]
+    public async Task Every_office_role_is_refused(string method, string officeRole)
+    {
+        (await AdmitsAsync(method, SignedIn(officeRole, tenantId: Office), tenantId: Office)).ShouldBeFalse();
+    }
+
+    /// <summary>
+    /// A host operator switched into an office, as the shadow user the grant signs them in as. The
+    /// session carries the SHADOW's office role, not the operator's host role, so it is refused too.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(ShadowOfficeRoles))]
+    public async Task A_host_operator_switched_into_an_office_is_refused(string method, string shadowOfficeRole)
     {
         var principal = SignedIn(shadowOfficeRole, tenantId: Office, impersonatedBy: HostOperator);
 
-        (await AdmitsAsync(principal, tenantId: Office)).ShouldBeTrue();
+        (await AdmitsAsync(method, principal, tenantId: Office)).ShouldBeFalse();
     }
 
     /// <summary>
-    /// Not a caller of this route (see the class summary), and the office list is not theirs to read.
-    /// Includes an Intake operator switched in, whose shadow holds the office Intake Staff role.
+    /// The HTTP actions cannot be booted here. The app service check above is the one that decides
+    /// on every call; this keeps MVC from also treating a route as anonymous.
     /// </summary>
     [Theory]
-    [InlineData("Intake Staff")]
-    [InlineData("Patient")]
-    [InlineData("Applicant Attorney")]
-    [InlineData("Defense Attorney")]
-    [InlineData("Claim Examiner")]
-    public async Task Any_other_office_role_is_refused(string officeRole)
+    [MemberData(nameof(EveryMethod))]
+    public void The_controller_action_is_not_anonymous(string method)
     {
-        (await AdmitsAsync(SignedIn(officeRole, tenantId: Office), tenantId: Office)).ShouldBeFalse();
-    }
-
-    [Fact]
-    public async Task A_host_intake_operator_is_refused()
-    {
-        // The switcher does not offer them an office list at host scope (canSwitch is false).
-        (await AdmitsAsync(SignedIn("Intake Staff", tenantId: null), tenantId: null)).ShouldBeFalse();
-    }
-
-    /// <summary>
-    /// The HTTP action cannot be booted here. The app service check above is the one that decides
-    /// on every call; this keeps MVC from also treating the route as anonymous.
-    /// </summary>
-    [Fact]
-    public void The_controller_action_is_not_anonymous()
-    {
-        var action = typeof(InternalUsersController).GetMethod(nameof(InternalUsersController.GetTenantOptionsAsync))!;
+        var action = typeof(InternalUsersController).GetMethod(method)!;
 
         action.GetCustomAttributes<AllowAnonymousAttribute>(inherit: true).ShouldBeEmpty();
         action.GetCustomAttributes<AuthorizeAttribute>(inherit: true).ShouldNotBeEmpty();
     }
 
-    private async Task<bool> AdmitsAsync(ClaimsPrincipal principal, Guid? tenantId)
+    private static TheoryData<string, string> EveryMethodWith(params string[] roles)
     {
-        var method = typeof(InternalUsersAppService).GetMethod(nameof(InternalUsersAppService.GetTenantOptionsAsync))!;
+        var data = new TheoryData<string, string>();
+        foreach (var method in Methods)
+        {
+            foreach (var role in roles)
+            {
+                data.Add(method, role);
+            }
+        }
+        return data;
+    }
+
+    private async Task<bool> AdmitsAsync(string methodName, ClaimsPrincipal principal, Guid? tenantId)
+    {
+        var method = typeof(InternalUsersAppService).GetMethod(methodName)!;
         using var scope = _app.ServiceProvider.CreateScope();
         var principalAccessor = scope.ServiceProvider.GetRequiredService<ICurrentPrincipalAccessor>();
         var currentTenant = scope.ServiceProvider.GetRequiredService<ICurrentTenant>();
@@ -192,7 +226,7 @@ public sealed partial class InternalUsersTenantOptionsGateTests : IAsyncLifetime
     }
 
     [DependsOn(typeof(AbpAuthorizationModule))]
-    public sealed class TenantOptionsGateModule : AbpModule
+    public sealed class HostOnlyGateModule : AbpModule
     {
         public override void ConfigureServices(ServiceConfigurationContext context)
         {

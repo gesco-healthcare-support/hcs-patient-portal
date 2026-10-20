@@ -211,7 +211,9 @@ not, until step 1 moves it). The rest is the go-live runbook:
    - `MSSQL_PID=Express` (licensed for production; the default, Developer, is not);
    - `SQL_APP_LOGIN` and `SQL_APP_PASSWORD`, the application's own SQL login instead of `sa`. Office rows store
      only their database name and every office connects with this login, so the password can be changed later
-     with `ALTER LOGIN`, the new value in `env.prod`, and a recreate of api, authserver and db-migrator;
+     with `ALTER LOGIN`, the new value in `env.prod`, and a recreate of api, authserver and db-migrator. Later
+     releases through `scripts/hosting/deploy-release.sh` need nothing extra for it: its migrator rehearsal
+     (`rehearse-migrator.sh`) creates the same login on its throwaway server, since a restore brings no logins;
    - `MINIO_ALLOW_DIRECTIVES="deny all;"` and `DOCS_ALLOW_DIRECTIVES="deny all;"`. Empty is NOT closed:
      compose then falls back to the private address ranges;
    - MinIO keys of at most 20 characters and secrets of at most 40, which is all MinIO accepts;

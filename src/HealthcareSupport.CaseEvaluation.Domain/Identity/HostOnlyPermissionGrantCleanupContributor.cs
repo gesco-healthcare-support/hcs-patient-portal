@@ -46,6 +46,10 @@ public class HostOnlyPermissionGrantCleanupContributor : IDataSeedContributor, I
     [
         "CaseEvaluation.Appointments.ViewIntegrationDeadLetters",
         "CaseEvaluation.IntakeAssignments.Manage",
+        // 2026-10-20: internal users are managed from the host only.
+        "CaseEvaluation.InternalUsers",
+        "CaseEvaluation.InternalUsers.Create",
+        "CaseEvaluation.InternalUsers.Edit",
     ];
 
     private readonly IPermissionGrantRepository _grantRepository;
