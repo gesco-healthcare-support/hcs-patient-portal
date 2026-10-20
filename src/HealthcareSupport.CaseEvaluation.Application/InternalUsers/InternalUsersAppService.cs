@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
+using Volo.Abp.Authorization;
 using Volo.Abp.Data;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Identity;
@@ -108,6 +109,7 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
     [Authorize(CaseEvaluationPermissions.InternalUsers.Create)]
     public virtual async Task<InternalUserCreatedDto> CreateAsync(CreateInternalUserDto input)
     {
+        EnsureHostCaller();
         Check.NotNull(input, nameof(input));
 
         // 1. Validate role is in the IT-Admin-creatable allow-list. This
@@ -259,6 +261,7 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
     [Authorize(CaseEvaluationPermissions.InternalUsers.Edit)]
     public virtual async Task SendPasswordResetEmailAsync(Guid userId)
     {
+        EnsureHostCaller();
         var user = await _userManager.FindByIdAsync(userId.ToString());
         if (user == null)
         {
@@ -321,19 +324,16 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
     // was readable without signing in -- and from every host, because the lookup below leaves
     // the caller's office for host context itself.
     //
-    // InternalUsers.Default is the one permission every caller holds. The internal-users form
-    // is used by holders of InternalUsers.Create. The shell's office switcher calls this from
-    // host scope (IT Admin, Staff Supervisor, admin: all hold it on the host) and from inside an
-    // office while switched in. There the caller is NOT the host operator but their own
-    // per-office shadow user (HostIntakeImpersonationExtensionGrant), holding the office admin
-    // role (IT Admin) or the office Staff Supervisor role (anyone else with
-    // Saas.Tenants.Impersonation), and both hold it in every office. A host-only permission
-    // such as Saas.Tenants would refuse that caller. An in-office Intake operator is not a
-    // caller: the switcher sends them to IntakeAssignments.GetSwitchableOffices instead.
-    // Pinned by InternalUsersTenantOptionsGateTests, which runs the real permission check.
+    // HOST callers only (2026-10-20), like every method here: the internal-users form and the
+    // shell's office switcher at host scope (IT Admin, Staff Supervisor, admin). Inside an office
+    // the switcher asks IntakeAssignments.GetSwitchableOffices instead, which reads the host
+    // operator behind the session from the impersonation claim. Pinned by
+    // InternalUsersHostOnlyGateTests, which runs the real permission check.
     public virtual async Task<ListResultDto<LookupDto<Guid>>> GetTenantOptionsAsync(
         string? filter = null)
     {
+        EnsureHostCaller();
+
         // The list spans every office, so it is read in host context whichever office the
         // caller is signed in to.
         using (CurrentTenant.Change(null))
@@ -516,6 +516,7 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
     public virtual async Task<PagedResultDto<InternalUserListDto>> GetInternalUsersAsync(
         GetInternalUsersInput input)
     {
+        EnsureHostCaller();
         Check.NotNull(input, nameof(input));
 
         using (CurrentTenant.Change(null))
@@ -612,4 +613,20 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
         descending
             ? rows.OrderByDescending(selector, StringComparer.OrdinalIgnoreCase)
             : rows.OrderBy(selector, StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Refuses a caller who is inside an office, before anything is read or written. Internal users
+    /// are host operators: every method here works in host context, so it belongs to the host alone.
+    /// The Host-only permissions already stop an office caller at the authorization interceptor; this
+    /// keeps the refusal in place even if a permission's side is ever widened again, or an office
+    /// role is granted one of them.
+    /// </summary>
+    private void EnsureHostCaller()
+    {
+        if (CurrentTenant.IsAvailable)
+        {
+            throw new AbpAuthorizationException(
+                "Internal users are managed from the host, not from inside an office.");
+        }
+    }
 }

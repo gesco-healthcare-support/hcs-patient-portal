@@ -11,7 +11,6 @@ using HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails;
 using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
 using HealthcareSupport.CaseEvaluation.AppointmentPrimaryInsurances;
 using HealthcareSupport.CaseEvaluation.Appointments;
-using HealthcareSupport.CaseEvaluation.InternalUsers;
 using HealthcareSupport.CaseEvaluation.Permissions;
 using HealthcareSupport.CaseEvaluation.Security;
 using Microsoft.Extensions.DependencyInjection;
@@ -128,7 +127,7 @@ public class StaffOnlyEndpointsRealRoleAuthorizationTests : CaseEvaluationRealAu
     }
 
     [Fact]
-    public void TheCaseTable_CoversTheLifecycleChangeRequestsInternalUsersAndChildDeletes()
+    public void TheCaseTable_CoversTheLifecycleChangeRequestsAndChildDeletes()
     {
         var permissions = Cases.Values.Select(c => c.Permission).ToHashSet(StringComparer.Ordinal);
 
@@ -138,8 +137,6 @@ public class StaffOnlyEndpointsRealRoleAuthorizationTests : CaseEvaluationRealAu
         permissions.ShouldContain(CaseEvaluationPermissions.Appointments.Delete);
         permissions.ShouldContain(CaseEvaluationPermissions.AppointmentChangeRequests.Approve);
         permissions.ShouldContain(CaseEvaluationPermissions.AppointmentChangeRequests.Reject);
-        permissions.ShouldContain(CaseEvaluationPermissions.InternalUsers.Create);
-        permissions.ShouldContain(CaseEvaluationPermissions.InternalUsers.Edit);
         permissions.ShouldContain(CaseEvaluationPermissions.AppointmentInjuryDetails.Delete);
         permissions.ShouldContain(CaseEvaluationPermissions.AppointmentDefenseAttorneys.Delete);
     }
@@ -189,17 +186,8 @@ public class StaffOnlyEndpointsRealRoleAuthorizationTests : CaseEvaluationRealAu
         yield return new("ChangeRequests.RejectReschedule", CaseEvaluationPermissions.AppointmentChangeRequests.Reject,
             sp => Approval(sp).RejectRescheduleAsync(UnknownId, new RejectChangeRequestInput { Reason = "TEST-probe reason" }));
 
-        // Internal user administration. An invalid role name makes the create stop before any write.
-        yield return new("InternalUsers.Create", CaseEvaluationPermissions.InternalUsers.Create,
-            sp => sp.GetRequiredService<IInternalUsersAppService>().CreateAsync(new CreateInternalUserDto
-            {
-                Email = "TEST-probe@example.test",
-                FirstName = "TEST",
-                LastName = "Probe",
-                RoleName = "TEST-not-a-creatable-role",
-            }));
-        yield return new("InternalUsers.SendPasswordResetEmail", CaseEvaluationPermissions.InternalUsers.Edit,
-            sp => sp.GetRequiredService<IInternalUsersAppService>().SendPasswordResetEmailAsync(UnknownId));
+        // Internal user administration is not here: it is host-only, so the office Staff Supervisor
+        // control would be refused too (2026-10-20). InternalUsersHostOnlyAuthorizationTests covers it.
 
         // The seven appointment child-resource deletes (Staff Supervisor and admin only).
         yield return new("AppointmentInjuryDetails.Delete", CaseEvaluationPermissions.AppointmentInjuryDetails.Delete,

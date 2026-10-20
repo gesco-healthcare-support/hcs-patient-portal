@@ -96,8 +96,8 @@ Generated packets (PDFs the portal renders per appointment) - one row per (appoi
 
 ### Transport
 
-- HTTP POST from the portal (VM `192.168.101.37`) to a Case Tracker intake endpoint (VM
-  `192.168.101.35`), same subnet. Auth mechanism is Case Tracker's choice - propose a bearer token
+- HTTP POST from the portal server to a Case Tracker intake endpoint on the Case Tracker server, same
+  subnet. Auth mechanism is Case Tracker's choice - propose a bearer token
   or mTLS; tell the portal side what to send.
 - Body uses the shared Gesco envelope `{ data, meta, errors }`.
 
@@ -130,11 +130,11 @@ Generated packets (PDFs the portal renders per appointment) - one row per (appoi
       "email": "string", "phoneNumber": "string or null", "phoneNumberType": "Home | Work",
       "cellPhoneNumber": "string or null"
     },
-    "doctor": { "firstName": "string", "lastName": "string" },
+    "doctor": { "id": "GUID or null", "firstName": "string", "lastName": "string" },
 
     "storage": {
       "provider": "minio",
-      "endpoint": "https://192.168.101.37:9000",
+      "endpoint": "https://<MinIO host the Case Tracker reaches>:9000",
       "region": "us-east-1",
       "bucket": "case-evaluation-documents"
     },
@@ -304,7 +304,7 @@ Status semantics for Case Tracker:
 - Storage model, statuses, packet kinds, events: read from the portal source on branch `main`
   @ `100a617c` (2026-07-22; re-verify against current `main`).
 - Bucket, real object-key layout, credential/policy path: inspected live on the portal server
-  (`appoint-portal`, 192.168.101.37) - bucket `case-evaluation-documents`, keys under
+  (`appoint-portal`) - bucket `case-evaluation-documents`, keys under
   `tenants/{tenantId}/...`, built-in MinIO policies present, only the root user exists.
 - Case Tracker storage (filesystem `docfiles`, size/count, no object store, Spring Boot + MySQL):
-  inspected live on `case-tracker-server` (192.168.101.35). No files were opened; no changes made.
+  inspected live on `case-tracker-server`. No files were opened; no changes made.

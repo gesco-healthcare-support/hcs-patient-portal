@@ -221,17 +221,29 @@ and still need an off-server copy. `scripts/hosting/backup-azure-blob.sh` provid
 - **No storage key exists.** The script signs in as the VM's managed identity, which needs Storage Blob Data
   Contributor on both containers.
 
-**Proven so far: against the Azurite emulator only (2026-10-13)**, with a real SQL Server, a real MinIO and the
-pinned rclone image -- dry run, nightly run, a document deleted at the source staying in the backup, only new or
-changed objects being sent, and the weekly restore proof reading the host dump back and restoring it. The managed
-identity path cannot be exercised outside Azure, so **the first run on the VM is the first real proof**: run
-`--dry-run` there before enabling the timers.
+**Proven against the Azurite emulator (2026-10-13)**, with a real SQL Server, a real MinIO and the pinned rclone
+image: dry run, nightly run, a document deleted at the source staying in the backup, only new or changed objects
+being sent, and the weekly restore proof reading the host dump back and restoring it. **Then on the Azure VM
+(2026-10-19), as its managed identity:** the dry run, a nightly run (2 dumps uploaded and checked, manifest last),
+and the weekly run's restore proof from Azure ("sha256 matches the manifest, 115 tables read back").
 
 Settings go in `secrets/env.prod` (see the "Off-server backup to Azure Blob" block in `env.prod.example`).
-`BACKUP_ALERT_RECIPIENTS` and the SMTP settings are used exactly as on the office server. To install:
+`BACKUP_ALERT_RECIPIENTS` and the SMTP settings are used exactly as on the office server.
+
+**Two prerequisites, both missed on the first VM:**
+
+- `backups/` must be writable by the SQL container's `mssql` user (uid 10001). If it did not exist at the first
+  `up`, Docker created it owned by root, and every dump fails with `Operating system error 5(Access is denied.)`.
+  Fix: `sudo chown 10001 backups && sudo chmod 775 backups`. Every run of the script now checks this first, the
+  dry run included, and refuses with that command.
+- The timers fire at local time, and the VM image starts on UTC. Set the offices' time zone first:
+  `sudo timedatectl set-timezone America/Los_Angeles`.
+
+To install:
 
 ```bash
-# Prove the wiring first: lists what would be copied, dumps and uploads nothing, touches no marker.
+# Prove the wiring first: lists what would be copied, dumps and uploads nothing, touches no marker. It does check
+# that SQL Server can write backups/, by writing and removing one empty file there as the container's own user.
 sudo bash scripts/hosting/backup-azure-blob.sh --dry-run
 
 sudo cp scripts/hosting/systemd/hcs-portal-backup-azure*.service \
@@ -271,10 +283,12 @@ in the backup account. Nothing here touches the backup account except reading it
 delete lock, so a mistake here cannot cost the backups.
 
 **Not yet rehearsed end to end** (written 2026-10-13). Downloading a run and checking its manifest is proven
-against the Azurite emulator only. Everything after the download was proven by the 2026-10-13 Tier-2 rehearsal,
-from a set copied off the office server: restoring host and offices, loading documents, the migrator rewriting the
-sign-in redirects, and the exact-key document check. A first drill of this exact path is planned on the VM, into
-a throwaway compose project, with outbound mail and the Case Tracker neutralised.
+against the Azurite emulator. Against the real backup account, only the weekly restore proof has done it, for the
+host dump, on 2026-10-19; this whole-run download has not. Everything after the download was proven by the
+2026-10-13 Tier-2 rehearsal, from a set copied off the office server: restoring host and offices, loading
+documents, the migrator rewriting the sign-in redirects, and the exact-key document check. A first drill of this
+exact path is planned on the VM, into a throwaway compose project, with outbound mail and the Case Tracker
+neutralised.
 
 #### What must exist BEFORE you start, or the recovery stops part-way
 

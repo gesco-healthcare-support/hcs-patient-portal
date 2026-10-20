@@ -225,9 +225,31 @@ echo "$(ts) pre-flight: new migrator image got past DI ('Started database migrat
 rh=$(bash /tmp/rehearse-migrator.sh < /dev/null 2>&1)
 printf '%s\n' "$rh" | tail -14 | cut -c1-240
 printf '%s\n' "$rh" | grep -q "REHEARSAL PASS" || stop "rehearsal failed -- running stack untouched"
+# AZURE VM ONLY; a no-op on a host without the unit (the office server). The Relay listener (relay-listener.sh) runs
+# inside the reverse proxy's network namespace. Recreating the proxy takes that namespace's network away, so the
+# listener's connection cannot close, and Azure Relay keeps counting the dead listener for about four minutes
+# (measured 2026-10-20), sending some Case Tracker reads to it. Stopping the listener first closes its connection
+# cleanly; it is started again once the new proxy runs, and attaches to it. If it does not come back, the "no
+# listener" alert in Azure fires after 15 minutes.
+RELAY_UNIT=hcs-portal-relay.service
+relay_paused=false
+relay_pause() {
+  systemctl is-active --quiet "$RELAY_UNIT" < /dev/null || return 0
+  sudo systemctl stop "$RELAY_UNIT" < /dev/null || return 1
+  relay_paused=true
+  echo "$(ts) relay listener stopped for the proxy recreate"
+}
+relay_resume() {
+  $relay_paused || return 0
+  sudo systemctl start "$RELAY_UNIT" < /dev/null || return 1
+  relay_paused=false
+  echo "$(ts) relay listener started again"
+}
+relay_pause || stop "could not stop the relay listener (sudo systemctl stop $RELAY_UNIT) -- running stack untouched"
 # The 09-30 run 2 failed here (migrator DI crash) with no diagnosis in the log; print the migrator's end state first.
-$C up -d < /dev/null || { docker inspect hcs-patient-portal-db-migrator-1 --format 'db-migrator: {{.State.Status}} exit={{.State.ExitCode}}'; $C logs --tail 15 db-migrator < /dev/null 2>&1 | cut -c1-300; stop "up -d failed -- the stack is NOT serving; rollback: rollback-release.sh $PREV"; }
-$C up -d --force-recreate reverse-proxy < /dev/null || stop "reverse-proxy recreate failed"
+$C up -d < /dev/null || { docker inspect hcs-patient-portal-db-migrator-1 --format 'db-migrator: {{.State.Status}} exit={{.State.ExitCode}}'; $C logs --tail 15 db-migrator < /dev/null 2>&1 | cut -c1-300; relay_resume; stop "up -d failed -- the stack is NOT serving; rollback: rollback-release.sh $PREV"; }
+$C up -d --force-recreate reverse-proxy < /dev/null || { relay_resume; stop "reverse-proxy recreate failed"; }
+relay_resume || echo "$(ts) WARNING: the relay listener did not start again; the Case Tracker cannot read documents until: sudo systemctl start $RELAY_UNIT"
 echo "$(ts) stack up"
 
 mig=$(docker inspect hcs-patient-portal-db-migrator-1 --format '{{.State.Status}} exit={{.State.ExitCode}}')
