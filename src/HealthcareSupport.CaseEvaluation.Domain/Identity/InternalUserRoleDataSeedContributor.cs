@@ -20,8 +20,9 @@ namespace HealthcareSupport.CaseEvaluation.Identity;
 ///                       2026-06-03). Grants Dashboard.Tenant + every operational entity
 ///                       Default+Create+Edit+Delete. Deletes are SOFT (all tenant entities
 ///                       are FullAudited/ISoftDelete, so removals are recoverable + audited;
-///                       no hard purge exists). Also creates internal users
-///                       (InternalUsers.Create) within its own tenant.
+///                       no hard purge exists). Does NOT manage internal users: those are
+///                       host operators, managed from the host (InternalUsers is Host-only,
+///                       2026-10-20).
 ///  - Intake Staff     : TENANT-scoped. Grants Dashboard.Tenant + Appointments + Patients
 ///                       (.Default/.Create/.Edit), DoctorAvailabilities.Default (read-only).
 ///
@@ -131,10 +132,10 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
                 await EnsureRoleAsync(StaffSupervisorRoleName, context.TenantId);
                 await GrantAllAsync(StaffSupervisorRoleName, StaffSupervisorTenantGrants());
 
-                // 2026-05-19 -- tenant `admin` (Volo SaaS static admin) gets
-                // CaseEvaluation.InternalUsers + .Create implicitly because
-                // ABP auto-grants every tenant-side permission (including
-                // MultiTenancySides.Both) to the static admin role. An
+                // 2026-05-19 -- tenant `admin` (Volo SaaS static admin) gets every
+                // tenant-side permission implicitly, because ABP auto-grants each one
+                // (including MultiTenancySides.Both) to the static admin role. A Host-only
+                // permission such as InternalUsers (2026-10-20) is not among them. An
                 // explicit GrantAllAsync(TenantAdminRoleName, ...) here
                 // collides with the auto-grant on second-run (unique-index
                 // violation on AbpPermissionGrants). If we ever need to
@@ -329,12 +330,9 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return $"{Group}.UserManagement.InviteExternalUser";
 
         // 2026-05-15 -- IT Admin (host-scoped) creates new internal users
-        // (Intake Staff / Staff Supervisor). 2026-05-19: the permission is
-        // now MultiTenancySides.Both because the per-tenant `admin` role
-        // also creates internal users in its own tenant (granted in the
-        // per-tenant pass). 2026-06-03 (IR1): Staff Supervisor ALSO receives
-        // this grant (top tenant role -- see StaffSupervisorGrants). Intake
-        // Staff still does NOT -- creating users stays a supervisor/admin power.
+        // (Intake Staff / Staff Supervisor). The host Staff Supervisor holds it too;
+        // Intake Staff does NOT -- creating users stays a supervisor/admin power.
+        // 2026-10-20: the permission is MultiTenancySides.Host, so no office role holds it.
         yield return Default("InternalUsers");
         yield return $"{Group}.InternalUsers.Create";
         yield return $"{Group}.InternalUsers.Edit";
@@ -448,7 +446,7 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return $"{Group}.Branding.Edit";
 
         // Create host operators (Intake Staff + Staff Supervisor). InternalUsers
-        // is MultiTenancySides.Both; CreatableRoleNames bounds the creatable set.
+        // is MultiTenancySides.Host; CreatableRoleNames bounds the creatable set.
         yield return Default("InternalUsers");
         yield return $"{Group}.InternalUsers.Create";
         yield return $"{Group}.InternalUsers.Edit";
@@ -766,11 +764,9 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return Default("UserManagement");
         yield return $"{Group}.UserManagement.InviteExternalUser";
 
-        // Top tenant role creates internal users within its tenant; .Edit also gates the
-        // admin password-reset action. CreatableRoleNames bounds the creatable set.
-        yield return Default("InternalUsers");
-        yield return $"{Group}.InternalUsers.Create";
-        yield return $"{Group}.InternalUsers.Edit";
+        // NOT InternalUsers (2026-10-20). Internal users are host operators, managed from the host
+        // alone, and the permission is now MultiTenancySides.Host, so ABP refuses to grant it in an
+        // office: this pass would throw. InternalUserRoleGrantsTests pins its absence.
     }
 
 }

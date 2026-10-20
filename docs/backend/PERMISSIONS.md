@@ -180,7 +180,7 @@ Each entity group (except Dashboard and AppointmentChangeLogs) follows a parent-
 | SystemParameters | `CaseEvaluation.SystemParameters` | `...Edit` | Read is gated by Default; only Edit is a child (no Create/Delete). |
 | NotificationTemplates | `CaseEvaluation.NotificationTemplates` | `...Edit` | Templates are seeded; no Create/Delete children. |
 | UserManagement | `CaseEvaluation.UserManagement` | `...InviteExternalUser` | Action child for staff-issued external-user invitations. |
-| InternalUsers | `CaseEvaluation.InternalUsers` | `...Create`, `...Edit` | Internal staff accounts. No Delete child. |
+| InternalUsers | `CaseEvaluation.InternalUsers` | `...Create`, `...Edit` | Internal staff accounts, which are host operators. No Delete child. All three are registered host-side (`MultiTenancySides.Host`), so no office role holds them; the service also refuses any call made inside an office. |
 | Reports | `CaseEvaluation.Reports` | `...Export` | Report export only. |
 | IntakeAssignments | `CaseEvaluation.IntakeAssignments` | `...Manage` | Assigning Intake operators to offices. Both are registered host-side (`MultiTenancySides.Host`). |
 | IntakeImpersonation | `CaseEvaluation.IntakeImpersonation` | _none_ | Single permission, no children. |

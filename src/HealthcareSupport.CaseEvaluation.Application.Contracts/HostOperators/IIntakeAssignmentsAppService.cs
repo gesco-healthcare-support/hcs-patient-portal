@@ -62,9 +62,10 @@ public interface IIntakeAssignmentsAppService : IApplicationService
     /// impersonation claim (<c>AbpClaimTypes.ImpersonatorUserId</c>) -- the in-office
     /// shadow Intake user does NOT hold <c>IntakeImpersonation</c>, so unlike
     /// <see cref="GetMyOfficesAsync"/> this is callable while impersonating. Returns
-    /// the impersonator's assigned offices, or empty when the caller is not an
-    /// impersonation. Convenience only: the impersonation grant's per-office
-    /// assignment gate (deny-by-default) remains the actual boundary.
+    /// every office when the impersonator is a host IT Admin, Staff Supervisor or admin
+    /// (the grant admits those to every office), the impersonator's assigned offices
+    /// for an Intake operator, or empty when the caller is not an impersonation.
+    /// Convenience only: the impersonation grant's checks remain the actual boundary.
     /// </summary>
     Task<ListResultDto<LookupDto<Guid>>> GetSwitchableOfficesAsync();
 

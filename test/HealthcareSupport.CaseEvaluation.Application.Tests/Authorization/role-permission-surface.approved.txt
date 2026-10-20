@@ -109,9 +109,9 @@ CaseEvaluation.Documents.Edit side=Both host=IT Admin, admin office=admin
 CaseEvaluation.IntakeAssignments side=Host host=IT Admin, Staff Supervisor, admin office=-
 CaseEvaluation.IntakeAssignments.Manage side=Host host=IT Admin, Staff Supervisor, admin office=-
 CaseEvaluation.IntakeImpersonation side=Host host=Intake Staff, admin office=-
-CaseEvaluation.InternalUsers side=Both host=IT Admin, Staff Supervisor, admin office=Staff Supervisor, admin
-CaseEvaluation.InternalUsers.Create side=Both host=IT Admin, Staff Supervisor, admin office=Staff Supervisor, admin
-CaseEvaluation.InternalUsers.Edit side=Both host=IT Admin, Staff Supervisor, admin office=Staff Supervisor, admin
+CaseEvaluation.InternalUsers side=Host host=IT Admin, Staff Supervisor, admin office=-
+CaseEvaluation.InternalUsers.Create side=Host host=IT Admin, Staff Supervisor, admin office=-
+CaseEvaluation.InternalUsers.Edit side=Host host=IT Admin, Staff Supervisor, admin office=-
 CaseEvaluation.Locations side=Both host=IT Admin, admin office=Intake Staff, Staff Supervisor, admin
 CaseEvaluation.Locations.Create side=Both host=IT Admin, admin office=Staff Supervisor, admin
 CaseEvaluation.Locations.Delete side=Both host=IT Admin, admin office=Staff Supervisor, admin
