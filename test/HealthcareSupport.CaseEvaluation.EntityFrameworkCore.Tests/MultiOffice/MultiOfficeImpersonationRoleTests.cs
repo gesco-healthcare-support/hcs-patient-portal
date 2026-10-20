@@ -67,7 +67,10 @@ public class MultiOfficeImpersonationRoleTests : CaseEvaluationMultiOfficeTestBa
                 // the tenant dashboard).
                 (await IsGrantedAsync("CaseEvaluation.Dashboard.Tenant")).ShouldBeTrue();
                 (await IsGrantedAsync("CaseEvaluation.Appointments.Delete")).ShouldBeTrue();
-                (await IsGrantedAsync("CaseEvaluation.InternalUsers.Create")).ShouldBeTrue();
+
+                // NOT internal-user management: internal users are host operators, managed from the
+                // host only (2026-10-20). The permission is Host-only, so nothing in an office holds it.
+                (await IsGrantedAsync("CaseEvaluation.InternalUsers.Create")).ShouldBeFalse();
 
                 // Narrower than the tenant admin role: NO framework powers.
                 (await IsGrantedAsync("AbpIdentity.Roles")).ShouldBeFalse();
