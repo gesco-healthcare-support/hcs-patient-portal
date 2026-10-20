@@ -225,6 +225,20 @@ public class InternalUserRoleGrantsTests
         InternalUserRoleDataSeedContributor.StaffSupervisorTenantGrants().ToHashSet();
 
     /// <summary>
+    /// 2026-10-20 -- internal users are host operators and are managed from the host only, so the
+    /// per-office Staff Supervisor role (what a host Supervisor holds while switched into an office)
+    /// is granted none of the internal-users permissions. The host Supervisor keeps them
+    /// (<see cref="SupervisorHost_has_operator_powers"/>). The permissions are Host-only as well, so
+    /// an office grant would be refused when written; this pins the seeder's intent on its own.
+    /// </summary>
+    [Theory]
+    [InlineData("CaseEvaluation.InternalUsers")]
+    [InlineData("CaseEvaluation.InternalUsers.Create")]
+    [InlineData("CaseEvaluation.InternalUsers.Edit")]
+    public void SupervisorTenant_excludes_internal_user_management(string permission) =>
+        SupervisorTenant.ShouldNotContain(permission);
+
+    /// <summary>
     /// 2026-09-15 -- the AppointmentAccessors permission surface was removed: defined, granted,
     /// enforced nowhere. Accessor mutations are gated by
     /// <c>AppointmentReadAccessGuard.EnsureCanManageAccessorsAsync</c>, never by a permission.

@@ -47,6 +47,9 @@ public class HostOnlyPermissionGrantCleanupTests : CaseEvaluationRealAuthorizati
     {
         CaseEvaluationPermissions.Appointments.ViewIntegrationDeadLetters,
         CaseEvaluationPermissions.IntakeAssignments.Manage,
+        CaseEvaluationPermissions.InternalUsers.Default,
+        CaseEvaluationPermissions.InternalUsers.Create,
+        CaseEvaluationPermissions.InternalUsers.Edit,
     };
 
     private readonly ICurrentTenant _currentTenant;
@@ -65,6 +68,9 @@ public class HostOnlyPermissionGrantCleanupTests : CaseEvaluationRealAuthorizati
         {
             CaseEvaluationPermissions.Appointments.ViewIntegrationDeadLetters,
             CaseEvaluationPermissions.IntakeAssignments.Manage,
+            CaseEvaluationPermissions.InternalUsers.Default,
+            CaseEvaluationPermissions.InternalUsers.Create,
+            CaseEvaluationPermissions.InternalUsers.Edit,
         });
     }
 

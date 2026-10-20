@@ -255,6 +255,12 @@ public class IntakeAssignmentsAppService : CaseEvaluationAppService, IIntakeAssi
     {
         EnsureHostCaller();
 
+        return await ListEveryOfficeAsync();
+    }
+
+    /// <summary>Every office, by name, read in host context whichever office the caller is in.</summary>
+    private async Task<ListResultDto<LookupDto<Guid>>> ListEveryOfficeAsync()
+    {
         using (CurrentTenant.Change(null))
         {
             var query = await _tenantRepository.GetQueryableAsync();
@@ -337,11 +343,52 @@ public class IntakeAssignmentsAppService : CaseEvaluationAppService, IIntakeAssi
         // In-office single-click hop (F Half 2): the caller is the impersonated office
         // user, so resolve the host operator behind the session from the signed
         // impersonation claim. A non-impersonating caller (a real office user, or a
-        // host operator who has not switched in) has no such claim -> empty list. The
-        // grant's per-office assignment gate is the real boundary; this only shapes
-        // the switcher menu.
+        // host operator who has not switched in) has no such claim -> empty list.
+        //
+        // 2026-10-20: the switcher asks HERE from inside an office for every operator, not only
+        // Intake (InternalUsers.GetTenantOptions is host-only now). A Supervisor or IT Admin enters
+        // every office (the grant admits them through Saas.Tenants.Impersonation), so their menu
+        // lists every office; an Intake operator gets only their assigned ones. The operator is
+        // looked up in HOST scope, so an impersonation made inside an office, whose impersonator
+        // is an office user, finds nobody. The grant's checks are the real boundary; this only
+        // shapes the switcher menu.
         var operatorId = ResolveImpersonatorUserId();
+        if (operatorId != null && await EntersEveryOfficeAsync(operatorId.Value))
+        {
+            return await ListEveryOfficeAsync();
+        }
         return await GetAssignedOfficesAsync(operatorId);
+    }
+
+    /// <summary>
+    /// The host roles whose holders the impersonation grant admits to EVERY office (through
+    /// Saas.Tenants.Impersonation): IT Admin, Staff Supervisor and the host superuser. Roles, not
+    /// a permission check, because the operator is not the signed-in user here. Pinned to the
+    /// seeded holders of that permission by <c>SwitchableOfficeRolesTests</c>, so a grant change
+    /// that moves one fails a test instead of emptying a switcher menu with no message.
+    /// </summary>
+    internal static readonly string[] EveryOfficeHostRoles =
+    {
+        InternalUserRoleDataSeedContributor.ItAdminRoleName,
+        InternalUserRoleDataSeedContributor.StaffSupervisorRoleName,
+        "admin",
+    };
+
+    private async Task<bool> EntersEveryOfficeAsync(Guid operatorId)
+    {
+        // Host scope: only host users are found, so an office user named as the impersonator (an
+        // impersonation made inside an office) is not, even when it holds an office role of the
+        // same name.
+        using (CurrentTenant.Change(null))
+        {
+            var op = await _userManager.FindByIdAsync(operatorId.ToString());
+            if (op == null)
+            {
+                return false;
+            }
+            var roles = await _userManager.GetRolesAsync(op);
+            return roles.Any(role => EveryOfficeHostRoles.Contains(role, StringComparer.Ordinal));
+        }
     }
 
     [Authorize]

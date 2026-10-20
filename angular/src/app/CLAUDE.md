@@ -100,7 +100,9 @@ component uses them.
 
 - **Creating staff:** the role allow-list (`CREATABLE_INTERNAL_ROLES` in `users/users-hub.util.ts`:
   Staff Supervisor, Intake Staff) mirrors the backend `CreatableRoleNames`. Staff are HOST logins,
-  so the request carries no office: `InternalUsersAppService` creates the user at host level and
+  managed from the host only: the internal-users permissions are host-side, so `/users/internal`
+  is not offered inside an office (an office admin does not see it), and the service refuses an
+  in-office call. The request carries no office: `InternalUsersAppService` creates the user at host level and
   office access is granted later on `/host/intake-assignments`. The temporary password is never
   shown; it is emailed.
 - **Inviting external users:** at host scope the invite requires a practice (office) choice; inside

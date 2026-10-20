@@ -28,8 +28,28 @@ echo "$(ts) checkout: detached at $TARGET (development ref still $(git rev-parse
 
 $C build $SERVICES < /dev/null || stop "build failed"
 echo "$(ts) images built"
-$C up -d < /dev/null || stop "up -d failed"
-$C up -d --force-recreate reverse-proxy < /dev/null || stop "reverse-proxy recreate failed"
+# AZURE VM ONLY; a no-op on a host without the unit (the office server). Same reason and same code as in
+# deploy-release.sh: recreating the proxy strands the Relay listener's connection, so the listener is stopped first
+# and started again once the new proxy runs. If it does not come back, the "no listener" alert in Azure fires after
+# 15 minutes.
+RELAY_UNIT=hcs-portal-relay.service
+relay_paused=false
+relay_pause() {
+  systemctl is-active --quiet "$RELAY_UNIT" < /dev/null || return 0
+  sudo systemctl stop "$RELAY_UNIT" < /dev/null || return 1
+  relay_paused=true
+  echo "$(ts) relay listener stopped for the proxy recreate"
+}
+relay_resume() {
+  $relay_paused || return 0
+  sudo systemctl start "$RELAY_UNIT" < /dev/null || return 1
+  relay_paused=false
+  echo "$(ts) relay listener started again"
+}
+relay_pause || stop "could not stop the relay listener (sudo systemctl stop $RELAY_UNIT)"
+$C up -d < /dev/null || { relay_resume; stop "up -d failed"; }
+$C up -d --force-recreate reverse-proxy < /dev/null || { relay_resume; stop "reverse-proxy recreate failed"; }
+relay_resume || echo "$(ts) WARNING: the relay listener did not start again; the Case Tracker cannot read documents until: sudo systemctl start $RELAY_UNIT"
 echo "$(ts) stack up"
 mig=$(docker inspect hcs-patient-portal-db-migrator-1 --format '{{.State.Status}} exit={{.State.ExitCode}}')
 echo "$(ts) db-migrator: $mig"

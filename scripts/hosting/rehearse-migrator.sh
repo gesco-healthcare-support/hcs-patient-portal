@@ -40,6 +40,27 @@ for bak in backups/*_"$STAMP".bak; do
   echo "$(ts) restored $db from $STAMP"
 done
 
+# THE APP'S OWN SQL LOGIN (2026-10-20). Where env.prod names one (SQL_APP_LOGIN: the Azure VM), the migrator connects
+# as that login, not sa (docker-compose.prod.yml: User Id=${SQL_APP_LOGIN:-sa}). A database restore brings no server
+# logins, so the scratch server has only sa and the migrator could not sign in. Create the same login there and make it
+# the owner of the restored databases, with the script that does this on the live server: it reads the password from
+# env.prod itself and hands it to SQL Server on stdin or in the container's environment. This script never holds the
+# password, and prints only that script's own timestamped log lines. The login is read from the migrator's resolved
+# connection string, so it is exactly the one the migrator will use; sa (the office server) needs nothing.
+mig_login=$(svc_env db-migrator | sed -n 's/^ConnectionStrings__Default=.*[Uu][Ss][Ee][Rr] [Ii][Dd]=\([^;]*\).*/\1/p' | head -n 1)
+[ -n "$mig_login" ] || fail "could not read the migrator's SQL login from the compose config"
+if [ "$(printf '%s' "$mig_login" | tr '[:upper:]' '[:lower:]')" != sa ]; then
+  for step in create --adopt; do
+    arg=()
+    [ "$step" = create ] || arg=("$step")
+    out=$(SQL_CONTAINER="$SQL" bash scripts/hosting/sql-app-login.sh ${arg[@]+"${arg[@]}"} < /dev/null 2>&1)
+    rc=$?
+    printf '%s\n' "$out" | grep -E '^\[[0-9T:.-]+Z\] ' | cut -c1-240
+    [ "$rc" = 0 ] || fail "could not set up the app login $mig_login on the scratch server (sql-app-login.sh $step, exit $rc)"
+  done
+  echo "$(ts) scratch server: app login $mig_login created and owns the restored databases"
+fi
+
 # --disable-redis: the migrator's own switch (Program.cs); the rehearsal network has no redis.
 docker run -d --name "$MIG" --network "$NET" --env-file <(svc_env db-migrator) \
   -e AdminPasswords__Directory=/run/admin-passwords -e AdminPasswords__VaultUri= \

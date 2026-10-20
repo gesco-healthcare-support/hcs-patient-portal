@@ -10,8 +10,9 @@ would ever notice. This reads the script and refuses every destructive rclone ve
 BEHAVIOURAL. The script runs against a fake `docker` that records each call, a fake dump script and a
 throwaway env file, so the order of operations is asserted rather than trusted: the manifest is uploaded
 only after the upload is verified, a dry run writes nothing, this run's dumps are found by what the dump
-created rather than by the clock, a failed check marks nothing, and a download that does not match the
-manifest fails the restore proof. No container, network or Azure account is involved.
+created rather than by the clock, a failed check marks nothing, a download that does not match the
+manifest fails the restore proof, and a backup folder SQL Server cannot write is refused before anything runs,
+by a dry run too. No container, network or Azure account is involved.
 
 The behavioural half needs a POSIX bash. CI runs on Linux; on Windows set TEST_BASH to Git Bash
 (for example C:/Program Files/Git/bin/bash.exe), or those tests are skipped.
@@ -107,6 +108,9 @@ case "$1" in
   network) exit 0 ;;
   compose)
     all="$*"
+    if [[ "$all" == *write-probe* && -n "${FAKE_SQL_CANNOT_WRITE:-}" ]]; then
+      echo "touch: cannot touch '/var/opt/mssql/backups/.write-probe': Permission denied" >&2; exit 1
+    fi
     if [[ "$all" == *FILELISTONLY* ]]; then echo "CaseEvaluation"; echo "CaseEvaluation_log"; fi
     if [[ "$all" == *"COUNT(*)"* ]]; then echo "113"; fi
     exit 0 ;;
@@ -266,6 +270,41 @@ class BehaviourTests(unittest.TestCase):
                 self.assertEqual(call[0], "copy")
                 self.assertIn("--dry-run", call)
         self.assertFalse((self.markers / "last-success").exists())
+
+    # ------------------------------------------------------------------ the backup folder SQL Server writes
+
+    def probe_calls(self):
+        return [c for c in self.calls() if c[0] == "compose" and any(".write-probe-" in a for a in c)]
+
+    def test_every_run_first_proves_sql_server_can_write_the_backup_folder(self):
+        for args in ((), ("--dry-run",)):
+            with self.subTest(args=args):
+                self.log.unlink(missing_ok=True)
+                result = self.run_script(*args)
+                self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+                probes = self.probe_calls()
+                self.assertEqual(len(probes), 1, "exactly one write probe per run")
+                self.assertIn("sql-server", probes[0], "the probe runs inside the SQL container, as its own user")
+                self.assertTrue(any(a.startswith("/var/opt/mssql/backups/") for a in probes[0]))
+                first_run = next(i for i, c in enumerate(self.calls()) if c[0] == "run")
+                self.assertLess(self.calls().index(probes[0]), first_run, "the probe comes before any rclone call")
+
+    def test_a_backup_folder_sql_server_cannot_write_is_refused_before_the_dump(self):
+        result = self.run_script(FAKE_SQL_CANNOT_WRITE="1")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("cannot write its backup folder", result.stderr)
+        self.assertIn("chown 10001", result.stderr, "the refusal says how to fix it")
+        self.assertEqual(list(self.backups.glob("*.bak")), [], "the dump must not run")
+        self.assertEqual(self.rclone_calls(), [])
+        self.assertFalse((self.markers / "last-success").exists())
+
+    def test_a_dry_run_also_refuses_a_backup_folder_sql_server_cannot_write(self):
+        # The point of the probe: a dry run dumps nothing, so without it a dry run passed while the first real
+        # run failed with "Access is denied".
+        result = self.run_script("--dry-run", FAKE_SQL_CANNOT_WRITE="1")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("cannot write its backup folder", result.stderr)
+        self.assertEqual(self.rclone_calls(), [])
 
     def test_dry_run_and_restore_proof_cannot_be_combined(self):
         result = self.run_script("--dry-run", "--verify-restore")
