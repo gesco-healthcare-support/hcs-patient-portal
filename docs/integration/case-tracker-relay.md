@@ -93,8 +93,11 @@ checks.
    - starts the listener in the reverse proxy's network namespace, forwarding to `127.0.0.1:443`;
    - re-attaches it whenever a deploy recreates the proxy (a joined container keeps the old, dead namespace);
    - refuses any image but the pinned one.
-5. Check it: `journalctl -u hcs-portal-relay` shows "listener started". In the Azure portal, the hybrid connection's
-   `ActiveListeners` metric is 1.
+5. Check it. `journalctl -u hcs-portal-relay` shows "listener started", but that line only means the container
+   started; azbridge itself logs almost nothing. The proof is the hybrid connection's `listenerCount`, which the
+   VM's own identity can read (the Listener role includes read on its hybrid connection): an ARM `GET` of
+   `.../namespaces/<namespace>/hybridConnections/case-tracker-documents` with a token from the instance metadata
+   endpoint returns `properties.listenerCount = 1`. In the Azure portal, the `ActiveListeners` metric shows the same.
 
 ## The Case Tracker side
 
@@ -135,7 +138,8 @@ per-office MinIO credentials by a private channel.
 | --- | --- | --- |
 | Listener down (script, container, identity, VM) | connection refused or reset at its local forwarder | Azure Monitor alert: no listener for 15 minutes (`relayAlertEmail`) |
 | Listener crash-looping | the same | the alert above; and after five quick exits the unit fails and emails via `hcs-portal-backup-alert@` |
-| Reverse proxy recreated by a deploy | a short gap (up to about 15 s) | nothing needed: the script re-attaches the listener |
+| Reverse proxy recreated by a deploy or rollback | a short gap while the stack restarts | nothing needed: `deploy-release.sh` and `rollback-release.sh` stop the listener before the recreate and start it after |
+| Reverse proxy recreated any other way (by hand) | some reads fail for about four minutes | the script re-attaches within about 15 s (7 s measured), but the old connection's network is gone, so it cannot close and Azure keeps counting it until its keep-alive expires (`listenerCount` 2, measured 3 min 45 s). Stop the unit before a manual recreate and start it after |
 | Case Tracker forwarder down, or its key wrong or rotated | connection refused locally, or the relay refuses the sender | the Case Tracker's own errors; Relay metric `SenderConnections-ClientError` |
 | Its MinIO credential wrong or rotated | `403 InvalidAccessKeyId` or `SignatureDoesNotMatch` | the Case Tracker's own errors; reissue with `minio-case-tracker-access.sh --shared <office ids> --rotate` |
 | Its hosts entry or endpoint wrong | TLS name mismatch, or a request to the wrong host | the Case Tracker's own errors |
@@ -163,12 +167,18 @@ About $15 a month: the listener is $9.78 ($0.0134 an hour), plus data beyond the
 of documents a month), plus about $0.10 for the alert. Option B adds about $10 a month. Details in
 `infra/azure/fastpath/COSTS.md`.
 
-## Unproven, to check on the VM before switching the Case Tracker's document reads on
+## Proven on the VM (2026-10-19 and 2026-10-20)
 
-- azbridge signing in with the VM's managed identity (its default credential chain) from a container that shares
-  another container's network namespace, including reaching the instance metadata endpoint from there.
+- **azbridge signs in with the VM's managed identity**, with no key anywhere on the VM, from a container that shares
+  the reverse proxy's network namespace. The instance metadata endpoint answers from that namespace, and
+  `listenerCount` went to 1.
+- **The re-attach after a proxy recreate:** the script logged the re-attach 7 s after the recreate. The stranded old
+  connection is the four-minute row in the table above.
+- **Azure Relay is within Microsoft's HIPAA BAA scope**, per the compliance offerings appendix in the Service Trust
+  Portal (checked 2026-10-19).
+
+## Still unproven, to check before switching the Case Tracker's document reads on
+
 - The whole chain end to end with the Case Tracker's real S3 client, the hosts entry and a document near the 100 MB
   vhost limit.
 - The no-listener alert actually firing: stop the unit for 20 minutes once, as a drill.
-- Azure Relay's place in Microsoft's HIPAA BAA scope. The in-scope list is a Service Trust Portal document, not read
-  here. The design does not depend on it, because the relay carries only TLS ciphertext.
