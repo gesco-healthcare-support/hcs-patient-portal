@@ -327,10 +327,10 @@ VM itself being down; this can. About $4.38 a month (COSTS.md).
 - `uptimeAlertEmail` is required while the check is on: an empty value fails validation rather than deploying a
   check that tells nobody. `uptimeFrequencySeconds: 300` alerts faster for about $13 a month.
 
-## Later: Azure Relay for the Case Tracker's document reads
+## Azure Relay for the Case Tracker's document reads
 
-After go-live, and before the Case Tracker's document reads are switched on, redeploy with
-`deployCaseTrackerRelay: true` (and `relayAlertEmail` set). That adds:
+Before the Case Tracker's document reads are switched on, redeploy with `deployCaseTrackerRelay: true` (and
+`relayAlertEmail` set). That adds:
 
 - a Relay namespace and one hybrid connection, `case-tracker-documents`;
 - a listen-only and a send-only SAS rule;
@@ -340,6 +340,34 @@ After go-live, and before the Case Tracker's document reads are switched on, red
 The VM side is `scripts/hosting/relay-listener.sh` with `hcs-portal-relay.service`, and the MinIO vhost stays closed
 (`MINIO_ALLOW_DIRECTIVES="deny all;"`). The whole design, including the Case Tracker's side, is in
 `docs/integration/case-tracker-relay.md`. It costs about $15 a month (COSTS.md).
+
+**The redeploy, as it was done on 2026-10-20:**
+
+- **It replaces the NSG's rule list.** The rules come wholly from the template, so an SSH rule added by hand in the
+  portal is deleted. To keep SSH open for the VM steps, pass your address as its own parameter, a JSON array in
+  single quotes:
+
+  ```bash
+  az deployment group what-if -g <resource-group> -f main.bicep -p @main.parameters.json \
+    -p deployCaseTrackerRelay=true relayAlertEmail=<address> \
+    -p 'sshAllowedSourcePrefixes=["<your public address>/32"]'
+  ```
+
+  Do not put `-p` and its value in one quoted shell variable: `az` then receives them as one argument. A later
+  redeploy without the parameter closes SSH again.
+- **Expect this what-if shape over the running VM:** 6 creates (namespace, hybrid connection, two rules, action
+  group, alert), 1 "Unsupported" (the Listener role assignment, whose name is computed with `reference()`), and about
+  10 property-level modifies that change nothing:
+  - defaults the API returns but the template does not set: the data disk's `deleteOption` / `toBeDetached`, NIC
+    settings, the public IP's `ddosSettings`, blob service and container settings, App Insights
+    `Flow_Type` / `Request_Source`;
+  - the two backup-container role assignments: an unevaluated `reference()` for the principal, and the same role
+    id written at subscription scope rather than resource-group scope.
+
+  Read each before and after. A real value change on the VM, its disks, the public IP or the storage account is a
+  reason to stop.
+- **Afterwards:** no reboot, every container still up, and a backup dry run still reached the backup account as the
+  VM's identity.
 
 ## Known gaps, honestly
 
@@ -353,8 +381,8 @@ The VM side is `scripts/hosting/relay-listener.sh` with `hcs-portal-relay.servic
   - cloud-init found the data disk and put Docker's `data-root` on it;
   - after the image store was moved (step 1), a reboot brought every container back healthy by itself.
 
-  **Still never run:** the template with a DNS zone (`manageDnsZone` true, DNS-01), and a redeploy over the
-  running VM, which is what switching on Azure Relay does.
+  **Redeployed over the running VM once (2026-10-20), to switch on Azure Relay:** see that section for the what-if
+  shape it showed. **Still never run:** the template with a DNS zone (`manageDnsZone` true, DNS-01).
 - **The data disk's device name.** cloud-init looks for LUN 0 at `/dev/disk/azure/data/by-lun/0` and then
   `/dev/disk/azure/scsi1/lun0`. Ubuntu 24.04 images on Azure have shipped both naming schemes. If neither appears,
   cloud-init stops before installing Docker, and `/var/log/cloud-init-output.log` says so. That is deliberate:
