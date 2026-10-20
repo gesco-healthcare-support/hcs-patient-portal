@@ -229,6 +229,18 @@ not, until step 1 moves it). The rest is the go-live runbook:
    FIRST: it proves the zone, the identity and the role against Let's Encrypt's staging CA and installs nothing. Then
    run it without `--staging`, and install `hcs-portal-tls-renew.{service,timer}` from `scripts/hosting/systemd` so it
    renews itself. The script's header says what each step checks.
+
+   **The chain is pinned to ISRG Root X1, and the script refuses any other.** Let's Encrypt can offer more than one
+   chain. The one served on 2026-10-20 ends with Root YR cross-signed by ISRG Root X1. The Case Tracker reaches this
+   server from a stock Java runtime that trusts ISRG Root X1 but not Root YR. So a chain that stops at Root YR
+   would look fine in a browser and in curl, and break the changes feed, attendance and document reads at once.
+   - The script asks lego for the X1 chain (`--preferred-chain`). lego falls back to the default chain, without a
+     word, when the one asked for is not offered.
+   - So the script also refuses to install a certificate whose chain does not end at a certificate issued by ISRG
+     Root X1. The run fails (and emails); the certificate in place keeps being served.
+   - `--staging` checks the staging CA's counterpart, `(STAGING) Pretend Pear X1`.
+   - If Let's Encrypt stops offering the X1 chain, renewals fail with that reason about 30 days before expiry. That
+     is the time to add Root YR to the Case Tracker's trust store, then set `ACME_PREFERRED_CHAIN` on purpose.
 5. Bring the stack up. Before the FIRST `up`, create the folder SQL Server writes its dumps into, owned by its
    container user. Otherwise Docker creates it owned by root, and every backup fails with
    `Operating system error 5(Access is denied.)`:

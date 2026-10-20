@@ -8,6 +8,9 @@ What these tests pin:
   - a new certificate is installed IN PLACE (same inode: compose bind-mounts the file, and a renamed-over file is
     one the running container never sees), the previous pair is kept as .prev, and nginx is checked and reloaded;
   - nothing is installed when lego fails, when a name is missing, or when the key does not match;
+  - lego is asked for the chain that ends at ISRG Root X1 (staging: its counterpart), and a chain that ends anywhere
+    else is refused before anything is installed, in both modes, because the Case Tracker's Java runtime trusts X1
+    and not the newer root; ACME_PREFERRED_CHAIN changes that on purpose;
   - a reload that does not take, or a served certificate close to expiry, fails the run (which alerts);
   - --staging proves issuance and installs nothing;
   - ACME_CHALLENGE=http-01 (the fallback when the public names are A records, 2026-10-15): lego is asked for every
@@ -18,8 +21,11 @@ What these tests pin:
     names are refused.
 
 lego and nginx are fakes here: `docker` is a script that, for the lego container, issues a real self-signed
-certificate with openssl for the names it was given, and for `nginx -s reload` copies the installed certificate to
-the file the script reads as "served" (TLS_SERVED_CERT_FILE, the script's test-only switch); `docker compose exec
+certificate with openssl for the names it was given and appends a chain certificate issued by the --preferred-chain
+it was asked for, as Let's Encrypt does when it offers that chain (FAKE_LEGO_DEFAULT_CHAIN: a chain that ignores
+the preference and ends at Root YR; FAKE_LEGO_NO_CHAIN: the bare certificate), and for `nginx -s reload` copies the
+installed certificate to the file the script reads as "served" (TLS_SERVED_CERT_FILE, the script's test-only
+switch); `docker compose exec
 sql-server` prints FAKE_OFFICES as the office list; `curl` answers the HTTP-01 webroot probe from the webroot on disk
 (unless FAKE_WEBROOT_BROKEN). openssl is real
 throughout, so every certificate check runs against a real certificate. The real thing -- Let's Encrypt, Azure
@@ -52,10 +58,11 @@ SEP = "\x1f"
 FAKE_DOCKER = r"""#!/usr/bin/env bash
 { printf '%s\x1f' "$@"; printf '\n'; } >> "$FAKE_DIR/docker.log"
 if [[ "$1" == run ]]; then
-  data=""; domains=(); prev=""
+  data=""; domains=(); prev=""; preferred=""
   for a in "$@"; do
     [[ "$prev" == -v && "$a" == *:/data ]] && data="${a%:/data}"
     [[ "$prev" == --domains ]] && domains+=("$a")
+    [[ "$prev" == --preferred-chain ]] && preferred="$a"
     prev="$a"
   done
   [[ -n "${FAKE_LEGO_FAIL:-}" ]] && { echo "lego: acme: error presenting token" >&2; exit 1; }
@@ -67,6 +74,14 @@ if [[ "$1" == run ]]; then
     -addext "subjectAltName=$san" -keyout "$certs/portal.key" -out "$certs/portal.crt" 2>/dev/null || exit 3
   if [[ -n "${FAKE_LEGO_WRONG_KEY:-}" ]]; then
     openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$certs/portal.key" 2>/dev/null || exit 3
+  fi
+  if [[ -z "${FAKE_LEGO_NO_CHAIN:-}" ]]; then
+    # The chain's top certificate. Self-signed, so its issuer is the name asked for: all the script reads is that
+    # issuer. Like lego, an unmatched or absent preference gets the default chain.
+    top="${preferred:-Root YR}"; [[ -n "${FAKE_LEGO_DEFAULT_CHAIN:-}" ]] && top="Root YR"
+    MSYS_NO_PATHCONV=1 openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -days 3650 \
+      -subj "/CN=${top}" -keyout "$certs/top.key" -out "$certs/top.pem" 2>/dev/null || exit 3
+    cat "$certs/top.pem" >> "$certs/portal.crt"; rm -f "$certs/top.key" "$certs/top.pem"
   fi
   exit 0
 fi
@@ -140,7 +155,8 @@ class _Harness(unittest.TestCase):
                    FAKE_WEBROOT=shell_path(self.dir / "webroot"),
                    TLS_SERVED_CERT_FILE=shell_path(self.served),
                    TLS_VERIFY_WAIT="0")
-        for key in ("AZURE_SUBSCRIPTION_ID", "AZURE_RESOURCE_GROUP", "ACME_CHALLENGE"):
+        for key in ("AZURE_SUBSCRIPTION_ID", "AZURE_RESOURCE_GROUP", "ACME_CHALLENGE", "ACME_PREFERRED_CHAIN",
+                    "ACME_STAGING_PREFERRED_CHAIN"):
             env.pop(key, None)
         env.update(extra)
         env["PATH"] = (shell_path(self.dir / "bin") + ":/usr/bin:/bin" if sys.platform == "win32"
@@ -278,6 +294,57 @@ class RenewTlsCert(_Harness):
         self.assertIn("https://acme-staging-v02.api.letsencrypt.org/directory", call)
         self.assertTrue(any(a.endswith("/acme/staging:/data") for a in call), call)
         self.assertFalse(any(c and c[0] == "compose" and "reload" in " ".join(c) for c in self.docker_calls()))
+
+    def preferred_chain(self, call):
+        self.assertEqual(call.count("--preferred-chain"), 1, call)
+        return call[call.index("--preferred-chain") + 1]
+
+    def test_lego_is_asked_for_the_chain_the_case_tracker_trusts(self):
+        code, output = self.run_script()
+        self.assertEqual(code, 0, output)
+        self.assertEqual(self.preferred_chain(self.lego_call()), "ISRG Root X1")
+        self.assertIn("the chain ends at a certificate issued by ISRG Root X1", output)
+
+    def test_staging_asks_for_its_own_counterpart_of_that_chain(self):
+        code, output = self.run_script("--staging")
+        self.assertEqual(code, 0, output)
+        self.assertEqual(self.preferred_chain(self.lego_call()), "(STAGING) Pretend Pear X1")
+
+    def test_a_chain_ending_anywhere_else_is_not_installed_and_the_served_one_stays(self):
+        self.assertEqual(self.run_script()[0], 0)
+        before, served = self.cert.read_bytes(), self.served.read_bytes()
+        (self.dir / "docker.log").unlink()
+        code, output = self.run_script(FAKE_LEGO_DEFAULT_CHAIN="1")
+        self.assertNotEqual(code, 0, output)
+        self.assertIn("issued by [Root YR], not [ISRG Root X1]", output)
+        self.assertIn("nothing was installed", output)
+        self.assert_installed_untouched(before)
+        self.assertEqual(self.served.read_bytes(), served)
+        self.assertFalse(pathlib.Path(str(self.cert) + ".prev").exists())
+        self.assertFalse(any(c and c[0] == "compose" for c in self.docker_calls()), "nginx was touched")
+
+    def test_a_certificate_without_its_chain_is_not_installed(self):
+        code, output = self.run_script(FAKE_LEGO_NO_CHAIN="1")
+        self.assertNotEqual(code, 0, output)
+        self.assertIn(f"issued by [{BASE}], not [ISRG Root X1]", output)
+        self.assertFalse(self.cert.exists())
+
+    def test_staging_refuses_a_chain_ending_anywhere_else_too(self):
+        code, output = self.run_script("--staging", FAKE_LEGO_DEFAULT_CHAIN="1")
+        self.assertNotEqual(code, 0, output)
+        self.assertIn("issued by [Root YR], not [(STAGING) Pretend Pear X1]", output)
+
+    def test_the_wanted_chain_can_be_changed_on_purpose(self):
+        code, output = self.run_script(ACME_PREFERRED_CHAIN="Root YR")
+        self.assertEqual(code, 0, output)
+        self.assertEqual(self.preferred_chain(self.lego_call()), "Root YR")
+        self.assertIn("DONE: serving", output)
+
+    def test_a_preferred_chain_that_is_not_a_name_is_refused_before_lego_runs(self):
+        code, output = self.run_script(ACME_PREFERRED_CHAIN="ISRG Root X1\nRoot YR")
+        self.assertNotEqual(code, 0, output)
+        self.assertIn("must be a certificate common name", output)
+        self.assertFalse(any(c and c[0] == "run" for c in self.docker_calls()))
 
     def test_a_proxy_that_is_not_running_yet_gets_the_files_and_no_reload(self):
         code, output = self.run_script(FAKE_PROXY_RUNNING="", TLS_SERVED_CERT_FILE="")
