@@ -373,21 +373,18 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Load the offices the switcher may hop into. At host scope, or for a supervisor / IT
-   * Admin switched into an office as their own shadow user, that is every active office
-   * (getTenantOptions: requires CaseEvaluation.InternalUsers, which those shadows' office
-   * roles hold; see InternalUsersTenantOptionsGateTests). A refusal lands in the error
-   * handler below and shows only as an empty list. An in-office Intake operator instead gets only
-   * their assigned offices (getSwitchableOffices, resolved server-side from the
-   * impersonation claim -- the in-office shadow user does not hold IntakeImpersonation).
-   * The current office is excluded so the menu reads "where else can I go". The grant
-   * + assignment gate remain the boundary; this list is convenience.
+   * Load the offices the switcher may hop into. At host scope that is every office
+   * (getTenantOptions, a host-only endpoint). Inside an office, for every operator switched in
+   * as their own shadow user, the server resolves the host operator behind the session from the
+   * impersonation claim (getSwitchableOffices): every office for a supervisor / IT Admin, the
+   * assigned offices for an Intake operator. A refusal lands in the error handler below and
+   * shows only as an empty list. The current office is excluded so the menu reads "where else
+   * can I go". The grant + assignment gate remain the boundary; this list is convenience.
    */
   private loadSwitchTargets(): void {
-    const inOfficeIntake = !this.hostScope() && this.roleKey() === 'intake';
-    const targets$ = inOfficeIntake
-      ? this.intakeAssignments.getSwitchableOffices()
-      : this.internalUsers.getTenantOptions();
+    const targets$ = this.hostScope()
+      ? this.internalUsers.getTenantOptions()
+      : this.intakeAssignments.getSwitchableOffices();
     targets$.subscribe({
       next: (res) => this.offices.set(this.excludeCurrentOffice(res.items ?? [])),
       error: () => this.offices.set([]),

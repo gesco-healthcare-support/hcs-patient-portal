@@ -230,18 +230,22 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
             CaseEvaluationPermissions.UserManagement.InviteExternalUser,
             L("Permission:UserManagement.InviteExternalUser"));
 
-        // 2026-05-19: MultiTenancySides.Both so the per-tenant static `admin` role
-        // can also create internal users inside its own tenant.
+        // 2026-10-20: Host only. Internal users (Intake Staff, Staff Supervisor) are HOST operators, created
+        // and listed in host context, so they are managed from the host alone. Until then this was Both,
+        // which also gave every office's static `admin` role the permission automatically. The children
+        // name the side too: a child defaults to Both, and ABP checks the child's own side.
         var internalUsersPermission = usersAndAccess.AddPermission(
             CaseEvaluationPermissions.InternalUsers.Default,
             L("Permission:InternalUsers"),
-            MultiTenancySides.Both);
+            MultiTenancySides.Host);
         internalUsersPermission.AddChild(
             CaseEvaluationPermissions.InternalUsers.Create,
-            L("Permission:InternalUsers.Create"));
+            L("Permission:InternalUsers.Create"),
+            MultiTenancySides.Host);
         internalUsersPermission.AddChild(
             CaseEvaluationPermissions.InternalUsers.Edit,
-            L("Permission:InternalUsers.Edit"));
+            L("Permission:InternalUsers.Edit"),
+            MultiTenancySides.Host);
 
         // Phase A (2026-05-05) -- per-user signature upload (internal staff only).
         var userSignaturesPermission = usersAndAccess.AddPermission(

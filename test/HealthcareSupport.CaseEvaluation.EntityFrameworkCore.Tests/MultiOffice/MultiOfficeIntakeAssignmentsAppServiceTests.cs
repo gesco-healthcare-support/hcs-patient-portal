@@ -359,4 +359,75 @@ public class MultiOfficeIntakeAssignmentsAppServiceTests : CaseEvaluationMultiOf
         unknown.IsImpersonating.ShouldBeFalse();
         switchable.Items.ShouldBeEmpty();
     }
+
+    /// <summary>
+    /// 2026-10-20: the in-office switcher asks here for every operator, not only Intake. A host IT
+    /// Admin or Staff Supervisor enters every office through the impersonation grant, with no
+    /// assignment, so their menu must list every office -- before this, an empty list here would have
+    /// left them unable to hop office to office, with no message.
+    /// </summary>
+    [Theory]
+    [InlineData(InternalUserRoleDataSeedContributor.ItAdminRoleName)]
+    [InlineData(InternalUserRoleDataSeedContributor.StaffSupervisorRoleName)]
+    public async Task A_supervisor_or_it_admin_switched_in_can_switch_to_every_office_without_an_assignment(string hostRole)
+    {
+        var (a, b) = await OfficesAsync();
+        var op = await HostUserAsync("Ivy", NewToken(), intake: false);
+        await AddHostRoleAsync(op, hostRole);
+
+        // From inside office A, as the switched-in session is: the operator is in the host database.
+        var switchable = await As(
+            Guid.NewGuid(), () => InOfficeAsync(a.OfficeId, () => _service.GetSwitchableOfficesAsync()), impersonator: op.Id);
+
+        var ids = switchable.Items.Select(o => o.Id).ToList();
+        ids.ShouldContain(a.OfficeId);
+        ids.ShouldContain(b.OfficeId);
+        (await AssignmentsOfAsync(op.Id)).ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// The operator is looked up in HOST scope. An impersonation made inside an office names an office
+    /// user as the impersonator, and an office user holding an office role of the same name is not a
+    /// host operator, so it is offered nothing. Asked from inside that same office, where the office
+    /// user does exist, so only the host-scope lookup can keep it out.
+    /// </summary>
+    [Fact]
+    public async Task An_office_user_named_as_the_impersonator_is_offered_no_office()
+    {
+        var (a, _) = await OfficesAsync();
+        var officeUser = await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(a.OfficeId))
+            {
+                var email = $"office.{NewToken()}@example.test";
+                var user = new IdentityUser(Guid.NewGuid(), email, email, tenantId: a.OfficeId);
+                (await _users.CreateAsync(user, "Synthetic-Passw0rd!")).Succeeded.ShouldBeTrue();
+                (await _users.AddToRoleAsync(user, InternalUserRoleDataSeedContributor.StaffSupervisorRoleName)).Succeeded.ShouldBeTrue();
+                return user;
+            }
+        }, requiresNew: true);
+
+        var switchable = await As(
+            Guid.NewGuid(), () => InOfficeAsync(a.OfficeId, () => _service.GetSwitchableOfficesAsync()), impersonator: officeUser.Id);
+
+        switchable.Items.ShouldBeEmpty();
+    }
+
+    private async Task<T> InOfficeAsync<T>(Guid officeId, Func<Task<T>> call)
+    {
+        using (_currentTenant.Change(officeId))
+        {
+            return await call();
+        }
+    }
+
+    private Task AddHostRoleAsync(IdentityUser user, string role) =>
+        WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(null))
+            {
+                var hostUser = await _users.GetByIdAsync(user.Id);
+                (await _users.AddToRoleAsync(hostUser, role)).Succeeded.ShouldBeTrue();
+            }
+        }, requiresNew: true);
 }
