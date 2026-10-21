@@ -1177,13 +1177,7 @@ export class AppointmentViewComponent implements OnInit {
                   if (this.appointment?.patient) {
                     this.appointment.patient = { ...this.appointment.patient, ...updatedPatient };
                   }
-                  await this.upsertEmployerDetails(updated.id);
-                  await this.upsertApplicantAttorneyDetails(updated.id);
-                  // S-5.4: persist Defense Attorney edits alongside AA on save.
-                  // Claim Information is read-only on the view page (booking
-                  // form remains the canonical edit surface), so no inline
-                  // upsert call here for injuries.
-                  await this.upsertDefenseAttorneyDetails(updated.id);
+                  await this.saveRelatedDetails(updated.id);
                   this.form.patchValue(
                     { panelNumber: updated.panelNumber ?? '' },
                     { emitEvent: false },
@@ -1763,7 +1757,7 @@ export class AppointmentViewComponent implements OnInit {
       });
   }
 
-  private loadApplicantAttorneyDetails(appointmentId?: string, onEmpty?: () => void): void {
+  protected loadApplicantAttorneyDetails(appointmentId?: string, onEmpty?: () => void): void {
     if (!appointmentId) {
       onEmpty?.();
       return;
@@ -1796,7 +1790,7 @@ export class AppointmentViewComponent implements OnInit {
   // the form. Endpoint returns null when no DA join row exists for the
   // appointment, in which case the form stays empty and the user can add a DA
   // via the email-search box (mirror of AA bindFromResponse + AA-pre-fill).
-  private bindDefenseAttorneyForAppointment(appointmentId?: string): void {
+  protected bindDefenseAttorneyForAppointment(appointmentId?: string): void {
     if (!appointmentId) {
       return;
     }
@@ -1915,6 +1909,22 @@ export class AppointmentViewComponent implements OnInit {
         // ABP's RestService already reported this failure; settle the rethrown copy.
         error: () => undefined,
       });
+  }
+
+  /**
+   * The writes that follow the appointment update: employer, then the two attorneys.
+   * Claim Information stays read-only here (the booking form is its edit surface).
+   *
+   * 2026-10-21: the internal page overrides this. Staff party changes go through
+   * PUT /api/app/appointments/{id}/parties, which also writes the appointment's
+   * party-email columns (what lets a party open the case). The upserts below never
+   * wrote those columns, so a party added here was emailed but locked out.
+   */
+  protected async saveRelatedDetails(appointmentId?: string): Promise<void> {
+    await this.upsertEmployerDetails(appointmentId);
+    await this.upsertApplicantAttorneyDetails(appointmentId);
+    // S-5.4: persist Defense Attorney edits alongside AA on save.
+    await this.upsertDefenseAttorneyDetails(appointmentId);
   }
 
   private async upsertDefenseAttorneyDetails(appointmentId?: string): Promise<void> {
@@ -2049,7 +2059,7 @@ export class AppointmentViewComponent implements OnInit {
     );
   }
 
-  private async upsertEmployerDetails(appointmentId?: string): Promise<void> {
+  protected async upsertEmployerDetails(appointmentId?: string): Promise<void> {
     if (!appointmentId || !this.hasEmployerData()) {
       return;
     }
