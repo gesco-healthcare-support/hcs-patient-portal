@@ -37,7 +37,8 @@
 #   3. Runs lego. It issues on the first run and renews afterwards, only once the certificate is in the last third
 #      of its life (or when Let's Encrypt's renewal info says so). On other days it changes nothing. If the stored
 #      certificate lacks a wanted name, it is set aside first so lego issues a new one.
-#   4. Checks what lego produced: unexpired, every wanted name present, private key matching the certificate.
+#   4. Checks what lego produced: unexpired, every wanted name present, private key matching the certificate, and
+#      a chain that ends where the Case Tracker's Java runtime can follow it (THE CHAIN, below).
 #   5. If it differs from the installed one: keeps the old pair as .prev, writes the new one IN PLACE, checks the
 #      nginx configuration and reloads it. In place, because compose bind-mounts the two FILES: a renamed-over file
 #      is a new inode the running container never sees, so it would keep serving the old certificate.
@@ -52,12 +53,24 @@
 #                                                 path end to end without touching rate limits. Staging
 #                                                 certificates are NOT trusted, so this mode never installs anything.
 #
+# THE CHAIN (2026-10-20). Let's Encrypt can offer more than one chain for the same certificate. The one served on
+# 2026-10-20 is leaf -> YR2 -> Root YR, where that Root YR certificate is the cross-sign issued by ISRG Root X1. The
+# Case Tracker calls this server from a stock Java runtime whose trust store has ISRG Root X1 but not Root YR. So a
+# chain that stops at Root YR would pass browsers and curl, which trust Root YR, and break every Case Tracker call
+# (the changes feed, attendance and document reads) at once. lego is therefore asked for the chain whose top
+# certificate is issued by ACME_PREFERRED_CHAIN. lego falls back to the default chain, silently, when none matches,
+# so step 4 also refuses a chain that does not end there: nothing is installed, the run fails (and so alerts), and
+# the certificate in place keeps being served, normally with about 30 days left. Change ACME_PREFERRED_CHAIN only
+# once the Case Tracker trusts the new root.
+#
 # State lives in secrets/acme/ (the ACME account key and the certificate's private key), which is why it sits under
 # secrets/: copy secrets/ off the VM with everything else. Losing it costs nothing worse than a fresh issuance.
 #
 # Env (all optional): ENV_FILE, ACME_DIR, LEGO_IMAGE, ACME_EMAIL and ACME_CHALLENGE (both also read from the env
 #   file), MIN_DAYS_LEFT, COMPOSE_FILE, TLS_PROBE_HOST (default 127.0.0.1), TLS_VERIFY_WAIT (seconds between checks
-#   of the served certificate, default 5). dns-01 only: AZURE_SUBSCRIPTION_ID, AZURE_RESOURCE_GROUP (default: this
+#   of the served certificate, default 5), ACME_PREFERRED_CHAIN (default "ISRG Root X1") and
+#   ACME_STAGING_PREFERRED_CHAIN (default "(STAGING) Pretend Pear X1", the staging CA's counterpart, so --staging
+#   proves the same check). dns-01 only: AZURE_SUBSCRIPTION_ID, AZURE_RESOURCE_GROUP (default: this
 #   VM's, from instance metadata). http-01 only: ACME_WEBROOT (default docker/nginx-proxy/acme-webroot, the
 #   directory compose mounts into nginx), HOST_DB_NAME (default CaseEvaluation). TESTS ONLY: TLS_SERVED_CERT_FILE
 #   reads the "served" certificate from this file instead of connecting to nginx.
@@ -223,7 +236,14 @@ else
 fi
 
 # ---------------------------------------------------------------- 3. lego
-if $staging; then server="$LE_STAGING"; data="${ACME_DIR}/staging"; else server="$LE_PRODUCTION"; data="$ACME_DIR"; fi
+if $staging; then
+  server="$LE_STAGING"; data="${ACME_DIR}/staging"
+  preferred_chain="${ACME_STAGING_PREFERRED_CHAIN:-(STAGING) Pretend Pear X1}"
+else
+  server="$LE_PRODUCTION"; data="$ACME_DIR"
+  preferred_chain="${ACME_PREFERRED_CHAIN:-ISRG Root X1}"
+fi
+[[ "$preferred_chain" =~ ^[[:print:]]+$ ]] || fail "the preferred chain must be a certificate common name, not [$preferred_chain]"
 log "3/7 lego against $($staging && echo STAGING || echo production) Let's Encrypt"
 ( umask 077; mkdir -p "$data" )
 chmod 700 "$ACME_DIR" "$data"
@@ -240,7 +260,8 @@ if [[ -s "$stored" ]]; then
     log "     the stored certificate lacks ${lacking}; set aside (.superseded-${stamp}) so lego issues a new one"
   fi
 fi
-lego_args=(run --accept-tos --server "$server" --path /data --cert.name "$CERT_NAME" --key-type rsa2048)
+lego_args=(run --accept-tos --server "$server" --path /data --cert.name "$CERT_NAME" --key-type rsa2048
+  --preferred-chain "$preferred_chain")
 [[ -n "$email" ]] && lego_args+=(--email "$email")
 for n in "${names[@]}"; do lego_args+=(--domains "$n"); done
 if [[ "$challenge" == dns-01 ]]; then
@@ -277,6 +298,16 @@ check_pair() {
 }
 check_pair "$new_cert" "$new_key"
 log "     $(openssl x509 -noout -enddate -in "$new_cert"), all ${#names[@]} names, key matches"
+# The issuer common name of the LAST certificate in a PEM bundle: the top of the chain nginx sends (THE CHAIN, above).
+chain_top_issuer() {
+  awk '/-----BEGIN CERTIFICATE-----/ { pem = "" } { pem = pem $0 "\n" } /-----END CERTIFICATE-----/ { last = pem }
+       END { printf "%s", last }' "$1" \
+    | openssl x509 -noout -issuer -nameopt multiline,utf8 2> /dev/null | sed -n 's/^[[:space:]]*commonName[[:space:]]*= //p'
+}
+top_issuer="$(chain_top_issuer "$new_cert" || true)"
+[[ "$top_issuer" == "$preferred_chain" ]] \
+  || fail "the chain lego obtained ends at a certificate issued by [${top_issuer:-nothing readable}], not [${preferred_chain}]: the Case Tracker's Java runtime cannot follow it, so nothing was installed and the certificate in place is still served. See THE CHAIN in this script's header."
+log "     the chain ends at a certificate issued by ${preferred_chain}"
 if $staging; then
   log "DONE (staging): issuance works end to end with ${challenge}. Nothing was installed."
   exit 0
