@@ -18,10 +18,51 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 public class AppointmentPacketManager : DomainService
 {
     protected IRepository<AppointmentPacket, Guid> _packetRepository;
+    protected IRepository<AppointmentPacketVersion, Guid> _versionRepository;
 
-    public AppointmentPacketManager(IRepository<AppointmentPacket, Guid> packetRepository)
+    public AppointmentPacketManager(
+        IRepository<AppointmentPacket, Guid> packetRepository,
+        IRepository<AppointmentPacketVersion, Guid> versionRepository)
     {
         _packetRepository = packetRepository;
+        _versionRepository = versionRepository;
+    }
+
+    /// <summary>
+    /// Points a <see cref="PacketGenerationStatus.Generated"/> packet at a freshly rendered file and
+    /// records the file it pointed at before as an <see cref="AppointmentPacketVersion"/>, in the same
+    /// unit of work (2026-10-21). The previous file is never deleted or overwritten: the new one is
+    /// stored under its own key first, and parties already mailed hold the earlier copy.
+    ///
+    /// <para>Only a Generated packet: a packet still rendering or failed has no delivered file to
+    /// keep, and its own render settles it. Throws <see cref="InvalidOperationException"/> otherwise,
+    /// which the render job treats as a permanent failure.</para>
+    /// </summary>
+    public virtual async Task<AppointmentPacketVersion> ReplaceGeneratedFileAsync(Guid id, string newBlobName, Guid? replacedByUserId)
+    {
+        Check.NotNullOrWhiteSpace(newBlobName, nameof(newBlobName));
+        Check.Length(newBlobName, nameof(newBlobName), AppointmentPacketConsts.BlobNameMaxLength);
+
+        var packet = await _packetRepository.GetAsync(id);
+        if (packet.Status != PacketGenerationStatus.Generated)
+        {
+            throw new InvalidOperationException(
+                $"Packet {id} is {packet.Status}; only a generated packet's file can be replaced.");
+        }
+        if (string.Equals(packet.BlobName, newBlobName, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Packet {id} already points at {newBlobName}; a replacement must be stored under a new key.");
+        }
+
+        var version = new AppointmentPacketVersion(GuidGenerator.Create(), packet, replacedByUserId);
+        await _versionRepository.InsertAsync(version);
+
+        packet.BlobName = newBlobName;
+        packet.ErrorMessage = null;
+        packet.RegeneratedAt = DateTime.UtcNow;
+        await _packetRepository.UpdateAsync(packet);
+        return version;
     }
 
     /// <summary>
