@@ -50,10 +50,13 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 /// <para><b>What follows a change</b> (<see cref="OnPartiesChangedAsync"/>):
 /// <list type="bullet">
 /// <item>The Case Tracker gets the updated intake through the same handler every post-approval
-/// appointment edit uses, <see cref="AppointmentChangedHandler"/>. It is called explicitly because
-/// a claim-examiner-only edit changes no column on the appointment row, so no entity event would
-/// fire. When the row did change, the automatic event builds the identical payload and the outbox
-/// collapses the two onto one row.</item>
+/// appointment edit uses, <see cref="AppointmentChangedHandler"/>. A claim-examiner-only edit
+/// changes no column on the appointment row; today ABP still publishes the appointment's update
+/// event, because the examiner row's foreign key points at it
+/// (<c>AbpEntityChangeOptions.PublishEntityUpdatedEventWhenNavigationChanges</c>, on by default).
+/// The handler is called explicitly as well, so the Case Tracker update does not hang on that
+/// option; a test turns it off to prove this path. Both builds produce the identical payload and
+/// the outbox collapses them onto one row.</item>
 /// <item>A NEW party address on a live appointment gets the packet email it would have got at
 /// approval. The packet emails are driven by <see cref="PacketGeneratedEto"/>, sent once per
 /// address and de-duplicated on (office, address, appointment, packet kind), so re-publishing it

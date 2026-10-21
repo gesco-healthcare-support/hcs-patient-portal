@@ -19,9 +19,11 @@ using HealthcareSupport.CaseEvaluation.Security;
 using HealthcareSupport.CaseEvaluation.TestData;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using Shouldly;
 using Volo.Abp;
 using Volo.Abp.Authorization;
+using Volo.Abp.Domain.Entities.Events;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Identity;
 using Volo.Abp.MultiTenancy;
@@ -339,10 +341,32 @@ public class EfCoreAppointmentPartiesAppServiceTests
     }
 
     [Fact]
-    public async Task A_claim_examiner_only_change_still_queues_an_intake()
+    public Task A_claim_examiner_only_change_still_queues_an_intake() =>
+        ClaimExaminerOnlyChangeQueuesAnIntakeAsync();
+
+    [Fact]
+    public async Task A_claim_examiner_only_change_is_queued_without_the_frameworks_navigation_event()
     {
-        // The CE edit below changes no column on the appointment row (the email is unchanged), so
-        // no entity event fires. Without the service's explicit re-push nothing would be queued.
+        // The CE edit changes no column on the appointment row (the email is unchanged). ABP still
+        // publishes the appointment's update event, because the examiner row's foreign key points at
+        // it (PublishEntityUpdatedEventWhenNavigationChanges, on by default), and that alone carries
+        // the test above. Measured 2026-10-21: with the option off and the service's explicit re-push
+        // removed, nothing is queued. This test turns the option off, so the explicit re-push is what
+        // it proves.
+        var options = GetRequiredService<IOptions<AbpEntityChangeOptions>>().Value;
+        options.PublishEntityUpdatedEventWhenNavigationChanges = false;
+        try
+        {
+            await ClaimExaminerOnlyChangeQueuesAnIntakeAsync();
+        }
+        finally
+        {
+            options.PublishEntityUpdatedEventWhenNavigationChanges = true;
+        }
+    }
+
+    private async Task ClaimExaminerOnlyChangeQueuesAnIntakeAsync()
+    {
         var token = NewToken();
         var email = $"ce-ct-{token}@example.test";
         var id = await CreateAppointmentAsync(token, AppointmentStatusType.Approved);
