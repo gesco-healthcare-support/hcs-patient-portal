@@ -438,6 +438,7 @@
     "PriorConfirmationNumber": "Prior Approved Confirmation Number",
     "LoadPriorAppointment": "Load Prior Appointment",
     "Appointment": "Appointment",
+    "AppointmentParties:EmailRequired": "Enter an email address for the {0}. It is what lets them open this appointment.",
     "AppointmentInfoRequest:NoteRequired": "Please add a note explaining what needs to be fixed.",
     "AppointmentInfoRequest:OnlyPendingCanBeSentBack": "Only a pending appointment can be sent back for more information.",
     "AppointmentInfoRequest:OnlyInfoRequestedCanBeCorrected": "This appointment is not awaiting corrections.",
