@@ -468,8 +468,8 @@
                   <input
                     id="iad-patient-email"
                     class="ra-input"
+                    type="email"
                     formControlName="patientEmail"
-                    readonly
                   />
                 </div>
                 <div class="ra-field col-3">
@@ -769,7 +769,29 @@
             <h3>Applicant attorney</h3>
           </div>
           <div class="ad-card__body">
-            @if (editMode) {
+            @if (editMode && parties.removed.applicantAttorney) {
+              <div class="ad-note ad-note--reschedule" role="status">
+                <div class="ad-note__body">
+                  <p>
+                    The applicant attorney will be removed when you save. They will no longer be
+                    able to open this appointment.
+                  </p>
+                  <div class="ad-note__actions">
+                    <button
+                      class="af-btn af-btn--ghost"
+                      type="button"
+                      (click)="parties.undo('applicantAttorney')"
+                    >
+                      Undo
+                    </button>
+                  </div>
+                </div>
+              </div>
+            } @else if (editMode) {
+              <p class="ad-field-hint">
+                Look up an attorney who already has an account, or type their details. The email you
+                enter is what lets them open this appointment.
+              </p>
               @if (!isApplicantAttorney && !form.get('applicantAttorneyIdentityUserId')?.value) {
                 <div class="ra-grid" style="margin-bottom: 12px">
                   <div class="ra-field col-6">
@@ -804,7 +826,6 @@
                     id="iad-applicant-attorney-first-name"
                     class="ra-input"
                     formControlName="applicantAttorneyFirstName"
-                    readonly
                   />
                 </div>
                 <div class="ra-field col-3">
@@ -813,7 +834,6 @@
                     id="iad-applicant-attorney-last-name"
                     class="ra-input"
                     formControlName="applicantAttorneyLastName"
-                    readonly
                   />
                 </div>
                 <div class="ra-field col-3">
@@ -821,8 +841,8 @@
                   <input
                     id="iad-applicant-attorney-email"
                     class="ra-input"
+                    type="email"
                     formControlName="applicantAttorneyEmail"
-                    readonly
                   />
                 </div>
                 <div class="ra-field col-3">
@@ -892,6 +912,17 @@
                   />
                 </div>
               </div>
+              @if (parties.hadParty('applicantAttorney')) {
+                <div class="ad-note__actions">
+                  <button
+                    class="af-btn af-btn--ghost"
+                    type="button"
+                    (click)="parties.remove('applicantAttorney')"
+                  >
+                    Remove applicant attorney
+                  </button>
+                </div>
+              }
             } @else {
               <div class="ad-dl">
                 <div class="ad-field">
@@ -950,7 +981,29 @@
             <h3>Defense attorney</h3>
           </div>
           <div class="ad-card__body">
-            @if (editMode) {
+            @if (editMode && parties.removed.defenseAttorney) {
+              <div class="ad-note ad-note--reschedule" role="status">
+                <div class="ad-note__body">
+                  <p>
+                    The defense attorney will be removed when you save. They will no longer be able
+                    to open this appointment.
+                  </p>
+                  <div class="ad-note__actions">
+                    <button
+                      class="af-btn af-btn--ghost"
+                      type="button"
+                      (click)="parties.undo('defenseAttorney')"
+                    >
+                      Undo
+                    </button>
+                  </div>
+                </div>
+              </div>
+            } @else if (editMode) {
+              <p class="ad-field-hint">
+                Look up an attorney who already has an account, or type their details. The email you
+                enter is what lets them open this appointment.
+              </p>
               @if (!isDefenseAttorney && !form.get('defenseAttorneyIdentityUserId')?.value) {
                 <div class="ra-grid" style="margin-bottom: 12px">
                   <div class="ra-field col-6">
@@ -984,7 +1037,6 @@
                     id="iad-defense-attorney-first-name"
                     class="ra-input"
                     formControlName="defenseAttorneyFirstName"
-                    readonly
                   />
                 </div>
                 <div class="ra-field col-3">
@@ -993,7 +1045,6 @@
                     id="iad-defense-attorney-last-name"
                     class="ra-input"
                     formControlName="defenseAttorneyLastName"
-                    readonly
                   />
                 </div>
                 <div class="ra-field col-3">
@@ -1001,8 +1052,8 @@
                   <input
                     id="iad-defense-attorney-email"
                     class="ra-input"
+                    type="email"
                     formControlName="defenseAttorneyEmail"
-                    readonly
                   />
                 </div>
                 <div class="ra-field col-3">
@@ -1072,6 +1123,17 @@
                   />
                 </div>
               </div>
+              @if (parties.hadParty('defenseAttorney')) {
+                <div class="ad-note__actions">
+                  <button
+                    class="af-btn af-btn--ghost"
+                    type="button"
+                    (click)="parties.remove('defenseAttorney')"
+                  >
+                    Remove defense attorney
+                  </button>
+                </div>
+              }
             } @else {
               <div class="ad-dl">
                 <div class="ad-field">
@@ -1175,14 +1237,104 @@
           </div>
         </section>
 
-        <!-- 7 . Claim examiner (read-only nav-prop) -->
+        <!-- 7 . Claim examiner (editable by staff in Edit details, 2026-10-21) -->
         <section class="ad-card">
           <div class="ad-card__head">
             <span class="ic tint-amber"><app-icon name="user" [size]="18" /></span>
             <h3>Claim examiner</h3>
           </div>
           <div class="ad-card__body">
-            @if (appointment?.claimExaminer) {
+            @if (editMode && parties.removed.claimExaminer) {
+              <div class="ad-note ad-note--reschedule" role="status">
+                <div class="ad-note__body">
+                  <p>
+                    The claim examiner will be removed when you save. They will no longer be able to
+                    open this appointment.
+                  </p>
+                  <div class="ad-note__actions">
+                    <button
+                      class="af-btn af-btn--ghost"
+                      type="button"
+                      (click)="parties.undo('claimExaminer')"
+                    >
+                      Undo
+                    </button>
+                  </div>
+                </div>
+              </div>
+            } @else if (editMode) {
+              <p class="ad-field-hint">
+                The email you enter is what lets the claim examiner open this appointment.
+              </p>
+              <div class="ra-grid" [formGroup]="parties.claimExaminerForm">
+                <div class="ra-field col-6">
+                  <label for="iad-claim-examiner-name">Name</label>
+                  <input id="iad-claim-examiner-name" class="ra-input" formControlName="name" />
+                </div>
+                <div class="ra-field col-6">
+                  <label for="iad-claim-examiner-email">Email</label>
+                  <input
+                    id="iad-claim-examiner-email"
+                    class="ra-input"
+                    type="email"
+                    formControlName="email"
+                  />
+                </div>
+                <div class="ra-field col-3">
+                  <label for="iad-claim-examiner-phone">Phone</label>
+                  <input
+                    id="iad-claim-examiner-phone"
+                    appPhoneNumber
+                    class="ra-input"
+                    formControlName="phoneNumber"
+                  />
+                </div>
+                <div class="ra-field col-3">
+                  <label for="iad-claim-examiner-fax">Fax</label>
+                  <input
+                    id="iad-claim-examiner-fax"
+                    appPhoneNumber
+                    class="ra-input"
+                    formControlName="fax"
+                  />
+                </div>
+                <div class="ra-field col-3">
+                  <label for="iad-claim-examiner-suite">Suite</label>
+                  <input id="iad-claim-examiner-suite" class="ra-input" formControlName="suite" />
+                </div>
+                <div class="ra-field col-3">
+                  <label for="iad-claim-examiner-street">Street</label>
+                  <input id="iad-claim-examiner-street" class="ra-input" formControlName="street" />
+                </div>
+                <div class="ra-field col-3">
+                  <label for="iad-claim-examiner-city">City</label>
+                  <input id="iad-claim-examiner-city" class="ra-input" formControlName="city" />
+                </div>
+                <div class="ra-field col-3">
+                  <label>State</label>
+                  <app-lookup-select
+                    cid="id-ce-state"
+                    formControlName="stateId"
+                    [getFn]="getStateLookup"
+                  ></app-lookup-select>
+                </div>
+                <div class="ra-field col-3">
+                  <label for="iad-claim-examiner-zip">Zip</label>
+                  <input id="iad-claim-examiner-zip" class="ra-input" formControlName="zip" />
+                </div>
+              </div>
+              @if (parties.hadParty('claimExaminer')) {
+                <div class="ad-note__actions">
+                  <button
+                    class="af-btn af-btn--ghost"
+                    type="button"
+                    (click)="parties.remove('claimExaminer')"
+                  >
+                    Remove claim examiner
+                  </button>
+                </div>
+              }
+            } @else if (appointment?.claimExaminer) {
               <div class="ad-dl">
                 <div class="ad-field">
                   <span class="k">Name</span>

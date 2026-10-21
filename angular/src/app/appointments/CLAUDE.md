@@ -99,6 +99,24 @@ are still on the FormGroup but are not wired to any input -- leave `claimExamine
 Setting it true puts a `Validators.required` on a control with no input, and the form can never
 be submitted.
 
+### Staff "Edit details" saves parties through PUT /api/app/appointments/{id}/parties
+
+On the internal page, `InternalAppointmentDetailComponent.saveRelatedDetails` replaces the base
+attorney upserts with one call to the staff-only parties endpoint (`AppointmentPartiesAppService`,
+2026-10-21). Staff can add, change or remove the applicant attorney, the defense attorney and the
+claim examiner, and correct the patient's email, at any status and whether or not the person has
+an account. The endpoint writes the appointment's party-email column for each role, which is what
+lets that party open the case; the old upserts never did, so a party added here used to be emailed
+and then locked out.
+
+- `staff-parties-editor.ts` holds the claim examiner editor and the remove/undo flags;
+  `staff-parties.util.ts` builds the body. Only a party staff changed in THIS edit is sent, so an
+  unrelated save never rewrites an attorney, moves an access-key column or mails anyone.
+- An attorney's loaded record id is sent only while the email still matches it, so replacing A
+  with B never rewrites A's record (the server applies the same rule).
+- The external page keeps the base behaviour. External callers must never write a party-email
+  column: that would let them grant access to any address.
+
 ### The external-user-lookup endpoint is a scoped SEARCH, not a list
 
 `GET /api/public/external-signup/external-user-lookup?filter=<term>` requires a search term
