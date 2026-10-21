@@ -63,7 +63,12 @@ public class AppointmentDefenseAttorneyManager : DomainService
     private async Task CaptureSnapshotAsync(Guid appointmentId, Guid defenseAttorneyId)
     {
         var appointment = await _appointmentRepository.FindAsync(appointmentId);
-        var master = await _defenseAttorneyRepository.FindAsync(defenseAttorneyId);
+        // includeDetails: false is load-bearing (2026-10-21). The default runs a database query,
+        // which cannot see a master created earlier in this same unit of work and not yet saved --
+        // exactly the case for an attorney entered for the first time, at booking or by staff
+        // later. The query then found nothing and the snapshot was silently skipped. The plain
+        // FindAsync checks the unit of work's own pending rows first.
+        var master = await _defenseAttorneyRepository.FindAsync(defenseAttorneyId, includeDetails: false);
         if (appointment == null || master == null)
         {
             return;

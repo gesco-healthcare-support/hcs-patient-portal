@@ -41,4 +41,37 @@ public static class AttorneySnapshot
         appointment.DefenseAttorneyStateId = master.StateId;
         appointment.DefenseAttorneyZipCode = master.ZipCode;
     }
+
+    /// <summary>
+    /// 2026-10-21: staff removed the applicant attorney from the appointment, so the snapshot no
+    /// longer describes anyone on it. Same field set as <see cref="CaptureApplicant"/>.
+    /// </summary>
+    public static void ClearApplicant(Appointment appointment)
+    {
+        appointment.ApplicantAttorneyFirstName = null;
+        appointment.ApplicantAttorneyLastName = null;
+        appointment.ApplicantAttorneyFirmName = null;
+        appointment.ApplicantAttorneyWebAddress = null;
+        appointment.ApplicantAttorneyPhoneNumber = null;
+        appointment.ApplicantAttorneyFaxNumber = null;
+        appointment.ApplicantAttorneyStreet = null;
+        appointment.ApplicantAttorneyCity = null;
+        appointment.ApplicantAttorneyStateId = null;
+        appointment.ApplicantAttorneyZipCode = null;
+    }
+
+    /// <summary>The defense-side twin of <see cref="ClearApplicant"/>.</summary>
+    public static void ClearDefense(Appointment appointment)
+    {
+        appointment.DefenseAttorneyFirstName = null;
+        appointment.DefenseAttorneyLastName = null;
+        appointment.DefenseAttorneyFirmName = null;
+        appointment.DefenseAttorneyWebAddress = null;
+        appointment.DefenseAttorneyPhoneNumber = null;
+        appointment.DefenseAttorneyFaxNumber = null;
+        appointment.DefenseAttorneyStreet = null;
+        appointment.DefenseAttorneyCity = null;
+        appointment.DefenseAttorneyStateId = null;
+        appointment.DefenseAttorneyZipCode = null;
+    }
 }
