@@ -46,7 +46,7 @@ public class GenerateAppointmentPacketJobPathTests
 
         public World()
         {
-            PacketManager = Substitute.For<AppointmentPacketManager>(Substitute.For<IRepository<AppointmentPacket, Guid>>());
+            PacketManager = Substitute.For<AppointmentPacketManager>(Substitute.For<IRepository<AppointmentPacket, Guid>>(), Substitute.For<IRepository<AppointmentPacketVersion, Guid>>());
             PacketManager
                 .EnsureGeneratingAsync(Arg.Any<Guid?>(), Arg.Any<Guid>(), Arg.Any<PacketKind>(), Arg.Any<string>())
                 .Returns(ci => new AppointmentPacket(

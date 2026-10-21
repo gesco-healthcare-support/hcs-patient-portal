@@ -32,7 +32,7 @@ public class AppointmentPacketManagerTests
         repo.GetQueryableAsync()
             .Returns(new List<AppointmentPacket> { existing }.AsQueryable());
 
-        var manager = new AppointmentPacketManager(repo);
+        var manager = new AppointmentPacketManager(repo, Substitute.For<IRepository<AppointmentPacketVersion, Guid>>());
 
         var result = await manager.EnsureGeneratingAsync(
             TenantId, AppointmentId, PacketKind.Patient, "blob/new.pdf");
@@ -76,7 +76,7 @@ public class AppointmentPacketManagerTests
         repo.UpdateAsync(Arg.Any<AppointmentPacket>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(ci => Task.FromResult(ci.Arg<AppointmentPacket>()));
 
-        var manager = new AppointmentPacketManager(repo);
+        var manager = new AppointmentPacketManager(repo, Substitute.For<IRepository<AppointmentPacketVersion, Guid>>());
         var before = DateTime.UtcNow;
 
         var result = await manager.EnsureGeneratingAsync(

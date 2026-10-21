@@ -11,7 +11,8 @@ Two aggregate roots, two managers. Blobs for both live in containers declared in
 | `AppointmentDocumentManager.cs` | Upload guard (`CreateAsync`) + queued-row factory (`CreateQueuedAsync`) + replaced-file record (`RecordReplacedFileAsync`) |
 | `AppointmentDocumentVersion.cs` | Append-only record of a file an upload replaced; the only place its storage key and metadata survive |
 | `AppointmentPacket.cs` | Generated-PDF aggregate; one row per (TenantId, AppointmentId, Kind) |
-| `AppointmentPacketManager.cs` | `EnsureGeneratingAsync` / `MarkGeneratedAsync` / `MarkFailedAsync` |
+| `AppointmentPacketManager.cs` | `EnsureGeneratingAsync` / `MarkGeneratedAsync` / `MarkFailedAsync` / `ReplaceGeneratedFileAsync` |
+| `AppointmentPacketVersion.cs` | Append-only record of a packet file a re-render replaced; the packet counterpart of `AppointmentDocumentVersion` |
 | `Jobs/GenerateAppointmentPacketJob.cs` | Hangfire async job; renders HTML via the WeasyPrint packet-renderer sidecar -> fillable PDF |
 | `Handlers/PacketGenerationOnApprovedHandler.cs` | Subscribes to `AppointmentStatusChangedEto`; enqueues job on UoW commit |
 | `Templates/` | Token map, context + resolver shared by the HTML renderer (the templates themselves live in the packet-renderer sidecar, not here) |
@@ -116,6 +117,25 @@ Packet job enqueue must happen in `OnCompleted` of the approve UoW, not directly
 it -- Hangfire's `IBackgroundJobManager` enqueues immediately and can dequeue before the
 approve commit. `PacketGenerationOnApprovedHandler` already does this; match the pattern
 for any new job-enqueue paths.
+
+### AppointmentPacket: re-rendered after a party change, the old file kept (2026-10-21)
+
+A Generated kind is never rendered again by a retry, a sweep or Regenerate (the T1 idempotency
+skip). The ONE exception is `GenerateAppointmentPacketArgs.ReRender` with a `Kind`, which
+`AppointmentPartiesAppService` queues when staff change the attorneys or the claim examiner on a live
+appointment, because the attorney and claim examiner packet names them. Then the job:
+
++ renders to a NEW key and saves it with `overrideExisting: false`, so no stored file is ever
+  overwritten;
++ calls `ReplaceGeneratedFileAsync`, which writes an `AppointmentPacketVersion` holding the old key
+  and repoints the row. The row stays Generated on the old file until then, so the packet can be
+  downloaded throughout;
++ announces `PacketGeneratedEto` after the commit. The email goes once per address, so only a new
+  party is mailed, with the new copy, and nobody gets the old copy first.
+
+A permanent render failure leaves the row as it was (NOT Failed: its file is still good) and still
+announces it, so a new party is not left with nothing. A renderer outage propagates for Hangfire's
+retry. A patient email correction re-renders nothing.
 
 ### PDF replaces DOCX (parity note)
 
