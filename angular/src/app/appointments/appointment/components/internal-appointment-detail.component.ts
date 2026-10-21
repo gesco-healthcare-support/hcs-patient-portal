@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, HostListener, OnInit, inject } from '@angular/core';
 import { ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { LocalizationService, PermissionService } from '@abp/ng.core';
+import { LocalizationService, PermissionService, RestService } from '@abp/ng.core';
 import { ToasterService } from '@abp/ng.theme.shared';
 import { NgbDatepickerModule } from '@ng-bootstrap/ng-bootstrap';
 
@@ -37,6 +37,7 @@ import {
   statusLabel,
   type DetailAction,
 } from './internal-detail.util';
+import { StaffPartiesEditor } from './staff-parties-editor';
 import {
   changedRows,
   fixedSummary,
@@ -102,6 +103,9 @@ export class InternalAppointmentDetailComponent extends AppointmentViewComponent
   /** Edit-details mode: read ledgers (false) vs editable form inputs (true). */
   protected editMode = false;
   private formSnapshot: Record<string, unknown> | null = null;
+
+  /** Staff party changes: claim examiner editor, remove flags, the parties save (2026-10-21). */
+  protected readonly parties = new StaffPartiesEditor(inject(RestService));
 
   /** Send Back rounds (newest-first) for the staff review cards. */
   protected infoHistory: AppointmentInfoRequestRoundDto[] = [];
@@ -277,20 +281,88 @@ export class InternalAppointmentDetailComponent extends AppointmentViewComponent
   // ---- edit-details mode ----
   protected enterEdit(): void {
     this.formSnapshot = this.form.getRawValue();
+    this.parties.begin(this.formSnapshot, this.appointment?.claimExaminer);
     this.editMode = true;
   }
   protected cancelEdit(): void {
     if (this.formSnapshot) {
       this.form.patchValue(this.formSnapshot, { emitEvent: false });
     }
+    this.parties.cancel();
     this.editMode = false;
   }
   protected async saveEdit(): Promise<void> {
+    // Checked before anything is written, so a missing attorney email never leaves the
+    // patient and appointment saved but the parties not.
+    const problem = this.parties.problem(
+      this.form.getRawValue(),
+      this.applicantAttorneyId,
+      this.defenseAttorneyId,
+    );
+    if (problem) {
+      this.errorMessage = problem;
+      return;
+    }
     try {
       await this.save();
       this.editMode = false;
     } catch {
       // Parent sets errorMessage; stay in edit mode so the user can retry.
+    }
+  }
+
+  /**
+   * Staff save: the employer as before, then the parties through the staff parties
+   * endpoint instead of the attorney upserts, so the appointment's party-email
+   * columns are written too (they are what lets a party open the case).
+   */
+  protected override async saveRelatedDetails(appointmentId?: string): Promise<void> {
+    await this.upsertEmployerDetails(appointmentId);
+    if (!appointmentId) {
+      return;
+    }
+    const saved = await this.parties.save(
+      appointmentId,
+      this.form.getRawValue(),
+      this.applicantAttorneyId,
+      this.defenseAttorneyId,
+    );
+    if (!saved) {
+      return;
+    }
+    if (this.appointment) {
+      // The parties save changed the appointment again: keep its new concurrency stamp
+      // and party columns, or the next save would be refused as stale.
+      this.appointment.appointment = { ...this.appointment.appointment, ...saved.appointment };
+      this.appointment.claimExaminer = this.parties.claimExaminerAfterSave(
+        this.appointment.claimExaminer,
+        saved.payload,
+      );
+    }
+    this.clearRemovedAttorneys(
+      saved.payload.applicantAttorney?.remove,
+      saved.payload.defenseAttorney?.remove,
+    );
+    this.parties.begin(this.form.getRawValue(), this.appointment?.claimExaminer);
+    this.loadApplicantAttorneyDetails(appointmentId);
+    this.bindDefenseAttorneyForAppointment(appointmentId);
+  }
+
+  private clearRemovedAttorneys(applicant?: boolean, defense?: boolean): void {
+    const blank = (prefix: 'applicantAttorney' | 'defenseAttorney') => {
+      const patch: Record<string, unknown> = {};
+      Object.keys(this.form.controls)
+        .filter((k) => k.startsWith(prefix) && k !== `${prefix}Enabled`)
+        .forEach((k) => (patch[k] = null));
+      this.form.patchValue(patch, { emitEvent: false });
+    };
+    if (applicant) {
+      blank('applicantAttorney');
+      this.applicantAttorneyId = null;
+    }
+    if (defense) {
+      blank('defenseAttorney');
+      this.defenseAttorneyId = null;
     }
   }
 

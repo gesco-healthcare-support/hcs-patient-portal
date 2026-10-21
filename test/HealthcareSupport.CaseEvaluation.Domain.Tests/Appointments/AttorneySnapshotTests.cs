@@ -84,4 +84,72 @@ public class AttorneySnapshotTests
         appt.DefenseAttorneyZipCode.ShouldBe("93701");
         appt.DefenseAttorneyStateId.ShouldBe(stateId);
     }
+
+    [Fact]
+    public void ClearApplicant_empties_every_field_CaptureApplicant_writes_and_leaves_the_defense_side()
+    {
+        var appt = NewAppointment();
+        AttorneySnapshot.CaptureApplicant(appt, new ApplicantAttorney(Guid.NewGuid(), Guid.NewGuid(), null)
+        {
+            FirstName = "Avery",
+            LastName = "Applicant",
+            FirmName = "Avery Law",
+            WebAddress = "avery.example",
+            PhoneNumber = "555-0100",
+            FaxNumber = "555-0101",
+            Street = "1 A St",
+            City = "Oakland",
+            ZipCode = "94607",
+        });
+        appt.DefenseAttorneyFirstName = "Dana";
+        appt.ApplicantAttorneyEmail = "avery@example.test";
+
+        AttorneySnapshot.ClearApplicant(appt);
+
+        appt.ApplicantAttorneyFirstName.ShouldBeNull();
+        appt.ApplicantAttorneyLastName.ShouldBeNull();
+        appt.ApplicantAttorneyFirmName.ShouldBeNull();
+        appt.ApplicantAttorneyWebAddress.ShouldBeNull();
+        appt.ApplicantAttorneyPhoneNumber.ShouldBeNull();
+        appt.ApplicantAttorneyFaxNumber.ShouldBeNull();
+        appt.ApplicantAttorneyStreet.ShouldBeNull();
+        appt.ApplicantAttorneyCity.ShouldBeNull();
+        appt.ApplicantAttorneyZipCode.ShouldBeNull();
+        appt.ApplicantAttorneyStateId.ShouldBeNull();
+        appt.DefenseAttorneyFirstName.ShouldBe("Dana");
+        appt.ApplicantAttorneyEmail.ShouldBe("avery@example.test", "the email column is the service's to clear, not the snapshot's");
+    }
+
+    [Fact]
+    public void ClearDefense_empties_every_field_CaptureDefense_writes_and_leaves_the_applicant_side()
+    {
+        var appt = NewAppointment();
+        AttorneySnapshot.CaptureDefense(appt, new DefenseAttorney(Guid.NewGuid(), Guid.NewGuid(), null)
+        {
+            FirstName = "Dana",
+            LastName = "Defense",
+            FirmName = "Dana LLP",
+            WebAddress = "dana.example",
+            PhoneNumber = "555-0200",
+            FaxNumber = "555-0201",
+            Street = "2 B St",
+            City = "Fresno",
+            ZipCode = "93721",
+        });
+        appt.ApplicantAttorneyFirstName = "Avery";
+
+        AttorneySnapshot.ClearDefense(appt);
+
+        appt.DefenseAttorneyFirstName.ShouldBeNull();
+        appt.DefenseAttorneyLastName.ShouldBeNull();
+        appt.DefenseAttorneyFirmName.ShouldBeNull();
+        appt.DefenseAttorneyWebAddress.ShouldBeNull();
+        appt.DefenseAttorneyPhoneNumber.ShouldBeNull();
+        appt.DefenseAttorneyFaxNumber.ShouldBeNull();
+        appt.DefenseAttorneyStreet.ShouldBeNull();
+        appt.DefenseAttorneyCity.ShouldBeNull();
+        appt.DefenseAttorneyZipCode.ShouldBeNull();
+        appt.DefenseAttorneyStateId.ShouldBeNull();
+        appt.ApplicantAttorneyFirstName.ShouldBe("Avery");
+    }
 }

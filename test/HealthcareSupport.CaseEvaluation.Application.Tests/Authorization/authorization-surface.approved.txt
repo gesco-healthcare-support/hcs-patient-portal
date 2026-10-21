@@ -144,6 +144,7 @@ HealthcareSupport.CaseEvaluation.Appointments.AppointmentApprovalAppService.Appr
 HealthcareSupport.CaseEvaluation.Appointments.AppointmentApprovalAppService.GetInternalUserLookupAsync(LookupRequestDto) -> class=(authenticated) method=CaseEvaluation.Appointments
 HealthcareSupport.CaseEvaluation.Appointments.AppointmentApprovalAppService.RejectAppointmentAsync(Guid, RejectAppointmentInput) -> class=(authenticated) method=CaseEvaluation.Appointments.Reject
 HealthcareSupport.CaseEvaluation.Appointments.AppointmentListExportAppService.RecordCsvExportAsync(RecordAppointmentListExportInput) -> class=(authenticated) method=CaseEvaluation.Appointments
+HealthcareSupport.CaseEvaluation.Appointments.AppointmentPartiesAppService.UpdateAsync(Guid, AppointmentPartiesUpdateDto) -> class=CaseEvaluation.Appointments.Edit method=-
 HealthcareSupport.CaseEvaluation.Appointments.AppointmentsAppService.ApproveAsync(Guid) -> class=(authenticated) method=CaseEvaluation.Appointments.Approve
 HealthcareSupport.CaseEvaluation.Appointments.AppointmentsAppService.CreateAsync(AppointmentCreateDto) -> class=(authenticated) method=(authenticated) + CaseEvaluation.Appointments.Create
 HealthcareSupport.CaseEvaluation.Appointments.AppointmentsAppService.CreateReBookAsync(String, AppointmentCreateDto) -> class=(authenticated) method=(authenticated) + CaseEvaluation.Appointments.Create
