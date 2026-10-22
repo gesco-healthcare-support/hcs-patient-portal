@@ -1,9 +1,12 @@
-import { TestBed } from '@angular/core/testing';
+import { Provider } from '@angular/core';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
+import { RestService } from '@abp/ng.core';
 import { ToasterService } from '@abp/ng.theme.shared';
 
 import { HostBrandingComponent } from './host-branding.component';
 import { BrandingService } from '../shared/branding/branding.service';
+import { OfficeLetterheadService } from '../proxy/branding/office-letterhead.service';
 
 /**
  * Host-scope branding: the IT Admin's table of every office, with the display name and logo
@@ -48,7 +51,9 @@ describe('HostBrandingComponent', () => {
     hasLogo: true,
   };
 
-  function create(): Probe {
+  let fixture: ComponentFixture<HostBrandingComponent>;
+
+  function create(extraProviders: Provider[] = []): Probe {
     service = {
       getOfficesPaged: jasmine
         .createSpy('getOfficesPaged')
@@ -63,10 +68,12 @@ describe('HostBrandingComponent', () => {
       providers: [
         { provide: BrandingService, useValue: service },
         { provide: ToasterService, useValue: toaster },
+        ...extraProviders,
       ],
     });
 
-    return TestBed.createComponent(HostBrandingComponent).componentInstance as unknown as Probe;
+    fixture = TestBed.createComponent(HostBrandingComponent);
+    return fixture.componentInstance as unknown as Probe;
   }
 
   /** A file-picker change event carrying one file. */
@@ -327,6 +334,47 @@ describe('HostBrandingComponent', () => {
       expect(c.busy()).toBeFalse();
       expect(toaster.success).not.toHaveBeenCalled();
       expect(reloads()).toBe(0);
+    });
+  });
+
+  describe('packet letterhead (2026-10-21)', () => {
+    it('opens the card for the clicked row, edits that office by its id, and closes', async () => {
+      const rest = {
+        request: jasmine
+          .createSpy('request')
+          .and.returnValue(of({ defaultPhysicianName: 'Dr. TEST' })),
+      };
+      const current = { get: jasmine.createSpy('get'), update: jasmine.createSpy('update') };
+      const c = create([
+        { provide: RestService, useValue: rest },
+        { provide: OfficeLetterheadService, useValue: current },
+      ]);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      const root = fixture.nativeElement as HTMLElement;
+      expect(root.querySelector('[data-testid="host-letterhead"]')).toBeNull();
+
+      const buttons = Array.from(root.querySelectorAll<HTMLButtonElement>('button')).filter(
+        (b) => b.textContent!.trim() === 'Letterhead',
+      );
+      expect(buttons.length).toBe(2);
+      buttons[1].click(); // ROW_B
+      fixture.detectChanges();
+
+      expect(c.letterheadFor()).toEqual(ROW_B);
+      expect(root.querySelector('[data-testid="host-letterhead"]')).not.toBeNull();
+      expect(root.querySelector('app-office-letterhead')).not.toBeNull();
+      expect(rest.request.calls.mostRecent().args[0].url).toBe(
+        '/api/app/branding/offices/office-b/letterhead',
+      );
+      expect(current.get).not.toHaveBeenCalled();
+
+      Array.from(root.querySelectorAll<HTMLButtonElement>('button'))
+        .find((b) => b.textContent!.trim() === 'Close')!
+        .click();
+      fixture.detectChanges();
+      expect(root.querySelector('[data-testid="host-letterhead"]')).toBeNull();
     });
   });
 });

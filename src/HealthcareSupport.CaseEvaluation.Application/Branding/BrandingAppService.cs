@@ -9,6 +9,7 @@ using HealthcareSupport.CaseEvaluation.Permissions;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
+using Volo.Abp.Authorization;
 using Volo.Abp.BlobStoring;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Validation;
@@ -82,6 +83,7 @@ public class BrandingAppService : CaseEvaluationAppService, IBrandingAppService
     [Authorize(CaseEvaluationPermissions.Branding.Default)]
     public virtual async Task<ListResultDto<OfficeBrandingDto>> GetOfficeBrandingsAsync()
     {
+        EnsureHostCaller();
         using (CurrentTenant.Change(null))
         {
             var offices = await _tenantRepository.GetListAsync();
@@ -123,6 +125,7 @@ public class BrandingAppService : CaseEvaluationAppService, IBrandingAppService
         GetOfficeBrandingInput input)
     {
         Check.NotNull(input, nameof(input));
+        EnsureHostCaller();
 
         using (CurrentTenant.Change(null))
         {
@@ -188,7 +191,7 @@ public class BrandingAppService : CaseEvaluationAppService, IBrandingAppService
     [Authorize(CaseEvaluationPermissions.Branding.Default)]
     public virtual async Task<DownloadResult?> DownloadLogoForOfficeAsync(Guid officeId)
     {
-        return await ReadLogoAsync(officeId);
+        return await ReadLogoAsync(ResolveTargetOffice(officeId));
     }
 
     [Authorize(CaseEvaluationPermissions.Branding.Edit)]
@@ -296,19 +299,37 @@ public class BrandingAppService : CaseEvaluationAppService, IBrandingAppService
         return await _brandingRepository.InsertAsync(new OfficeBranding(GuidGenerator.Create(), officeId), autoSave: true);
     }
 
-    /// <summary>Host-central edits target an explicit office id; in-office edits target the current office.</summary>
+    /// <summary>
+    /// Host-central edits target an explicit office id; in-office edits target the current office.
+    /// Branding is a both-sides permission, so an office admin holds it: an explicit id naming
+    /// ANOTHER office is accepted only from the host (2026-10-21), or it would reach that office's
+    /// host-side row from inside a different office.
+    /// </summary>
     private Guid ResolveTargetOffice(Guid? officeId)
     {
+        var current = CurrentTenant.Id;
         if (officeId.HasValue && officeId.Value != Guid.Empty)
         {
+            if (current != null && current.Value != officeId.Value)
+            {
+                throw new AbpAuthorizationException("Another office's branding can be changed only from the host.");
+            }
             return officeId.Value;
         }
-        var current = CurrentTenant.Id;
         if (current == null)
         {
             throw new UserFriendlyException(L["Branding:NoTargetOffice"]);
         }
         return current.Value;
+    }
+
+    /// <summary>The every-office lists belong to the host branding page only.</summary>
+    private void EnsureHostCaller()
+    {
+        if (CurrentTenant.Id != null)
+        {
+            throw new AbpAuthorizationException("The list of every office's branding is available only from the host.");
+        }
     }
 
     private static BrandingDto ToDto(OfficeBranding? branding, Guid officeId, bool officeQualifiedUrl)
