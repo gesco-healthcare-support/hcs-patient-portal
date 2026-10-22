@@ -6,6 +6,7 @@ using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers;
 using HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
+using HealthcareSupport.CaseEvaluation.AppointmentDocuments.Jobs;
 using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
 using HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Notifications.Delivery;
@@ -20,9 +21,11 @@ using HealthcareSupport.CaseEvaluation.TestData;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using NSubstitute;
 using Shouldly;
 using Volo.Abp;
 using Volo.Abp.Authorization;
+using Volo.Abp.BackgroundJobs;
 using Volo.Abp.Domain.Entities.Events;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Identity;
@@ -53,7 +56,10 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 /// <para><b>Mail.</b> The dispatcher is a recorder for the whole class (the rig seeds no office
 /// templates, so a real render would throw). The packet handlers, the recipient resolver and the
 /// party columns they read are all real; what is recorded is exactly what they asked to send. The
-/// once-per-address de-duplication sits behind the dispatcher, in the outbox, and has its own tests.</para>
+/// once-per-address de-duplication sits behind the dispatcher, in the outbox, and has its own tests.
+/// The background job queue is recorded too, so the attorney packet re-render that an attorney or
+/// examiner change asks for is asserted here, and run end to end in
+/// <c>EfCoreAppointmentPartiesPacketReRenderTests</c>.</para>
 ///
 /// <para>The rig's ambient principal holds "admin", an internal role, which is the staff caller.
 /// Every fact builds its own appointment and patient with a fresh token; the collection shares
@@ -83,10 +89,12 @@ public class EfCoreAppointmentPartiesAppServiceTests
     private static readonly Guid BookerId = IdentityUsersTestData.ApplicantAttorney1UserId;
 
     private readonly NotificationRecorder _mail = new();
+    private readonly IBackgroundJobManager _jobs = Substitute.For<IBackgroundJobManager>();
 
     protected override void AfterAddApplication(IServiceCollection services)
     {
         services.Replace(ServiceDescriptor.Singleton<INotificationDispatcher>(_mail));
+        services.Replace(ServiceDescriptor.Singleton(_jobs));
     }
 
     public EfCoreAppointmentPartiesAppServiceTests()
@@ -390,12 +398,12 @@ public class EfCoreAppointmentPartiesAppServiceTests
     // ----------------------------------------------------------------- the new party's packet email
 
     [Fact]
-    public async Task A_new_defense_attorney_on_an_approved_appointment_is_sent_the_attorney_packet()
+    public async Task A_new_defense_attorney_on_an_approved_appointment_gets_the_attorney_packet_re_rendered_not_the_old_copy()
     {
         var token = NewToken();
         var email = $"da-mail-{token}@example.test";
         var id = await CreateAppointmentAsync(token, AppointmentStatusType.Approved);
-        var packets = await SeedSettledPacketsAsync(id);
+        await SeedSettledPacketsAsync(id);
         _mail.Clear();
 
         await AsStaffAsync(() => _parties.UpdateAsync(id, new AppointmentPartiesUpdateDto
@@ -403,18 +411,15 @@ public class EfCoreAppointmentPartiesAppServiceTests
             DefenseAttorney = Attorney(email, "TEST-Mail", "TEST-Defense"),
         }));
 
-        var sent = _mail.Sent.Where(m => m.Recipients.Contains(email)).ToList();
-        sent.ShouldHaveSingleItem("exactly one packet email to the new attorney");
-        sent[0].TemplateCode.ShouldBe(NotificationTemplateConsts.Codes.AppointmentDocumentAddWithAttachment);
-        sent[0].Packet.ShouldNotBeNull();
-        sent[0].Packet!.Kind.ShouldBe(PacketKind.AttorneyClaimExaminer);
-        sent[0].Packet!.PacketId.ShouldBe(packets[PacketKind.AttorneyClaimExaminer]);
-        _mail.Sent.ShouldNotContain(m => m.Packet != null && m.Packet.Kind == PacketKind.Patient,
-            "an attorney change does not re-send the patient's packet");
+        _mail.Sent.ShouldBeEmpty("the new attorney is mailed by the re-render, with the new copy, not now with the old one");
+        var job = ReRenderJobs(id).ShouldHaveSingleItem();
+        job.Kind.ShouldBe(PacketKind.AttorneyClaimExaminer);
+        job.ReRender.ShouldBeTrue();
+        job.TenantId.ShouldBe(TenantsTestData.TenantARef);
     }
 
     [Fact]
-    public async Task A_corrected_patient_email_is_sent_the_patient_packet()
+    public async Task A_corrected_patient_email_is_sent_the_patient_packet_and_nothing_is_re_rendered()
     {
         var token = NewToken();
         var newEmail = $"pt-mail-{token}@example.test";
@@ -437,10 +442,11 @@ public class EfCoreAppointmentPartiesAppServiceTests
         sent.Recipients.ShouldBe(new[] { newEmail });
         sent.Packet!.Kind.ShouldBe(PacketKind.Patient);
         sent.Packet.PacketId.ShouldBe(packets[PacketKind.Patient]);
+        ReRenderJobs(id).ShouldBeEmpty("a patient email correction re-renders nothing");
     }
 
     [Fact]
-    public async Task Before_approval_nothing_is_sent_because_approval_mails_everyone()
+    public async Task Before_approval_nothing_is_sent_or_re_rendered_because_approval_mails_everyone()
     {
         var token = NewToken();
         var id = await CreateAppointmentAsync(token, AppointmentStatusType.Pending);
@@ -453,10 +459,11 @@ public class EfCoreAppointmentPartiesAppServiceTests
         }));
 
         _mail.Sent.ShouldBeEmpty();
+        ReRenderJobs(id).ShouldBeEmpty();
     }
 
     [Fact]
-    public async Task A_packet_still_rendering_is_not_sent_now_because_its_own_completion_mails_everyone()
+    public async Task A_packet_still_rendering_is_left_to_finish_because_its_own_completion_mails_everyone()
     {
         var token = NewToken();
         var id = await CreateAppointmentAsync(token, AppointmentStatusType.Approved);
@@ -469,10 +476,11 @@ public class EfCoreAppointmentPartiesAppServiceTests
         }));
 
         _mail.Sent.ShouldBeEmpty();
+        ReRenderJobs(id).ShouldBeEmpty();
     }
 
     [Fact]
-    public async Task Changing_an_existing_partys_details_but_not_their_email_sends_nothing()
+    public async Task Changing_an_existing_partys_details_re_renders_their_packet_and_mails_nothing_now()
     {
         var token = NewToken();
         var email = $"da-same-{token}@example.test";
@@ -482,20 +490,31 @@ public class EfCoreAppointmentPartiesAppServiceTests
         {
             DefenseAttorney = Attorney(email, "TEST-Same", "TEST-Defense"),
         }));
-        // Positive control: the first save above DID mail this address.
-        _mail.Sent.ShouldContain(m => m.Recipients.Contains(email));
+        ReRenderJobs(id).Count.ShouldBe(1);
         _mail.Clear();
 
         var newPhone = Attorney(email.ToUpperInvariant(), "TEST-Same", "TEST-Defense");
         newPhone.PhoneNumber = "8185550199";
         await AsStaffAsync(() => _parties.UpdateAsync(id, new AppointmentPartiesUpdateDto { DefenseAttorney = newPhone }));
 
-        _mail.Sent.ShouldBeEmpty("the same address (any capitalisation) is not a new party");
+        _mail.Sent.ShouldBeEmpty();
+        // The packet shows the attorney's details, so it is rendered again. Whether anyone is mailed
+        // then is the outbox's once-per-address rule: the same address (any capitalisation) is not.
+        // EfCoreAppointmentPartiesPacketReRenderTests runs that end to end.
+        ReRenderJobs(id).Count.ShouldBe(2);
     }
 
     // ----------------------------------------------------------------- helpers
 
     private static string NewToken() => Guid.NewGuid().ToString("N")[..8];
+
+    private System.Collections.Generic.List<GenerateAppointmentPacketArgs> ReRenderJobs(Guid id) =>
+        _jobs.ReceivedCalls()
+            .Where(c => c.GetMethodInfo().Name == nameof(IBackgroundJobManager.EnqueueAsync))
+            .Select(c => c.GetArguments()[0])
+            .OfType<GenerateAppointmentPacketArgs>()
+            .Where(a => a.AppointmentId == id)
+            .ToList();
 
     private static StaffAttorneyChangeDto Attorney(string email, string first, string last) => new()
     {

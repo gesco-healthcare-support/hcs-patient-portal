@@ -1,8 +1,11 @@
 using System;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.AppointmentDocuments.Templates;
 using HealthcareSupport.CaseEvaluation.TestData;
 using Shouldly;
 using Volo.Abp;
+using Volo.Abp.Authorization;
+using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Modularity;
 using Volo.Abp.Validation;
@@ -137,6 +140,103 @@ public abstract class OfficeLetterheadAppServiceTests<TStartupModule>
             {
                 await Should.ThrowAsync<AbpValidationException>(
                     () => _letterhead.UpdateAsync(new UpdateOfficeLetterheadInput { Phone = "555-0100" }));
+            }
+        });
+    }
+
+    // ------------------------------------------------------------------ the host branding page (2026-10-21)
+
+    [Fact]
+    public async Task The_host_edits_one_offices_letterhead_by_id_and_that_offices_packets_print_it()
+    {
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(null))
+            {
+                var saved = await _letterhead.UpdateForOfficeAsync(TenantsTestData.TenantARef, new UpdateOfficeLetterheadInput
+                {
+                    LetterheadName = "TEST Host-Set Letterhead",
+                    Phone = "(555) 555-0110",
+                });
+
+                saved.LetterheadName.ShouldBe("TEST Host-Set Letterhead");
+                saved.Phone.ShouldBe("(555) 555-0110");
+                // The defaults come from THAT office's doctor, read inside that office.
+                saved.DefaultPhysicianName.ShouldBe(
+                    $"Dr. {DoctorsTestData.Doctor1FirstName} {DoctorsTestData.Doctor1LastName}");
+
+                (await _letterhead.GetForOfficeAsync(TenantsTestData.TenantARef)).LetterheadName
+                    .ShouldBe("TEST Host-Set Letterhead");
+                (await _letterhead.GetForOfficeAsync(TenantsTestData.TenantBRef)).LetterheadName
+                    .ShouldNotBe("TEST Host-Set Letterhead", "an edit by id lands on that office only");
+            }
+        });
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                // What the packet job reads: the resolver fills PacketTokenContext.Office.
+                var office = await GetRequiredService<OfficeLetterheadResolver>().ResolveAsync();
+                var tokens = PacketTokenMap.Build(new PacketTokenContext { Office = office });
+
+                tokens["##Office.LetterheadName##"].ShouldBe("TEST Host-Set Letterhead");
+                tokens["##Office.Phone##"].ShouldBe("(555) 555-0110");
+            }
+        });
+    }
+
+    [Fact]
+    public async Task An_office_caller_cannot_read_or_edit_a_letterhead_by_id_even_its_own()
+    {
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                await Should.ThrowAsync<AbpAuthorizationException>(
+                    () => _letterhead.GetForOfficeAsync(TenantsTestData.TenantBRef));
+                await Should.ThrowAsync<AbpAuthorizationException>(
+                    () => _letterhead.UpdateForOfficeAsync(TenantsTestData.TenantBRef,
+                        new UpdateOfficeLetterheadInput { PracticeName = "TEST Hijack" }));
+                await Should.ThrowAsync<AbpAuthorizationException>(
+                    () => _letterhead.GetForOfficeAsync(TenantsTestData.TenantARef));
+            }
+        });
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantBRef))
+            {
+                (await _letterhead.GetAsync()).PracticeName.ShouldNotBe("TEST Hijack");
+            }
+        });
+    }
+
+    [Fact]
+    public async Task An_id_that_names_no_office_is_refused()
+    {
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(null))
+            {
+                await Should.ThrowAsync<EntityNotFoundException>(
+                    () => _letterhead.GetForOfficeAsync(Guid.Parse("7e57c000-0000-4000-9000-000000000099")));
+                await Should.ThrowAsync<EntityNotFoundException>(
+                    () => _letterhead.UpdateForOfficeAsync(Guid.Empty, new UpdateOfficeLetterheadInput()));
+            }
+        });
+    }
+
+    [Fact]
+    public async Task The_host_edit_validates_like_the_office_edit()
+    {
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(null))
+            {
+                await Should.ThrowAsync<AbpValidationException>(
+                    () => _letterhead.UpdateForOfficeAsync(TenantsTestData.TenantARef,
+                        new UpdateOfficeLetterheadInput { Phone = "555-0100" }));
             }
         });
     }

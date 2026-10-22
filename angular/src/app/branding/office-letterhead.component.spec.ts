@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
+import { RestService } from '@abp/ng.core';
 import { ToasterService } from '@abp/ng.theme.shared';
 
 import { OfficeLetterheadComponent } from './office-letterhead.component';
@@ -13,6 +14,7 @@ import { OfficeLetterheadService } from '../proxy/branding/office-letterhead.ser
  */
 describe('OfficeLetterheadComponent', () => {
   let service: { get: jasmine.Spy; update: jasmine.Spy };
+  let rest: { request: jasmine.Spy };
   let toaster: { success: jasmine.Spy };
 
   const stored = (over: Partial<OfficeLetterheadDto> = {}): OfficeLetterheadDto => ({
@@ -22,20 +24,29 @@ describe('OfficeLetterheadComponent', () => {
     ...over,
   });
 
-  function render(getResult = of(stored())) {
+  function render(getResult = of(stored()), officeId?: string) {
     service = {
       get: jasmine.createSpy('get').and.returnValue(getResult),
       update: jasmine.createSpy('update').and.callFake((input) => of(stored(input))),
+    };
+    rest = {
+      request: jasmine
+        .createSpy('request')
+        .and.callFake((req: { body?: Partial<OfficeLetterheadDto> }) => of(stored(req.body ?? {}))),
     };
     toaster = { success: jasmine.createSpy('success') };
     TestBed.configureTestingModule({
       imports: [OfficeLetterheadComponent],
       providers: [
         { provide: OfficeLetterheadService, useValue: service },
+        { provide: RestService, useValue: rest },
         { provide: ToasterService, useValue: toaster },
       ],
     });
     const fixture = TestBed.createComponent(OfficeLetterheadComponent);
+    if (officeId) {
+      fixture.componentRef.setInput('officeId', officeId);
+    }
     fixture.detectChanges();
     return fixture;
   }
@@ -86,6 +97,7 @@ describe('OfficeLetterheadComponent', () => {
     expect(sent.practiceName).toBe('TEST Institute');
     expect(sent.phone).toBeNull();
     expect(sent.missedAppointmentFee).toBe(503.75);
+    expect(rest.request).not.toHaveBeenCalled();
     expect(toaster.success).toHaveBeenCalled();
     expect(component.form.text['practiceName']).toBe('TEST Institute');
   });
@@ -104,6 +116,49 @@ describe('OfficeLetterheadComponent', () => {
     expect(root.querySelector('[role="alert"]')).not.toBeNull();
     (fixture.componentInstance as unknown as { save(): void }).save();
     expect(service.update).not.toHaveBeenCalled();
+  });
+
+  describe('on the host branding page (an office id)', () => {
+    const OFFICE = 'a1b2c3d4-0000-4000-9000-0000000000aa';
+
+    it('reads and saves that office through the host route, never the current-office one', () => {
+      const fixture = render(of(stored()), OFFICE);
+      const component = fixture.componentInstance as unknown as {
+        form: { text: Record<string, string>; fee: string };
+        save(): void;
+      };
+
+      const read = rest.request.calls.mostRecent().args;
+      expect(read[0]).toEqual({
+        method: 'GET',
+        url: `/api/app/branding/offices/${OFFICE}/letterhead`,
+      });
+      expect(read[1]).toEqual({ apiName: 'Default' });
+      expect(service.get).not.toHaveBeenCalled();
+
+      component.form.text['practiceName'] = 'TEST Host Practice';
+      component.save();
+
+      const write = rest.request.calls.mostRecent().args[0];
+      expect(write.method).toBe('PUT');
+      expect(write.url).toBe(`/api/app/branding/offices/${OFFICE}/letterhead`);
+      expect(write.body.practiceName).toBe('TEST Host Practice');
+      expect(service.update).not.toHaveBeenCalled();
+      expect(component.form.text['practiceName']).toBe('TEST Host Practice');
+    });
+
+    it('loads the other office when the page switches offices on the same card', () => {
+      const fixture = render(of(stored()), OFFICE);
+      expect(rest.request).toHaveBeenCalledTimes(1);
+
+      fixture.componentRef.setInput('officeId', 'b2c3d4e5-0000-4000-9000-0000000000bb');
+      fixture.detectChanges();
+
+      expect(rest.request).toHaveBeenCalledTimes(2);
+      expect(rest.request.calls.mostRecent().args[0].url).toBe(
+        '/api/app/branding/offices/b2c3d4e5-0000-4000-9000-0000000000bb/letterhead',
+      );
+    });
   });
 
   it('stays usable when the letterhead cannot be loaded', () => {

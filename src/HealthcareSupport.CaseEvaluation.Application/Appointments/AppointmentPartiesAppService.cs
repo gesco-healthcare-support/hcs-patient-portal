@@ -8,6 +8,7 @@ using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers;
 using HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
+using HealthcareSupport.CaseEvaluation.AppointmentDocuments.Jobs;
 using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Handlers;
@@ -17,6 +18,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
 using Volo.Abp;
 using Volo.Abp.Authorization;
+using Volo.Abp.BackgroundJobs;
 using Volo.Abp.Domain.Entities.Events;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.EventBus.Local;
@@ -57,11 +59,15 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 /// The handler is called explicitly as well, so the Case Tracker update does not hang on that
 /// option; a test turns it off to prove this path. Both builds produce the identical payload and
 /// the outbox collapses them onto one row.</item>
-/// <item>A NEW party address on a live appointment gets the packet email it would have got at
+/// <item>On a live appointment, a NEW party address gets the packet email it would have got at
 /// approval. The packet emails are driven by <see cref="PacketGeneratedEto"/>, sent once per
-/// address and de-duplicated on (office, address, appointment, packet kind), so re-publishing it
-/// for an already-rendered packet mails only the addresses that were never mailed. The packet is
-/// the one rendered at approval; it is not re-rendered.</item>
+/// address and de-duplicated on (office, address, appointment, packet kind), so announcing a packet
+/// again mails only the addresses that were never mailed it.</item>
+/// <item>An attorney or claim examiner change re-renders the attorney and claim examiner packet,
+/// because that packet names them (2026-10-21). The re-render job keeps the previous file
+/// (<see cref="AppointmentPacketVersion"/>) and announces the new one, so the new party is mailed the
+/// NEW copy, once, and only after it exists; nobody is sent the old copy first. A patient email
+/// correction re-renders nothing: the patient packet as it stands is sent to the new address.</item>
 /// </list></para>
 /// </summary>
 [RemoteService(IsEnabled = false)]
@@ -79,6 +85,7 @@ public class AppointmentPartiesAppService : CaseEvaluationAppService, IAppointme
     private readonly AppointmentChangedHandler _caseTrackerRePush;
     private readonly IRepository<AppointmentPacket, Guid> _packets;
     private readonly ILocalEventBus _localEventBus;
+    private readonly IBackgroundJobManager _backgroundJobs;
 
     /// <summary>
     /// The statuses on which a newly added party is sent the packet: the appointment is live and
@@ -103,7 +110,8 @@ public class AppointmentPartiesAppService : CaseEvaluationAppService, IAppointme
         AppointmentReadAccessGuard readAccessGuard,
         AppointmentChangedHandler caseTrackerRePush,
         IRepository<AppointmentPacket, Guid> packets,
-        ILocalEventBus localEventBus)
+        ILocalEventBus localEventBus,
+        IBackgroundJobManager backgroundJobs)
     {
         _appointmentRepository = appointmentRepository;
         _appointments = appointments;
@@ -116,6 +124,7 @@ public class AppointmentPartiesAppService : CaseEvaluationAppService, IAppointme
         _caseTrackerRePush = caseTrackerRePush;
         _packets = packets;
         _localEventBus = localEventBus;
+        _backgroundJobs = backgroundJobs;
     }
 
     public virtual async Task<AppointmentDto> UpdateAsync(Guid appointmentId, AppointmentPartiesUpdateDto input)
@@ -143,66 +152,111 @@ public class AppointmentPartiesAppService : CaseEvaluationAppService, IAppointme
 
         await _appointmentRepository.UpdateAsync(appointment, autoSave: true);
 
-        var touched = input.PatientEmail != null
-            || input.ApplicantAttorney != null
+        var attorneysOrExaminerChanged = input.ApplicantAttorney != null
             || input.DefenseAttorney != null
             || input.ClaimExaminer != null;
-        if (touched)
+        if (input.PatientEmail != null || attorneysOrExaminerChanged)
         {
-            await OnPartiesChangedAsync(appointment, PartyEmails.ChangedRoles(before, PartyEmails.Of(appointment)));
+            await OnPartiesChangedAsync(
+                appointment,
+                PartyEmails.ChangedRoles(before, PartyEmails.Of(appointment)),
+                attorneysOrExaminerChanged);
         }
 
         return ObjectMapper.Map<Appointment, AppointmentDto>(appointment);
     }
 
     /// <summary>
-    /// The Case Tracker update, then the packet email for each NEW party address. See the class
+    /// The Case Tracker update, then the packets: the patient packet for a new patient address, and a
+    /// re-render of the attorney and claim examiner packet when those parties changed. See the class
     /// remarks for why each is done this way.
     /// </summary>
-    protected virtual async Task OnPartiesChangedAsync(Appointment appointment, IReadOnlyList<PartyEmailChange> newAddresses)
+    protected virtual async Task OnPartiesChangedAsync(
+        Appointment appointment,
+        IReadOnlyList<PartyEmailChange> newAddresses,
+        bool attorneysOrExaminerChanged)
     {
         await _caseTrackerRePush.HandleEventAsync(new EntityUpdatedEventData<Appointment>(appointment));
 
-        if (newAddresses.Count == 0 || !PacketResendStatuses.Contains(appointment.AppointmentStatus))
+        if (!PacketResendStatuses.Contains(appointment.AppointmentStatus))
         {
             return;
-        }
-
-        var kinds = new HashSet<PacketKind>();
-        if (newAddresses.Any(c => c.Role == PartyEmailRole.Patient))
-        {
-            kinds.Add(PacketKind.Patient);
-        }
-        if (newAddresses.Any(c => c.Role != PartyEmailRole.Patient))
-        {
-            kinds.Add(PacketKind.AttorneyClaimExaminer);
         }
 
         // Only a packet that has finished rendering. One still rendering mails everyone on the
         // appointment, the new party included, when it finishes.
         var packets = await _packets.GetListAsync(p =>
             p.AppointmentId == appointment.Id && p.Status == PacketGenerationStatus.Generated);
-        foreach (var packet in packets.Where(p => kinds.Contains(p.Kind)))
+
+        var patientPacket = packets.FirstOrDefault(p => p.Kind == PacketKind.Patient);
+        if (patientPacket != null && newAddresses.Any(c => c.Role == PartyEmailRole.Patient))
         {
-            var eto = new PacketGeneratedEto
+            var eto = Announcement(appointment, patientPacket);
+            await AfterCommitAsync(() => PublishPacketEmailAsync(eto));
+        }
+
+        var attorneyPacket = packets.FirstOrDefault(p => p.Kind == PacketKind.AttorneyClaimExaminer);
+        if (attorneyPacket != null && attorneysOrExaminerChanged)
+        {
+            // Not announced here: the re-render announces the NEW copy, which is what a new party
+            // must receive, and announcing the current one now would send them the old copy first.
+            var requestedBy = CurrentUser.Id;
+            await AfterCommitAsync(() => EnqueueAttorneyPacketReRenderAsync(appointment, attorneyPacket, requestedBy));
+        }
+    }
+
+    /// <summary>
+    /// After the commit, as the render job does: the email handlers and the re-render read the
+    /// appointment's party columns, which must already hold the change.
+    /// </summary>
+    private async Task AfterCommitAsync(Func<Task> action)
+    {
+        var uow = UnitOfWorkManager.Current;
+        if (uow != null)
+        {
+            uow.OnCompleted(action);
+        }
+        else
+        {
+            await action();
+        }
+    }
+
+    private PacketGeneratedEto Announcement(Appointment appointment, AppointmentPacket packet) => new()
+    {
+        AppointmentId = appointment.Id,
+        TenantId = appointment.TenantId,
+        PacketId = packet.Id,
+        Kind = packet.Kind,
+        OccurredAt = Clock.Now,
+    };
+
+    /// <summary>
+    /// Asks for the attorney and claim examiner packet to be rendered again with the new parties
+    /// (<see cref="GenerateAppointmentPacketArgs.ReRender"/>). Best-effort like the emails: the party
+    /// change is already committed, so if the job cannot be queued the packet as it stands is
+    /// announced instead, and a new party is not left with nothing.
+    /// </summary>
+    private async Task EnqueueAttorneyPacketReRenderAsync(Appointment appointment, AppointmentPacket packet, Guid? requestedBy)
+    {
+        try
+        {
+            await _backgroundJobs.EnqueueAsync(new GenerateAppointmentPacketArgs
             {
                 AppointmentId = appointment.Id,
                 TenantId = appointment.TenantId,
-                PacketId = packet.Id,
-                Kind = packet.Kind,
-                OccurredAt = Clock.Now,
-            };
-            // After the commit, as the render job does: the handlers re-read the appointment's
-            // party columns, which must already hold the new address.
-            var uow = UnitOfWorkManager.Current;
-            if (uow != null)
-            {
-                uow.OnCompleted(() => PublishPacketEmailAsync(eto));
-            }
-            else
-            {
-                await PublishPacketEmailAsync(eto);
-            }
+                Kind = PacketKind.AttorneyClaimExaminer,
+                ReRender = true,
+                RequestedByUserId = requestedBy,
+            });
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(
+                ex,
+                "AppointmentPartiesAppService: the attorney packet re-render for appointment {AppointmentId} was not queued; announcing the packet as it stands.",
+                appointment.Id);
+            await PublishPacketEmailAsync(Announcement(appointment, packet));
         }
     }
 

@@ -33,3 +33,17 @@ branding lives in the host database and is read by subdomain before authenticati
   omitted (`data-if`). Field lengths are in `Domain.Shared/Branding/OfficeLetterheadConsts.cs`
   because the update DTO validates against them. The host migration `Added_OfficeLetterhead`
   pre-fills Falkinstein's row with exactly what its packets printed before.
+- **Office-targeted calls are host-only (2026-10-21).** `CaseEvaluation.Branding` is a
+  both-sides permission, so an office's `admin` role holds it, and these rows are host-side
+  and keyed by office id. So a call that names an office by id answers only a HOST caller, or
+  an office caller naming its OWN office:
+  - `BrandingAppService.ResolveTargetOffice` (display name, logo upload / remove, logo by id);
+  - the two every-office lists;
+  - `OfficeLetterheadAppService.GetForOfficeAsync` / `UpdateForOfficeAsync`
+    (`api/app/branding/offices/{officeId}/letterhead`), which are host-only outright and refuse
+    an id that names no office.
+
+  The by-id letterhead is what lets IT Admin and the host Staff Supervisor edit an office's
+  letterhead from the host branding page. Inside an office they act as the office Staff
+  Supervisor shadow, which does not hold Branding. Real-role tests:
+  `BrandingOfficeTargetAuthorizationTests`.

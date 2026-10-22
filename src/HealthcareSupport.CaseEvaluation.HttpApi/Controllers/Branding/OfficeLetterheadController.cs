@@ -1,3 +1,4 @@
+using System;
 using System.Threading.Tasks;
 using Asp.Versioning;
 using HealthcareSupport.CaseEvaluation.Branding;
@@ -38,5 +39,18 @@ public class OfficeLetterheadController : AbpController, IOfficeLetterheadAppSer
     public virtual Task<OfficeLetterheadDto> UpdateAsync([FromBody] UpdateOfficeLetterheadInput input)
     {
         return _service.UpdateAsync(input);
+    }
+
+    /// <summary>Host only: one office's letterhead, beside its display name and logo on the host branding page.</summary>
+    [HttpGet("~/api/app/branding/offices/{officeId}/letterhead")]
+    public virtual Task<OfficeLetterheadDto> GetForOfficeAsync(Guid officeId)
+    {
+        return _service.GetForOfficeAsync(officeId);
+    }
+
+    [HttpPut("~/api/app/branding/offices/{officeId}/letterhead")]
+    public virtual Task<OfficeLetterheadDto> UpdateForOfficeAsync(Guid officeId, [FromBody] UpdateOfficeLetterheadInput input)
+    {
+        return _service.UpdateForOfficeAsync(officeId, input);
     }
 }
