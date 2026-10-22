@@ -282,7 +282,7 @@ which is how host and IT Admin paths see patients. Inside an office, the filter 
 | `GetStateLookupAsync` | State dropdown lookup. |
 | `GetAppointmentLanguageLookupAsync` | Language dropdown lookup. |
 | `GetIdentityUserLookupAsync` | Identity-user dropdown lookup. |
-| `GetTenantLookupAsync` | Office dropdown lookup. |
+| `GetTenantLookupAsync` | Office dropdown lookup. Inside an office it returns only that office; the host gets every office. `DoctorsAppService` has the same method with the same rule. |
 
 ### GetOrCreatePatientForAppointmentBookingAsync
 
