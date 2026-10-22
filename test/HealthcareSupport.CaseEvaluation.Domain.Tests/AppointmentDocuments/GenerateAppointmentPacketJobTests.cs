@@ -244,7 +244,7 @@ public class GenerateAppointmentPacketJobTests
             AppointmentRepository = Substitute.For<IRepository<Appointment, Guid>>();
 
             var packetRepository = Substitute.For<IRepository<AppointmentPacket, Guid>>();
-            PacketManager = Substitute.For<AppointmentPacketManager>(packetRepository);
+            PacketManager = Substitute.For<AppointmentPacketManager>(packetRepository, Substitute.For<IRepository<AppointmentPacketVersion, Guid>>());
             PacketManager
                 .EnsureGeneratingAsync(Arg.Any<Guid?>(), Arg.Any<Guid>(), Arg.Any<PacketKind>(), Arg.Any<string>())
                 .Returns(callInfo =>

@@ -853,6 +853,25 @@ internal static class CaseEvaluationSharedModelConfiguration
             b.HasOne<Appointment>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentId).OnDelete(DeleteBehavior.NoAction);
         });
 
+        // 2026-10-21: append-only record of each packet file a re-render replaced (staff changed the
+        // parties on a live appointment). The replaced file stays in storage and this row is how it is
+        // found. Indexed by packet (its history) and by appointment (every file produced for a case).
+        builder.Entity<HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacketVersion>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentPacketVersions", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName(TenantIdColumn);
+            b.Property(x => x.AppointmentPacketId).HasColumnName("AppointmentPacketId").IsRequired();
+            b.Property(x => x.AppointmentId).HasColumnName("AppointmentId").IsRequired();
+            b.Property(x => x.Kind).HasColumnName("Kind").IsRequired();
+            b.Property(x => x.BlobName).HasColumnName("BlobName").IsRequired().HasMaxLength(HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacketConsts.BlobNameMaxLength);
+            b.Property(x => x.FileGeneratedAt).HasColumnName("FileGeneratedAt");
+            b.Property(x => x.ReplacedByUserId).HasColumnName("ReplacedByUserId");
+            b.HasIndex(x => x.AppointmentPacketId);
+            b.HasIndex(x => x.AppointmentId);
+            b.HasOne<HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacket>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentPacketId).OnDelete(DeleteBehavior.NoAction);
+        });
+
         // W2-5: per-AppointmentType field-config table.
         builder.Entity<AppointmentTypeFieldConfig>(b =>
         {
