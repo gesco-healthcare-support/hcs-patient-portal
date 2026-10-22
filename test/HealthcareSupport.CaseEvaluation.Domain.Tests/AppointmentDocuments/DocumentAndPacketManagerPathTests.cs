@@ -57,7 +57,7 @@ public class DocumentAndPacketManagerPathTests
     {
         var repo = PacketRepo();
 
-        var packet = await WithGuids(new AppointmentPacketManager(repo))
+        var packet = await WithGuids(new AppointmentPacketManager(repo, Substitute.For<IRepository<AppointmentPacketVersion, Guid>>()))
             .EnsureGeneratingAsync(TenantId, AppointmentId, PacketKind.Doctor, "blob/first.docx");
 
         packet.Id.ShouldNotBe(Guid.Empty);
@@ -74,7 +74,7 @@ public class DocumentAndPacketManagerPathTests
         {
             ErrorMessage = "TEST earlier failure",
         };
-        var manager = new AppointmentPacketManager(PacketRepo(packet));
+        var manager = new AppointmentPacketManager(PacketRepo(packet), Substitute.For<IRepository<AppointmentPacketVersion, Guid>>());
 
         await manager.MarkGeneratedAsync(packet.Id, "blob/v2.pdf");
         var firstGeneratedAt = packet.GeneratedAt;
@@ -92,7 +92,7 @@ public class DocumentAndPacketManagerPathTests
     {
         var shortFail = new AppointmentPacket(Guid.NewGuid(), TenantId, AppointmentId, PacketKind.Patient, "blob/a.pdf");
         var longFail = new AppointmentPacket(Guid.NewGuid(), TenantId, AppointmentId, PacketKind.Doctor, "blob/b.pdf");
-        var manager = new AppointmentPacketManager(PacketRepo(shortFail, longFail));
+        var manager = new AppointmentPacketManager(PacketRepo(shortFail, longFail), Substitute.For<IRepository<AppointmentPacketVersion, Guid>>());
 
         await manager.MarkFailedAsync(shortFail.Id, "TEST renderer down");
         await manager.MarkFailedAsync(longFail.Id, new string('x', AppointmentPacketConsts.ErrorMessageMaxLength + 25));

@@ -31,6 +31,19 @@ public class GenerateAppointmentPacketArgs
     /// re-emailing the others. Null = generate all three (the on-approval default).
     /// </summary>
     public PacketKind? Kind { get; set; }
+
+    /// <summary>
+    /// Render <see cref="Kind"/> again even though it is already Generated (2026-10-21): staff changed
+    /// the parties the packet names. The new file is stored under a new key, the row is pointed at it,
+    /// and the previous file is kept and recorded as an <see cref="AppointmentPacketVersion"/>. The
+    /// <see cref="PacketGeneratedEto"/> that follows mails only addresses that were never sent this
+    /// packet, so the parties already mailed are not mailed again. Ignored without
+    /// <see cref="Kind"/>, so it can never re-render and re-mail a whole set.
+    /// </summary>
+    public bool ReRender { get; set; }
+
+    /// <summary>The staff member whose change asked for the re-render; recorded on the version row.</summary>
+    public Guid? RequestedByUserId { get; set; }
 }
 
 /// <summary>
@@ -129,10 +142,12 @@ public class GenerateAppointmentPacketJob :
                 PacketKind.AttorneyClaimExaminer,
             };
 
+        var reRender = args.ReRender && args.Kind.HasValue;
+
         var anyFailed = false;
         foreach (var kind in kindsToGenerate)
         {
-            var ok = await GenerateKindAsync(args.AppointmentId, kind, context);
+            var ok = await GenerateKindAsync(args.AppointmentId, kind, context, reRender, args.RequestedByUserId);
             if (!ok)
             {
                 anyFailed = true;
@@ -149,7 +164,12 @@ public class GenerateAppointmentPacketJob :
         }
     }
 
-    private async Task<bool> GenerateKindAsync(Guid appointmentId, PacketKind kind, PacketTokenContext context)
+    private async Task<bool> GenerateKindAsync(
+        Guid appointmentId,
+        PacketKind kind,
+        PacketTokenContext context,
+        bool reRender,
+        Guid? requestedByUserId)
     {
         var tenantSegment = _currentTenant.Id?.ToString() ?? "host";
         // The WeasyPrint sidecar returns a final PDF; the blob extension is
@@ -172,6 +192,11 @@ public class GenerateAppointmentPacketJob :
                 "GenerateAppointmentPacketJob: appointment {AppointmentId} kind {Kind} claimed by a concurrent worker; skipping.",
                 appointmentId, kind);
             return true; // not a failure -- the winner finishes this kind.
+        }
+
+        if (packet.Status == PacketGenerationStatus.Generated && reRender)
+        {
+            return await ReRenderGeneratedAsync(appointmentId, packet, kind, context, blobName, requestedByUserId);
         }
 
         if (packet.Status == PacketGenerationStatus.Generated)
@@ -218,23 +243,7 @@ public class GenerateAppointmentPacketJob :
             // as still NotStarted, and log "is not Generated; skipping"
             // (the Cat 4 P0 we hit while smoke-testing). OnCompleted runs
             // strictly after SaveChanges, eliminating the race.
-            var eto = new PacketGeneratedEto
-            {
-                AppointmentId = appointmentId,
-                TenantId = _currentTenant.Id,
-                PacketId = packet.Id,
-                Kind = kind,
-                OccurredAt = DateTime.UtcNow,
-            };
-            var currentUow = _unitOfWorkManager.Current;
-            if (currentUow != null)
-            {
-                currentUow.OnCompleted(async () => await _localEventBus.PublishAsync(eto));
-            }
-            else
-            {
-                await _localEventBus.PublishAsync(eto);
-            }
+            await PublishAfterCommitAsync(appointmentId, packet.Id, kind);
 
             _logger.LogInformation(
                 "GenerateAppointmentPacketJob: appointment {AppointmentId} kind {Kind} generated ({PdfBytes} bytes PDF); PacketGeneratedEto published.",
@@ -265,6 +274,82 @@ public class GenerateAppointmentPacketJob :
             // dead-letter if it stays broken). Do NOT rethrow the raw render
             // exception here -- that would abort the sibling kinds mid-loop.
             return false;
+        }
+    }
+
+    /// <summary>
+    /// Renders an already Generated kind again (<see cref="GenerateAppointmentPacketArgs.ReRender"/>).
+    /// The row stays Generated on its previous file until the new one is stored, so the packet can be
+    /// downloaded throughout and a failure leaves it exactly as it was. The new file goes under a new
+    /// key and the previous one is recorded by <see cref="AppointmentPacketManager.ReplaceGeneratedFileAsync"/>;
+    /// nothing is overwritten or deleted.
+    /// </summary>
+    private async Task<bool> ReRenderGeneratedAsync(
+        Guid appointmentId,
+        AppointmentPacket packet,
+        PacketKind kind,
+        PacketTokenContext context,
+        string blobName,
+        Guid? requestedByUserId)
+    {
+        try
+        {
+            // Transport / timeout failures propagate, as on first generation: Hangfire retries the
+            // job, and the email waits for the new file.
+            var pdfBytes = await RenderHtmlPacketAsync(kind, context);
+
+            using var ms = new MemoryStream(pdfBytes);
+            await _packetsContainer.SaveAsync(blobName, ms, overrideExisting: false);
+
+            await _packetManager.ReplaceGeneratedFileAsync(packet.Id, blobName, requestedByUserId);
+
+            await PublishAfterCommitAsync(appointmentId, packet.Id, kind);
+
+            _logger.LogInformation(
+                "GenerateAppointmentPacketJob: appointment {AppointmentId} kind {Kind} re-rendered ({PdfBytes} bytes PDF); previous file kept; PacketGeneratedEto published.",
+                appointmentId, kind, pdfBytes.Length);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException
+                                   || ex is InvalidOperationException
+                                   || ex is ArgumentException
+                                   || ex is AbpDbConcurrencyException)
+        {
+            // The previous file is still on the row and still good, so the packet is NOT marked
+            // Failed. A party added since approval is sent the packet as it stands rather than
+            // nothing; the email goes once per address, so nobody already mailed is mailed again.
+            // Not reported as a failure: these errors repeat on a retry, and only a job that
+            // completes runs the after-commit publish that sends that email.
+            _logger.LogError(ex,
+                "GenerateAppointmentPacketJob: appointment {AppointmentId} kind {Kind} re-render failed; the previous file stays and is sent to any new party.",
+                appointmentId, kind);
+            await PublishAfterCommitAsync(appointmentId, packet.Id, kind);
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Announces a rendered packet once the surrounding unit of work commits (see the 2026-05-11 note
+    /// in <see cref="GenerateKindAsync"/> for why it must wait for the commit).
+    /// </summary>
+    private async Task PublishAfterCommitAsync(Guid appointmentId, Guid packetId, PacketKind kind)
+    {
+        var eto = new PacketGeneratedEto
+        {
+            AppointmentId = appointmentId,
+            TenantId = _currentTenant.Id,
+            PacketId = packetId,
+            Kind = kind,
+            OccurredAt = DateTime.UtcNow,
+        };
+        var currentUow = _unitOfWorkManager.Current;
+        if (currentUow != null)
+        {
+            currentUow.OnCompleted(async () => await _localEventBus.PublishAsync(eto));
+        }
+        else
+        {
+            await _localEventBus.PublishAsync(eto);
         }
     }
 

@@ -16,6 +16,7 @@ import type {
   ManagedTableDataSource,
 } from '../shared/components/managed-table/managed-table.models';
 import { BrandingService, OfficeBrandingDto } from '../shared/branding/branding.service';
+import { OfficeLetterheadComponent } from './office-letterhead.component';
 
 /**
  * Phase E (2026-06-25) -- host-side central per-office branding manager for IT Admin
@@ -36,6 +37,7 @@ import { BrandingService, OfficeBrandingDto } from '../shared/branding/branding.
     ManagedTableComponent,
     ManagedTableCellDirective,
     ManagedTableRowActionsDirective,
+    OfficeLetterheadComponent,
   ],
   // The display-name cell used to be styled by .ho-assign__table input[type='text'];
   // inside app-managed-table that selector no longer matches, so the input rule is
@@ -69,7 +71,7 @@ import { BrandingService, OfficeBrandingDto } from '../shared/branding/branding.
         <!-- UI label: 'Practice Branding' (code: office branding) -->
         <h1>Practice Branding</h1>
         <!-- UI label: 'practice' (code: office) -->
-        <p>Set each practice's display name and logo. Changes apply to that practice only.</p>
+        <p>Set each practice's display name, logo and packet letterhead.</p>
       </header>
 
       <!-- UI labels: search 'practice or display name', empty 'No practices yet.' (code: office) -->
@@ -118,6 +120,9 @@ import { BrandingService, OfficeBrandingDto } from '../shared/branding/branding.
           <button type="button" class="ho-assign__btn" [disabled]="busy()" (click)="saveName(row)">
             Save name
           </button>
+          <button type="button" class="ho-assign__btn" (click)="letterheadFor.set(row)">
+            Letterhead
+          </button>
           @if (row.hasLogo) {
             <button
               type="button"
@@ -131,6 +136,19 @@ import { BrandingService, OfficeBrandingDto } from '../shared/branding/branding.
           }
         </ng-container>
       </app-managed-table>
+
+      @if (letterheadFor(); as office) {
+        <div
+          class="d-flex align-items-center justify-content-between mt-4"
+          data-testid="host-letterhead"
+        >
+          <h2>{{ office.officeName | officeName }}</h2>
+          <button type="button" class="ho-assign__btn" (click)="letterheadFor.set(null)">
+            Close
+          </button>
+        </div>
+        <app-office-letterhead [officeId]="office.officeId" />
+      }
     </section>
   `,
 })
@@ -139,6 +157,9 @@ export class HostBrandingComponent {
   private readonly toaster = inject(ToasterService);
 
   protected readonly busy = signal(false);
+
+  /** The office whose packet letterhead is open below the table (2026-10-21), or none. */
+  protected readonly letterheadFor = signal<OfficeBrandingDto | null>(null);
 
   /** Forces the offices table to refetch after a save / upload / remove. */
   protected readonly reload$ = new Subject<void>();

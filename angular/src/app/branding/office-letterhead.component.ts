@@ -1,9 +1,20 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  Input,
+  OnChanges,
+  OnInit,
+  SimpleChanges,
+  inject,
+  signal,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RestService } from '@abp/ng.core';
 import { ToasterService } from '@abp/ng.theme.shared';
+import { Observable } from 'rxjs';
 import { finalize } from 'rxjs/operators';
 import { IconComponent } from '../shared/ui/icon/icon.component';
-import type { OfficeLetterheadDto } from '../proxy/branding/models';
+import type { OfficeLetterheadDto, UpdateOfficeLetterheadInput } from '../proxy/branding/models';
 import { OfficeLetterheadService } from '../proxy/branding/office-letterhead.service';
 import {
   LetterheadForm,
@@ -22,6 +33,10 @@ import {
  * derived from the doctor entered when the practice was created -- so a new office's
  * packets are correct before anyone opens this card. Lines with no value (no fax, no fee)
  * are left off the packets rather than printed empty.
+ *
+ * 2026-10-21: with `officeId` set it edits THAT office from the host branding page, through the
+ * host-only `api/app/branding/offices/{officeId}/letterhead` (a host Staff Supervisor or IT Admin
+ * holds Branding there, but not inside an office). Without it, the current office, as before.
  */
 @Component({
   selector: 'app-office-letterhead',
@@ -59,9 +74,13 @@ import {
     }
   `,
 })
-export class OfficeLetterheadComponent {
+export class OfficeLetterheadComponent implements OnInit, OnChanges {
   private readonly service = inject(OfficeLetterheadService);
+  private readonly rest = inject(RestService);
   private readonly toaster = inject(ToasterService);
+
+  /** The office to edit from the host branding page; unset = the current office. */
+  @Input() officeId?: string;
 
   protected readonly loading = signal(true);
   protected readonly busy = signal(false);
@@ -71,14 +90,16 @@ export class OfficeLetterheadComponent {
   > | null>(null);
   protected form: LetterheadForm = emptyLetterheadForm();
 
-  constructor() {
-    this.service
-      .get()
-      .pipe(finalize(() => this.loading.set(false)))
-      .subscribe({
-        next: (dto) => this.apply(dto),
-        error: () => undefined,
-      });
+  ngOnInit(): void {
+    this.load();
+  }
+
+  /** The host page switches offices on one card; reload when it does. */
+  ngOnChanges(changes: SimpleChanges): void {
+    const change = changes['officeId'];
+    if (change && !change.firstChange) {
+      this.load();
+    }
   }
 
   /** True when the fee box holds something that is not a valid amount. */
@@ -97,8 +118,7 @@ export class OfficeLetterheadComponent {
       return;
     }
     this.busy.set(true);
-    this.service
-      .update(input)
+    this.write(input)
       .pipe(finalize(() => this.busy.set(false)))
       .subscribe({
         next: (dto) => {
@@ -107,6 +127,38 @@ export class OfficeLetterheadComponent {
         },
         error: () => undefined,
       });
+  }
+
+  private load(): void {
+    this.loading.set(true);
+    this.read()
+      .pipe(finalize(() => this.loading.set(false)))
+      .subscribe({
+        next: (dto) => this.apply(dto),
+        error: () => undefined,
+      });
+  }
+
+  private read(): Observable<OfficeLetterheadDto> {
+    return this.officeId
+      ? this.rest.request<void, OfficeLetterheadDto>(
+          { method: 'GET', url: this.officeUrl(this.officeId) },
+          { apiName: 'Default' },
+        )
+      : this.service.get();
+  }
+
+  private write(input: UpdateOfficeLetterheadInput): Observable<OfficeLetterheadDto> {
+    return this.officeId
+      ? this.rest.request<UpdateOfficeLetterheadInput, OfficeLetterheadDto>(
+          { method: 'PUT', url: this.officeUrl(this.officeId), body: input },
+          { apiName: 'Default' },
+        )
+      : this.service.update(input);
+  }
+
+  private officeUrl(officeId: string): string {
+    return `/api/app/branding/offices/${encodeURIComponent(officeId)}/letterhead`;
   }
 
   private apply(dto: OfficeLetterheadDto): void {
