@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Doctors;
 using HealthcareSupport.CaseEvaluation.Identity;
+using HealthcareSupport.CaseEvaluation.MultiTenancy;
 using HealthcareSupport.CaseEvaluation.Patients;
 using HealthcareSupport.CaseEvaluation.Shared;
 using Microsoft.Extensions.DependencyInjection;
@@ -33,8 +34,8 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.RealAuthorization
 [Collection(RealAuthorizationCollection.Name)]
 public class TenantLookupOfficeScopeAuthorizationTests : CaseEvaluationRealAuthorizationTestBase
 {
-    // The cleanup prefix maps the office to the harness's shared cleanup database; nothing is ever
-    // written there, the office only has to exist in the host registry.
+    // The cleanup prefix maps the office to the harness's shared cleanup database. This test writes
+    // nothing there; other tests that walk every office may read it.
     private const string OtherOfficeName = "f2-cleanup-tenant-lookup";
 
     private static readonly SemaphoreSlim SeedLock = new(1, 1);
@@ -151,6 +152,10 @@ public class TenantLookupOfficeScopeAuthorizationTests : CaseEvaluationRealAutho
                 using (_currentTenant.Change(null))
                 {
                     var office = await GetRequiredService<ITenantManager>().CreateAsync(OtherOfficeName);
+                    // A real office row names its database. Other tests in this collection walk every
+                    // registered office and open its database, so an office without one would fail them.
+                    office.SetDefaultConnectionString(
+                        TenantNaming.BuildStoredConnectionString(TenantNaming.DeriveSlug(OtherOfficeName)));
                     await GetRequiredService<IRepository<Tenant, Guid>>().InsertAsync(office, autoSave: true);
                     id = office.Id;
                 }
