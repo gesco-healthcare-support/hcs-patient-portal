@@ -88,9 +88,14 @@ public class DoctorsAppService : CaseEvaluationAppService, IDoctorsAppService
         return ObjectMapper.Map<Doctor, DoctorDto>(await _doctorRepository.GetAsync(id));
     }
 
+    /// <summary>
+    /// The office list. The office registry is host-side and Saas reads it from any scope, so a
+    /// caller inside an office gets only its own office (2026-10-22); the host gets them all.
+    /// </summary>
     public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetTenantLookupAsync(LookupRequestDto input)
     {
-        var query = (await _tenantRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!)).OrderBy(x => x.Name);
+        var ownOffice = CurrentTenant.Id;
+        var query = (await _tenantRepository.GetQueryableAsync()).WhereIf(ownOffice.HasValue, x => x.Id == ownOffice).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!)).OrderBy(x => x.Name);
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<Volo.Saas.Tenants.Tenant>();
         var totalCount = query.Count();
         return new PagedResultDto<LookupDto<Guid>>
