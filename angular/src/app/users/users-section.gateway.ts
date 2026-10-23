@@ -12,6 +12,7 @@ import { ExternalSignupStaffService } from '../proxy/external-signups/external-s
 import { InternalUsersService } from '../proxy/internal-users/internal-users.service';
 import { UserExtendedService } from '../proxy/users/user-extended.service';
 import { DashboardService } from '../proxy/dashboards/dashboard.service';
+import { AccountActivationService } from './account-activation.service';
 import type {
   InvitationDto,
   InviteExternalUserDto,
@@ -63,6 +64,7 @@ export class UsersSectionGateway {
   private readonly editions = inject(EditionService);
   private readonly doctorTenant = inject(DoctorTenantService);
   private readonly branding = inject(BrandingService);
+  private readonly activation = inject(AccountActivationService);
 
   // ---- Invite External ----
   sendInvite(input: InviteExternalUserDto): Observable<InviteExternalUserResultDto> {
@@ -198,6 +200,10 @@ export class UsersSectionGateway {
       displayName: form.displayName?.trim() || undefined,
     };
     return this.doctorTenant.createPractice(input);
+  }
+  /** Resends the activation email to the practice's office administrator (host only). */
+  resendOfficeAdminActivation(officeId: string): Observable<void> {
+    return this.activation.resendToOfficeAdministrator(officeId);
   }
   /** Uploads the optional branding logo for a freshly created office (best-effort). */
   uploadOfficeLogo(officeId: string, file: File): Observable<unknown> {

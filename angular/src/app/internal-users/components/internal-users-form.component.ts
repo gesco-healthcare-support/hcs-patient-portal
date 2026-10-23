@@ -10,11 +10,10 @@ import { PhoneNumberDirective } from '../../shared/phone-number.directive';
 /**
  * Internal-user creation form, reachable by host IT Admin (at
  * admin.localhost) and by per-tenant `admin` users on their own
- * subdomain. Hits POST /api/app/internal-users on submit. The
- * auto-generated temporary password is emailed to the new user via
- * INotificationDispatcher (Hangfire queue); the password is NEVER
- * shown in the response or in this UI -- the email is the only
- * channel it leaves the server through.
+ * subdomain. Hits POST /api/app/internal-users on submit. Since
+ * 2026-10-23 no password is generated for anyone to read: the new user
+ * is emailed an activation link (INotificationDispatcher, Hangfire
+ * queue) and chooses their own password from it.
  *
  * Tenant resolution:
  *   - Host caller (IT Admin): no `currentTenant.id`. Render the

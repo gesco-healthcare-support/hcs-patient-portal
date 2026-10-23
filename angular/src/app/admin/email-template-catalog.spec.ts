@@ -12,8 +12,8 @@ describe('email-template-catalog', () => {
   const groupKeys = new Set<TemplateGroupKey>(TEMPLATE_GROUPS.map((g) => g.key));
 
   describe('completeness guard', () => {
-    it('lists 64 unique backend template codes', () => {
-      expect(KNOWN_TEMPLATE_CODES).toHaveSize(64);
+    it('lists 65 unique backend template codes', () => {
+      expect(KNOWN_TEMPLATE_CODES).toHaveSize(65);
       expect(new Set(KNOWN_TEMPLATE_CODES).size).toBe(KNOWN_TEMPLATE_CODES.length);
     });
 

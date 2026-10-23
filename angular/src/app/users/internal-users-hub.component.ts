@@ -556,7 +556,29 @@ export class InternalUsersHubComponent {
       .sendPasswordReset(row.id ?? '')
       .pipe(finalize(() => this.isBusy.set(false)))
       .subscribe({
-        next: () => this.toaster.success('Password reset email queued.'),
+        // An account that has not activated yet is sent a fresh activation link instead of a
+        // reset link (the server decides), so the toast names both.
+        next: () =>
+          this.toaster.success(
+            'Email queued: a reset link, or an activation link if they have not activated yet.',
+          ),
+        error: () => undefined,
+      });
+  }
+
+  /** Practices row: resend the activation email to the practice's office administrator. */
+  protected resendOfficeAdminActivation(row: OfficeListDto): void {
+    if (this.isBusy() || !row.id) {
+      return;
+    }
+    this.isBusy.set(true);
+    this.gateway
+      .resendOfficeAdminActivation(row.id)
+      .pipe(finalize(() => this.isBusy.set(false)))
+      .subscribe({
+        next: () => this.toaster.success('Activation email sent to the practice administrator.'),
+        // Already active, no administrator, or sent a minute ago: the global error handler shows
+        // the server's message.
         error: () => undefined,
       });
   }

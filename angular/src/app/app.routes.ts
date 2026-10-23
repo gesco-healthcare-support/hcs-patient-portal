@@ -94,7 +94,15 @@ const INTERNAL_SHELL_CHILDREN: Routes = [
   },
   {
     path: 'identity',
-    loadChildren: () => import('@volo/abp.ng.identity').then((c) => c.createRoutes()),
+    // 2026-10-23: accounts made on the Users screen are switched on by their owner through an
+    // activation email -- no typed password, no "Email confirmed" box, and a row action to resend.
+    loadChildren: () =>
+      Promise.all([
+        import('@volo/abp.ng.identity'),
+        import('./users/identity-user-activation.contributors'),
+      ]).then(([identity, activation]) =>
+        identity.createRoutes(activation.IDENTITY_USER_ACTIVATION_OPTIONS),
+      ),
   },
   {
     // Prompt 16 Part B (2026-06-16): custom Languages list replaces the ABP

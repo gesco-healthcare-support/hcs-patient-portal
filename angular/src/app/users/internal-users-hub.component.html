@@ -354,7 +354,7 @@
         <div class="ux-rowacts" *managedTableRowActions="let u">
           <button
             class="ra-rowbtn"
-            title="Send password reset"
+            title="Send a password reset (or a new activation link if not activated yet)"
             (click)="sendReset(u)"
             [disabled]="isBusy()"
           >
@@ -380,8 +380,8 @@
             <app-icon [name]="res.welcomeEmailQueued ? 'check' : 'alert'" [size]="16" />
             {{
               res.welcomeEmailQueued
-                ? 'User created -- welcome email queued'
-                : 'User created -- welcome email failed to queue'
+                ? 'User created -- activation email queued'
+                : 'User created -- activation email failed to queue'
             }}
           </div>
           <div class="ux-result__body">
@@ -396,13 +396,13 @@
               </div>
               <div>
                 <div class="k">First sign-in</div>
-                <div class="v">Must change password</div>
+                <div class="v">Chooses a password from the email</div>
               </div>
             </div>
             @if (!res.welcomeEmailQueued) {
               <div class="ra-note warn">
-                The account exists, but the temporary-password email didn't reach the queue. Reset
-                the password and hand-deliver the credentials.
+                The account exists, but the activation email didn't reach the queue. Use the reset
+                button on their row to send a new activation link.
               </div>
             }
           </div>
@@ -457,6 +457,17 @@
           @if (canEditTenant()) {
             <button class="ra-rowbtn" title="Edit" (click)="openEditTenant(t)">
               <app-icon name="doc" [size]="15" />
+            </button>
+          }
+          @if (canCreateTenant()) {
+            <button
+              class="ra-rowbtn"
+              title="Resend activation email to the practice administrator"
+              aria-label="Resend activation email to the practice administrator"
+              (click)="resendOfficeAdminActivation(t)"
+              [disabled]="isBusy()"
+            >
+              <app-icon name="inbox" [size]="15" />
             </button>
           }
         </div>
@@ -545,8 +556,8 @@
           </div>
           <div class="ra-field col-12">
             <div class="ra-note">
-              A one-time temporary password is emailed to the user; they must change it at first
-              sign-in.
+              The user is emailed an activation link and chooses their own password from it; no
+              password is sent by email.
             </div>
           </div>
         </div>
