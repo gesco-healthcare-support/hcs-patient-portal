@@ -210,6 +210,27 @@ public abstract class AccountActivationFlowTests<TStartupModule>
     }
 
     [Fact]
+    public async Task A_deactivated_accounts_link_is_dead_and_cannot_set_its_password()
+    {
+        var userId = await CreateUnconfirmedHostUserAsync();
+        var token = await IssueLinkTokenAsync(userId);
+        await WithUnitOfWorkAsync(async () =>
+        {
+            var user = await _userManager.GetByIdAsync(userId);
+            user.SetIsActive(false);
+            (await _userManager.UpdateAsync(user)).Succeeded.ShouldBeTrue();
+        });
+
+        (await UsableAsync(userId, token)).ShouldBeFalse();
+        (await Should.ThrowAsync<BusinessException>(() => ActivateAsync(userId, token)))
+            .Code.ShouldBe(CaseEvaluationDomainErrorCodes.ActivationLinkInvalid);
+
+        var after = await ReloadAsync(userId);
+        after.EmailConfirmed.ShouldBeFalse();
+        (await WithUnitOfWorkAsync(() => _userManager.CheckPasswordAsync(after, ChosenByOwner))).ShouldBeFalse();
+    }
+
+    [Fact]
     public async Task Activating_restores_an_account_that_was_locked_out()
     {
         var userId = await CreateUnconfirmedHostUserAsync();

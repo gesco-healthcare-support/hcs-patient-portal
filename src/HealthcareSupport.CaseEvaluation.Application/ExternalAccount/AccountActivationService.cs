@@ -56,7 +56,8 @@ public class AccountActivationService : IAccountActivationService, ITransientDep
         }
 
         var user = await _userManager.FindByIdAsync(input.UserId.ToString());
-        if (user == null)
+        // A deactivated account cannot be activated from an old link (same rule as the checker).
+        if (user == null || !user.IsActive)
         {
             throw InvalidLink();
         }

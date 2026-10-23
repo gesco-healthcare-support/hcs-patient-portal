@@ -311,6 +311,25 @@ public abstract class ExternalAccountFailurePathTests<TStartupModule>
         Sends(NotificationTemplateConsts.Codes.UserRegistered).ShouldBeEmpty();
     }
 
+    [Fact]
+    public async Task A_verification_resend_for_a_deactivated_account_sends_nothing()
+    {
+        var (id, email) = await CreateUserAsync(TenantsTestData.TenantARef, confirmEmail: false);
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            await WithUnitOfWorkAsync(async () =>
+            {
+                var user = await _userManager.GetByIdAsync(id);
+                user.SetIsActive(false);
+                (await _userManager.UpdateAsync(user)).Succeeded.ShouldBeTrue();
+            });
+        }
+
+        await InOfficeA(() => _account.ResendEmailVerificationAsync(new ResendEmailVerificationInput { Email = email }));
+
+        _dispatcher.ReceivedCalls().ShouldBeEmpty();
+    }
+
     // ------------------------------------------------------------------ forgot password, unconfirmed
 
     // 2026-10-23: an unconfirmed account asking for a reset used to get NOTHING (the gate refused it

@@ -37,7 +37,9 @@ public class AccountActivationLinkChecker : IAccountActivationLinkChecker, ITran
         }
 
         var user = await _userManager.FindByIdAsync(userId.ToString());
-        if (user == null)
+        // A deactivated account's link is dead too: switching it off must also stop an old link from
+        // setting its password.
+        if (user == null || !user.IsActive)
         {
             return false;
         }

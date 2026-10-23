@@ -416,6 +416,13 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
     /// </summary>
     private async Task TrySendActivationLinkAsync(IdentityUser user, string origin)
     {
+        // A deactivated account is not sent a link: it would arrive dead (the activation page refuses
+        // inactive accounts), and switching an account off should stop the mail too.
+        if (!user.IsActive)
+        {
+            return;
+        }
+
         // Item C (2026-08-22): a null-tenant user is served only when it is a genuine host operator.
         if (!user.TenantId.HasValue && !await IsHostAccountEligibleAsync(user))
         {
