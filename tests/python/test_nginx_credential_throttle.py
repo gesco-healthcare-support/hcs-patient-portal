@@ -80,6 +80,7 @@ class CredentialThrottle(unittest.TestCase):
         for uri in (
             "/Account/Login", "/account/login", "/Account/Login/", "/Account/ForgotPassword",
             "/Account/ResetPassword", "/Account/ResendVerification", "/Account/Register",
+            "/Account/ActivateAccount", "/Account/EmailConfirmation",
             "/api/account/login", "/API/Account/checkPassword", "/api/account/send-password-reset-code",
             "/api/account/reset-password", "/api/account/register", "/api/account/my-profile/change-password",
             "/api/account/some-future-endpoint",
@@ -92,6 +93,7 @@ class CredentialThrottle(unittest.TestCase):
     def test_page_loads_the_authorize_redirect_and_assets_are_not_counted(self):
         for method, uri in (
             ("GET", "/Account/Login"), ("GET", "/Account/ForgotPassword"), ("GET", "/connect/authorize"),
+            ("GET", "/Account/ActivateAccount"), ("HEAD", "/Account/ActivateAccount"),
             ("POST", "/connect/authorize"), ("GET", "/api/account/my-profile"), ("GET", "/libs/x.js"),
             ("POST", "/api/account/dynamic-claims/refresh"), ("POST", "/Account/Logout"),
         ):

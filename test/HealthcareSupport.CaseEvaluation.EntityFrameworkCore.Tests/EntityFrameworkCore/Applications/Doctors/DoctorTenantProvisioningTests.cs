@@ -70,6 +70,26 @@ public sealed class FakeOfficeInfrastructure : ITenantConnectionStringProvider, 
 }
 
 /// <summary>
+/// Records the activation-email request New Practice makes for the new office's admin. The fake
+/// provisioner creates no users, so the real sender would only log that the office has no admin.
+/// </summary>
+public sealed class RecordingActivationSender : HealthcareSupport.CaseEvaluation.ExternalAccount.IAccountActivationSender
+{
+    public List<(Guid OfficeId, string? GreetingName)> OfficeAdminRequests { get; } = new();
+
+    public Task<string> CreateLinkAsync(Volo.Abp.Identity.IdentityUser user) => Task.FromResult("TEST-link");
+
+    public Task SendAsync(Volo.Abp.Identity.IdentityUser user, string contextTag, string? greetingName = null) =>
+        Task.CompletedTask;
+
+    public Task<bool> TrySendToOfficeAdminAsync(Guid officeId, string? greetingName)
+    {
+        OfficeAdminRequests.Add((officeId, greetingName));
+        return Task.FromResult(true);
+    }
+}
+
+/// <summary>
 /// The EF Core test graph with the office infrastructure replaced by <see cref="FakeOfficeInfrastructure"/>.
 /// Without it, <c>ITenantConnectionStringProvider.BuildConnectionString</c> throws in the test
 /// harness (no connection template), so nothing after the first line of the office-creation path
@@ -84,6 +104,9 @@ public class DoctorTenantProvisioningTestModule : AbpModule
         context.Services.Replace(ServiceDescriptor.Transient<ITenantConnectionStringProvider>(sp => sp.GetRequiredService<FakeOfficeInfrastructure>()));
         context.Services.Replace(ServiceDescriptor.Transient<IConnectionStringChecker>(sp => sp.GetRequiredService<FakeOfficeInfrastructure>()));
         context.Services.Replace(ServiceDescriptor.Transient<IOfficeDatabaseProvisioner>(sp => sp.GetRequiredService<FakeOfficeInfrastructure>()));
+        context.Services.AddSingleton<RecordingActivationSender>();
+        context.Services.Replace(ServiceDescriptor.Transient<HealthcareSupport.CaseEvaluation.ExternalAccount.IAccountActivationSender>(
+            sp => sp.GetRequiredService<RecordingActivationSender>()));
     }
 }
 
@@ -144,6 +167,9 @@ public class DoctorTenantProvisioningTests : CaseEvaluationTestBase<DoctorTenant
         _office.CheckedConnectionStrings.ShouldContain(FakeOfficeInfrastructure.ConnectionStringFor(slug));
         (await BrandingFor(TenantsTestData.TenantARef)).ShouldBe("TEST-Office A Display");
         (await BrandingFor(created.Id)).ShouldBe(PracticeNaming.DefaultDisplayName("TEST-Ada", "TEST-Lovelace"));
+        // The office's admin is sent the activate-your-account email, greeted by the doctor's name.
+        GetRequiredService<RecordingActivationSender>().OfficeAdminRequests
+            .ShouldBe(new[] { (created.Id, (string?)"TEST-Ada") });
     }
 
     [Fact]

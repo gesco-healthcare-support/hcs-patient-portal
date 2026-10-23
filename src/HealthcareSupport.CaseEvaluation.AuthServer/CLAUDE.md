@@ -16,7 +16,8 @@ The SPA never renders auth pages; it redirects here for all identity flows.
 - `Pages/Account/ForgotPassword.cshtml.cs` -- calls `IExternalAccountAppService.SendPasswordResetCodeAsync` in-process.
 - `Pages/Account/ResetPassword.cshtml.cs` -- calls `IExternalAccountAppService.ResetPasswordAsync` in-process; redirects to `?flash=password-updated`.
 - `Pages/Account/ResendVerification.cshtml.cs` -- calls `IExternalAccountAppService.ResendEmailVerificationAsync` in-process; pre-fills the email from the query string; mail is sent only on the antiforgery-protected POST (a GET never sends).
-- `Pages/Account/EmailConfirmation.cshtml.cs` -- calls `IdentityUserManager.ConfirmEmailAsync` directly; redirects to `?flash=email-verified` or `?flash=verification-invalid`.
+- `Pages/Account/EmailConfirmation.cshtml.cs` -- GET only checks the link (no state change) and shows a "Confirm my email" button; the POST calls `IdentityUserManager.ConfirmEmailAsync` and redirects to `?flash=email-verified` or `?flash=verification-invalid`.
+- `Pages/Account/ActivateAccount.cshtml.cs` -- the activate-your-account page (`?userId=&token=`). GET asks `IAccountActivationLinkChecker` (never consumes) and shows the set-password form or one dead-link message; the POST calls `IAccountActivationService`, which sets the password AND confirms the email, then redirects to `?flash=password-updated`.
 - `Pages/Account/Logout.cshtml.cs` -- signs out all four Identity schemes, deletes `__tenant` + `XSRF-TOKEN` cookies, redirects SPA to `/?logout=true` on the same subdomain.
 - `CaseEvaluationBrandingProvider.cs` -- sets app name/logo shown on Razor pages.
 
@@ -50,7 +51,7 @@ All other failure alerts are cleared before returning `Page()`.
 through the OpenIddict authorize redirect chain.
 
 | Value | Emitted by | Banner |
-| `password-updated` | `ResetPasswordModel` | success |
+| `password-updated` | `ResetPasswordModel`, `ActivateAccountModel` | success |
 | `email-verified` | `EmailConfirmationModel` | success |
 | `verification-invalid` | `EmailConfirmationModel` | warning |
 
@@ -110,9 +111,12 @@ inheritance alone does not override them.
 
 ## Gotchas
 
-- `EmailConfirmationModel` is `[AllowAnonymous]` and only handles `OnGetAsync`. HEAD
-  requests from email scanners (Outlook Safe Links) do nothing -- by design, to prevent
-  premature token consumption.
+- Razor Pages answers HEAD with the GET handler, and mail scanners (Microsoft 365 Safe Links)
+  send HEAD and GET to every link seconds before the person clicks. So a GET handler on any page an
+  email links to must not change state. Measured 2026-10-23: a Safe Links HEAD confirmed an email
+  while `EmailConfirmationModel` still confirmed inside `OnGetAsync` (an earlier note here claimed
+  HEAD "does nothing"; it was wrong). `EmailConfirmationModel` and `ActivateAccountModel` now only
+  check on GET and act on the antiforgery-protected POST.
 - `LogoutModel` redirects to the SPA on the SAME subdomain (`Request.Host` preserved,
   only port swapped to 4200). If `App:AngularUrl` port differs from 4200, the fallback
   parses it from the config URI.

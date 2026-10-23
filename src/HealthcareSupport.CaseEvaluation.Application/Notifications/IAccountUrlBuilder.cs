@@ -98,6 +98,13 @@ public interface IAccountUrlBuilder
     Task<string> BuildEmailConfirmationUrlForUserAsync(Guid? tenantId, Guid userId, string token);
 
     /// <summary>
+    /// 2026-10-23 -- the activate-your-account link: <c>{auth}/Account/ActivateAccount?userId=&amp;token=</c>
+    /// on the user's own office sign-in host, or the host one (admin.) for a null tenant. Same
+    /// host-vs-office rule as the reset and confirmation links.
+    /// </summary>
+    Task<string> BuildAccountActivationUrlForUserAsync(Guid? tenantId, Guid userId, string token);
+
+    /// <summary>
     /// Builds the AuthServer-hosted invite-acceptance URL the
     /// IT-Admin invite flow emails to the prospective external user.
     /// Format:

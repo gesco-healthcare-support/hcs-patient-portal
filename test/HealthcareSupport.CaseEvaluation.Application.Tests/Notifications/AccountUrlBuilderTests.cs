@@ -177,6 +177,30 @@ public class AccountUrlBuilderTests
     // ------------------------------------------------------------------
 
     [Fact]
+    public async Task BuildAccountActivationUrlForUserAsync_KnownTenant_UsesTheOfficeSignInHostAndEncodesToken()
+    {
+        var sut = NewBuilder(authServerUrl: ConfiguredAuthServerUrl, tenantName: TenantName);
+        var userId = new Guid("703850fc-ab36-6e2f-24cf-3a215e214e36");
+
+        var url = await sut.BuildAccountActivationUrlForUserAsync(FalkinsteinTenantId, userId, "tok /+=");
+
+        url.ShouldBe(
+            $"http://falkinstein.localhost:44398/Account/ActivateAccount" +
+            $"?userId={userId}&token=tok+%2F%2B%3D");
+    }
+
+    [Fact]
+    public async Task BuildAccountActivationUrlForUserAsync_NullTenant_UsesTheHostSignInHost()
+    {
+        var sut = NewBuilder(authServerUrl: ConfiguredAuthServerUrl, tenantName: TenantName);
+        var userId = new Guid("703850fc-ab36-6e2f-24cf-3a215e214e36");
+
+        var url = await sut.BuildAccountActivationUrlForUserAsync(null, userId, "tok");
+
+        url.ShouldBe($"http://admin.localhost:44398/Account/ActivateAccount?userId={userId}&token=tok");
+    }
+
+    [Fact]
     public async Task BuildPasswordResetUrlForUserAsync_NullTenant_MatchesTheHostOverload()
     {
         var sut = NewBuilder(authServerUrl: ConfiguredAuthServerUrl, tenantName: TenantName);
