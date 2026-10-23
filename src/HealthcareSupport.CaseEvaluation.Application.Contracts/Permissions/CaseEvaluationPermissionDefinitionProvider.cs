@@ -1,5 +1,6 @@
 using HealthcareSupport.CaseEvaluation.Localization;
 using Volo.Abp.Authorization.Permissions;
+using Volo.Abp.Identity;
 using Volo.Abp.Localization;
 using Volo.Abp.MultiTenancy;
 
@@ -306,6 +307,25 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
         brandingPermission.AddChild(
             CaseEvaluationPermissions.Branding.Edit,
             L("Permission:Branding.Edit"));
+
+        DisableUserImport(context);
+    }
+
+    /// <summary>
+    /// 2026-10-23: the identity Users screen's "import users from a file" is switched off. It created
+    /// accounts with passwords typed into the file and roles taken from it, sent no activation email,
+    /// and skipped UserExtendedAppService.CreateAsync, which every new account must go through. A
+    /// disabled permission is granted to nobody, the admin roles included, so the import endpoints refuse
+    /// and the screen hides its import menu. ABP's identity provider runs before this one (module
+    /// dependency order), so the permission exists here; a test pins that it ends up disabled.
+    /// </summary>
+    internal static void DisableUserImport(IPermissionDefinitionContext context)
+    {
+        var userImport = context.GetPermissionOrNull(IdentityPermissions.Users.Import);
+        if (userImport != null)
+        {
+            userImport.IsEnabled = false;
+        }
     }
 
     private static LocalizableString L(string name)
