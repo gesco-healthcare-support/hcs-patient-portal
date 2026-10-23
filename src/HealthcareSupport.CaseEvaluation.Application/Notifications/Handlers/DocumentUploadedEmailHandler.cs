@@ -79,6 +79,7 @@ public class DocumentUploadedEmailHandler :
             TenantId = eventData.TenantId,
             AppointmentId = eventData.AppointmentId,
             AppointmentDocumentId = eventData.AppointmentDocumentId,
+            OccurredAt = eventData.OccurredAt,
             Kind = NotificationKind.DocumentUploaded,
             EmailKind = DocumentEmailKind.Uploaded,
             ExcludeOfficeFromCc = false,

@@ -307,7 +307,8 @@ public abstract class ExternalAccountFailurePathTests<TStartupModule>
         recipients.ShouldHaveSingleItem().Email.ShouldBe(email);
         var variables = (IReadOnlyDictionary<string, object?>)send[2]!;
         ((string)variables["URL"]!).ShouldContain($"/Account/ActivateAccount?userId={id}&token=");
-        ((string)send[3]!).ShouldBe($"AccountActivation/Resend/{id}");
+        // Each request is its own email: a second "send me a new link" must really send.
+        ((string)send[3]!).ShouldStartWith($"AccountActivation/Resend/{id}/r");
         Sends(NotificationTemplateConsts.Codes.UserRegistered).ShouldBeEmpty();
     }
 
@@ -343,7 +344,7 @@ public abstract class ExternalAccountFailurePathTests<TStartupModule>
 
         Sends(NotificationTemplateConsts.Codes.ResetPassword).ShouldBeEmpty();
         var send = Sends(NotificationTemplateConsts.Codes.AccountActivation).ShouldHaveSingleItem();
-        ((string)send[3]!).ShouldBe($"AccountActivation/ForgotPassword/{id}");
+        ((string)send[3]!).ShouldStartWith($"AccountActivation/ForgotPassword/{id}/r");
         // Still counted against the reset allowance, exactly like any other reset request.
         (await _cache.GetStringAsync(Key(ResetPrefix, "cooldown", email))).ShouldBe("1");
     }

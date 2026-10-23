@@ -39,6 +39,13 @@ public class NotificationOutboxManager : DomainService
     /// untouched; otherwise inserts a new Pending row. This is what makes the
     /// approval UoW's write safe to replay -- a re-run of the same logical send
     /// collapses to one ledger row rather than a duplicate PHI email.
+    ///
+    /// <para>The collapse ignores the existing row's state, so the key decides how
+    /// often an email can EVER be sent. An email that can happen more than once for
+    /// the same recipient (a password reset, a daily digest, an alert) must carry an
+    /// occurrence part in its context tag -- the Application layer's
+    /// <c>NotificationOccurrence</c> -- or every repeat after the first is silently
+    /// dropped. Until 2026-10-23 several did not.</para>
     /// </summary>
     public virtual async Task<NotificationOutboxItem> EnqueueAsync(
         Guid? tenantId,

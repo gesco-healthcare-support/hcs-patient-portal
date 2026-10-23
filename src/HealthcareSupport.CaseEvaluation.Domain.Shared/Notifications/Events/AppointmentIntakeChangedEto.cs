@@ -18,6 +18,12 @@ public class AppointmentIntakeChangedEto
     public bool DateOrTimeChanged { get; set; }
 
     public List<IntakeChangedField> ChangedFields { get; set; } = new();
+
+    /// <summary>
+    /// When the change was saved. Part of the email's context tag, because the same appointment can be
+    /// edited many times and each edit is its own email.
+    /// </summary>
+    public DateTime OccurredAt { get; set; }
 }
 
 /// <summary>One redacted intake field change for the notification diff table.</summary>

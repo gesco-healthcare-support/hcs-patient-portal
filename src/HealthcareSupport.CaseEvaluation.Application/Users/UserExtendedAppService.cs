@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.ExternalAccount;
 using HealthcareSupport.CaseEvaluation.Identity;
 using HealthcareSupport.CaseEvaluation.InternalUsers;
+using HealthcareSupport.CaseEvaluation.Notifications;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
@@ -148,7 +149,7 @@ namespace HealthcareSupport.CaseEvaluation.Users
             // all. A failure to queue it is NOT swallowed: an account that exists but was never sent
             // its link is exactly the dead end this replaces.
             var user = await UserManager.GetByIdAsync(created.Id);
-            await _activationSender.SendAsync(user, $"AccountActivation/IdentityUserCreated/{user.Id}");
+            await _activationSender.SendAsync(user, NotificationOccurrence.PerRequest($"AccountActivation/IdentityUserCreated/{user.Id}"));
 
             return created;
         }

@@ -112,7 +112,7 @@ public class PendingDailyDigestEmailHandler :
                 templateCode: NotificationTemplateConsts.Codes.PendingAppointmentDailyNotification,
                 recipients: recipients,
                 variables: variables,
-                contextTag: $"PendingDailyDigest/{eventData.TenantId}");
+                contextTag: NotificationOccurrence.PerPacificDay($"PendingDailyDigest/{eventData.TenantId}", eventData.OccurredAt));
         }
     }
 

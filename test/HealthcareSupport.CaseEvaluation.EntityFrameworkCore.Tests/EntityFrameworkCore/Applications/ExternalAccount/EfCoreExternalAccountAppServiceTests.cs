@@ -531,8 +531,16 @@ public class EfCoreExternalAccountAppServiceTests
             return userId;
         });
 
-    private Task<List<NotificationOutboxItem>> OutboxRowsAsync(string contextTag) =>
-        WithUnitOfWorkAsync(() => _outboxRepository.GetListAsync(x => x.Context == contextTag));
+    /// <summary>
+    /// The rows of one email kind. Person-triggered emails carry an occurrence part after the kind
+    /// (NotificationOccurrence), so a kind matches itself or itself followed by "/...".
+    /// </summary>
+    private Task<List<NotificationOutboxItem>> OutboxRowsAsync(string kind)
+    {
+        var occurrences = kind + "/";
+        return WithUnitOfWorkAsync(() => _outboxRepository.GetListAsync(
+            x => x.Context == kind || x.Context.StartsWith(occurrences)));
+    }
 
     [Fact]
     public async Task SendPasswordResetCodeAsync_ForAnEligibleHostOperator_QueuesTheResetEmail()

@@ -158,7 +158,7 @@ public abstract class AccountSelfServiceFlowTests<TStartupModule>
         var variables = (IReadOnlyDictionary<string, object?>)args[2]!;
         variables["PatientFirstName"].ShouldBe("Synthetic");
         variables["PatientEmail"].ShouldBe(user.Email);
-        args[3].ShouldBe($"PasswordChange/InApp/{userId}");
+        ((string)args[3]!).ShouldStartWith($"PasswordChange/InApp/{userId}/r");
     }
 
     [Fact]

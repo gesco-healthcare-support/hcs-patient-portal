@@ -107,7 +107,7 @@ public class IntakeChangedEmailHandler :
                 templateCode: NotificationTemplateConsts.Codes.AppointmentChangeLogs,
                 recipients: recipients,
                 variables: diffVariables,
-                contextTag: $"IntakeChanged/{eventData.AppointmentId}");
+                contextTag: NotificationOccurrence.At($"IntakeChanged/{eventData.AppointmentId}", eventData.OccurredAt));
 
             if (eventData.DateOrTimeChanged)
             {
@@ -123,7 +123,7 @@ public class IntakeChangedEmailHandler :
                     templateCode: NotificationTemplateConsts.Codes.AppointmentRescheduleRequestByAdmin,
                     recipients: recipients,
                     variables: rescheduleVariables,
-                    contextTag: $"IntakeChanged/Reschedule/{eventData.AppointmentId}");
+                    contextTag: NotificationOccurrence.At($"IntakeChanged/Reschedule/{eventData.AppointmentId}", eventData.OccurredAt));
             }
         }
     }
