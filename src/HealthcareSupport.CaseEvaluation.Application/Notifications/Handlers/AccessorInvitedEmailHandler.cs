@@ -4,6 +4,7 @@ using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
+using HealthcareSupport.CaseEvaluation.ExternalAccount;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using HealthcareSupport.CaseEvaluation.Settings;
@@ -59,8 +60,8 @@ public class AccessorInvitedEmailHandler :
     private readonly IdentityUserManager _userManager;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<AccessorInvitedEmailHandler> _logger;
-    private readonly IAccountUrlBuilder _accountUrlBuilder;
     private readonly ITenantStore _tenantStore;
+    private readonly IAccountActivationSender _activationSender;
 
     public AccessorInvitedEmailHandler(
         INotificationDispatcher dispatcher,
@@ -68,16 +69,16 @@ public class AccessorInvitedEmailHandler :
         IdentityUserManager userManager,
         ICurrentTenant currentTenant,
         ILogger<AccessorInvitedEmailHandler> logger,
-        IAccountUrlBuilder accountUrlBuilder,
-        ITenantStore tenantStore)
+        ITenantStore tenantStore,
+        IAccountActivationSender activationSender)
     {
         _dispatcher = dispatcher;
         _contextResolver = contextResolver;
         _userManager = userManager;
         _currentTenant = currentTenant;
         _logger = logger;
-        _accountUrlBuilder = accountUrlBuilder;
         _tenantStore = tenantStore;
+        _activationSender = activationSender;
     }
 
     [UnitOfWork]
@@ -108,15 +109,13 @@ public class AccessorInvitedEmailHandler :
                 return;
             }
 
-            // Security improvement vs OLD: generate a single-use reset token
-            // instead of echoing a plaintext temp password. Standard ABP
-            // Identity flow; the link expires per IdentityOptions.Tokens.
-            var resetToken = await _userManager.GeneratePasswordResetTokenAsync(user);
-            // BUG-029 v3 fix (2026-05-21): tenant-aware setup URL via the
-            // builder; the URL shape matches BuildPasswordResetUrl
-            // ({base}/Account/ResetPassword?userId=...&resetToken=...).
-            var setupUrl = await _accountUrlBuilder.BuildPasswordResetUrlAsync(
-                eventData.TenantId!.Value, eventData.InvitedUserId, resetToken);
+            // Security improvement vs OLD: a single-use link instead of a plaintext temp password.
+            //
+            // 2026-10-23 -- an ACTIVATION link, not a reset link. The accessor account is created
+            // unconfirmed, and a reset link sets a password without confirming the email, so the
+            // person chose a password and was then refused at sign-in. The activation link sets the
+            // password and confirms the email in one step.
+            var setupUrl = await _activationSender.CreateLinkAsync(user);
 
             var recipients = new[]
             {
@@ -131,7 +130,7 @@ public class AccessorInvitedEmailHandler :
             // uses): inside the _currentTenant.Change(TenantId) scope
             // ICurrentTenant.Name is null, so passing it rendered "... at ."
             // with an empty location (2026-07-10 QA fix).
-            var tenantConfig = await _tenantStore.FindAsync(eventData.TenantId.Value);
+            var tenantConfig = await _tenantStore.FindAsync(eventData.TenantId!.Value);
 
             var variables = BuildAccessorEmailVariables(
                 ctx, tenantConfig?.Name, setupUrl, eventData.Email);

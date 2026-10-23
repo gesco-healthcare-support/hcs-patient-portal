@@ -31,8 +31,8 @@ public class CreatePracticeInput
 
     /// <summary>
     /// Owner doctor's email. Also serves as the office admin login (one doctor per
-    /// practice, so the doctor owns and signs into the office); the admin sets a password
-    /// via the forgot-password flow.
+    /// practice, so the doctor owns and signs into the office). The admin is emailed an
+    /// activate-your-account link and sets their password from it.
     /// </summary>
     [Required]
     [EmailAddress]

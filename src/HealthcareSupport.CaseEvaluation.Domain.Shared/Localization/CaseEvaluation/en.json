@@ -263,6 +263,7 @@
     "CaseEvaluation:AppointmentSubmit.SourceRequired": "This booking follows on from an earlier appointment, but that appointment was not identified, so nothing was saved. Start again from the original appointment.",
     "CaseEvaluation:Upload.Refused": "This file cannot be accepted.",
     "CaseEvaluation:Upload.ScanUnavailable": "The file could not be checked. Please try again later.",
+    "CaseEvaluation:Account.ActivationLinkInvalid": "That activation link doesn't work anymore. Ask for a new one below.",
     "CaseEvaluation:Account.PasswordResetThrottled": "A reset link was already requested for this email address very recently. Please wait a minute and try again, or check your inbox and spam folder for the message already on its way.",
     "CaseEvaluation:UserManagement.PrivilegedChangeNotAllowed": "Only an IT Admin or administrator can change an administrator account, or change who holds an administrator role.",
     "CaseEvaluation:AdminPassword.IsAKnownDefault": "That password is one this product ships as a default and cannot be used. Choose a different password.",

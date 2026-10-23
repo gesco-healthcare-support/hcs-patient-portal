@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.ExternalAccount;
 using HealthcareSupport.CaseEvaluation.Identity;
 using HealthcareSupport.CaseEvaluation.InternalUsers;
 using Microsoft.AspNetCore.Authorization;
@@ -30,6 +31,14 @@ namespace HealthcareSupport.CaseEvaluation.Users
     /// <see cref="InternalUsersAppService.CreatableRoleNames"/>, and may not change their own
     /// roles. IT Admin and admin are unrestricted.</para>
     ///
+    /// <para>2026-10-23 -- it also owns how an account made here is switched on. A new account is
+    /// ALWAYS created unconfirmed, whatever the form's "Email confirmed" box says, and is sent the
+    /// activate-your-account email: choosing a password from that link is what confirms it. An edit
+    /// can never turn confirmation on, and changing the address turns it off. The reason is
+    /// appointment access: a party sees an appointment when their CONFIRMED email matches it, so a
+    /// confirmed flag set by whoever filled in the form -- on an address that may be somebody
+    /// else's -- would hand that person's appointments to the account.</para>
+    ///
     /// <para>It is registered as a REPLACEMENT for the framework service. Volo publishes
     /// <c>/api/identity/users</c> from <see cref="IIdentityUserAppService"/>, and without the
     /// replacement that route would resolve to the framework class and bypass every guard here.</para>
@@ -38,8 +47,11 @@ namespace HealthcareSupport.CaseEvaluation.Users
     [ExposeServices(typeof(IIdentityUserAppService), typeof(IdentityUserAppService), typeof(UserExtendedAppService))]
     public class UserExtendedAppService : IdentityUserAppService
     {
-        public UserExtendedAppService(IdentityUserManager userManager, IIdentityUserRepository userRepository, IIdentityRoleRepository roleRepository, IOrganizationUnitRepository organizationUnitRepository, IIdentityClaimTypeRepository identityClaimTypeRepository, IdentityProTwoFactorManager identityProTwoFactorManager, IOptions<IdentityOptions> identityOptions, IDistributedEventBus distributedEventBus, IOptions<AbpIdentityOptions> abpIdentityOptions, IPermissionChecker permissionChecker, IDistributedCache<IdentityUserDownloadTokenCacheItem, string> downloadTokenCache, IDistributedCache<ImportInvalidUsersCacheItem, string> importInvalidUsersCache, IdentitySessionManager identitySessionManager, IdentityUserTwoFactorChecker identityUserTwoFactorChecker, ICancellationTokenProvider cancellationTokenProvider) : base(userManager, userRepository, roleRepository, organizationUnitRepository, identityClaimTypeRepository, identityProTwoFactorManager, identityOptions, distributedEventBus, abpIdentityOptions, permissionChecker, downloadTokenCache, importInvalidUsersCache, identitySessionManager, identityUserTwoFactorChecker, cancellationTokenProvider)
+        private readonly IAccountActivationSender _activationSender;
+
+        public UserExtendedAppService(IdentityUserManager userManager, IIdentityUserRepository userRepository, IIdentityRoleRepository roleRepository, IOrganizationUnitRepository organizationUnitRepository, IIdentityClaimTypeRepository identityClaimTypeRepository, IdentityProTwoFactorManager identityProTwoFactorManager, IOptions<IdentityOptions> identityOptions, IDistributedEventBus distributedEventBus, IOptions<AbpIdentityOptions> abpIdentityOptions, IPermissionChecker permissionChecker, IDistributedCache<IdentityUserDownloadTokenCacheItem, string> downloadTokenCache, IDistributedCache<ImportInvalidUsersCacheItem, string> importInvalidUsersCache, IdentitySessionManager identitySessionManager, IdentityUserTwoFactorChecker identityUserTwoFactorChecker, ICancellationTokenProvider cancellationTokenProvider, IAccountActivationSender activationSender) : base(userManager, userRepository, roleRepository, organizationUnitRepository, identityClaimTypeRepository, identityProTwoFactorManager, identityOptions, distributedEventBus, abpIdentityOptions, permissionChecker, downloadTokenCache, importInvalidUsersCache, identitySessionManager, identityUserTwoFactorChecker, cancellationTokenProvider)
         {
+            _activationSender = activationSender;
         }
 
         /// <summary>
@@ -118,14 +130,27 @@ namespace HealthcareSupport.CaseEvaluation.Users
         }
 
         [Authorize(IdentityPermissions.Users.Create)]
-        public override Task<IdentityUserDto> CreateAsync(IdentityUserCreateDto input)
+        public override async Task<IdentityUserDto> CreateAsync(IdentityUserCreateDto input)
         {
             if (!CallerIsPrivileged() && (input.RoleNames ?? Array.Empty<string>()).Any(r => !IsStaffRole(r)))
             {
                 throw Refusal();
             }
 
-            return base.CreateAsync(input);
+            // Never confirmed at birth, and never the framework's own bare confirmation mail: the
+            // activation email below is the one this account gets.
+            input.EmailConfirmed = false;
+            input.SendConfirmationEmail = false;
+
+            var created = await base.CreateAsync(input);
+
+            // Same unit of work as the create, so the account and its email land together or not at
+            // all. A failure to queue it is NOT swallowed: an account that exists but was never sent
+            // its link is exactly the dead end this replaces.
+            var user = await UserManager.GetByIdAsync(created.Id);
+            await _activationSender.SendAsync(user, $"AccountActivation/IdentityUserCreated/{user.Id}");
+
+            return created;
         }
 
         [Authorize(IdentityPermissions.Users.Update)]
@@ -133,8 +158,24 @@ namespace HealthcareSupport.CaseEvaluation.Users
         {
             await EnsureTargetNotPrivilegedAsync(id);
             await EnsureRoleChangeAllowedAsync(id, input.RoleNames);
+
+            var existing = await UserManager.FindByIdAsync(id.ToString());
+            if (existing != null)
+            {
+                input.EmailConfirmed = ConfirmedAfterEdit(existing.EmailConfirmed, existing.Email, input.Email);
+            }
+
             return await base.UpdateAsync(id, input);
         }
+
+        /// <summary>
+        /// What an edit leaves the email-confirmed flag as. An edit can only keep confirmation, and
+        /// only when the address is unchanged; it can never turn it on. Confirmation comes from the
+        /// mailbox (an activation or confirmation link), never from a form.
+        /// </summary>
+        internal static bool ConfirmedAfterEdit(bool storedConfirmed, string? storedEmail, string? requestedEmail) =>
+            storedConfirmed
+            && string.Equals(storedEmail?.Trim(), requestedEmail?.Trim(), StringComparison.OrdinalIgnoreCase);
 
         [Authorize(IdentityPermissions.Users.Update)]
         public override async Task UpdateRolesAsync(Guid id, IdentityUserUpdateRolesDto input)
