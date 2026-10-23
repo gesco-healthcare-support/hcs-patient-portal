@@ -127,8 +127,12 @@ sans_of() {
 missing_names() {
   local sans n out=""
   sans="$(sans_of "$1")"
+  # A here-string, not `printf | grep -q`. Under pipefail that pipe can report a covered name as missing: bash's
+  # printf writes line by line, grep -q exits on the first match, and a later line then hits a closed pipe, so the
+  # pipeline fails even though grep found the name. Measured: 1 false miss in 1,500 runs on a busy machine, which
+  # is how CI failed on 2026-10-23. A here-string has no pipe, so grep's own answer is the only status.
   for n in "${names[@]}"; do
-    printf '%s\n' "$sans" | grep -qxF -- "$n" || out+="${out:+ }$n"
+    grep -qxF -- "$n" <<< "$sans" || out+="${out:+ }$n"
   done
   printf '%s' "$out"
 }
