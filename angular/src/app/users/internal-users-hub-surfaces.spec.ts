@@ -69,6 +69,9 @@ describe('InternalUsersHubComponent surfaces', () => {
       createPractice: jasmine.createSpy('createPractice').and.returnValue(of({ id: 'office-1' })),
       uploadOfficeLogo: jasmine.createSpy('uploadOfficeLogo').and.returnValue(of({})),
       updateTenant: jasmine.createSpy('updateTenant').and.returnValue(of({})),
+      resendOfficeAdminActivation: jasmine
+        .createSpy('resendOfficeAdminActivation')
+        .and.returnValue(of(undefined)),
     };
     toaster = {
       success: jasmine.createSpy('success'),
@@ -690,6 +693,34 @@ describe('InternalUsersHubComponent surfaces', () => {
         ...over,
       };
     }
+
+    it('resends the activation email to the practice administrator', () => {
+      const c = create({ section: 'tenants', policies: ['Saas.Tenants.Create'] });
+      c.resendOfficeAdminActivation(officeRow());
+      expect(gateway['resendOfficeAdminActivation']).toHaveBeenCalledOnceWith('office-1');
+      expect(toaster.success).toHaveBeenCalledWith(
+        'Activation email sent to the practice administrator.',
+      );
+      expect(c.isBusy()).toBeFalse();
+    });
+
+    it('does not resend while busy or for a row without an id', () => {
+      const c = create({ section: 'tenants', policies: ['Saas.Tenants.Create'] });
+      c.resendOfficeAdminActivation(officeRow({ id: undefined }));
+      c.isBusy.set(true);
+      c.resendOfficeAdminActivation(officeRow());
+      expect(gateway['resendOfficeAdminActivation']).not.toHaveBeenCalled();
+    });
+
+    it('shows no success toast when the server refuses the resend', () => {
+      const c = create({ section: 'tenants', policies: ['Saas.Tenants.Create'] });
+      gateway['resendOfficeAdminActivation'].and.returnValue(
+        throwError(() => new Error('too soon')),
+      );
+      c.resendOfficeAdminActivation(officeRow());
+      expect(toaster.success).not.toHaveBeenCalled();
+      expect(c.isBusy()).toBeFalse();
+    });
 
     function newPractice(c: Probe, over: Record<string, unknown> = {}): void {
       c.openNewTenant();

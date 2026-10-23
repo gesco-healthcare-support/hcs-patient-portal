@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.ExternalAccount;
 using HealthcareSupport.CaseEvaluation.Notifications.Outbox;
 using HealthcareSupport.CaseEvaluation.Security;
 using Shouldly;
@@ -215,6 +216,36 @@ public abstract class UserExtendedAppServicePrivilegeTests<TStartupModule> : Cas
     }
 
     [Fact]
+    public async Task The_password_typed_on_the_form_is_never_the_accounts_password()
+    {
+        // The owner chooses the password from the activation link. Whatever the form sent is replaced
+        // by a value nobody sees, so the person who created the account cannot sign in as it.
+        var a = await SeedActorsAsync();
+        var name = $"typed-{Guid.NewGuid():N}";
+
+        var created = await AsCallerAsync(a.Admin, Admin, () => _service.CreateAsync(WithExtensionDefaults(new IdentityUserCreateDto
+        {
+            UserName = name,
+            Email = $"{name}@example.test",
+            Password = OriginalPassword,
+            RoleNames = new[] { Intake },
+            ShouldChangePasswordOnNextLogin = true,
+        })));
+
+        using (_currentTenant.Change(null))
+        {
+            await WithUnitOfWorkAsync(async () =>
+            {
+                var user = await _userManager.GetByIdAsync(created.Id);
+                (await _userManager.CheckPasswordAsync(user, OriginalPassword)).ShouldBeFalse(
+                    "the creator knows the typed password; it must not open the account");
+                user.ShouldChangePasswordOnNextLogin.ShouldBeFalse(
+                    "the owner chooses the password once, from the link");
+            });
+        }
+    }
+
+    [Fact]
     public async Task An_edit_can_never_turn_email_confirmation_on_and_a_changed_address_turns_it_off()
     {
         var a = await SeedActorsAsync();
@@ -418,5 +449,95 @@ public abstract class UserExtendedAppServicePrivilegeTests<TStartupModule> : Cas
 
         await AsCallerAsync(caller, callerRole, () => _service.DeleteAsync(a.Supervisor));
         (await SnapshotAsync(a.Supervisor)).Exists.ShouldBeFalse();
+    }
+
+    // 2026-10-23: the identity Users screen's "Resend activation email" row action.
+
+    private IAccountActivationAppService Activation => GetRequiredService<IAccountActivationAppService>();
+
+    [Fact]
+    public async Task Resend_activation_sends_one_fresh_link_to_an_account_not_yet_active()
+    {
+        var a = await SeedActorsAsync();
+
+        await AsCallerAsync(a.Admin, Admin, () => Activation.ResendToUserAsync(a.Intake));
+
+        var rows = await HostOutboxAsync($"AccountActivation/StaffResend/{a.Intake}");
+        rows.Count.ShouldBe(1);
+        rows[0].Body.ShouldContain($"/Account/ActivateAccount?userId={a.Intake}");
+    }
+
+    [Fact]
+    public async Task Resend_activation_pressed_again_within_a_minute_is_refused_and_sends_nothing_more()
+    {
+        // Each send gets its own tag, so nothing else would stop a double-click or a script.
+        var a = await SeedActorsAsync();
+        await AsCallerAsync(a.Admin, Admin, () => Activation.ResendToUserAsync(a.Intake));
+
+        var ex = await Should.ThrowAsync<BusinessException>(
+            () => AsCallerAsync(a.Admin, Admin, () => Activation.ResendToUserAsync(a.Intake)));
+
+        ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.ActivationResendTooSoon);
+        (await HostOutboxAsync($"AccountActivation/StaffResend/{a.Intake}")).Count.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Resend_activation_refuses_an_account_that_is_already_active()
+    {
+        var a = await SeedActorsAsync();
+        await ConfirmThroughTheMailboxAsync(a.Intake);
+
+        var ex = await Should.ThrowAsync<BusinessException>(
+            () => AsCallerAsync(a.Admin, Admin, () => Activation.ResendToUserAsync(a.Intake)));
+
+        ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.ActivationAlreadyActive);
+        (await HostOutboxAsync($"AccountActivation/StaffResend/{a.Intake}")).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Resend_activation_refuses_a_switched_off_account()
+    {
+        var a = await SeedActorsAsync();
+        using (_currentTenant.Change(null))
+        {
+            await WithUnitOfWorkAsync(async () =>
+            {
+                var user = await _userManager.GetByIdAsync(a.Intake);
+                user.SetIsActive(false);
+                (await _userManager.UpdateAsync(user)).Succeeded.ShouldBeTrue();
+            });
+        }
+
+        var ex = await Should.ThrowAsync<BusinessException>(
+            () => AsCallerAsync(a.Admin, Admin, () => Activation.ResendToUserAsync(a.Intake)));
+
+        ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.ActivationAccountInactive);
+        (await HostOutboxAsync($"AccountActivation/StaffResend/{a.Intake}")).ShouldBeEmpty();
+    }
+
+    [Theory]
+    [InlineData(Admin)]
+    [InlineData(ItAdmin)]
+    public async Task A_supervisor_cannot_resend_activation_to_a_privileged_account(string privilegedRole)
+    {
+        // The same rule the Users screen applies to every edit of a privileged account.
+        var a = await SeedActorsAsync();
+        var target = privilegedRole == Admin ? a.Admin : a.ItAdmin;
+
+        var ex = await Should.ThrowAsync<BusinessException>(
+            () => AsCallerAsync(a.Supervisor, Supervisor, () => Activation.ResendToUserAsync(target)));
+
+        ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.PrivilegedUserChangeNotAllowed);
+        (await HostOutboxAsync($"AccountActivation/StaffResend/{target}")).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task A_supervisor_can_resend_activation_to_a_staff_account()
+    {
+        var a = await SeedActorsAsync();
+
+        await AsCallerAsync(a.Supervisor, Supervisor, () => Activation.ResendToUserAsync(a.Intake));
+
+        (await HostOutboxAsync($"AccountActivation/StaffResend/{a.Intake}")).Count.ShouldBe(1);
     }
 }

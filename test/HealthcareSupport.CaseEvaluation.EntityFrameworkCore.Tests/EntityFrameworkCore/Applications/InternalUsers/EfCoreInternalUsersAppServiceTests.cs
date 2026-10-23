@@ -110,17 +110,8 @@ public class EfCoreInternalUsersAppServiceTests
     /// </summary>
     private const string HostResetUrlPrefix = "http://admin.localhost:44368/Account/ResetPassword";
 
-    /// <summary>
-    /// Pulls the temporary password back out of the rendered welcome email. The shipped
-    /// InternalUserCreated.html wraps ##Password## in a &lt;strong&gt; of its own, so an anchored
-    /// "&gt;4 alphanumerics @ 4 alphanumerics&lt;" can only match the generated password: the only
-    /// other "@" in the body is the login address, whose local part is longer than four
-    /// characters and whose domain contains a dot.
-    /// </summary>
-    private static readonly Regex ParityPasswordInBody = new(
-        ">([A-Za-z0-9]{4}@[A-Za-z0-9]{4})<",
-        RegexOptions.None,
-        TimeSpan.FromSeconds(1));
+    /// <summary>The host AuthServer's activation page, as the activation link names it.</summary>
+    private const string HostActivationUrlPrefix = "http://admin.localhost:44368/Account/ActivateAccount";
 
     private readonly IInternalUsersAppService _appService;
     private readonly IRepository<NotificationOutboxItem, Guid> _outboxRepository;
@@ -174,7 +165,8 @@ public class EfCoreInternalUsersAppServiceTests
         string? name,
         string? surname,
         bool isActive,
-        string[] roleNames)
+        string[] roleNames,
+        bool emailConfirmed = true)
     {
         var userId = Guid.NewGuid();
         using (_currentTenant.Change(null))
@@ -188,6 +180,8 @@ public class EfCoreInternalUsersAppServiceTests
             {
                 user.SetIsActive(false);
             }
+
+            user.SetEmailConfirmed(emailConfirmed);
 
             var created = await _userManager.CreateAsync(user, IdentityUsersTestData.SeedPassword);
             created.Succeeded.ShouldBeTrue(
@@ -342,7 +336,7 @@ public class EfCoreInternalUsersAppServiceTests
             ManagementLabel,
             "Host operators share one office label in the create-result UI.");
         dto.WelcomeEmailQueued.ShouldBeTrue(
-            "The InternalUserCreated template is seeded host-scoped and the dispatch runs in host "
+            "The AccountActivation template is seeded host-scoped and the send runs in host "
             + "scope, so the queue attempt must succeed here.");
 
         await WithUnitOfWorkAsync(async () =>
@@ -355,10 +349,12 @@ public class EfCoreInternalUsersAppServiceTests
             user.UserName.ShouldBe(
                 EmailFor(token),
                 "The address doubles as the login name; the SPA has no separate username field.");
-            user.EmailConfirmed.ShouldBeTrue(
-                "OLD parity: an IT-Admin-added account is auto-verified so it can sign in at once.");
-            user.ShouldChangePasswordOnNextLogin.ShouldBeTrue(
-                "The generated password is single-use by design (Adrian decision 2026-05-15).");
+            user.EmailConfirmed.ShouldBeFalse(
+                "2026-10-23: the account is confirmed when its owner chooses a password from the "
+                + "activation link, not by whoever filled in the form.");
+            user.ShouldChangePasswordOnNextLogin.ShouldBeFalse(
+                "The owner chooses the password themselves; asking again at first sign-in would "
+                + "make them choose twice.");
             user.PhoneNumber.ShouldBe("2135550134");
             user.PhoneNumberConfirmed.ShouldBeFalse(
                 "SetPhoneNumber is called with confirmed:false -- nothing has verified the number.");
@@ -438,11 +434,11 @@ public class EfCoreInternalUsersAppServiceTests
     }
 
     // ------------------------------------------------------------------------
-    // CreateAsync -- the welcome email. Real render, real outbox row.
+    // CreateAsync -- the activation email. Real render, real outbox row.
     // ------------------------------------------------------------------------
 
     [Fact]
-    public async Task CreateAsync_QueuesTheWelcomeEmailWithTheHostPortalUrl()
+    public async Task CreateAsync_QueuesOneActivationEmailWithAHostActivationLink()
     {
         var token = NewToken();
 
@@ -450,65 +446,50 @@ public class EfCoreInternalUsersAppServiceTests
         var dto = await WithUnitOfWorkAsync(
             () => _appService.CreateAsync(NewInput(token, IntakeStaff)));
 
-        var row = await SingleOutboxRowAsync($"InternalUserCreated/{dto.UserId}");
+        var row = await SingleOutboxRowAsync($"AccountActivation/InternalUserCreated/{dto.UserId}");
 
-        row.To.ShouldBe(EmailFor(token), "The welcome email goes to the new operator, nobody else.");
+        row.To.ShouldBe(EmailFor(token), "The activation email goes to the new operator, nobody else.");
         row.IsBodyHtml.ShouldBeTrue();
         row.Status.ShouldBe(
             NotificationOutboxStatus.Pending,
             "A freshly enqueued row is Pending until the drain confirms SMTP delivery.");
         row.TenantId.ShouldBeNull(
-            "The dispatch runs inside CurrentTenant.Change(null), so the ledger row belongs to "
-            + "the host database, not an office one.");
-        // Shouldly has no string-plus-custom-message ShouldContain overload in this version -- the
-        // compiler falls through to the IEnumerable<char> overloads and fails (CS1503). Contains()
-        // plus ShouldBeTrue keeps the explanation, which is the part worth keeping.
-        row.Body.Contains(IntakeStaff).ShouldBeTrue(
-            "##RoleName## must render; the operator is told what they were granted.");
-        row.Body.Contains(HostPortalRoot).ShouldBeTrue(
-            "##PortalUrl## must be the HOST portal root. A bare base-domain link 404s, and a "
-            + "tenant-prefixed one sends a host operator to an office they may not hold.");
+            "Operators are host logins, so the ledger row belongs to the host database.");
+        row.Body.Contains($"{HostActivationUrlPrefix}?userId={dto.UserId}").ShouldBeTrue(
+            "The link must open the HOST activation page for THIS operator; an office-prefixed host "
+            + "would resolve to a database the operator does not live in.");
     }
 
     [Fact]
-    public async Task CreateAsync_SendsTheTemporaryPasswordOnlyByEmail()
+    public async Task CreateAsync_PutsNoPasswordInTheEmailOrTheResponse()
     {
-        // Two halves, and both are needed. First: the password genuinely reaches the email, in the
-        // parity shape -- drop ["Password"] from the variable bag and ##Password## renders
-        // literally, so the extraction below finds nothing. Second: it reaches NOTHING ELSE.
+        // 2026-10-23: nobody types or sees this account's password; its owner chooses one from the
+        // link. So no password-shaped value may appear in the email, and the response carries
+        // nothing that could sign in as the account.
         var token = NewToken();
 
         var dto = await WithUnitOfWorkAsync(
             () => _appService.CreateAsync(NewInput(token, IntakeStaff)));
 
-        var row = await SingleOutboxRowAsync($"InternalUserCreated/{dto.UserId}");
+        var row = await SingleOutboxRowAsync($"AccountActivation/InternalUserCreated/{dto.UserId}");
+        row.Body.Contains("##Password##").ShouldBeFalse();
+        Regex.IsMatch(row.Body, ">([A-Za-z0-9]{4}@[A-Za-z0-9]{4})<", RegexOptions.None, TimeSpan.FromSeconds(1))
+            .ShouldBeFalse("the old {4}@{4} temporary password must not reach the email");
 
-        var match = ParityPasswordInBody.Match(row.Body);
-        match.Success.ShouldBeTrue(
-            "The rendered welcome email carries no {4}@{4} value, so either ##Password## was not "
-            + "substituted or the generator stopped producing the parity shape. The email is the "
-            + "ONLY channel this password leaves the server through -- if it is not here, the "
-            + "account is unusable.");
-        var generatedPassword = match.Groups[1].Value;
-        generatedPassword.ShouldNotBe(
-            dto.Email,
-            "The extraction matched the login address instead of the password.");
-
-        // Reflection rather than a property-by-property list, so a field added to the DTO later is
-        // covered the day it appears rather than the day someone remembers to extend this Fact.
-        foreach (var property in typeof(InternalUserCreatedDto)
-                     .GetProperties(BindingFlags.Public | BindingFlags.Instance))
+        await WithUnitOfWorkAsync(async () =>
         {
-            var value = property.GetValue(dto)?.ToString();
-            if (string.IsNullOrEmpty(value))
+            var user = await _userManager.GetByIdAsync(dto.UserId);
+            foreach (var property in typeof(InternalUserCreatedDto)
+                         .GetProperties(BindingFlags.Public | BindingFlags.Instance))
             {
-                continue;
+                var value = property.GetValue(dto)?.ToString();
+                if (!string.IsNullOrEmpty(value))
+                {
+                    (await _userManager.CheckPasswordAsync(user, value)).ShouldBeFalse(
+                        $"InternalUserCreatedDto.{property.Name} signs in as the new account.");
+                }
             }
-            value.Contains(generatedPassword, StringComparison.Ordinal).ShouldBeFalse(
-                $"InternalUserCreatedDto.{property.Name} carries the temporary password. The "
-                + "response DTO is logged, cached and rendered by the SPA; the password must "
-                + "travel by email alone.");
-        }
+        });
     }
 
     // ------------------------------------------------------------------------
@@ -581,6 +562,50 @@ public class EfCoreInternalUsersAppServiceTests
         rows.Count.ShouldBe(2, "each press is its own email");
         rows.Select(r => r.Context).Distinct().Count().ShouldBe(2);
         rows.ShouldAllBe(r => r.To == EmailFor(token));
+    }
+
+    [Fact]
+    public async Task SendPasswordResetEmailAsync_SendsAnActivationLinkToAnAccountNotYetActivated()
+    {
+        // A reset link would let the person choose a password and then be refused at sign-in for
+        // an unconfirmed email; the activation link does both in one step.
+        var token = NewToken();
+        var userId = await WithUnitOfWorkAsync(() => SeedHostUserAsync(
+            userName: $"TEST-{token}",
+            email: EmailFor(token),
+            name: "TEST-first",
+            surname: $"TEST-last-{token}",
+            isActive: true,
+            roleNames: new[] { IntakeStaff },
+            emailConfirmed: false));
+
+        await WithUnitOfWorkAsync(() => _appService.SendPasswordResetEmailAsync(userId));
+
+        var row = await SingleOutboxRowAsync($"AccountActivation/AdminTriggered/{userId}");
+        row.To.ShouldBe(EmailFor(token));
+        row.Body.Contains($"{HostActivationUrlPrefix}?userId={userId}").ShouldBeTrue();
+        (await OutboxRowsAsync($"PasswordReset/AdminTriggered/{userId}")).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task SendPasswordResetEmailAsync_RefusesASwitchedOffAccountNotYetActivated()
+    {
+        // Its activation link would be refused on arrival, so nothing is sent and staff are told why.
+        var token = NewToken();
+        var userId = await WithUnitOfWorkAsync(() => SeedHostUserAsync(
+            userName: $"TEST-{token}",
+            email: EmailFor(token),
+            name: "TEST-first",
+            surname: $"TEST-last-{token}",
+            isActive: false,
+            roleNames: new[] { IntakeStaff },
+            emailConfirmed: false));
+
+        var ex = await Should.ThrowAsync<BusinessException>(
+            () => WithUnitOfWorkAsync(() => _appService.SendPasswordResetEmailAsync(userId)));
+
+        ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.ActivationAccountInactive);
+        (await OutboxRowsAsync($"AccountActivation/AdminTriggered/{userId}")).ShouldBeEmpty();
     }
 
     /// <summary>

@@ -72,6 +72,29 @@ public static class CaseEvaluationExceptionStatusCodeMappings
         options.Map(
             CaseEvaluationDomainErrorCodes.InternalUserTenantRequired,
             HttpStatusCode.BadRequest);
+
+        // Account activation, sent by staff (2026-10-23): the identity Users screen, the Practices
+        // screen and Staff Management's reset button. Unmapped, each would be ABP's default 403,
+        // which the SPA reads as a permission failure and shows no message for. A refusal the
+        // person can act on is 400; "too soon" is 429; a failed queue is 503 (try again).
+        options.Map(
+            CaseEvaluationDomainErrorCodes.ActivationAccountInactive,
+            HttpStatusCode.BadRequest);
+        options.Map(
+            CaseEvaluationDomainErrorCodes.ActivationAlreadyActive,
+            HttpStatusCode.BadRequest);
+        options.Map(
+            CaseEvaluationDomainErrorCodes.ActivationNoAddress,
+            HttpStatusCode.BadRequest);
+        options.Map(
+            CaseEvaluationDomainErrorCodes.ActivationNoOfficeAdministrator,
+            HttpStatusCode.BadRequest);
+        options.Map(
+            CaseEvaluationDomainErrorCodes.ActivationResendTooSoon,
+            HttpStatusCode.TooManyRequests);
+        options.Map(
+            CaseEvaluationDomainErrorCodes.ActivationNotQueued,
+            HttpStatusCode.ServiceUnavailable);
     }
 
     /// <summary>
