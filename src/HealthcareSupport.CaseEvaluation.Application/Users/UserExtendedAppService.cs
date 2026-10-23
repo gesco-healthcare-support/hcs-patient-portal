@@ -4,7 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.ExternalAccount;
 using HealthcareSupport.CaseEvaluation.Identity;
-using HealthcareSupport.CaseEvaluation.InternalUsers;
+using HealthcareSupport.CaseEvaluation.InternalUsers;
 using HealthcareSupport.CaseEvaluation.Notifications;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
