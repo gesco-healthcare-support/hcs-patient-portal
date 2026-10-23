@@ -202,7 +202,7 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
                         isRegistered: true),
                 },
                 variables: BuildPasswordTokenVariables(user, resetUrl),
-                contextTag: $"PasswordReset/RequestLink/{user.Id}");
+                contextTag: NotificationOccurrence.PerRequest($"PasswordReset/RequestLink/{user.Id}"));
         }
         catch (BusinessException ex)
             when (ex.Code == CaseEvaluationDomainErrorCodes.NotificationTemplateNotFound)
@@ -315,7 +315,7 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
                         isRegistered: true),
                 },
                 variables: BuildPasswordTokenVariables(user, url: null),
-                contextTag: $"PasswordChange/PostReset/{user.Id}");
+                contextTag: NotificationOccurrence.PerRequest($"PasswordChange/PostReset/{user.Id}"));
         }
         catch (BusinessException ex)
             when (ex.Code == CaseEvaluationDomainErrorCodes.NotificationTemplateNotFound)
@@ -435,7 +435,7 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
 
         try
         {
-            await _activationSender.SendAsync(user, $"AccountActivation/{origin}/{user.Id}");
+            await _activationSender.SendAsync(user, NotificationOccurrence.PerRequest($"AccountActivation/{origin}/{user.Id}"));
         }
         catch (BusinessException ex)
             when (ex.Code == CaseEvaluationDomainErrorCodes.NotificationTemplateNotFound)

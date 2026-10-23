@@ -114,6 +114,7 @@ public class IntakeChangedEmailHandlerTests
             AppointmentId = Guid.NewGuid(),
             TenantId = Guid.NewGuid(),
             DateOrTimeChanged = dateOrTimeChanged,
+            OccurredAt = new DateTime(2026, 10, 23, 18, 30, 0, DateTimeKind.Utc),
         };
         evt.ChangedFields.AddRange(fields);
         return evt;
@@ -352,7 +353,7 @@ public class IntakeChangedEmailHandlerTests
         sends[1].Recipients.Select(r => r.Email).ShouldBe(sends[0].Recipients.Select(r => r.Email));
         sends[1].Variables["NewAppointmentDate"].ShouldBe("10/05/2026");
         sends[1].Variables["NewAppointmentDate"].ShouldBe(sends[1].Variables["AppointmentDate"]);
-        sends[1].ContextTag.ShouldBe($"IntakeChanged/Reschedule/{evt.AppointmentId}");
+        sends[1].ContextTag.ShouldBe($"IntakeChanged/Reschedule/{evt.AppointmentId}/t{evt.OccurredAt.Ticks}");
     }
 
     [Fact]
@@ -365,6 +366,7 @@ public class IntakeChangedEmailHandlerTests
 
         var sent = SingleSend(rig.Dispatcher);
         sent.TemplateCode.ShouldBe(NotificationTemplateConsts.Codes.AppointmentChangeLogs);
-        sent.ContextTag.ShouldBe($"IntakeChanged/{evt.AppointmentId}");
+        // Each edit of the same appointment is its own email (NotificationOccurrence).
+        sent.ContextTag.ShouldBe($"IntakeChanged/{evt.AppointmentId}/t{evt.OccurredAt.Ticks}");
     }
 }

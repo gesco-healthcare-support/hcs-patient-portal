@@ -116,7 +116,7 @@ public class CaseEvaluationAccountEmailer : IAccountEmailer, ITransientDependenc
             templateCode: NotificationTemplateConsts.Codes.UserRegistered,
             recipient: user.Email ?? string.Empty,
             variables: BuildLinkVariables(user, url),
-            contextTag: $"AccountEmailer/EmailConfirmationLink/{user.Id}");
+            contextTag: NotificationOccurrence.PerRequest($"AccountEmailer/EmailConfirmationLink/{user.Id}"));
     }
 
     public virtual async Task SendPasswordResetLinkAsync(
@@ -136,7 +136,7 @@ public class CaseEvaluationAccountEmailer : IAccountEmailer, ITransientDependenc
             templateCode: NotificationTemplateConsts.Codes.ResetPassword,
             recipient: user.Email ?? string.Empty,
             variables: BuildLinkVariables(user, url),
-            contextTag: $"AccountEmailer/PasswordResetLink/{user.Id}");
+            contextTag: NotificationOccurrence.PerRequest($"AccountEmailer/PasswordResetLink/{user.Id}"));
     }
 
     // task_4c0f6fe9 (2026-07-21): scope-aware URL composition. Phase D made
@@ -168,7 +168,7 @@ public class CaseEvaluationAccountEmailer : IAccountEmailer, ITransientDependenc
             templateCode: NotificationTemplateConsts.Codes.UserRegistered,
             recipient: user.Email ?? string.Empty,
             variables: BuildCodeVariables(user.Name, user.Surname, code),
-            contextTag: $"AccountEmailer/SecurityCode/{user.Id}");
+            contextTag: NotificationOccurrence.PerRequest($"AccountEmailer/SecurityCode/{user.Id}"));
     }
 
     public virtual async Task SendEmailConfirmationCodeAsync(string emailAddress, string code)
@@ -185,7 +185,7 @@ public class CaseEvaluationAccountEmailer : IAccountEmailer, ITransientDependenc
             // address here is a full patient identifier in a log. Masked at the
             // construction site because the tag has two sinks (the Warning logs and
             // Context on the enqueued job) and one edit cleans both.
-            contextTag: $"AccountEmailer/ConfirmationCode/{EmailAddressVisibility.Mask(emailAddress)}");
+            contextTag: NotificationOccurrence.PerRequest($"AccountEmailer/ConfirmationCode/{EmailAddressVisibility.Mask(emailAddress)}"));
     }
 
     private async Task DispatchAsync(

@@ -20,8 +20,17 @@ internal sealed class DocumentEmailSpec
     /// <summary>Handler name, used only as the prefix of the skip log lines.</summary>
     public required string HandlerName { get; init; }
 
-    /// <summary>Prefix of the dispatcher context tag: <c>{prefix}/{templateCode}/{documentId}</c>.</summary>
+    /// <summary>
+    /// Prefix of the dispatcher context tag: <c>{prefix}/{templateCode}/{documentId}/t{OccurredAt}</c>.
+    /// </summary>
     public required string ContextTagPrefix { get; init; }
+
+    /// <summary>
+    /// When the upload, accept or reject happened. Part of the context tag because one document can be
+    /// rejected, replaced and rejected again; without it every repeat collapsed onto the first email
+    /// and was never sent (see <see cref="NotificationOccurrence"/>).
+    /// </summary>
+    public required DateTime OccurredAt { get; init; }
 
     public required Guid? TenantId { get; init; }
     public required Guid AppointmentId { get; init; }
@@ -177,7 +186,7 @@ internal sealed class DocumentEmailFlow
                 to: to,
                 cc: cc,
                 variables: dispatchVariables,
-                contextTag: $"{spec.ContextTagPrefix}/{templateCode}/{spec.AppointmentDocumentId}");
+                contextTag: NotificationOccurrence.At($"{spec.ContextTagPrefix}/{templateCode}/{spec.AppointmentDocumentId}", spec.OccurredAt));
         }
     }
 }

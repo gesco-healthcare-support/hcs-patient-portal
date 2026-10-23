@@ -179,7 +179,9 @@ public abstract class UserExtendedAppServicePrivilegeTests<TStartupModule> : Cas
         var outbox = GetRequiredService<IRepository<NotificationOutboxItem, Guid>>();
         using (_currentTenant.Change(null))
         {
-            return await WithUnitOfWorkAsync(() => outbox.GetListAsync(x => x.Context == contextTag));
+            var occurrences = contextTag + "/";
+            return await WithUnitOfWorkAsync(() => outbox.GetListAsync(
+                x => x.Context == contextTag || x.Context.StartsWith(occurrences)));
         }
     }
 

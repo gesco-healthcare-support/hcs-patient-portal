@@ -532,7 +532,10 @@ public class StatusChangeEmailHandler :
             templateCode: NotificationTemplateConsts.Codes.PatientAppointmentInfoRequested,
             recipients: recipients,
             variables: vars,
-            contextTag: $"StatusChange/InfoRequested/Requester/{eventData.AppointmentId}");
+            // Send Back can happen more than once for one appointment (Pending -> InfoRequested ->
+            // resubmitted -> InfoRequested again), so each one is its own email.
+            contextTag: NotificationOccurrence.At(
+                $"StatusChange/InfoRequested/Requester/{eventData.AppointmentId}", eventData.OccurredAt));
     }
 
     /// <summary>

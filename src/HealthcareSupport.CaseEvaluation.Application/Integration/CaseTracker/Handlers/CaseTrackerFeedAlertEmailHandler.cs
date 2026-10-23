@@ -83,7 +83,7 @@ public class CaseTrackerFeedAlertEmailHandler :
                 templateCode: NotificationTemplateConsts.Codes.CaseTrackerFeedAlert,
                 recipients: recipients,
                 variables: variables,
-                contextTag: $"{NotificationTemplateConsts.Codes.CaseTrackerFeedAlert}/{eventData.Kind}/{eventData.TenantId}");
+                contextTag: NotificationOccurrence.At($"{NotificationTemplateConsts.Codes.CaseTrackerFeedAlert}/{eventData.Kind}/{eventData.TenantId}", eventData.OccurredAt));
 
             _logger.LogInformation(
                 "CaseTrackerFeedAlertEmailHandler: sent the {Kind} feed alert for office {OfficeId} to {Count} recipient(s).",
