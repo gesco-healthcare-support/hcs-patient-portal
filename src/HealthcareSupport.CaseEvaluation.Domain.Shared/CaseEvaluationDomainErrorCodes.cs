@@ -150,6 +150,14 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:Account.ResetPasswordTokenInvalid";
 
     /// <summary>
+    /// 2026-10-23 -- an activate-your-account link that is used, expired, tampered with, or names a
+    /// user this office does not have. One code for all four so the page reveals nothing about
+    /// which accounts exist. Localization key <c>CaseEvaluation:Account.ActivationLinkInvalid</c>.
+    /// </summary>
+    public const string ActivationLinkInvalid =
+        "CaseEvaluation:Account.ActivationLinkInvalid";
+
+    /// <summary>
     /// Raised by <c>AppointmentManager.FireTransition</c> when the
     /// caller requests a status transition that is not legal from the
     /// appointment's current state (e.g. Approve from Approved, or

@@ -133,7 +133,7 @@ limit_req_zone $binary_remote_addr zone=minio_per_ip:10m rate=50r/s;
 # default; dynamic-claims/ is the one chatty, credential-free exception and is listed first (first match wins).
 map "$request_method:$uri" $signin_throttle_key {
     default "";
-    ~*^POST:/Account/(Login|ForgotPassword|ResetPassword|ResendVerification|Register|ConfirmUser|EmailConfirmation)/?$ $binary_remote_addr;
+    ~*^POST:/Account/(Login|ForgotPassword|ResetPassword|ResendVerification|Register|ConfirmUser|EmailConfirmation|ActivateAccount)/?$ $binary_remote_addr;
     ~*^POST:/api/account/dynamic-claims/ "";
     ~*^POST:/api/account/ $binary_remote_addr;
 }

@@ -316,6 +316,12 @@ internal static class EmailSubjects
         "Welcome to the Appointment Portal";
 
     /// <summary>
+    /// 2026-10-23 -- the activate-your-account email. New, so there is no OLD subject to keep.
+    /// </summary>
+    public const string AccountActivation =
+        "Activate your Appointment Portal account";
+
+    /// <summary>
     /// Item F (2026-08-22) -- sent to someone staff tried to invite who already has an account.
     /// Deliberately not phrased as an invitation: there is nothing to accept and no account to
     /// create, so the subject says plainly that they already have one.
@@ -424,6 +430,7 @@ internal static class EmailSubjects
 
             // 2026-05-15 -- IT Admin internal-user welcome email.
             [NotificationTemplateConsts.Codes.InternalUserCreated] = InternalUserCreated,
+            [NotificationTemplateConsts.Codes.AccountActivation] = AccountActivation,
             [NotificationTemplateConsts.Codes.ChangeRequestConsentRequest] = ChangeRequestConsentRequest,
 
             // QA item M (2026-06-29): two wired codes that were shipping stub

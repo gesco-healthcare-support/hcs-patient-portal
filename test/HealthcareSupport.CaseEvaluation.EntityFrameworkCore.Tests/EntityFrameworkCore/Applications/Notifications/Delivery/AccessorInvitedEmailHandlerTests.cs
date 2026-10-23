@@ -37,6 +37,13 @@ public class AccessorInvitedEmailHandlerTests : CaseEvaluationEntityFrameworkCor
         var sent = _recorder.Sent.ShouldHaveSingleItem();
         sent.TemplateCode.ShouldBe(NotificationTemplateConsts.Codes.AccessorAppointmentBooked);
         sent.Recipients.ShouldBe(new[] { InviteAddress });
+
+        // 2026-10-23: an ACTIVATION link (choose a password, which also confirms the email). A reset
+        // link set the password without confirming, so the invited person was then refused at
+        // sign-in.
+        var url = (string)sent.Variables["URL"]!;
+        url.ShouldContain($"/Account/ActivateAccount?userId={IdentityUsersTestData.ApplicantAttorney1UserId}&token=");
+        url.ShouldNotContain("/Account/ResetPassword");
     }
 
     [Fact]
