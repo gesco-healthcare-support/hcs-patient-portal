@@ -266,6 +266,15 @@ public static class NotificationTemplateConsts
         public const string ExternalUserPortalLink = "ExternalUserPortalLink";
 
         /// <summary>
+        /// 2026-10-23 -- the ONE email an account created by someone else receives: New Practice's
+        /// office admin, a user created on the identity screen, an invited appointment accessor, and
+        /// any unconfirmed account that asks for a new link. Its link opens /Account/ActivateAccount,
+        /// where choosing a password is what confirms the email, so the person never meets a sign-in
+        /// they cannot pass. In <see cref="HostScoped"/> because host users are sent it too.
+        /// </summary>
+        public const string AccountActivation = "AccountActivation";
+
+        /// <summary>
         /// All 70 codes in seed order (count asserted by
         /// <c>NotificationTemplatesValidatorUnitTests.Codes_All_Has64Codes</c> -- keep both in step;
         /// this comment had drifted by one before 2026-07-28). Used by
@@ -329,6 +338,9 @@ public static class NotificationTemplateConsts
             // Item F (2026-08-22) -- sign-in link for an email staff tried to invite that is
             // already registered in the office.
             ExternalUserPortalLink,
+
+            // 2026-10-23 -- activate-your-account link (choose a password, which confirms the email).
+            AccountActivation,
         };
 
         /// <summary>
@@ -346,6 +358,8 @@ public static class NotificationTemplateConsts
         ///         dispatches in their ambient scope, which is host for operators.</item>
         ///   <item><c>UserRegistered</c> -- account-emailer email-confirmation link /
         ///         2FA / confirmation code for a host user.</item>
+        ///   <item><c>AccountActivation</c> (2026-10-23) -- a host user created on the host identity
+        ///         screen, or one asking for a new activation link, is sent it from host scope.</item>
         ///   <item><c>CaseTrackerMissingIntakes</c> (#944, 2026-09-24) -- the weekly cross-office
         ///         missing-intake report, sent by a host recurring job. The one entry that is not
         ///         account lifecycle: it reports on every office at once, so no office scope fits.</item>
@@ -361,6 +375,7 @@ public static class NotificationTemplateConsts
             PasswordChange,
             UserRegistered,
             CaseTrackerMissingIntakes,
+            AccountActivation,
         };
     }
 }

@@ -95,6 +95,16 @@ internal sealed class AccountUrlBuilder : IAccountUrlBuilder, ITransientDependen
             ? BuildPasswordResetUrlAsync(tenantId.Value, userId, token)
             : BuildHostPasswordResetUrlAsync(userId, token);
 
+    public async Task<string> BuildAccountActivationUrlForUserAsync(Guid? tenantId, Guid userId, string token)
+    {
+        var baseUrl = tenantId.HasValue
+            ? await ResolveAuthServerBaseUrlInternalAsync(tenantId.Value)
+            : await BuildAuthServerRootUrlAsync(null);
+        return AppendPath(baseUrl, "/Account/ActivateAccount",
+            ("userId", userId.ToString()),
+            ("token", WebUtility.UrlEncode(token)));
+    }
+
     public async Task<string> BuildInviteUrlAsync(Guid tenantId, string rawToken)
     {
         var baseUrl = await ResolveAuthServerBaseUrlInternalAsync(tenantId);
