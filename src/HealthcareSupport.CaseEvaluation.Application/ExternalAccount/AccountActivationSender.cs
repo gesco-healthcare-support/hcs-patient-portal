@@ -35,12 +35,32 @@ public interface IAccountActivationSender
     Task SendAsync(IdentityUser user, string contextTag, string? greetingName = null);
 
     /// <summary>
-    /// New Practice: sends the activation email to the office's administrator, the one account the
-    /// office is created with. Never throws -- the office already exists by the time this runs, so a
-    /// failure is logged as an error for an operator and the office admin can still ask for a link
-    /// from the sign-in page. True when an email was queued.
+    /// Sends the activation email to an office's administrator, the one account the office is
+    /// created with: by New Practice, and again from the Practices screen. Never throws -- New
+    /// Practice runs it after the office exists, so a failure is logged as an error for an operator,
+    /// and the office admin can still ask for a link from the sign-in page. The outcome says what
+    /// happened, for the screen that asked.
     /// </summary>
-    Task<bool> TrySendToOfficeAdminAsync(Guid officeId, string? greetingName);
+    Task<OfficeAdminActivationOutcome> TrySendToOfficeAdminAsync(Guid officeId, string? greetingName);
+}
+
+/// <summary>What <see cref="IAccountActivationSender.TrySendToOfficeAdminAsync"/> did.</summary>
+public enum OfficeAdminActivationOutcome
+{
+    /// <summary>The activation email was queued.</summary>
+    Sent,
+
+    /// <summary>The administrator already activated; nothing was sent.</summary>
+    AlreadyActive,
+
+    /// <summary>The office has no administrator account with an email address; nothing was sent.</summary>
+    NoAdministrator,
+
+    /// <summary>The administrator is switched off, so its link would be dead; nothing was sent.</summary>
+    Inactive,
+
+    /// <summary>Queueing failed; the cause is logged as an error.</summary>
+    Failed,
 }
 
 public class AccountActivationSender : IAccountActivationSender, ITransientDependency
@@ -104,7 +124,7 @@ public class AccountActivationSender : IAccountActivationSender, ITransientDepen
         }
     }
 
-    public virtual async Task<bool> TrySendToOfficeAdminAsync(Guid officeId, string? greetingName)
+    public virtual async Task<OfficeAdminActivationOutcome> TrySendToOfficeAdminAsync(Guid officeId, string? greetingName)
     {
         try
         {
@@ -117,27 +137,33 @@ public class AccountActivationSender : IAccountActivationSender, ITransientDepen
                     _logger.LogError(
                         "AccountActivationSender: office {OfficeId} has no administrator with an email; no activation email was sent.",
                         officeId);
-                    return false;
+                    return OfficeAdminActivationOutcome.NoAdministrator;
                 }
 
                 if (admin.EmailConfirmed)
                 {
                     // A re-run against an office whose admin already activated. Nothing to send.
-                    return false;
+                    return OfficeAdminActivationOutcome.AlreadyActive;
+                }
+
+                if (!admin.IsActive)
+                {
+                    // Its link would be refused on arrival (AccountActivationLinkChecker).
+                    return OfficeAdminActivationOutcome.Inactive;
                 }
 
                 await SendAsync(admin, NotificationOccurrence.PerRequest($"AccountActivation/OfficeAdmin/{admin.Id}"), greetingName);
                 await uow.CompleteAsync();
-                return true;
+                return OfficeAdminActivationOutcome.Sent;
             }
         }
         catch (Exception ex)
         {
             _logger.LogError(
                 ex,
-                "AccountActivationSender: office {OfficeId} was created but its administrator's activation email could not be queued. They can ask for a new link with Resend verification on the office's sign-in page.",
+                "AccountActivationSender: the activation email for office {OfficeId}'s administrator could not be queued. They can ask for a new link with Resend verification on the office's sign-in page.",
                 officeId);
-            return false;
+            return OfficeAdminActivationOutcome.Failed;
         }
     }
 

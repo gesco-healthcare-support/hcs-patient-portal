@@ -55,7 +55,6 @@ public class NotificationContextTagOccurrenceTests
         ["UserQuery/Submitted/"] = "per query",
         ["Invite/"] = "per invitation; resending is a separate, per-request tag",
         ["AccessorInvited/"] = "per new account, created once",
-        ["InternalUserCreated/"] = "per new account, created once",
     };
 
     /// <summary>Tags passed as something other than a literal, each reviewed once.</summary>

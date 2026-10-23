@@ -286,7 +286,8 @@ public abstract class AccountActivationFlowTests<TStartupModule>
             });
         }
 
-        (await _sender.TrySendToOfficeAdminAsync(TenantsTestData.TenantARef, "Ada")).ShouldBeTrue();
+        (await _sender.TrySendToOfficeAdminAsync(TenantsTestData.TenantARef, "Ada"))
+            .ShouldBe(OfficeAdminActivationOutcome.Sent);
 
         var send = Sends().ShouldHaveSingleItem();
         ((string)send[0]!).ShouldBe(NotificationTemplateConsts.Codes.AccountActivation);
@@ -297,7 +298,126 @@ public abstract class AccountActivationFlowTests<TStartupModule>
     [Fact]
     public async Task An_office_with_no_administrator_is_sent_nothing_and_does_not_throw()
     {
-        (await _sender.TrySendToOfficeAdminAsync(Guid.NewGuid(), "Ada")).ShouldBeFalse();
+        (await _sender.TrySendToOfficeAdminAsync(Guid.NewGuid(), "Ada"))
+            .ShouldBe(OfficeAdminActivationOutcome.NoAdministrator);
+
+        Sends().ShouldBeEmpty();
+    }
+
+    [Theory]
+    [InlineData(true, true, OfficeAdminActivationOutcome.AlreadyActive)]
+    [InlineData(false, false, OfficeAdminActivationOutcome.Inactive)]
+    public async Task An_office_admin_who_activated_or_is_switched_off_is_sent_nothing(
+        bool confirmed, bool active, OfficeAdminActivationOutcome expected)
+    {
+        // The Practices screen's "Resend activation email" reports these instead of mailing: an
+        // activated admin needs a password reset, and a switched-off admin's link would be dead.
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            await WithUnitOfWorkAsync(async () =>
+            {
+                var admin = new IdentityUser(Guid.NewGuid(), CaseEvaluationConsts.AdminUserName,
+                    $"office-admin-{Guid.NewGuid():N}@example.test", TenantsTestData.TenantARef);
+                admin.SetEmailConfirmed(confirmed);
+                admin.SetIsActive(active);
+                (await _userManager.CreateAsync(admin, TypedByCreator)).Succeeded.ShouldBeTrue();
+            });
+        }
+
+        (await _sender.TrySendToOfficeAdminAsync(TenantsTestData.TenantARef, "Ada")).ShouldBe(expected);
+
+        Sends().ShouldBeEmpty();
+    }
+
+    // 2026-10-23: the Practices screen's "Resend activation email" for an office's administrator.
+
+    private IAccountActivationAppService Resend => GetRequiredService<IAccountActivationAppService>();
+
+    private async Task<Guid> CreateOfficeAdminAsync(bool confirmed)
+    {
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            return await WithUnitOfWorkAsync(async () =>
+            {
+                var admin = new IdentityUser(Guid.NewGuid(), CaseEvaluationConsts.AdminUserName,
+                    $"office-admin-{Guid.NewGuid():N}@example.test", TenantsTestData.TenantARef);
+                admin.SetEmailConfirmed(confirmed);
+                (await _userManager.CreateAsync(admin, TypedByCreator)).Succeeded.ShouldBeTrue();
+                return admin.Id;
+            });
+        }
+    }
+
+    private async Task ResendAsHostAsync(Guid officeId)
+    {
+        using (_currentTenant.Change(null))
+        {
+            await WithUnitOfWorkAsync(() => Resend.ResendToOfficeAdministratorAsync(officeId));
+        }
+    }
+
+    [Fact]
+    public async Task The_practices_screen_resends_one_activation_email_to_the_office_admin()
+    {
+        var adminId = await CreateOfficeAdminAsync(confirmed: false);
+
+        await ResendAsHostAsync(TenantsTestData.TenantARef);
+
+        var send = Sends().ShouldHaveSingleItem();
+        ((string)send[0]!).ShouldBe(NotificationTemplateConsts.Codes.AccountActivation);
+        ((string)send[3]!).ShouldStartWith($"AccountActivation/OfficeAdmin/{adminId}");
+    }
+
+    [Fact]
+    public async Task The_practices_screen_resend_pressed_again_within_a_minute_is_refused()
+    {
+        await CreateOfficeAdminAsync(confirmed: false);
+        await ResendAsHostAsync(TenantsTestData.TenantARef);
+
+        var ex = await Should.ThrowAsync<BusinessException>(() => ResendAsHostAsync(TenantsTestData.TenantARef));
+
+        ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.ActivationResendTooSoon);
+        Sends().Count.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task The_practices_screen_resend_reports_an_office_admin_who_already_activated()
+    {
+        await CreateOfficeAdminAsync(confirmed: true);
+
+        var ex = await Should.ThrowAsync<BusinessException>(() => ResendAsHostAsync(TenantsTestData.TenantARef));
+
+        ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.ActivationAlreadyActive);
+        Sends().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task The_practices_screen_resend_reports_an_office_with_no_administrator()
+    {
+        var ex = await Should.ThrowAsync<BusinessException>(() => ResendAsHostAsync(TenantsTestData.TenantARef));
+
+        ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.ActivationNoOfficeAdministrator);
+        Sends().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task The_practices_screen_resend_refuses_an_unknown_office()
+    {
+        await Should.ThrowAsync<Volo.Abp.Domain.Entities.EntityNotFoundException>(() => ResendAsHostAsync(Guid.NewGuid()));
+        Sends().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task The_office_admin_resend_is_refused_from_inside_an_office()
+    {
+        // Practices are managed from the host; inside an office this is not an office's business.
+        await CreateOfficeAdminAsync(confirmed: false);
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            await Should.ThrowAsync<Volo.Abp.Authorization.AbpAuthorizationException>(
+                () => WithUnitOfWorkAsync(() => Resend.ResendToOfficeAdministratorAsync(TenantsTestData.TenantARef)));
+        }
 
         Sends().ShouldBeEmpty();
     }

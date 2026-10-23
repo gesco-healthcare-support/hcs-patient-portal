@@ -248,6 +248,8 @@ HealthcareSupport.CaseEvaluation.Documents.DocumentsAppService.GetAsync(Guid) ->
 HealthcareSupport.CaseEvaluation.Documents.DocumentsAppService.GetListAsync(GetDocumentsInput) -> class=CaseEvaluation.Documents method=-
 HealthcareSupport.CaseEvaluation.Documents.DocumentsAppService.ReplaceFileAsync(Guid, Stream, String, String) -> class=CaseEvaluation.Documents method=CaseEvaluation.Documents.Edit
 HealthcareSupport.CaseEvaluation.Documents.DocumentsAppService.UpdateAsync(Guid, DocumentUpdateDto) -> class=CaseEvaluation.Documents method=CaseEvaluation.Documents.Edit
+HealthcareSupport.CaseEvaluation.ExternalAccount.AccountActivationAppService.ResendToOfficeAdministratorAsync(Guid) -> class=(authenticated) method=Saas.Tenants.Create
+HealthcareSupport.CaseEvaluation.ExternalAccount.AccountActivationAppService.ResendToUserAsync(Guid) -> class=(authenticated) method=AbpIdentity.Users.Update
 HealthcareSupport.CaseEvaluation.ExternalAccount.CaseEvaluationProfileAppService.ChangePasswordAsync(ChangePasswordInput) -> class=(authenticated) method=-
 HealthcareSupport.CaseEvaluation.ExternalAccount.ExternalAccountAppService.ResendEmailVerificationAsync(ResendEmailVerificationInput) -> class=- method=(anonymous)
 HealthcareSupport.CaseEvaluation.ExternalAccount.ExternalAccountAppService.ResetPasswordAsync(ResetPasswordInput) -> class=- method=(anonymous)
