@@ -163,7 +163,8 @@ public class NotificationTemplatesSendTestAndVariablesTests : CaseEvaluationTest
         recipient.IsRegistered.ShouldBeTrue();
         recipient.PhoneNumber.ShouldBeNull(); // email only: a test must never fire an SMS
         sent.Variables.Keys.OrderBy(k => k).ShouldBe(NotificationTemplateVariableCatalog.BuildSampleVariables(Code).Keys.OrderBy(k => k));
-        sent.ContextTag.ShouldBe($"SendTest/{Code}/{userId}");
+        // Each "send test" press is its own email (NotificationOccurrence.PerRequest).
+        sent.ContextTag.ShouldStartWith($"SendTest/{Code}/{userId}/r");
     }
 
     [Fact]

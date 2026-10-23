@@ -126,7 +126,7 @@ public class AccountActivationSender : IAccountActivationSender, ITransientDepen
                     return false;
                 }
 
-                await SendAsync(admin, $"AccountActivation/OfficeAdmin/{admin.Id}", greetingName);
+                await SendAsync(admin, NotificationOccurrence.PerRequest($"AccountActivation/OfficeAdmin/{admin.Id}"), greetingName);
                 await uow.CompleteAsync();
                 return true;
             }

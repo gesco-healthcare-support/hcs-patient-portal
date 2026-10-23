@@ -1406,7 +1406,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
                     ["PortalUrl"] = portalUrl,
                     ["Email"] = normalizedEmail,
                 },
-                contextTag: $"PortalLink/{tenantId.Value}/{user.Id}");
+                contextTag: NotificationOccurrence.PerRequest($"PortalLink/{tenantId.Value}/{user.Id}"));
         }
     }
 
@@ -1504,7 +1504,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
                         isRegistered: false),
                 },
                 variables: BuildInvitationVariables(tenantName, roleName, inviteUrl, invitation.ExpiresAt, invitation.FirstName, invitation.LastName),
-                contextTag: $"InviteResend/{roleName}/{tenantId}/{invitation.Id}");
+                contextTag: NotificationOccurrence.PerRequest($"InviteResend/{roleName}/{tenantId}/{invitation.Id}"));
         }
         catch (Exception)
         {

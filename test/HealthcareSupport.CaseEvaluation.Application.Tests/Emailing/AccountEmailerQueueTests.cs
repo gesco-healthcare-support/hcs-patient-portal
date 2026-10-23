@@ -70,7 +70,7 @@ public abstract class AccountEmailerQueueTests<TStartupModule>
 
         var queued = Queued().ShouldHaveSingleItem();
         queued.To.ShouldBe("sec.code@example.test");
-        queued.Context.ShouldBe($"AccountEmailer/SecurityCode/{user.Id}");
+        queued.Context.ShouldStartWith($"AccountEmailer/SecurityCode/{user.Id}/r");
     }
 
     [Fact]

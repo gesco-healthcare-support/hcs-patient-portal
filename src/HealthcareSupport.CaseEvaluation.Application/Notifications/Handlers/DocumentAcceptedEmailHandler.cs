@@ -71,6 +71,7 @@ public class DocumentAcceptedEmailHandler :
             TenantId = eventData.TenantId,
             AppointmentId = eventData.AppointmentId,
             AppointmentDocumentId = eventData.AppointmentDocumentId,
+            OccurredAt = eventData.OccurredAt,
             Kind = NotificationKind.DocumentAccepted,
             EmailKind = DocumentEmailKind.Accepted,
             ExcludeOfficeFromCc = true,

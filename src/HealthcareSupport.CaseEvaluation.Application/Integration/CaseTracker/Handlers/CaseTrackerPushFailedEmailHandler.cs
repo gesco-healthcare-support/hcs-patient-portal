@@ -84,7 +84,7 @@ public class CaseTrackerPushFailedEmailHandler :
                 templateCode: templateCode,
                 recipients: recipients,
                 variables: variables,
-                contextTag: $"{templateCode}/{eventData.TenantId}/{eventData.StaffUserId}");
+                contextTag: NotificationOccurrence.At($"{templateCode}/{eventData.TenantId}/{eventData.StaffUserId}", eventData.OccurredAt));
 
             // The staff user's id, not their address: the id is in the context tag above, so the
             // line still correlates with the email that went out without writing PII to the log.
