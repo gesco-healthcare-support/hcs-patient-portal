@@ -2,9 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.Notifications.Outbox;
 using HealthcareSupport.CaseEvaluation.Security;
 using Shouldly;
 using Volo.Abp;
+using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Identity;
 using Volo.Abp.Modularity;
 using Volo.Abp.MultiTenancy;
@@ -149,6 +151,88 @@ public abstract class UserExtendedAppServicePrivilegeTests<TStartupModule> : Cas
         };
         tweak?.Invoke(dto);
         return WithExtensionDefaults(dto);
+    }
+
+    private async Task<bool> ConfirmedAsync(Guid id)
+    {
+        using (_currentTenant.Change(null))
+        {
+            return await WithUnitOfWorkAsync(async () => (await _userManager.GetByIdAsync(id)).EmailConfirmed);
+        }
+    }
+
+    private async Task ConfirmThroughTheMailboxAsync(Guid id)
+    {
+        using (_currentTenant.Change(null))
+        {
+            await WithUnitOfWorkAsync(async () =>
+            {
+                var user = await _userManager.GetByIdAsync(id);
+                var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+                (await _userManager.ConfirmEmailAsync(user, token)).Succeeded.ShouldBeTrue();
+            });
+        }
+    }
+
+    private async Task<List<NotificationOutboxItem>> HostOutboxAsync(string contextTag)
+    {
+        var outbox = GetRequiredService<IRepository<NotificationOutboxItem, Guid>>();
+        using (_currentTenant.Change(null))
+        {
+            return await WithUnitOfWorkAsync(() => outbox.GetListAsync(x => x.Context == contextTag));
+        }
+    }
+
+    // 2026-10-23: an account made on this screen is switched on by its OWNER, through the
+    // activation email, never by a tick box. A confirmed email is what grants a party access to
+    // appointments, so the person filling in the form must not be able to set it -- least of all on
+    // an address that may be somebody else's.
+
+    [Fact]
+    public async Task A_user_created_here_starts_unconfirmed_even_when_the_form_says_confirmed_and_gets_one_activation_email()
+    {
+        var a = await SeedActorsAsync();
+        var name = $"made-{Guid.NewGuid():N}";
+
+        var created = await AsCallerAsync(a.Admin, Admin, () => _service.CreateAsync(WithExtensionDefaults(new IdentityUserCreateDto
+        {
+            UserName = name,
+            Email = $"{name}@example.test",
+            Password = OriginalPassword,
+            RoleNames = new[] { Intake },
+            EmailConfirmed = true,
+            SendConfirmationEmail = true,
+        })));
+
+        created.EmailConfirmed.ShouldBeFalse();
+        (await ConfirmedAsync(created.Id)).ShouldBeFalse();
+        var rows = await HostOutboxAsync($"AccountActivation/IdentityUserCreated/{created.Id}");
+        rows.Count.ShouldBe(1, "one email, carrying the activation link");
+        rows[0].To.ShouldBe($"{name}@example.test");
+        rows[0].Body.ShouldContain($"/Account/ActivateAccount?userId={created.Id}");
+    }
+
+    [Fact]
+    public async Task An_edit_can_never_turn_email_confirmation_on_and_a_changed_address_turns_it_off()
+    {
+        var a = await SeedActorsAsync();
+
+        var tick = await UpdateDtoAsync(a.Intake, null, d => d.EmailConfirmed = true);
+        await AsCallerAsync(a.Admin, Admin, () => _service.UpdateAsync(a.Intake, tick));
+        (await ConfirmedAsync(a.Intake)).ShouldBeFalse("a tick box is not proof of the mailbox");
+
+        await ConfirmThroughTheMailboxAsync(a.Intake);
+        var same = await UpdateDtoAsync(a.Intake, null, d => d.Name = "Renamed");
+        await AsCallerAsync(a.Admin, Admin, () => _service.UpdateAsync(a.Intake, same));
+        (await ConfirmedAsync(a.Intake)).ShouldBeTrue("an edit that keeps the address keeps its confirmation");
+
+        var moved = await UpdateDtoAsync(a.Intake, null, d =>
+        {
+            d.Email = $"moved-{Guid.NewGuid():N}@example.test";
+            d.EmailConfirmed = true;
+        });
+        await AsCallerAsync(a.Admin, Admin, () => _service.UpdateAsync(a.Intake, moved));
+        (await ConfirmedAsync(a.Intake)).ShouldBeFalse("a new address has not been proven");
     }
 
     private async Task AssertRefusedAndUnchangedAsync(Guid target, Func<Task> attempt)

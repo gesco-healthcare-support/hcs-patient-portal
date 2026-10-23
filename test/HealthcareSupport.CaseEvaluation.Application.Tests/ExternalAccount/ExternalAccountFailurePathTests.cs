@@ -250,7 +250,7 @@ public abstract class ExternalAccountFailurePathTests<TStartupModule>
 
         await InOfficeA(() => _account.ResendEmailVerificationAsync(new ResendEmailVerificationInput { Email = email }));
 
-        Sends(NotificationTemplateConsts.Codes.UserRegistered).ShouldBeEmpty();
+        _dispatcher.ReceivedCalls().ShouldBeEmpty();
     }
 
     [Fact]
@@ -277,19 +277,109 @@ public abstract class ExternalAccountFailurePathTests<TStartupModule>
             await WithUnitOfWorkAsync(() => _account.ResendEmailVerificationAsync(new ResendEmailVerificationInput { Email = email }));
         }
 
-        Sends(NotificationTemplateConsts.Codes.UserRegistered).ShouldBeEmpty();
+        _dispatcher.ReceivedCalls().ShouldBeEmpty();
     }
 
     [Fact]
     public async Task A_failed_verification_email_still_answers_success()
     {
         var (_, email) = await CreateUserAsync(TenantsTestData.TenantARef, confirmEmail: false);
-        FailSending(NotificationTemplateConsts.Codes.UserRegistered);
+        FailSending(NotificationTemplateConsts.Codes.AccountActivation);
 
         await InOfficeA(() => _account.ResendEmailVerificationAsync(new ResendEmailVerificationInput { Email = email }));
 
-        Sends(NotificationTemplateConsts.Codes.UserRegistered).Count.ShouldBe(1);
+        Sends(NotificationTemplateConsts.Codes.AccountActivation).Count.ShouldBe(1);
         (await _cache.GetStringAsync(Key(ResendPrefix, "cooldown", email))).ShouldBe("1");
+    }
+
+    // 2026-10-23: who asks for a new link is mostly someone whose account was made for them, with
+    // no password of their own, so the resend is an ACTIVATION link (choose a password, which also
+    // confirms) on the person's own office sign-in host -- not a bare confirmation link.
+    [Fact]
+    public async Task A_verification_resend_sends_one_activation_link_and_no_bare_confirmation_link()
+    {
+        var (id, email) = await CreateUserAsync(TenantsTestData.TenantARef, confirmEmail: false);
+
+        await InOfficeA(() => _account.ResendEmailVerificationAsync(new ResendEmailVerificationInput { Email = email }));
+
+        var send = Sends(NotificationTemplateConsts.Codes.AccountActivation).ShouldHaveSingleItem();
+        var recipients = (IReadOnlyCollection<NotificationRecipient>)send[1]!;
+        recipients.ShouldHaveSingleItem().Email.ShouldBe(email);
+        var variables = (IReadOnlyDictionary<string, object?>)send[2]!;
+        ((string)variables["URL"]!).ShouldContain($"/Account/ActivateAccount?userId={id}&token=");
+        ((string)send[3]!).ShouldBe($"AccountActivation/Resend/{id}");
+        Sends(NotificationTemplateConsts.Codes.UserRegistered).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task A_verification_resend_for_a_deactivated_account_sends_nothing()
+    {
+        var (id, email) = await CreateUserAsync(TenantsTestData.TenantARef, confirmEmail: false);
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            await WithUnitOfWorkAsync(async () =>
+            {
+                var user = await _userManager.GetByIdAsync(id);
+                user.SetIsActive(false);
+                (await _userManager.UpdateAsync(user)).Succeeded.ShouldBeTrue();
+            });
+        }
+
+        await InOfficeA(() => _account.ResendEmailVerificationAsync(new ResendEmailVerificationInput { Email = email }));
+
+        _dispatcher.ReceivedCalls().ShouldBeEmpty();
+    }
+
+    // ------------------------------------------------------------------ forgot password, unconfirmed
+
+    // 2026-10-23: an unconfirmed account asking for a reset used to get NOTHING (the gate refused it
+    // behind the page's generic success). That was the wall an account made by someone else hit.
+    [Fact]
+    public async Task Forgot_password_for_an_unconfirmed_account_sends_an_activation_link_instead_of_nothing()
+    {
+        var (id, email) = await CreateUserAsync(TenantsTestData.TenantARef, confirmEmail: false);
+
+        await InOfficeA(() => _account.SendPasswordResetCodeAsync(new SendPasswordResetCodeInput { Email = email }));
+
+        Sends(NotificationTemplateConsts.Codes.ResetPassword).ShouldBeEmpty();
+        var send = Sends(NotificationTemplateConsts.Codes.AccountActivation).ShouldHaveSingleItem();
+        ((string)send[3]!).ShouldBe($"AccountActivation/ForgotPassword/{id}");
+        // Still counted against the reset allowance, exactly like any other reset request.
+        (await _cache.GetStringAsync(Key(ResetPrefix, "cooldown", email))).ShouldBe("1");
+    }
+
+    [Fact]
+    public async Task Forgot_password_for_an_unconfirmed_but_deactivated_account_still_sends_nothing()
+    {
+        var (id, email) = await CreateUserAsync(TenantsTestData.TenantARef, confirmEmail: false);
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            await WithUnitOfWorkAsync(async () =>
+            {
+                var user = await _userManager.GetByIdAsync(id);
+                user.SetIsActive(false);
+                (await _userManager.UpdateAsync(user)).Succeeded.ShouldBeTrue();
+            });
+        }
+
+        // The gate refuses it as before (the page turns that into its generic success), and no
+        // email of either kind goes out: a deactivated account is not switched back on by a link.
+        var refused = await Should.ThrowAsync<BusinessException>(
+            () => InOfficeA(() => _account.SendPasswordResetCodeAsync(new SendPasswordResetCodeInput { Email = email })));
+        refused.Code.ShouldBe(CaseEvaluationDomainErrorCodes.EmailNotConfirmedForPasswordReset);
+
+        _dispatcher.ReceivedCalls().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Forgot_password_for_a_confirmed_account_still_sends_the_reset_link_not_an_activation()
+    {
+        var (_, email) = await CreateUserAsync(TenantsTestData.TenantARef, confirmEmail: true);
+
+        await InOfficeA(() => _account.SendPasswordResetCodeAsync(new SendPasswordResetCodeInput { Email = email }));
+
+        Sends(NotificationTemplateConsts.Codes.ResetPassword).Count.ShouldBe(1);
+        Sends(NotificationTemplateConsts.Codes.AccountActivation).ShouldBeEmpty();
     }
 
     /// <summary>

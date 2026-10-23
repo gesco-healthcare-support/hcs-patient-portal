@@ -54,19 +54,22 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
     private readonly IDistributedCache _cache;
     private readonly ILogger<ExternalAccountAppService> _logger;
     private readonly Notifications.IAccountUrlBuilder _accountUrlBuilder;
+    private readonly IAccountActivationSender _activationSender;
 
     public ExternalAccountAppService(
         IdentityUserManager userManager,
         INotificationDispatcher dispatcher,
         IDistributedCache cache,
         ILogger<ExternalAccountAppService> logger,
-        Notifications.IAccountUrlBuilder accountUrlBuilder)
+        Notifications.IAccountUrlBuilder accountUrlBuilder,
+        IAccountActivationSender activationSender)
     {
         _userManager = userManager;
         _dispatcher = dispatcher;
         _cache = cache;
         _logger = logger;
         _accountUrlBuilder = accountUrlBuilder;
+        _activationSender = activationSender;
     }
 
     // Phase 1.D rate-limit constants (Adrian Decision 3, 2026-05-08): tighter
@@ -127,6 +130,21 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
         await StampPasswordResetRateLimitAsync(normalizedEmail);
 
         var user = await _userManager.FindByEmailAsync(normalizedEmail);
+
+        // 2026-10-23 -- an UNCONFIRMED account asking for a reset gets an activation link instead.
+        //
+        // The gate below refuses it, and the page hides the refusal behind the same success it shows
+        // everyone, so this used to send nothing at all. That was the wall an account created by
+        // someone else hit: it was born unconfirmed with a password nobody knew, and forgot-password
+        // was the obvious way in. An activation link both sets a password and confirms the email, and
+        // it proves the mailbox exactly as a reset link would, so nothing weaker is granted. Inactive
+        // accounts still go through the gate and still get nothing.
+        if (user != null && !user.EmailConfirmed && user.IsActive)
+        {
+            await TrySendActivationLinkAsync(user, "ForgotPassword");
+            return;
+        }
+
         PasswordResetGate.EnsureUserCanRequestReset(user);
         if (user == null)
         {
@@ -375,57 +393,13 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
             return;
         }
 
-        var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
-        // BUG-029 v3 fix (2026-05-21): tenant-aware verify URL via the
-        // user's TenantId.
-        // Item C (2026-08-22): same fix as the reset path above, and it matters just as much -- an
-        // unverified operator hits resend BEFORE they ever reach forgot-password, so this guard is the
-        // first one they run into. UserRegistered is seeded host-scope exactly like ResetPassword, so
-        // resend was broken identically.
-        if (!user.TenantId.HasValue && !await IsHostAccountEligibleAsync(user))
-        {
-            _logger.LogError(
-                "ExternalAccountAppService.ResendEmailVerificationAsync: user {UserId} has no TenantId and is not host-eligible; refusing.",
-                user.Id);
-            return;
-        }
-
-        var verifyUrl = await _accountUrlBuilder.BuildEmailConfirmationUrlForUserAsync(
-            user.TenantId, user.Id, token);
-
-        try
-        {
-            await _dispatcher.DispatchAsync(
-                templateCode: NotificationTemplateConsts.Codes.UserRegistered,
-                recipients: new[]
-                {
-                    new NotificationRecipient(
-                        email: user.Email,
-                        role: RecipientRole.Patient,
-                        isRegistered: false),
-                },
-                variables: BuildPasswordTokenVariables(user, verifyUrl),
-                contextTag: $"UserRegistered/Resend/{user.Id}");
-        }
-        catch (BusinessException ex)
-            when (ex.Code == CaseEvaluationDomainErrorCodes.NotificationTemplateNotFound)
-        {
-            // See the reset path: a missing template is a deployment fault, loud in the logs, still
-            // generic in the response.
-            // Not flagged by CodeQL (UserRegistered does not trip the name heuristic), but written
-            // like its two siblings above so the three catches stay uniform.
-            _logger.LogError(
-                ex,
-                "ExternalAccountAppService.ResendEmailVerificationAsync: the UserRegistered template is MISSING for user {UserId}; no email was sent. Caller still saw generic success.",
-                user.Id);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(
-                ex,
-                "ExternalAccountAppService.ResendEmailVerificationAsync: dispatch failed for user {UserId}. Returning generic success to caller.",
-                user.Id);
-        }
+        // 2026-10-23 -- the resend sends an ACTIVATION link, not a bare confirmation link.
+        //
+        // Who asks for a new link is mostly someone whose account was made for them: they have no
+        // password of their own, so a link that only confirms leaves them at a sign-in they cannot
+        // pass. The activation link sets a password and confirms in one step. Someone who registered
+        // themselves simply chooses their password again on the same page.
+        await TrySendActivationLinkAsync(user, "Resend");
 
         // Stamp cache entries AFTER the dispatch so a dispatch failure doesn't
         // tick the rate-limit counter against a user who legitimately needs
@@ -433,6 +407,53 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
         // sends and failed-but-attempted sends -- failures still consume an
         // SMTP attempt slot, so we tick on every reach-the-dispatch path.
         await StampResendVerificationRateLimitAsync(normalizedEmail);
+    }
+
+    /// <summary>
+    /// The activation-link send shared by resend-verification and forgot-password. Same contract as
+    /// the reset send: the caller always sees generic success, a missing template is an Error in the
+    /// log, any other failure a Warning.
+    /// </summary>
+    private async Task TrySendActivationLinkAsync(IdentityUser user, string origin)
+    {
+        // A deactivated account is not sent a link: it would arrive dead (the activation page refuses
+        // inactive accounts), and switching an account off should stop the mail too.
+        if (!user.IsActive)
+        {
+            return;
+        }
+
+        // Item C (2026-08-22): a null-tenant user is served only when it is a genuine host operator.
+        if (!user.TenantId.HasValue && !await IsHostAccountEligibleAsync(user))
+        {
+            _logger.LogError(
+                "ExternalAccountAppService: user {UserId} has no TenantId and is not host-eligible; no activation link was sent ({Origin}).",
+                user.Id,
+                origin);
+            return;
+        }
+
+        try
+        {
+            await _activationSender.SendAsync(user, $"AccountActivation/{origin}/{user.Id}");
+        }
+        catch (BusinessException ex)
+            when (ex.Code == CaseEvaluationDomainErrorCodes.NotificationTemplateNotFound)
+        {
+            _logger.LogError(
+                ex,
+                "ExternalAccountAppService: the AccountActivation template is MISSING for user {UserId}; no email was sent ({Origin}). Caller still saw generic success.",
+                user.Id,
+                origin);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "ExternalAccountAppService: the activation link dispatch failed for user {UserId} ({Origin}). Returning generic success to caller.",
+                user.Id,
+                origin);
+        }
     }
 
     /// <summary>

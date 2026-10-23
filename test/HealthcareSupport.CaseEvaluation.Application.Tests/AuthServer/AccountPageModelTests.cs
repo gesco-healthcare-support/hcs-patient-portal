@@ -345,6 +345,10 @@ public class AccountPageModelTests
         var result = (await model.OnGetAsync()).ShouldBeOfType<LocalRedirectResult>();
 
         result.Url.ShouldBe("~/Account/Login?flash=verification-invalid&ReturnUrl=%2FTEST%20return&ReturnUrlHash=%23TEST");
+
+        // The button's POST guards the same way before it touches anything.
+        var posted = (await model.OnPostAsync()).ShouldBeOfType<LocalRedirectResult>();
+        posted.Url.ShouldBe(result.Url);
     }
 
     [Fact]

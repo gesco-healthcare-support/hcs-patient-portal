@@ -225,7 +225,9 @@ public class NotificationTemplatesValidatorUnitTests
         // (+1 -> 69).
         // #944 (2026-09-24) added CaseTrackerMissingIntakes, the weekly missing-intake report to the
         // technical list (+1 -> 70).
-        NotificationTemplateConsts.Codes.All.Length.ShouldBe(70);
+        // 2026-10-23 added AccountActivation, the one email an account created by someone else
+        // receives: choose a password from its link, which also confirms the email (+1 -> 71).
+        NotificationTemplateConsts.Codes.All.Length.ShouldBe(71);
     }
 
     [Fact]

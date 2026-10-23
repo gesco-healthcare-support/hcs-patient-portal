@@ -1,0 +1,90 @@
+@page
+@model HealthcareSupport.CaseEvaluation.Pages.Account.ActivateAccountModel
+@{
+    ViewData["Title"] = "Activate your account";
+}
+@*
+    /Account/ActivateAccount -- the activate-your-account email links here. GET only renders (the
+    form, or the dead-link message); the POST is what sets the password and confirms the email.
+    No personal data is shown on GET, and nothing on this page submits itself: a mail scanner that
+    opens the link must change nothing. See ActivateAccount.cshtml.cs.
+
+    Layout mirrors ResetPassword.cshtml (same account-card wrapper, labels and helper text).
+*@
+
+<div class="account-card">
+    <div class="account-content">
+
+        <h1 class="text-center mt-4 mb-3">Activate your account</h1>
+
+        @if (Model.LinkIsDead)
+        {
+            <div class="alert alert-warning mt-3" role="alert">
+                @HealthcareSupport.CaseEvaluation.Pages.Account.ActivateAccountModel.DeadLinkMessage
+            </div>
+            <p class="mt-3">
+                Enter your email on the next page and we will send you a new activation link.
+            </p>
+            <div class="d-grid gap-2 mt-4">
+                <a class="btn btn-primary btn-lg" asp-page="ResendVerification">Send me a new link</a>
+            </div>
+        }
+        else
+        {
+            @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+            {
+                <div class="alert alert-danger mt-3" role="alert">
+                    @Model.ErrorMessage
+                </div>
+            }
+
+            <p class="mt-3" id="activate-account-intro">
+                Choose a password for your account. That confirms your email address, and you can then sign in.
+            </p>
+
+            <form method="post" asp-page="ActivateAccount" novalidate>
+                <input type="hidden" asp-for="UserId" />
+                <input type="hidden" asp-for="Token" />
+
+                <div class="form-group mt-3">
+                    <label asp-for="Password" class="form-label">Password</label>
+                    <input asp-for="Password"
+                           type="password"
+                           class="form-control"
+                           autocomplete="new-password"
+                           aria-describedby="activate-account-intro password-helper"
+                           required />
+                    <span asp-validation-for="Password"></span>
+                    <small id="password-helper" class="form-text text-muted">
+                        Use 8+ characters with a number and a symbol.
+                    </small>
+                </div>
+
+                <div class="form-group mt-3">
+                    <label asp-for="ConfirmPassword" class="form-label">Confirm password</label>
+                    <input asp-for="ConfirmPassword"
+                           type="password"
+                           class="form-control"
+                           autocomplete="new-password"
+                           required />
+                    <span asp-validation-for="ConfirmPassword"></span>
+                </div>
+
+                <div class="d-grid gap-2 mt-4">
+                    <button type="submit"
+                            class="btn btn-primary btn-lg"
+                            title="Activate my account">
+                        Activate my account
+                    </button>
+                </div>
+            </form>
+        }
+
+        <hr class="my-4" />
+
+        <p class="text-center text-muted small">
+            Already activated? <a href="~/Account/Login">Sign in</a>.
+        </p>
+
+    </div>
+</div>
