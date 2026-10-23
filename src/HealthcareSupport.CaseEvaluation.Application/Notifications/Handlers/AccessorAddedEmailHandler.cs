@@ -94,7 +94,7 @@ public class AccessorAddedEmailHandler :
                     templateCode: NotificationTemplateConsts.Codes.AccessorAppointmentAdded,
                     recipients: recipients,
                     variables: variables,
-                    contextTag: $"AccessorAdded/{eventData.AccessorUserId}");
+                    contextTag: NotificationOccurrence.At($"AccessorAdded/{eventData.AppointmentId}/{eventData.AccessorUserId}", eventData.OccurredAt));
             }
             catch (Exception ex)
             {

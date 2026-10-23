@@ -131,7 +131,7 @@ public class CaseEvaluationAccountEmailerTests
 
         await jobs.Received(1).EnqueueAsync(
             Arg.Is<SendAppointmentEmailArgs>(a =>
-                a.Context == "AccountEmailer/ConfirmationCode/a***@example.test"),
+                a.Context.StartsWith("AccountEmailer/ConfirmationCode/a***@example.test/r", StringComparison.Ordinal)),
             Arg.Any<BackgroundJobPriority>(),
             Arg.Any<TimeSpan?>());
     }

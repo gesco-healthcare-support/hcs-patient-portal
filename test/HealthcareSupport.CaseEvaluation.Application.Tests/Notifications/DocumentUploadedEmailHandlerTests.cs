@@ -332,7 +332,9 @@ public class DocumentUploadedEmailHandlerTests
         var sent = SingleSend(rig.Dispatcher);
         sent.Variables["UploaderFullName"].ShouldBe("TEST-Uploader Name");
         sent.Variables["DocumentLabel"].ShouldBe("TEST-label");
+        // The event's own time is the occurrence: a document rejected, replaced and rejected again
+        // is a new email each time (NotificationOccurrence).
         sent.ContextTag.ShouldBe(
-            $"DocumentUploaded/{NotificationTemplateConsts.Codes.PatientDocumentUploaded}/{evt.AppointmentDocumentId}");
+            $"DocumentUploaded/{NotificationTemplateConsts.Codes.PatientDocumentUploaded}/{evt.AppointmentDocumentId}/t{evt.OccurredAt.Ticks}");
     }
 }

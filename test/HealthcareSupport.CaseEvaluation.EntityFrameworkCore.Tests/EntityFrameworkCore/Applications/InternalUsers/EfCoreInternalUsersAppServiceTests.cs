@@ -241,8 +241,7 @@ public class EfCoreInternalUsersAppServiceTests
     /// </summary>
     private async Task<NotificationOutboxItem> SingleOutboxRowAsync(string contextTag)
     {
-        var rows = await WithUnitOfWorkAsync(
-            () => _outboxRepository.GetListAsync(x => x.Context == contextTag));
+        var rows = await OutboxRowsAsync(contextTag);
 
         rows.Count.ShouldBe(
             1,
@@ -556,6 +555,43 @@ public class EfCoreInternalUsersAppServiceTests
             + "host would resolve to a database the operator does not live in.");
         row.Body.Contains($"userId={userId}").ShouldBeTrue(
             "The reset link must carry the target user id, not the caller's.");
+    }
+
+    [Fact]
+    public async Task SendPasswordResetEmailAsync_PressedTwice_QueuesTwoEmails()
+    {
+        // 2026-10-23: the outbox collapses a send onto any existing row with the same office,
+        // recipient and context tag, whatever that row's state. The tag used to be
+        // PasswordReset/AdminTriggered/{userId}, so this button worked once per person, EVER: the
+        // second press queued nothing while the screen said "queued". Each press now carries its
+        // own occurrence part (NotificationOccurrence.PerRequest).
+        var token = NewToken();
+        var userId = await WithUnitOfWorkAsync(() => SeedHostUserAsync(
+            userName: $"TEST-{token}",
+            email: EmailFor(token),
+            name: "TEST-first",
+            surname: $"TEST-last-{token}",
+            isActive: true,
+            roleNames: new[] { IntakeStaff }));
+
+        await WithUnitOfWorkAsync(() => _appService.SendPasswordResetEmailAsync(userId));
+        await WithUnitOfWorkAsync(() => _appService.SendPasswordResetEmailAsync(userId));
+
+        var rows = await OutboxRowsAsync($"PasswordReset/AdminTriggered/{userId}");
+        rows.Count.ShouldBe(2, "each press is its own email");
+        rows.Select(r => r.Context).Distinct().Count().ShouldBe(2);
+        rows.ShouldAllBe(r => r.To == EmailFor(token));
+    }
+
+    /// <summary>
+    /// The rows of one email kind. Person-triggered emails carry an occurrence part after the kind
+    /// (NotificationOccurrence), so a kind matches itself or itself followed by "/...".
+    /// </summary>
+    private Task<List<NotificationOutboxItem>> OutboxRowsAsync(string kind)
+    {
+        var occurrences = kind + "/";
+        return WithUnitOfWorkAsync(() => _outboxRepository.GetListAsync(
+            x => x.Context == kind || x.Context.StartsWith(occurrences)));
     }
 
     // ------------------------------------------------------------------------
