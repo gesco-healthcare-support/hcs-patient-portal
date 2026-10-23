@@ -31,11 +31,11 @@ namespace HealthcareSupport.CaseEvaluation.InternalUsers;
 public interface IInternalUsersAppService : IApplicationService
 {
     /// <summary>
-    /// Creates a new <c>IdentityUser</c> in the target tenant with
-    /// <c>EmailConfirmed = true</c> (auto-verified, OLD parity),
-    /// <c>ShouldChangePasswordOnNextLogin = true</c> (force change),
-    /// the requested role assigned, and a welcome email queued through
-    /// <c>INotificationDispatcher</c>. Throws
+    /// Creates a new host <c>IdentityUser</c>, UNCONFIRMED and with a
+    /// password nobody sees, assigns the requested role, and queues an
+    /// activate-your-account email: the person chooses their password from
+    /// that link, which also confirms their email (2026-10-23; this used to
+    /// auto-confirm and email a temporary password). Throws
     /// <c>BusinessException</c> with one of the
     /// <c>CaseEvaluationDomainErrorCodes.InternalUser*</c> codes on
     /// validation failure -- all map to HTTP 400 via the host module's
@@ -50,7 +50,9 @@ public interface IInternalUsersAppService : IApplicationService
     /// per-tenant <c>ResetPassword</c> template. Gated by
     /// <c>CaseEvaluation.InternalUsers.Edit</c>. Throws
     /// <c>InternalUserNotFound</c> when the id resolves to no user in the
-    /// caller's tenant scope.
+    /// caller's tenant scope. An account that has not activated yet is sent
+    /// a fresh activation link instead (2026-10-23), or refused with
+    /// <c>Account.ActivationAccountInactive</c> when it is switched off.
     /// </summary>
     Task SendPasswordResetEmailAsync(Guid userId);
 

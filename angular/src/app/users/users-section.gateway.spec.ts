@@ -10,6 +10,7 @@ import { UserExtendedService } from '../proxy/users/user-extended.service';
 import { DashboardService } from '../proxy/dashboards/dashboard.service';
 import { DoctorTenantService } from '../proxy/doctors/doctor-tenant.service';
 import { BrandingService } from '../shared/branding/branding.service';
+import { AccountActivationService } from './account-activation.service';
 
 /**
  * The Users hub's section gateway: invitations, internal users, and practices, each routed to
@@ -40,6 +41,7 @@ describe('UsersSectionGateway', () => {
   let editions: Record<string, jasmine.Spy>;
   let doctorTenant: Record<string, jasmine.Spy>;
   let branding: Record<string, jasmine.Spy>;
+  let activation: Record<string, jasmine.Spy>;
 
   /** A fully populated identity user, as the update round trip would read one back. */
   const STORED_USER = {
@@ -101,6 +103,11 @@ describe('UsersSectionGateway', () => {
       createPractice: jasmine.createSpy('createPractice').and.returnValue(of({ id: 'office-1' })),
     };
     branding = { uploadLogo: jasmine.createSpy('uploadLogo').and.returnValue(of({})) };
+    activation = {
+      resendToOfficeAdministrator: jasmine
+        .createSpy('resendToOfficeAdministrator')
+        .and.returnValue(of(undefined)),
+    };
 
     TestBed.configureTestingModule({
       providers: [
@@ -113,6 +120,7 @@ describe('UsersSectionGateway', () => {
         { provide: EditionService, useValue: editions },
         { provide: DoctorTenantService, useValue: doctorTenant },
         { provide: BrandingService, useValue: branding },
+        { provide: AccountActivationService, useValue: activation },
       ],
     });
 
@@ -496,6 +504,12 @@ describe('UsersSectionGateway', () => {
       const g = gateway();
       g.sendPasswordReset('u-1');
       expect(internalUsers['sendPasswordResetEmail']).toHaveBeenCalledWith('u-1');
+    });
+
+    it('resends the activation email to a practice administrator by office id', () => {
+      const g = gateway();
+      g.resendOfficeAdminActivation('office-1').subscribe();
+      expect(activation['resendToOfficeAdministrator']).toHaveBeenCalledOnceWith('office-1');
     });
 
     it('maps editions to id and name, reading the DISPLAY name', () => {

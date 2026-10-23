@@ -74,9 +74,15 @@ export const EMAIL_TEMPLATE_CATALOG: Readonly<Record<string, TemplateCatalogEntr
     group: 'accounts',
   },
   InternalUserCreated: {
-    name: 'Internal user welcome (temporary password)',
+    name: 'Internal user welcome (temporary password, retired)',
     whenItFires:
-      'Sent to a newly created staff member with their temporary password; they must change it at first sign-in.',
+      'No longer sent since 2026-10-23: new staff receive the account activation email instead and choose their own password.',
+    group: 'accounts',
+  },
+  AccountActivation: {
+    name: 'Account activation link',
+    whenItFires:
+      'Sent when an account is made for someone (staff, a new practice administrator, an invited party) or when an account not yet activated asks for a new link; the person chooses their password from it.',
     group: 'accounts',
   },
   InviteExternalUser: {
@@ -412,7 +418,8 @@ export const EMAIL_TEMPLATE_CATALOG: Readonly<Record<string, TemplateCatalogEntr
 
 /**
  * Mirror of the backend `NotificationTemplateConsts.Codes.All` set (64 codes as
- * of 2026-07-16, incl. `AccessorAppointmentAdded` from issue #3). Used ONLY by
+ * of 2026-07-16, incl. `AccessorAppointmentAdded` from issue #3; 65 since
+ * `AccountActivation` was added on 2026-10-23). Used ONLY by
  * the completeness guard in the spec -- runtime grouping reads whatever codes
  * the API returns, so it survives backend additions on its own. Keep this in
  * lockstep with the backend when a template code is added or removed.
@@ -480,6 +487,7 @@ export const KNOWN_TEMPLATE_CODES: readonly string[] = [
   'AppointmentRequestedRegistered',
   'InviteExternalUser',
   'InternalUserCreated',
+  'AccountActivation',
   'ChangeRequestConsentRequest',
   'PatientAppointmentInfoRequested',
 ];
