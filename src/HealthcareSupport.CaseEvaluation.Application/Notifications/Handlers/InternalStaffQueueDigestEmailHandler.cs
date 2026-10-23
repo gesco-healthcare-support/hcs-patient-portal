@@ -80,7 +80,7 @@ public class InternalStaffQueueDigestEmailHandler :
                 templateCode: NotificationTemplateConsts.Codes.AppointmentApproveRejectInternal,
                 recipients: recipients,
                 variables: variables,
-                contextTag: $"InternalStaffQueueDigest/{eventData.StaffUserId}");
+                contextTag: NotificationOccurrence.PerPacificDay($"InternalStaffQueueDigest/{eventData.StaffUserId}", eventData.OccurredAt));
 
             // The staff user's id, not their address: the id is in the context tag above, so the
             // line still correlates with the email that went out without writing PII to the log.

@@ -72,6 +72,7 @@ public class DocumentRejectedEmailHandler :
             TenantId = eventData.TenantId,
             AppointmentId = eventData.AppointmentId,
             AppointmentDocumentId = eventData.AppointmentDocumentId,
+            OccurredAt = eventData.OccurredAt,
             Kind = NotificationKind.DocumentRejected,
             EmailKind = DocumentEmailKind.Rejected,
             ExcludeOfficeFromCc = true,

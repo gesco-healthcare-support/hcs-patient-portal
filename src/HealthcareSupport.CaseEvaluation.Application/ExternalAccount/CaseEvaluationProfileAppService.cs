@@ -96,7 +96,7 @@ public class CaseEvaluationProfileAppService : ProfileAppService
                         isRegistered: true),
                 },
                 variables: BuildReceiptVariables(user),
-                contextTag: $"PasswordChange/InApp/{user.Id}");
+                contextTag: NotificationOccurrence.PerRequest($"PasswordChange/InApp/{user.Id}"));
         }
         catch (Exception ex)
         {

@@ -181,7 +181,7 @@ public class NotificationTemplatesAppService : ApplicationService, INotification
             entity.TemplateCode,
             recipients,
             variables,
-            contextTag: $"SendTest/{entity.TemplateCode}/{CurrentUser.Id}");
+            contextTag: NotificationOccurrence.PerRequest($"SendTest/{entity.TemplateCode}/{CurrentUser.Id}"));
     }
 
     /// <summary>

@@ -286,7 +286,7 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
                     isRegistered: true),
             },
             variables: BuildPasswordResetVariables(user, resetUrl),
-            contextTag: $"PasswordReset/AdminTriggered/{user.Id}");
+            contextTag: NotificationOccurrence.PerRequest($"PasswordReset/AdminTriggered/{user.Id}"));
     }
 
     /// <summary>

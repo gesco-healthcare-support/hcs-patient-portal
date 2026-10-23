@@ -290,7 +290,7 @@ public abstract class AccountActivationFlowTests<TStartupModule>
 
         var send = Sends().ShouldHaveSingleItem();
         ((string)send[0]!).ShouldBe(NotificationTemplateConsts.Codes.AccountActivation);
-        ((string)send[3]!).ShouldBe($"AccountActivation/OfficeAdmin/{adminId}");
+        ((string)send[3]!).ShouldStartWith($"AccountActivation/OfficeAdmin/{adminId}/r");
         ((IReadOnlyDictionary<string, object?>)send[2]!)["PatientFirstName"].ShouldBe("Ada");
     }
 
