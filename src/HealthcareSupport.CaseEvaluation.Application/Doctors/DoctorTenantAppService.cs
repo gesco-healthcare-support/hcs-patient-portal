@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Branding;
 using HealthcareSupport.CaseEvaluation.Data;
+using HealthcareSupport.CaseEvaluation.ExternalAccount;
 using HealthcareSupport.CaseEvaluation.MultiTenancy;
 using HealthcareSupport.CaseEvaluation.Practices;
 using Microsoft.AspNetCore.Authorization;
@@ -29,6 +30,7 @@ namespace HealthcareSupport.CaseEvaluation.Doctors
         private readonly IOfficeDatabaseProvisioner _officeProvisioner;
         private readonly IUnitOfWorkManager _unitOfWorkManager;
         private readonly IRepository<OfficeBranding, Guid> _brandingRepository;
+        private readonly IAccountActivationSender _activationSender;
 
         public DoctorTenantAppService(ITenantRepository tenantRepository,
             IEditionRepository editionRepository,
@@ -41,9 +43,11 @@ namespace HealthcareSupport.CaseEvaluation.Doctors
             ITenantConnectionStringProvider connectionStringProvider,
             IOfficeDatabaseProvisioner officeProvisioner,
             IUnitOfWorkManager unitOfWorkManager,
-            IRepository<OfficeBranding, Guid> brandingRepository)
+            IRepository<OfficeBranding, Guid> brandingRepository,
+            IAccountActivationSender activationSender)
             : base(tenantRepository, editionRepository, tenantManager, dataSeeder, _localEventBus, distributedEventBus, dbConnectionOptions, connectionStringChecker)
         {
+            _activationSender = activationSender;
             _tenantRepository = tenantRepository;
             _connectionStringChecker = connectionStringChecker;
             _connectionStringProvider = connectionStringProvider;
@@ -117,8 +121,9 @@ namespace HealthcareSupport.CaseEvaluation.Doctors
         /// (catalogs + admin + the real owner doctor entered on the form) + host-side
         /// branding. This is the path the New Practice UI calls; the stock SaaS create
         /// (POST /api/saas/tenants) writes only a bare tenant row with no office database.
-        /// The admin password is a server-generated throwaway -- the admin sets a real one
-        /// via the forgot-password flow. Location(s) are added later on the Locations page.
+        /// The admin password is a server-generated throwaway nobody ever sees: the admin is sent
+        /// an activate-your-account email and sets a real one from its link, which also confirms
+        /// their email. Location(s) are added later on the Locations page.
         /// </summary>
         [Authorize(SaasHostPermissions.Tenants.Create)]
         public async Task<SaasTenantDto> CreatePracticeAsync(CreatePracticeInput input)
@@ -138,7 +143,7 @@ namespace HealthcareSupport.CaseEvaluation.Doctors
                 // One doctor per practice: the doctor's email is the office admin login too.
                 AdminEmailAddress = doctorEmail,
                 // Throwaway that meets the identity policy (upper/lower/digit/symbol); the
-                // admin replaces it via forgot-password, so it is never surfaced.
+                // admin replaces it from the activation email, so it is never surfaced.
                 AdminPassword = $"{GuidGenerator.Create():N}Aa1!",
             };
 
@@ -234,6 +239,12 @@ namespace HealthcareSupport.CaseEvaluation.Doctors
                 throw new UserFriendlyException(
                     $"Office '{input.Name}' was created but its database could not be fully provisioned. Re-run provisioning to complete setup.");
             }
+
+            // The office admin is the one account an office is born with, created unconfirmed with a
+            // password nobody knows. Without this email nobody could get in until someone found the
+            // resend-verification page. The office exists by now, so a failure here is logged, not
+            // thrown; the admin can still ask for a new link from the office's sign-in page.
+            await _activationSender.TrySendToOfficeAdminAsync(tenant.Id, doctorFirstName);
 
             return tenant;
         }

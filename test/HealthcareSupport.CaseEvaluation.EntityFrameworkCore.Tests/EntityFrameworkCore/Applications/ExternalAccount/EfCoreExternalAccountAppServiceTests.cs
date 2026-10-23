@@ -282,7 +282,7 @@ public class EfCoreExternalAccountAppServiceTests
                 await Should.NotThrowAsync(
                     async () => await _externalAccountAppService.ResendEmailVerificationAsync(
                         new ResendEmailVerificationInput { Email = EmailFor(token) }),
-                    "A missing UserRegistered template must be logged and swallowed, not thrown.");
+                    "A missing AccountActivation template must be logged and swallowed, not thrown.");
             }
         });
     }
@@ -586,7 +586,7 @@ public class EfCoreExternalAccountAppServiceTests
     }
 
     [Fact]
-    public async Task ResendEmailVerificationAsync_ForAnUnconfirmedHostOperator_QueuesTheVerification()
+    public async Task ResendEmailVerificationAsync_ForAnUnconfirmedHostOperator_QueuesTheActivationEmail()
     {
         var token = Guid.NewGuid().ToString("N")[..8];
         var userId = await SeedHostOperatorAsync(token, internalRole: true, confirmEmail: false);
@@ -594,13 +594,27 @@ public class EfCoreExternalAccountAppServiceTests
         await _externalAccountAppService.ResendEmailVerificationAsync(
             new ResendEmailVerificationInput { Email = EmailFor(token) });
 
-        var rows = await OutboxRowsAsync($"UserRegistered/Resend/{userId}");
+        var rows = await OutboxRowsAsync($"AccountActivation/Resend/{userId}");
 
-        rows.Count.ShouldBe(1, "One verification email per request.");
+        rows.Count.ShouldBe(1, "One activation email per request.");
+        rows[0].Body.ShouldContain($"/Account/ActivateAccount?userId={userId}");
         rows[0].To.ShouldBe(EmailFor(token));
         rows[0].IsBodyHtml.ShouldBeTrue(
             "The verification body is an HTML template; queueing it as plain text would deliver "
             + "raw markup to the recipient.");
+    }
+
+    [Fact]
+    public async Task SendPasswordResetCodeAsync_ForAnUnconfirmedHostOperator_QueuesTheActivationEmailInstead()
+    {
+        var token = Guid.NewGuid().ToString("N")[..8];
+        var userId = await SeedHostOperatorAsync(token, internalRole: true, confirmEmail: false);
+
+        await _externalAccountAppService.SendPasswordResetCodeAsync(
+            new SendPasswordResetCodeInput { Email = EmailFor(token) });
+
+        (await OutboxRowsAsync($"AccountActivation/ForgotPassword/{userId}")).Count.ShouldBe(1);
+        (await OutboxRowsAsync($"PasswordReset/RequestLink/{userId}")).ShouldBeEmpty();
     }
 
     [Fact]
