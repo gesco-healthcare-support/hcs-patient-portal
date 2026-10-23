@@ -158,6 +158,53 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:Account.ActivationLinkInvalid";
 
     /// <summary>
+    /// 2026-10-23 -- staff asked to (re)send an activation email to an account that is switched
+    /// off. Its link would be dead on arrival, so nothing is sent. Localization key
+    /// <c>CaseEvaluation:Account.ActivationAccountInactive</c>.
+    /// </summary>
+    public const string ActivationAccountInactive =
+        "CaseEvaluation:Account.ActivationAccountInactive";
+
+    /// <summary>
+    /// 2026-10-23 -- staff asked to resend an activation email to an account that is already
+    /// active (its email is confirmed). A password reset is what that person needs. Localization
+    /// key <c>CaseEvaluation:Account.ActivationAlreadyActive</c>.
+    /// </summary>
+    public const string ActivationAlreadyActive =
+        "CaseEvaluation:Account.ActivationAlreadyActive";
+
+    /// <summary>
+    /// 2026-10-23 -- the account to activate has no email address to send the link to.
+    /// Localization key <c>CaseEvaluation:Account.ActivationNoAddress</c>.
+    /// </summary>
+    public const string ActivationNoAddress =
+        "CaseEvaluation:Account.ActivationNoAddress";
+
+    /// <summary>
+    /// 2026-10-23 -- "Resend activation email" on a practice whose office has no administrator
+    /// account with an email address. Localization key
+    /// <c>CaseEvaluation:Account.ActivationNoOfficeAdministrator</c>.
+    /// </summary>
+    public const string ActivationNoOfficeAdministrator =
+        "CaseEvaluation:Account.ActivationNoOfficeAdministrator";
+
+    /// <summary>
+    /// 2026-10-23 -- the office administrator's activation email could not be queued. Logged with
+    /// the cause; the staff member sees a plain "try again". Localization key
+    /// <c>CaseEvaluation:Account.ActivationNotQueued</c>.
+    /// </summary>
+    public const string ActivationNotQueued =
+        "CaseEvaluation:Account.ActivationNotQueued";
+
+    /// <summary>
+    /// 2026-10-23 -- a staff "Resend activation email" pressed again within a minute for the same
+    /// account or office. Stops a double-click, or a script, from filling one inbox. Localization
+    /// key <c>CaseEvaluation:Account.ActivationResendTooSoon</c>.
+    /// </summary>
+    public const string ActivationResendTooSoon =
+        "CaseEvaluation:Account.ActivationResendTooSoon";
+
+    /// <summary>
     /// Raised by <c>AppointmentManager.FireTransition</c> when the
     /// caller requests a status transition that is not legal from the
     /// appointment's current state (e.g. Approve from Approved, or

@@ -141,10 +141,10 @@ public abstract class InternalUsersFailurePathTests<TStartupModule>
     }
 
     [Fact]
-    public async Task A_failed_welcome_email_leaves_the_account_created_and_says_so()
+    public async Task A_failed_activation_email_leaves_the_account_created_and_says_so()
     {
         _dispatcher.DispatchAsync(
-                NotificationTemplateConsts.Codes.InternalUserCreated, Arg.Any<IReadOnlyCollection<NotificationRecipient>>(),
+                NotificationTemplateConsts.Codes.AccountActivation, Arg.Any<IReadOnlyCollection<NotificationRecipient>>(),
                 Arg.Any<IReadOnlyDictionary<string, object?>>(), Arg.Any<string>(),
                 Arg.Any<PacketAttachmentRef?>(), Arg.Any<CancellationToken>())
             .ThrowsAsync(new InvalidOperationException("Synthetic mail outage"));

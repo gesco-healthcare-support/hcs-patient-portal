@@ -55,17 +55,10 @@ namespace HealthcareSupport.CaseEvaluation.Users
             _activationSender = activationSender;
         }
 
-        /// <summary>
-        /// Roles whose holders are privileged. "IT Admin" is the host technical role and "admin"
-        /// the framework's office/host administrator role.
-        /// </summary>
-        private static readonly string[] PrivilegedRoleNames =
-            { InternalUserRoleDataSeedContributor.ItAdminRoleName, "admin" };
+        /// <summary>Privileged roles and callers: see <see cref="PrivilegedAccounts"/>.</summary>
+        private bool CallerIsPrivileged() => PrivilegedAccounts.CallerIsPrivileged(CurrentUser);
 
-        private bool CallerIsPrivileged() => PrivilegedRoleNames.Any(r => CurrentUser.IsInRole(r));
-
-        private static bool IsPrivilegedRole(string role) =>
-            PrivilegedRoleNames.Contains(role, StringComparer.OrdinalIgnoreCase);
+        private static bool IsPrivilegedRole(string role) => PrivilegedAccounts.IsPrivilegedRole(role);
 
         private static bool IsStaffRole(string role) =>
             InternalUsersAppService.CreatableRoleNames.Contains(role, StringComparer.OrdinalIgnoreCase);
@@ -142,6 +135,13 @@ namespace HealthcareSupport.CaseEvaluation.Users
             // activation email below is the one this account gets.
             input.EmailConfirmed = false;
             input.SendConfirmationEmail = false;
+
+            // Nobody types this account's password: the person chooses it from the activation
+            // link. Whatever the form sent (the screen sends a random value it never shows, because
+            // the framework's create contract requires one) is replaced by a value nobody ever
+            // sees, so not even the creator, reading the request, knows a password for it.
+            input.Password = UnusablePassword.Generate();
+            input.ShouldChangePasswordOnNextLogin = false;
 
             var created = await base.CreateAsync(input);
 

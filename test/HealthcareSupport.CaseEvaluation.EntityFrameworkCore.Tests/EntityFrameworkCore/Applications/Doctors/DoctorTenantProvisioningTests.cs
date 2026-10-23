@@ -82,10 +82,10 @@ public sealed class RecordingActivationSender : HealthcareSupport.CaseEvaluation
     public Task SendAsync(Volo.Abp.Identity.IdentityUser user, string contextTag, string? greetingName = null) =>
         Task.CompletedTask;
 
-    public Task<bool> TrySendToOfficeAdminAsync(Guid officeId, string? greetingName)
+    public Task<HealthcareSupport.CaseEvaluation.ExternalAccount.OfficeAdminActivationOutcome> TrySendToOfficeAdminAsync(Guid officeId, string? greetingName)
     {
         OfficeAdminRequests.Add((officeId, greetingName));
-        return Task.FromResult(true);
+        return Task.FromResult(HealthcareSupport.CaseEvaluation.ExternalAccount.OfficeAdminActivationOutcome.Sent);
     }
 }
 

@@ -68,6 +68,27 @@ public class CaseEvaluationExceptionStatusCodeMappingsTests
         options.ErrorCodeToHttpStatusCodeMappings[
             CaseEvaluationDomainErrorCodes.InternalUserTenantRequired
         ].ShouldBe(HttpStatusCode.BadRequest);
+
+        // Staff-sent account activation (6 codes): refusals the person can act on are 400,
+        // "too soon" is 429, a failed queue is 503.
+        options.ErrorCodeToHttpStatusCodeMappings[
+            CaseEvaluationDomainErrorCodes.ActivationAccountInactive
+        ].ShouldBe(HttpStatusCode.BadRequest);
+        options.ErrorCodeToHttpStatusCodeMappings[
+            CaseEvaluationDomainErrorCodes.ActivationAlreadyActive
+        ].ShouldBe(HttpStatusCode.BadRequest);
+        options.ErrorCodeToHttpStatusCodeMappings[
+            CaseEvaluationDomainErrorCodes.ActivationNoAddress
+        ].ShouldBe(HttpStatusCode.BadRequest);
+        options.ErrorCodeToHttpStatusCodeMappings[
+            CaseEvaluationDomainErrorCodes.ActivationNoOfficeAdministrator
+        ].ShouldBe(HttpStatusCode.BadRequest);
+        options.ErrorCodeToHttpStatusCodeMappings[
+            CaseEvaluationDomainErrorCodes.ActivationResendTooSoon
+        ].ShouldBe(HttpStatusCode.TooManyRequests);
+        options.ErrorCodeToHttpStatusCodeMappings[
+            CaseEvaluationDomainErrorCodes.ActivationNotQueued
+        ].ShouldBe(HttpStatusCode.ServiceUnavailable);
     }
 
     [Fact]
@@ -84,8 +105,8 @@ public class CaseEvaluationExceptionStatusCodeMappingsTests
         options.ErrorCodeToHttpStatusCodeMappings[
             CaseEvaluationDomainErrorCodes.RegistrationFirmNameRequired
         ].ShouldBe(HttpStatusCode.BadRequest);
-        // Still exactly 11 mappings; no duplicate-key blow up.
-        options.ErrorCodeToHttpStatusCodeMappings.Count.ShouldBe(11);
+        // Still exactly 17 mappings; no duplicate-key blow up.
+        options.ErrorCodeToHttpStatusCodeMappings.Count.ShouldBe(17);
     }
 
     /// <summary>

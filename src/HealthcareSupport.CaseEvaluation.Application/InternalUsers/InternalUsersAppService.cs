@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Security.Cryptography;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
+using HealthcareSupport.CaseEvaluation.ExternalAccount;
 using HealthcareSupport.CaseEvaluation.Notifications;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
 using HealthcareSupport.CaseEvaluation.Permissions;
@@ -35,27 +35,19 @@ namespace HealthcareSupport.CaseEvaluation.InternalUsers;
 ///         <see cref="CreateAsync"/> gates the mutation. Permission is
 ///         declared <c>MultiTenancySides.Host</c> in the definition
 ///         provider, granted to IT Admin only.</item>
-///   <item>OLD parity password format <c>{4chars}@{4chars}</c> (9
-///         characters total). NEW uses cryptographic
-///         <c>RandomNumberGenerator</c> instead of OLD's hex
-///         <c>Guid.NewGuid()</c> substring, and curates the source
-///         alphabet to satisfy ABP's default password complexity
-///         (1 upper / 1 lower / 1 digit / 1 non-alphanumeric) on every
-///         random outcome (no rejection sampling needed).</item>
-///   <item>Auto-verified (<c>SetEmailConfirmed(true)</c>) so the new
-///         user can sign in immediately -- OLD parity for
-///         <c>IsVerified = true</c> after IT-Admin add.</item>
-///   <item><c>SetShouldChangePasswordOnNextLogin(true)</c> -- Adrian
-///         decision 2026-05-15. ABP Identity natively enforces this
-///         on the next sign-in; the temporary password is single-use.</item>
-///   <item>Plaintext password is dispatched via
-///         <c>INotificationDispatcher</c> (queued through Hangfire,
-///         same path as ResetPassword / InviteExternalUser) and is
-///         NEVER included in the response DTO.</item>
-///   <item>Welcome-email dispatch failures are logged + swallowed --
+///   <item>2026-10-23: no temporary password. The account is created
+///         unconfirmed with a password nobody sees
+///         (<see cref="UnusablePassword"/>), and the person is sent an
+///         activate-your-account link (<see cref="IAccountActivationSender"/>);
+///         choosing a password from it confirms the email. A password in an
+///         email can be read by anyone the email reaches, and the old
+///         auto-confirmed account gave appointment access on an address
+///         nobody had proved.</item>
+///   <item>Activation-email dispatch failures are logged + swallowed --
 ///         the user row + role assignment already committed, so the
-///         IT Admin should reset the password manually rather than
-///         retry the create.</item>
+///         reset button on the user's row (which sends a fresh activation
+///         link to an account not yet active) is the recovery, not a retry
+///         of the create.</item>
 /// </list>
 /// </summary>
 [Authorize(CaseEvaluationPermissions.InternalUsers.Default)]
@@ -71,14 +63,6 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
     public static readonly IReadOnlyList<string> CreatableRoleNames =
         new[] { "Intake Staff", "Staff Supervisor" };
 
-    // Curated character sets that exclude visually ambiguous glyphs
-    // (0/O, 1/I/l) so the temporary password the user types from the
-    // email reaches the server intact.
-    private const string LowerChars = "abcdefghijkmnpqrstuvwxyz";   // no l, o
-    private const string UpperChars = "ABCDEFGHJKLMNPQRSTUVWXYZ";   // no I, O
-    private const string DigitChars = "23456789";                   // no 0, 1
-    private const string MixedChars = LowerChars + UpperChars + DigitChars;
-
     private readonly IdentityUserManager _userManager;
     private readonly IdentityRoleManager _roleManager;
     private readonly IRepository<Tenant, Guid> _tenantRepository;
@@ -87,6 +71,7 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
     private readonly ILogger<InternalUsersAppService> _logger;
     // BUG-029 v3 fix (2026-05-21): centralized tenant-aware URL composition.
     private readonly IAccountUrlBuilder _accountUrlBuilder;
+    private readonly IAccountActivationSender _activationSender;
 
     public InternalUsersAppService(
         IdentityUserManager userManager,
@@ -95,7 +80,8 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
         INotificationDispatcher notificationDispatcher,
         IDataFilter dataFilter,
         ILogger<InternalUsersAppService> logger,
-        IAccountUrlBuilder accountUrlBuilder)
+        IAccountUrlBuilder accountUrlBuilder,
+        IAccountActivationSender activationSender)
     {
         _userManager = userManager;
         _roleManager = roleManager;
@@ -104,6 +90,7 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
         _dataFilter = dataFilter;
         _logger = logger;
         _accountUrlBuilder = accountUrlBuilder;
+        _activationSender = activationSender;
     }
 
     [Authorize(CaseEvaluationPermissions.InternalUsers.Create)]
@@ -130,7 +117,7 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
         //    a tenant. input.TenantId is ignored; an Intake operator's office
         //    access is granted later via the assignment screen. The shared
         //    "Management" label flows into the create-result DTO's TenantName (shown in
-        //    the create-result UI) and, defensively, the welcome email's TenantName token.
+        //    the create-result UI).
         const string tenantName = "Management";
         using (CurrentTenant.Change(null))
         {
@@ -157,13 +144,7 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
                     CaseEvaluationDomainErrorCodes.InternalUserDuplicateEmail);
             }
 
-            // 4c. Generate the temporary password. Curated alphabet +
-            //     fixed-format `{Upper}{lower}{any}{any}@{digit}{any}{any}{any}`
-            //     guarantees ABP's default complexity is satisfied
-            //     without rejection sampling.
-            var generatedPassword = GenerateParityPassword();
-
-            // 4d. Construct the IdentityUser in HOST scope. The enclosing
+            // 4c. Construct the IdentityUser in HOST scope. The enclosing
             //     CurrentTenant.Change(null) makes CurrentTenant.Id null, so the
             //     operator is a host login (input.TenantId is ignored -- see step 2).
             var user = new IdentityUser(
@@ -181,7 +162,10 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
                 user.SetPhoneNumber(input.PhoneNumber.Trim(), confirmed: false);
             }
 
-            var createResult = await _userManager.CreateAsync(user, generatedPassword);
+            // 4d. Created UNCONFIRMED, with a password nobody ever sees: the person chooses their
+            //     own from the activation link, and choosing it is what confirms the email
+            //     (2026-10-23; this used to auto-confirm and email a temporary password).
+            var createResult = await _userManager.CreateAsync(user, UnusablePassword.Generate());
             if (!createResult.Succeeded)
             {
                 throw new BusinessException(
@@ -189,23 +173,7 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
                     .WithData("Errors", string.Join("; ", createResult.Errors.Select(e => e.Description)));
             }
 
-            // 4e. Auto-verify (OLD parity) + force change on first
-            //     login (Adrian decision 2026-05-15). Persisted in the
-            //     same Identity update call.
-            user.SetEmailConfirmed(true);
-            user.SetShouldChangePasswordOnNextLogin(true);
-            var updateResult = await _userManager.UpdateAsync(user);
-            if (!updateResult.Succeeded)
-            {
-                // Roll back the freshly-created user so we don't leave
-                // an orphan account without the confirmation flag.
-                await _userManager.DeleteAsync(user);
-                throw new BusinessException(
-                    CaseEvaluationDomainErrorCodes.InternalUserCreateFailed)
-                    .WithData("Errors", string.Join("; ", updateResult.Errors.Select(e => e.Description)));
-            }
-
-            // 4f. Assign role. On failure, delete the user so the
+            // 4e. Assign role. On failure, delete the user so the
             //     account doesn't sit role-less and unusable.
             var roleResult = await _userManager.AddToRoleAsync(user, input.RoleName);
             if (!roleResult.Succeeded)
@@ -216,23 +184,10 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
                     .WithData("Errors", string.Join("; ", roleResult.Errors.Select(e => e.Description)));
             }
 
-            // 4g. Resolve the portal URL the email links to. BUG-029 v3
-            //     (2026-05-21): now via IAccountUrlBuilder so the
-            //     tenant subdomain is always prepended.
-            // Host operator -> host portal root (null tenant -> the reserved "admin" subdomain,
-            // admin.<base>; a bare base-domain link 404s).
-            var portalUrl = await _accountUrlBuilder.BuildPortalRootUrlAsync(null);
-
-            // 4h. Dispatch welcome email via the same path
-            //     ResetPassword / InviteExternalUser use. Failure to
-            //     queue is logged + surfaced via WelcomeEmailQueued
-            //     but does NOT roll back the user create.
-            var welcomeEmailQueued = await TrySendWelcomeEmailAsync(
-                user: user,
-                input: input,
-                generatedPassword: generatedPassword,
-                tenantName: tenantName,
-                portalUrl: portalUrl);
+            // 4f. Queue the activation email. Issued LAST, after every change to the user, because
+            //     any later change to the security stamp would kill the link. A failure to queue is
+            //     logged and reported through WelcomeEmailQueued but does NOT roll back the create.
+            var welcomeEmailQueued = await TrySendActivationEmailAsync(user);
 
             return new InternalUserCreatedDto
             {
@@ -254,9 +209,15 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
     /// Identity reset token, builds the reset URL (host root for host operators,
     /// subdomain-prefixed for any tenant-scoped user), and dispatches the
     /// ResetPassword template -- the same pipeline the self-service forgot-password
-    /// flow uses. Dispatch failures are NOT swallowed (unlike the create welcome
+    /// flow uses. Dispatch failures are NOT swallowed (unlike the create's activation
     /// email): there is no committed side-effect to protect, so a queue failure
     /// should surface to the admin rather than show a false success.
+    ///
+    /// <para>2026-10-23: an account that has not activated yet (its email is not
+    /// confirmed) is sent a fresh ACTIVATION link instead. A reset link would let
+    /// that person set a password and then be refused at sign-in for an unconfirmed
+    /// email. A switched-off account that has not activated is refused with a
+    /// message, because its activation link would be dead on arrival.</para>
     /// </summary>
     [Authorize(CaseEvaluationPermissions.InternalUsers.Edit)]
     public virtual async Task SendPasswordResetEmailAsync(Guid userId)
@@ -267,6 +228,18 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
         {
             throw new BusinessException(CaseEvaluationDomainErrorCodes.InternalUserNotFound);
         }
+
+        if (!user.EmailConfirmed)
+        {
+            if (!user.IsActive)
+            {
+                throw new BusinessException(CaseEvaluationDomainErrorCodes.ActivationAccountInactive);
+            }
+
+            await _activationSender.SendAsync(user, NotificationOccurrence.PerRequest($"AccountActivation/AdminTriggered/{user.Id}"));
+            return;
+        }
+
         var token = await _userManager.GeneratePasswordResetTokenAsync(user);
         // Phase D (2026-06-25): internal operators are HOST logins (TenantId null).
         // The prior guard threw InternalUserTenantRequired here, breaking reset for
@@ -352,132 +325,23 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
         }
     }
 
-    /// <summary>
-    /// Cryptographically random temporary password in the OLD-parity
-    /// <c>{4chars}@{4chars}</c> 9-character shape. Guarantees ABP
-    /// defaults (1 upper / 1 lower / 1 digit / 1 non-alphanumeric)
-    /// without rejection sampling: block 1 always carries upper + lower
-    /// in positions 1+2; block 2 always carries a digit in position 1;
-    /// the literal <c>@</c> between blocks supplies the
-    /// non-alphanumeric. Internal so unit tests can verify the format
-    /// contract.
-    /// </summary>
-    internal static string GenerateParityPassword()
-    {
-        var block1 =
-            new[]
-            {
-                Pick(UpperChars),
-                Pick(LowerChars),
-                Pick(MixedChars),
-                Pick(MixedChars),
-            };
-        var block2 =
-            new[]
-            {
-                Pick(DigitChars),
-                Pick(MixedChars),
-                Pick(MixedChars),
-                Pick(MixedChars),
-            };
-        return new string(block1) + "@" + new string(block2);
-    }
-
-    private static char Pick(string source)
-    {
-        var idx = RandomNumberGenerator.GetInt32(source.Length);
-        return source[idx];
-    }
-
-    // BUG-029 v3 fix (2026-05-21): ResolvePortalBaseUrlAsync removed; the
-    // call site uses IAccountUrlBuilder.BuildPortalRootUrlAsync directly.
-    // The "http://falkinstein.localhost:4200" hardcoded fallback is gone --
-    // missing App__AngularUrl env var now throws a clear error instead of
-    // silently emitting the demo tenant URL.
-
-    private async Task<bool> TrySendWelcomeEmailAsync(
-        IdentityUser user,
-        CreateInternalUserDto input,
-        string generatedPassword,
-        string tenantName,
-        string portalUrl)
+    private async Task<bool> TrySendActivationEmailAsync(IdentityUser user)
     {
         try
         {
-            await _notificationDispatcher.DispatchAsync(
-                templateCode: NotificationTemplateConsts.Codes.InternalUserCreated,
-                recipients: new[]
-                {
-                    new NotificationRecipient(
-                        email: user.Email!,
-                        role: RecipientRole.Patient,   // generic "to" -- role here is the dispatcher hint, not the IdentityUser role
-                        isRegistered: true),
-                },
-                variables: BuildWelcomeEmailVariables(
-                    user: user,
-                    input: input,
-                    generatedPassword: generatedPassword,
-                    tenantName: tenantName,
-                    portalUrl: portalUrl),
-                contextTag: $"InternalUserCreated/{user.Id}");
+            await _activationSender.SendAsync(user, NotificationOccurrence.PerRequest($"AccountActivation/InternalUserCreated/{user.Id}"));
             return true;
         }
         catch (Exception ex)
         {
             _logger.LogWarning(
                 ex,
-                "InternalUsersAppService.TrySendWelcomeEmailAsync: dispatch failed " +
-                "for user {UserId}. Account is created; IT Admin must reset the " +
-                "password manually.",
+                "InternalUsersAppService.TrySendActivationEmailAsync: dispatch failed " +
+                "for user {UserId}. Account is created; the reset button on the user's " +
+                "row sends a fresh activation link.",
                 user.Id);
             return false;
         }
-    }
-
-    /// <summary>
-    /// Variable bag for the <c>InternalUserCreated</c> email template.
-    /// Tokens are referenced in
-    /// <c>src/HealthcareSupport.CaseEvaluation.Domain/NotificationTemplates/EmailBodies/InternalUserCreated.html</c>
-    /// as <c>##UserName##</c>, <c>##LoginUserName##</c>,
-    /// <c>##Password##</c>, <c>##RoleName##</c>, <c>##TenantName##</c>,
-    /// <c>##PortalUrl##</c>. Empty-string defaults for the brand tokens
-    /// (<c>##CompanyLogo##</c>, etc.) match the pattern other templates
-    /// use; per-tenant branding fills them in when the branding feature
-    /// ships.
-    /// </summary>
-    private static Dictionary<string, object?> BuildWelcomeEmailVariables(
-        IdentityUser user,
-        CreateInternalUserDto input,
-        string generatedPassword,
-        string tenantName,
-        string portalUrl)
-    {
-        var fullName = JoinName(input.FirstName, input.LastName);
-        var variables = new Dictionary<string, object?>(StringComparer.Ordinal)
-        {
-            ["UserName"] = fullName,
-            ["LoginUserName"] = user.Email ?? string.Empty,
-            ["Password"] = generatedPassword,
-            ["RoleName"] = input.RoleName,
-            ["TenantName"] = tenantName,
-            ["PortalUrl"] = portalUrl,
-            // Defensive defaults for any tokens an IT-Admin editor may
-            // have left in the template body.
-            ["PatientFirstName"] = string.Empty,
-            ["PatientLastName"] = string.Empty,
-            ["PatientFullName"] = fullName,
-            ["PatientEmail"] = user.Email ?? string.Empty,
-            ["URL"] = portalUrl,
-            ["CompanyLogo"] = string.Empty,
-            ["lblHeaderTitle"] = string.Empty,
-            ["lblFooterText"] = string.Empty,
-            ["Email"] = string.Empty,
-            ["Skype"] = string.Empty,
-            ["ph_US"] = string.Empty,
-            ["fax"] = string.Empty,
-            ["imageInByte"] = string.Empty,
-        };
-        return variables;
     }
 
     private static string JoinName(string? first, string? last)
