@@ -266,8 +266,11 @@ public class AppointmentChangeRequestsAppService : CaseEvaluationAppService, IAp
         {
             // Party-initiated: the requestor's side is implied (auto-granted); the opposing
             // side must consent. F-014: the resolver places a booker/paralegal on a side too.
+            // 2026-10-23: matched on the CONFIRMED email only. The matched side's consent is
+            // granted automatically, so an unproven address equal to the other side's attorney
+            // must not place the submitter on that side; without one the role decides, as F-014.
             var resolution = await _sideResolver.ResolveAsync(
-                changeRequest.AppointmentId, CurrentUser.Email, CurrentUser.Roles);
+                changeRequest.AppointmentId, CurrentUser.GetVerifiedEmail(), CurrentUser.Roles);
             if (resolution == null)
             {
                 Logger.LogWarning(

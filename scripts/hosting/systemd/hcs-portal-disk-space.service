@@ -1,0 +1,11 @@
+# 2026-10-23: emails a person when / or /srv fills past 70% and again past 85%, with what is using the space.
+# Nothing else watches free space between deploys. See disk-space-check.sh. Runs as root to read the Docker volumes'
+# sizes and secrets/env.prod. Invoked through bash so it does not depend on the file's execute bit.
+[Unit]
+Description=Patient Portal disk space check
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/home/apadmin/hcs-patient-portal
+ExecStart=/bin/bash /home/apadmin/hcs-patient-portal/scripts/hosting/disk-space-check.sh
