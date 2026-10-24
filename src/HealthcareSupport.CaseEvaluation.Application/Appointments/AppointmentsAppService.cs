@@ -1303,9 +1303,12 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // OLD AppointmentDomain.cs:358-380 forces the field to the booker's
         // own email when the booker is an Adjuster, regardless of what the
         // form posted. Strict parity preserves that override.
+        // 2026-10-23: only a CONFIRMED address is forced in. The appointment's party emails decide
+        // where its packets go, so an address nobody proved must not be written there; with none
+        // confirmed the typed value stands, as it does for every other role.
         var resolvedClaimExaminerEmail = BookingFlowRoles.ResolveClaimExaminerEmail(
             callerRoles,
-            currentUserEmail: CurrentUser.Email,
+            currentUserEmail: CurrentUser.GetVerifiedEmail(),
             dtoClaimExaminerEmail: input.ClaimExaminerEmail);
 
         // W1-1: per T11 lifecycle, every booker submission lands at Pending. The

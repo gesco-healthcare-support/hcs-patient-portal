@@ -540,4 +540,52 @@ public abstract class UserExtendedAppServicePrivilegeTests<TStartupModule> : Cas
 
         (await HostOutboxAsync($"AccountActivation/StaffResend/{a.Intake}")).Count.ShouldBe(1);
     }
+
+    // ------------------------------------------------------------------------
+    // User import from a file, switched off 2026-10-23.
+    // ------------------------------------------------------------------------
+
+    [Fact]
+    public async Task The_user_import_permission_is_switched_off_for_everyone()
+    {
+        // A disabled permission is granted to nobody, the admin roles included, and ABP's Users screen
+        // hides its import menu without it. Deleting DisableUserImport makes this fail.
+        var definitions = GetRequiredService<Volo.Abp.Authorization.Permissions.IPermissionDefinitionManager>();
+        var import = await definitions.GetOrNullAsync(IdentityPermissions.Users.Import);
+
+        import.ShouldNotBeNull("ABP defines the permission; it is disabled, not removed");
+        import!.IsEnabled.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Importing_users_from_a_file_is_refused_even_past_the_permission()
+    {
+        // This harness allows every permission, so the call reaches the override itself: the second
+        // lock, for the day the permission is enabled again.
+        // A well-formed request, so input validation passes and the override itself answers.
+        var file = new Volo.Abp.Content.RemoteStreamContent(
+            new System.IO.MemoryStream(System.Text.Encoding.UTF8.GetBytes("UserName,EmailAddress")), "users.csv", "text/csv");
+        var ex = await Should.ThrowAsync<BusinessException>(() =>
+            _service.ImportUsersFromFileAsync(new ImportUsersFromFileInputWithStream
+            {
+                File = file,
+                FileType = ImportUsersFromFileType.Csv,
+            }));
+
+        ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.UserImportDisabled);
+    }
+
+    [Fact]
+    public async Task Importing_an_external_user_is_refused_even_past_the_permission()
+    {
+        var ex = await Should.ThrowAsync<BusinessException>(() =>
+            _service.ImportExternalUserAsync(new ImportExternalUserInput
+            {
+                Provider = "TEST-provider",
+                UserNameOrEmailAddress = "TEST-import@test.local",
+                Password = "TEST-Passw0rd!",
+            }));
+
+        ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.UserImportDisabled);
+    }
 }

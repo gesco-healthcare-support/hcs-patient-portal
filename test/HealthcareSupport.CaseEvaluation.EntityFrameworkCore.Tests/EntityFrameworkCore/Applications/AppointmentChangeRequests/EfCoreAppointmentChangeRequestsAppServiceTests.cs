@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -349,6 +350,40 @@ public class EfCoreAppointmentChangeRequestsAppServiceTests
         });
 
     /// <summary>Reads the single change-request row for an appointment, after the submit UoW has completed.</summary>
+    private async Task SeedEmailTemplatesAsync()
+    {
+        var templates = GetRequiredService<HealthcareSupport.CaseEvaluation.NotificationTemplates.INotificationTemplateRepository>();
+        var types = GetRequiredService<HealthcareSupport.CaseEvaluation.NotificationTemplates.INotificationTemplateTypeRepository>();
+        var guids = GetRequiredService<Volo.Abp.Guids.IGuidGenerator>();
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                // Reuse the seeded template type when there is one; create one only on an empty database.
+                var emailTypeId = (await types.GetListAsync()).Select(t => t.Id).FirstOrDefault();
+                if (emailTypeId == Guid.Empty)
+                {
+                    emailTypeId = guids.Create();
+                    await types.InsertAsync(
+                        new HealthcareSupport.CaseEvaluation.NotificationTemplates.NotificationTemplateType(emailTypeId, "Email"),
+                        autoSave: true);
+                }
+
+                var existing = (await templates.GetQueryableAsync()).Select(x => x.TemplateCode).ToList();
+                foreach (var code in HealthcareSupport.CaseEvaluation.NotificationTemplates.NotificationTemplateConsts.Codes.All)
+                {
+                    if (!existing.Contains(code))
+                    {
+                        await templates.InsertAsync(new HealthcareSupport.CaseEvaluation.NotificationTemplates.NotificationTemplate(
+                            id: guids.Create(), tenantId: TenantsTestData.TenantARef, templateCode: code, templateTypeId: emailTypeId,
+                            subject: $"[{code}] -- TEST", bodyEmail: $"<p>Stub for {code}</p>", bodySms: $"Stub for {code}",
+                            description: null, isActive: true), autoSave: true);
+                    }
+                }
+            }
+        });
+    }
+
     private Task<AppointmentChangeRequest?> FindRequestForAsync(Guid appointmentId) =>
         WithUnitOfWorkAsync(async () =>
         {
@@ -579,6 +614,41 @@ public class EfCoreAppointmentChangeRequestsAppServiceTests
         row!.SubmittedByUserId.ShouldBeNull();
         row!.SideAConsentStatus.ShouldBe(ChangeRequestConsentStatus.NotRequired);
         row!.SideBConsentStatus.ShouldBe(ChangeRequestConsentStatus.NotRequired);
+    }
+
+    [Theory]
+    [InlineData(false, ChangeRequestSide.SideB)]
+    [InlineData(true, ChangeRequestSide.SideA)]
+    public async Task RequestCancellationAsync_PlacesTheSubmitterBySideOnlyThroughAConfirmedEmail(
+        bool emailVerified, ChangeRequestSide expectedSide)
+    {
+        // 2026-10-23: the submitter's side has its consent GRANTED automatically, so the email that
+        // places them there must be confirmed. The caller holds the Claim Examiner role (Side B by
+        // role) and carries the PATIENT's address (Side A by email). Unconfirmed, the address must not
+        // count, so the role decides: Side B. Confirmed, the address is theirs: Side A. Reading the
+        // raw CurrentUser.Email again puts the unconfirmed caller on Side A and fails the first case.
+        var fixture = await SeedFixtureAsync(
+            AppointmentStatusType.Approved, currentSlotDayOffset: 30, partyEmails: true);
+        await GrantEditAccessAsync(fixture.AppointmentId, IdentityUsersTestData.ClaimExaminer1UserId);
+        // A party-filed cancel mails the parties, so the office needs its templates.
+        await SeedEmailTemplatesAsync();
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        using (WithCurrentUser.RunWithEmail(
+                   _principalAccessor,
+                   IdentityUsersTestData.ClaimExaminer1UserId,
+                   fixture.PartyEmail,
+                   emailVerified,
+                   IdentityUsersTestData.ClaimExaminerRoleName))
+        {
+            await _changeRequestsAppService.RequestCancellationAsync(
+                fixture.AppointmentId,
+                new RequestCancellationDto { Reason = $"TEST-side-{emailVerified}-{fixture.Token}" });
+        }
+
+        var row = await FindRequestForAsync(fixture.AppointmentId);
+        row.ShouldNotBeNull();
+        row!.RequestingSide.ShouldBe(expectedSide);
     }
 
     [Fact]
