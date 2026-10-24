@@ -227,5 +227,21 @@ namespace HealthcareSupport.CaseEvaluation.Users
             await EnsureTargetNotPrivilegedAsync(id);
             await base.SetTwoFactorEnabledAsync(id, enabled);
         }
+
+        // 2026-10-23: user import is switched off (CaseEvaluationPermissionDefinitionProvider.DisableUserImport
+        // disables the permission, so these are refused before they run). The overrides keep it off if that
+        // permission is ever enabled again: an import takes passwords typed into the file and roles from it,
+        // sends no activation email, and skips CreateAsync above.
+        [Authorize(IdentityPermissions.Users.Import)]
+        public override Task<ImportUsersFromFileOutput> ImportUsersFromFileAsync(ImportUsersFromFileInputWithStream input)
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.UserImportDisabled);
+        }
+
+        [Authorize(IdentityPermissions.Users.Import)]
+        public override Task<IdentityUserDto> ImportExternalUserAsync(ImportExternalUserInput input)
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.UserImportDisabled);
+        }
     }
 }
