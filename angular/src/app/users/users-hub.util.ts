@@ -1,8 +1,8 @@
 import { ExternalUserType } from '../proxy/external-signups/external-user-type.enum';
 import { InvitationStatus } from '../proxy/invitations/invitation-status.enum';
 
-/** The four sections of the Users & Access hub, in rail order. */
-export type UsersSectionKey = 'invite' | 'pending' | 'staff' | 'tenants';
+/** The sections of the Users & Access hub, in rail order. */
+export type UsersSectionKey = 'invite' | 'pending' | 'all' | 'staff' | 'tenants';
 
 /** Rail metadata for one section: label, icon, deep-link route, and gating policy. */
 export interface UsersSection {
@@ -37,6 +37,17 @@ export const USERS_SECTIONS: UsersSection[] = [
     icon: 'clock',
     route: '/users/pending',
     policy: 'CaseEvaluation.UserManagement.InviteExternalUser',
+  },
+  {
+    // 2026-10-26: every account of this site -- the identity Users screen, with its activation-email
+    // actions, shown inside the hub beside the invites (add, edit, switch off, resend an activation
+    // email). Needs AbpIdentity.Users: the System owner, IT Admin and the host Supervisor on the staff
+    // site; only the office admin inside an office.
+    key: 'all',
+    label: 'All Users',
+    icon: 'users',
+    route: '/users/all',
+    policy: 'AbpIdentity.Users',
   },
   {
     key: 'staff',

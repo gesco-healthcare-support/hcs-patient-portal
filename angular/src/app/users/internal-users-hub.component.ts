@@ -8,7 +8,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink, RouterOutlet } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { PermissionService } from '@abp/ng.core';
 import { ToasterService } from '@abp/ng.theme.shared';
@@ -118,6 +118,7 @@ const COPY_FAILED_AFTER_RESEND = 'The new invite link could not be copied.';
     CommonModule,
     FormsModule,
     RouterLink,
+    RouterOutlet,
     IconComponent,
     OfficeNamePipe,
     ManagedTableComponent,
@@ -186,6 +187,8 @@ export class InternalUsersHubComponent {
   protected readonly internalUsersDataSource: ManagedTableDataSource<InternalUserListDto> = (q) =>
     this.gateway.internalUsersPage(q);
   protected readonly createForm = signal<CreateUserDraft | null>(null);
+  /** 2026-10-26: Staff Management "Change role" -- the person being changed and the role picked. */
+  protected readonly roleChange = signal<{ row: InternalUserListDto; role: string } | null>(null);
   protected readonly createResult = signal<InternalUserCreatedDto | null>(null);
 
   // Tenants / Offices (server-driven table)
@@ -248,6 +251,7 @@ export class InternalUsersHubComponent {
 
   private closeModals(): void {
     this.createForm.set(null);
+    this.roleChange.set(null);
     this.tenantForm.set(null);
     this.tenantLogo.set(null);
     this.tenantTriedSave.set(false);
@@ -485,6 +489,10 @@ export class InternalUsersHubComponent {
    */
   @HostListener('document:keydown.escape')
   protected onEscapeKey(): void {
+    if (this.roleChange()) {
+      this.closeRoleChange();
+      return;
+    }
     if (this.tenantForm()) {
       this.closeTenant();
       return;
@@ -562,6 +570,71 @@ export class InternalUsersHubComponent {
           this.toaster.success(
             'Email queued: a reset link, or an activation link if they have not activated yet.',
           ),
+        error: () => undefined,
+      });
+  }
+
+  // ---- Change role (2026-10-26, one role per person) ----
+
+  /**
+   * A staff member is switched between the two staff roles only: never an IT Admin row. Same permission
+   * as the row's reset button. The server also refuses the caller's own account, with a message.
+   */
+  protected canChangeRole(row: InternalUserListDto): boolean {
+    return (
+      this.permission.getGrantedPolicy('CaseEvaluation.InternalUsers.Edit') &&
+      this.creatableRoles.includes(row.role ?? '')
+    );
+  }
+
+  protected openRoleChange(row: InternalUserListDto): void {
+    this.roleChange.set({ row, role: row.role ?? '' });
+  }
+
+  protected pickRole(role: string): void {
+    const current = this.roleChange();
+    if (current) {
+      this.roleChange.set({ ...current, role });
+    }
+  }
+
+  protected closeRoleChange(): void {
+    if (!this.isBusy()) {
+      this.roleChange.set(null);
+    }
+  }
+
+  /**
+   * Saves the one role picked. Moving off Intake Staff also takes the person off every office they were
+   * assigned to (the server does it, as Staff Assignments' Unassign does), so the toast says so.
+   */
+  protected saveRoleChange(): void {
+    const change = this.roleChange();
+    if (!change || this.isBusy()) {
+      return;
+    }
+    if (change.role === change.row.role) {
+      this.roleChange.set(null);
+      return;
+    }
+
+    const name = change.row.fullName || change.row.email || 'This person';
+    const leavingIntake = change.row.role === 'Intake Staff';
+    this.isBusy.set(true);
+    this.gateway
+      .changeRole(change.row.id ?? '', change.role)
+      .pipe(finalize(() => this.isBusy.set(false)))
+      .subscribe({
+        next: () => {
+          this.toaster.success(
+            leavingIntake
+              ? `${name} is now ${change.role}. Their office assignments were removed.`
+              : `${name} is now ${change.role}. Assign their offices in Staff Assignments.`,
+          );
+          this.roleChange.set(null);
+          this.reload$.next();
+        },
+        // Refused (an IT Admin, your own account): the global error handler shows the server's message.
         error: () => undefined,
       });
   }

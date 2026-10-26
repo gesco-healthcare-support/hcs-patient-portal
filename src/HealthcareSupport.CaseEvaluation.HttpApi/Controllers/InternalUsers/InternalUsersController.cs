@@ -64,6 +64,18 @@ public class InternalUsersController : AbpController
     }
 
     /// <summary>
+    /// 2026-10-26: switches one staff member between Intake Staff and Staff Supervisor. Auth enforced at the
+    /// AppService (InternalUsers.Edit permission).
+    /// </summary>
+    [Authorize]
+    [HttpPut]
+    [Route("{id}/role")]
+    public virtual Task<InternalUserListDto> ChangeRoleAsync(Guid id, [FromBody] ChangeInternalUserRoleDto input)
+    {
+        return _internalUsersAppService.ChangeRoleAsync(id, input);
+    }
+
+    /// <summary>
     /// Returns the active offices for the internal-users form's office picker and the internal
     /// shell's office switcher. Requires a signed-in caller here, and
     /// <c>CaseEvaluation.InternalUsers</c> at the app service; the office list is not public.

@@ -119,16 +119,18 @@ public class HostOnlyIntegrationAdminGuardTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public async Task FeedActions_InsideAnOffice_AreRefused_BeforeTheOtherOfficeIsEntered(bool start)
+    public async Task ConnectionActions_InsideAnOffice_AreRefused_BeforeTheOtherOfficeIsEntered(bool connect)
     {
-        // #927: starting the feed or returning an office to push acts on the office the route names.
+        // Connecting (which also starts the feed) or disconnecting acts on the office the route names.
         InsideAnOffice();
         var service = BuildPushSettingsService();
 
         await Should.ThrowAsync<AbpAuthorizationException>(
-            () => start ? service.StartFeedAsync(SecondOfficeId) : service.ReturnToPushAsync(SecondOfficeId));
+            () => connect ? service.ConnectAsync(SecondOfficeId) : service.DisconnectAsync(SecondOfficeId));
 
         _currentTenant.DidNotReceive().Change(SecondOfficeId, Arg.Any<string?>());
+        await _settingManager.DidNotReceiveWithAnyArgs()
+            .SetAsync(default!, default, default!, default, default);
     }
 
     [Fact]
@@ -152,29 +154,20 @@ public class HostOnlyIntegrationAdminGuardTests
             .AggregateAcrossOfficesAsync(Arg.Any<Func<Guid, Task<CaseTrackerOfficePushStateDto>>>());
     }
 
-    [Fact]
-    public async Task PushSettingsSwitch_InsideAnOffice_IsRefused_BeforeAnySettingIsWritten()
+    [Theory]
+    [InlineData(true, "true")]
+    [InlineData(false, "false")]
+    public async Task ConnectionActions_AtTheHost_WriteTheSwitchInThatOffice(bool connect, string expected)
     {
-        InsideAnOffice();
+        var service = BuildPushSettingsService();
 
-        await Should.ThrowAsync<AbpAuthorizationException>(
-            () => BuildPushSettingsService().SetPushEnabledAsync(SecondOfficeId, true));
-
-        _currentTenant.DidNotReceive().Change(SecondOfficeId, Arg.Any<string?>());
-        await _settingManager.DidNotReceiveWithAnyArgs()
-            .SetAsync(default!, default, default!, default, default);
-    }
-
-    [Fact]
-    public async Task PushSettingsSwitch_AtTheHost_WritesTheSettingInThatOffice()
-    {
-        var state = await BuildPushSettingsService().SetPushEnabledAsync(SecondOfficeId, true);
+        var state = connect ? await service.ConnectAsync(SecondOfficeId) : await service.DisconnectAsync(SecondOfficeId);
 
         state.OfficeId.ShouldBe(SecondOfficeId);
         _currentTenant.Received().Change(SecondOfficeId, Arg.Any<string?>());
         await _settingManager.Received(1).SetAsync(
             Settings.CaseEvaluationSettings.IntegrationPolicy.CaseTrackerPushEnabled,
-            "true",
+            expected,
             Arg.Any<string>(),
             Arg.Any<string?>(),
             Arg.Any<bool>());
@@ -228,7 +221,7 @@ public class HostOnlyIntegrationAdminGuardTests
     private CaseTrackerPushSettingsAppService BuildPushSettingsService() =>
         new(
             _tenantWorkRunner,
-            Substitute.For<ITenantStore>(),
+            KnowsTheSecondOffice(),
             _currentTenant,
             _settingManager,
             _outboxRepository,
@@ -242,6 +235,14 @@ public class HostOnlyIntegrationAdminGuardTests
         {
             LazyServiceProvider = Substitute.For<IAbpLazyServiceProvider>(),
         };
+
+    /// <summary>A tenant store that knows the second office, so a connection action is not refused as unknown.</summary>
+    private static ITenantStore KnowsTheSecondOffice()
+    {
+        var store = Substitute.For<ITenantStore>();
+        store.FindAsync(SecondOfficeId).Returns(new TenantConfiguration(SecondOfficeId, "TEST-second-office"));
+        return store;
+    }
 
     private CaseTrackerMissingIntakeAppService BuildMissingIntakeService() =>
         new(

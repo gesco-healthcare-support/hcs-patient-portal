@@ -123,9 +123,29 @@ namespace HealthcareSupport.CaseEvaluation.Users
             }
         }
 
+        /// <summary>
+        /// 2026-10-26 (Levon): a person has exactly one role. A request that names roles must name exactly
+        /// one, for every caller. On an edit, no list at all means "leave the roles as they are" (the
+        /// switch-off toggle sends the one role the person has); on a create it would leave the person
+        /// with none, so it is refused as well.
+        /// </summary>
+        internal static void EnsureExactlyOneRole(IEnumerable<string>? roleNames)
+        {
+            var distinct = (roleNames ?? Array.Empty<string>())
+                .Where(r => !string.IsNullOrWhiteSpace(r))
+                .Select(r => r.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count();
+            if (distinct != 1)
+            {
+                throw new BusinessException(CaseEvaluationDomainErrorCodes.OneRolePerPerson);
+            }
+        }
+
         [Authorize(IdentityPermissions.Users.Create)]
         public override async Task<IdentityUserDto> CreateAsync(IdentityUserCreateDto input)
         {
+            EnsureExactlyOneRole(input.RoleNames);
             if (!CallerIsPrivileged() && (input.RoleNames ?? Array.Empty<string>()).Any(r => !IsStaffRole(r)))
             {
                 throw Refusal();
@@ -157,6 +177,11 @@ namespace HealthcareSupport.CaseEvaluation.Users
         [Authorize(IdentityPermissions.Users.Update)]
         public override async Task<IdentityUserDto> UpdateAsync(Guid id, IdentityUserUpdateDto input)
         {
+            if (input.RoleNames != null)
+            {
+                EnsureExactlyOneRole(input.RoleNames);
+            }
+
             await EnsureTargetNotPrivilegedAsync(id);
             await EnsureRoleChangeAllowedAsync(id, input.RoleNames);
 
@@ -181,6 +206,7 @@ namespace HealthcareSupport.CaseEvaluation.Users
         [Authorize(IdentityPermissions.Users.Update)]
         public override async Task UpdateRolesAsync(Guid id, IdentityUserUpdateRolesDto input)
         {
+            EnsureExactlyOneRole(input.RoleNames);
             await EnsureTargetNotPrivilegedAsync(id);
             await EnsureRoleChangeAllowedAsync(id, input.RoleNames);
             await base.UpdateRolesAsync(id, input);

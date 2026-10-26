@@ -78,6 +78,7 @@ CaseEvaluation.BackgroundJobsDashboard side=Host host=IT Admin, admin office=-
 CaseEvaluation.Branding side=Both host=IT Admin, Staff Supervisor, admin office=admin
 CaseEvaluation.Branding.Edit side=Both host=IT Admin, Staff Supervisor, admin office=admin
 CaseEvaluation.CaseTrackerIntegration side=Host host=IT Admin, Staff Supervisor, admin office=-
+CaseEvaluation.CaseTrackerIntegration.ManageConnection side=Host host=IT Admin, admin office=-
 CaseEvaluation.ClaimExaminers side=Both host=admin office=admin
 CaseEvaluation.ClaimExaminers.Create side=Both host=admin office=admin
 CaseEvaluation.ClaimExaminers.Delete side=Both host=admin office=admin
