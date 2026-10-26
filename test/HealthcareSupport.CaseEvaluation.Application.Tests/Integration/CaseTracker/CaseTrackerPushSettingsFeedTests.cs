@@ -3,11 +3,11 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.MultiTenancy;
+using HealthcareSupport.CaseEvaluation.Settings;
 using HealthcareSupport.CaseEvaluation.TestData;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
-using Volo.Abp;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Guids;
 using Volo.Abp.Modularity;
@@ -19,7 +19,7 @@ using Xunit;
 namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 
 /// <summary>
-/// The cutover actions on the host settings surface (#927) against the real settings store and the real feed
+/// Connecting and disconnecting an office on the host settings surface (#927, 2026-10-26) against the real settings store and the real feed
 /// record, on the SQLite rig. The SQL-Server-only store is substituted: its start floor and outstanding count
 /// are fixed here and proved on SQL Server separately. The service is built by hand, so the authorization
 /// interceptor does not run: what is under test is what the actions DO.
@@ -57,11 +57,22 @@ public abstract class CaseTrackerPushSettingsFeedTests<TStartupModule> : CaseEva
             LazyServiceProvider = GetRequiredService<IAbpLazyServiceProvider>(),
         };
 
-    private Task<CaseTrackerOfficePushStateDto> SetPushAsync(Guid officeId, bool enabled) =>
-        WithUnitOfWorkAsync(() => BuildService().SetPushEnabledAsync(officeId, enabled));
+    private Task<CaseTrackerOfficePushStateDto> ConnectAsync(Guid officeId) =>
+        WithUnitOfWorkAsync(() => BuildService().ConnectAsync(officeId));
 
-    private Task<CaseTrackerOfficePushStateDto> StartFeedAsync(Guid officeId) =>
-        WithUnitOfWorkAsync(() => BuildService().StartFeedAsync(officeId));
+    private Task<CaseTrackerOfficePushStateDto> DisconnectAsync(Guid officeId) =>
+        WithUnitOfWorkAsync(() => BuildService().DisconnectAsync(officeId));
+
+    /// <summary>Writes the switch directly, as an office set up before Connect existed could have it.</summary>
+    private Task WriteSwitchAsync(Guid officeId, string value) =>
+        WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(officeId))
+            {
+                await GetRequiredService<ISettingManager>().SetForCurrentTenantAsync(
+                    CaseEvaluationSettings.IntegrationPolicy.CaseTrackerPushEnabled, value);
+            }
+        });
 
     private async Task<CaseTrackerFeedState?> FeedRecordAsync(Guid officeId)
     {
@@ -77,15 +88,14 @@ public abstract class CaseTrackerPushSettingsFeedTests<TStartupModule> : CaseEva
     }
 
     [Fact]
-    public async Task StartFeedAsync_PutsTheOfficeOnTheFeed_AtTheStoresStartFloor()
+    public async Task ConnectAsync_StartsTheFeedAtTheStoresStartFloor_AndTurnsTheSwitchOn()
     {
         var officeId = TenantsTestData.TenantARef;
-        await SetPushAsync(officeId, true);
 
-        var dto = await StartFeedAsync(officeId);
+        var dto = await ConnectAsync(officeId);
 
+        dto.PushEnabled.ShouldBeTrue(); // the switch also gates reconcile and attendance coming back
         dto.FeedActive.ShouldBeTrue();
-        dto.PushEnabled.ShouldBeTrue(); // stays on: reconcile and attendance still need it
         dto.OutstandingCount.ShouldBe(3);
         var record = await FeedRecordAsync(officeId);
         record!.IsActive.ShouldBeTrue();
@@ -94,61 +104,83 @@ public abstract class CaseTrackerPushSettingsFeedTests<TStartupModule> : CaseEva
     }
 
     [Fact]
-    public async Task StartFeedAsync_WhenAlreadyOn_IsRefused_AndTheFloorDoesNotMove()
+    public async Task ConnectAsync_AnOfficeSwitchedOnWithoutTheFeed_StartsTheFeed()
     {
+        // The state "Turn on" alone used to leave: push mode, with nowhere to push on Azure.
         var officeId = TenantsTestData.TenantARef;
-        await SetPushAsync(officeId, true);
-        await StartFeedAsync(officeId);
-        _store.GetStartFloorAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(900L));
+        await WriteSwitchAsync(officeId, "true");
 
-        await Should.ThrowAsync<UserFriendlyException>(() => StartFeedAsync(officeId));
+        var dto = await ConnectAsync(officeId);
 
+        dto.PushEnabled.ShouldBeTrue();
+        dto.FeedActive.ShouldBeTrue();
         (await FeedRecordAsync(officeId))!.FloorPosition.ShouldBe(StartFloor);
     }
 
     [Fact]
-    public async Task StartFeedAsync_WithThePushSwitchOff_IsRefused_AndWritesNothing()
+    public async Task ConnectAsync_AnOfficeWhoseFeedIsOnButSwitchedOff_OnlyTurnsTheSwitchOn_AndKeepsItsPosition()
     {
-        // The push switch is the office's ePHI gate; the feed refuses an office that has it off, so starting one
-        // there would only look as if it worked.
+        // The Sandbox state on 2026-10-26: feed active, switch off. Its feed resumes where the Case Tracker
+        // last acknowledged; the floor is not moved, so nothing waiting is skipped or sent twice.
         var officeId = TenantsTestData.TenantARef;
-        await SetPushAsync(officeId, false);
+        await ConnectAsync(officeId);
+        await DisconnectAsync(officeId);
+        _store.GetStartFloorAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(900L));
 
-        await Should.ThrowAsync<UserFriendlyException>(() => StartFeedAsync(officeId));
+        var dto = await ConnectAsync(officeId);
 
-        (await FeedRecordAsync(officeId)).ShouldBeNull();
-    }
-
-    [Fact]
-    public async Task ReturnToPushAsync_TakesTheOfficeOffTheFeed_AndTheDrainMayPushAgain()
-    {
-        var officeId = TenantsTestData.TenantARef;
-        await SetPushAsync(officeId, true);
-        await StartFeedAsync(officeId);
-
-        var dto = await WithUnitOfWorkAsync(() => BuildService().ReturnToPushAsync(officeId));
-
-        dto.FeedActive.ShouldBeFalse();
         dto.PushEnabled.ShouldBeTrue();
-        dto.OutstandingCount.ShouldBeNull();
-        (await FeedRecordAsync(officeId))!.IsActive.ShouldBeFalse();
+        dto.FeedActive.ShouldBeTrue();
+        var record = await FeedRecordAsync(officeId);
+        record!.FloorPosition.ShouldBe(StartFloor);
+        record.AcknowledgedPosition.ShouldBe(StartFloor);
     }
 
     [Fact]
-    public async Task ReturnToPushAsync_WhenNotOnTheFeed_IsRefused()
+    public async Task ConnectAsync_AConnectedOffice_ChangesNothing()
     {
         var officeId = TenantsTestData.TenantARef;
-        await SetPushAsync(officeId, true);
+        await ConnectAsync(officeId);
+        _store.GetStartFloorAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(900L));
 
-        await Should.ThrowAsync<UserFriendlyException>(
-            () => WithUnitOfWorkAsync(() => BuildService().ReturnToPushAsync(officeId)));
+        var dto = await ConnectAsync(officeId);
+
+        dto.PushEnabled.ShouldBeTrue();
+        dto.FeedActive.ShouldBeTrue();
+        (await FeedRecordAsync(officeId))!.FloorPosition.ShouldBe(StartFloor);
+    }
+
+    [Fact]
+    public async Task DisconnectAsync_TurnsTheSwitchOff_AndLeavesTheFeedAsItIs()
+    {
+        var officeId = TenantsTestData.TenantARef;
+        await ConnectAsync(officeId);
+
+        var dto = await DisconnectAsync(officeId);
+
+        dto.PushEnabled.ShouldBeFalse();
+        dto.FeedActive.ShouldBeTrue(); // the feed refuses the office while its switch is off; changes wait
+        var record = await FeedRecordAsync(officeId);
+        record!.IsActive.ShouldBeTrue();
+        record.FloorPosition.ShouldBe(StartFloor);
+    }
+
+    [Fact]
+    public async Task DisconnectAsync_AnOfficeNeverConnected_StartsNoFeed()
+    {
+        var officeId = TenantsTestData.TenantARef;
+
+        var dto = await DisconnectAsync(officeId);
+
+        dto.PushEnabled.ShouldBeFalse();
+        dto.FeedActive.ShouldBeFalse();
+        (await FeedRecordAsync(officeId)).ShouldBeNull();
     }
 
     [Fact]
     public async Task GetOfficesAsync_ShowsEachOfficesMode_AndReadsTheStoreOnlyForAFedOffice()
     {
-        await SetPushAsync(TenantsTestData.TenantARef, true);
-        await StartFeedAsync(TenantsTestData.TenantARef);
+        await ConnectAsync(TenantsTestData.TenantARef);
         _store.ClearReceivedCalls();
 
         var offices = await WithUnitOfWorkAsync(() => BuildService().GetOfficesAsync());

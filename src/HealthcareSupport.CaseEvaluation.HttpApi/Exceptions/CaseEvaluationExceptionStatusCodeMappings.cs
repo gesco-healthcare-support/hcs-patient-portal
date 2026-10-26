@@ -95,6 +95,15 @@ public static class CaseEvaluationExceptionStatusCodeMappings
         options.Map(
             CaseEvaluationDomainErrorCodes.ActivationNotQueued,
             HttpStatusCode.ServiceUnavailable);
+
+        // One role per person (2026-10-26), on the identity Users screen and Staff Management. Unmapped,
+        // each would be ABP's default 403 and the screen would show no message.
+        options.Map(
+            CaseEvaluationDomainErrorCodes.OneRolePerPerson,
+            HttpStatusCode.BadRequest);
+        options.Map(
+            CaseEvaluationDomainErrorCodes.InternalUserRoleChangeNotAllowed,
+            HttpStatusCode.BadRequest);
     }
 
     /// <summary>

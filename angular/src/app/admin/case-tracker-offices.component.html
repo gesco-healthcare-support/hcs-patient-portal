@@ -1,10 +1,10 @@
 <div class="cto-head">
   <div>
-    <h2>Case Tracker push</h2>
+    <h2>Case Tracker connection</h2>
     <p class="cto-sub">
-      Off by default, per clinic. Enabling one sends its approved appointments to the Case Tracker,
-      including anything already queued while it was off. Starting the feed switches an office to
-      the Case Tracker reading its changes from the portal instead.
+      Off by default, per clinic. Connecting a clinic lets the Case Tracker read its approved
+      appointments from the portal, including anything queued while it was off. Disconnecting stops
+      that; the clinic's changes wait here until it is connected again.
     </p>
   </div>
   <button type="button" class="cto-btn" (click)="load()" [disabled]="loading()">
@@ -28,7 +28,7 @@
   <div class="cto-empty">
     <app-icon name="alert" [size]="26" />
     <b>No clinics found</b>
-    Nothing to enable yet.
+    Nothing to connect yet.
   </div>
 } @else {
   @if (error()) {
@@ -38,11 +38,12 @@
     <thead>
       <tr>
         <th>Clinic</th>
-        <th>Push</th>
-        <th>Mode</th>
+        <th>Connection</th>
         <th>Queued</th>
         <th>Last request</th>
-        <th></th>
+        @if (canManage) {
+          <th></th>
+        }
       </tr>
     </thead>
     <tbody>
@@ -53,22 +54,22 @@
             <div class="cto-dim">{{ o.officeId }}</div>
           </td>
           <td>
-            <span class="cto-pill" [class.cto-on]="o.pushEnabled">
-              {{ o.pushEnabled ? 'Enabled' : 'Off' }}
-            </span>
-          </td>
-          <td>
-            <span class="cto-pill" [class.cto-on]="o.feedActive">
-              {{ o.feedActive ? 'Feed' : 'Push' }}
-            </span>
+            @if (isConnected(o)) {
+              <span class="cto-pill cto-on">Connected</span>
+            } @else if (o.pushEnabled) {
+              <!-- The state "Turn on" alone used to leave: Connect starts the feed it is missing. -->
+              <span class="cto-warn">On, feed not started</span>
+            } @else {
+              <span class="cto-pill">Off</span>
+            }
           </td>
           <td>
             @if (o.feedActive) {
               <!-- Under the feed, what matters is what the Case Tracker has not yet acknowledged. -->
               <span class="cto-dim">{{ o.outstandingCount ?? 0 }} waiting</span>
             } @else if (o.pendingCount > 0 && !o.pushEnabled) {
-              <!-- Warned only when it matters: a backlog is harmless while off and a flood when enabled. -->
-              <span class="cto-warn">{{ o.pendingCount }} waiting -- all sent on enable</span>
+              <!-- Warned only when it matters: a backlog waits while off and is all delivered on connect. -->
+              <span class="cto-warn">{{ o.pendingCount }} waiting -- all delivered on connect</span>
             } @else {
               <span class="cto-dim">{{ o.pendingCount }}</span>
             }
@@ -80,87 +81,58 @@
               <span class="cto-dim">--</span>
             }
           </td>
-          <td>
-            @if (isConfirming(o, 'start')) {
-              <span class="cto-confirm">
-                Start the feed for {{ o.officeName || o.officeId }}? The push stops, and the Case
-                Tracker reads this office's changes from the portal.
-              </span>
-              <span class="cto-actions">
-                <button
-                  type="button"
-                  class="cto-btn cto-btn-primary"
-                  (click)="confirmFeed(o)"
-                  [disabled]="saving() === o.officeId"
-                >
-                  {{ saving() === o.officeId ? 'Starting...' : 'Start feed' }}
-                </button>
-                <button
-                  type="button"
-                  class="cto-btn"
-                  (click)="confirming.set(null)"
-                  [disabled]="saving() === o.officeId"
-                >
-                  Cancel
-                </button>
-              </span>
-            } @else if (isConfirming(o, 'return')) {
-              <span class="cto-confirm">
-                Return {{ o.officeName || o.officeId }} to push? Every waiting change is pushed,
-                including changes the feed already delivered.
-              </span>
-              <span class="cto-actions">
-                <button
-                  type="button"
-                  class="cto-btn cto-btn-primary"
-                  (click)="confirmFeed(o)"
-                  [disabled]="saving() === o.officeId"
-                >
-                  {{ saving() === o.officeId ? 'Returning...' : 'Return to push' }}
-                </button>
-                <button
-                  type="button"
-                  class="cto-btn"
-                  (click)="confirming.set(null)"
-                  [disabled]="saving() === o.officeId"
-                >
-                  Cancel
-                </button>
-              </span>
-            } @else {
-              <span class="cto-actions">
-                <button
-                  type="button"
-                  class="cto-btn"
-                  (click)="toggle(o)"
-                  [disabled]="saving() === o.officeId"
-                >
-                  {{
-                    saving() === o.officeId ? 'Saving...' : o.pushEnabled ? 'Turn off' : 'Turn on'
-                  }}
-                </button>
-                @if (o.feedActive) {
-                  <button
-                    type="button"
-                    class="cto-btn"
-                    (click)="askFeed(o, 'return')"
-                    [disabled]="saving() === o.officeId"
-                  >
-                    Return to push
-                  </button>
-                } @else if (o.pushEnabled) {
-                  <button
-                    type="button"
-                    class="cto-btn"
-                    (click)="askFeed(o, 'start')"
-                    [disabled]="saving() === o.officeId"
-                  >
-                    Start feed
-                  </button>
+          @if (canManage) {
+            <td>
+              @if (isConfirming(o)) {
+                @if (confirming()?.action === 'connect') {
+                  <span class="cto-confirm">
+                    Connect {{ o.officeName || o.officeId }}? The Case Tracker starts reading this
+                    clinic's approved appointments, including anything queued.
+                  </span>
+                } @else {
+                  <span class="cto-confirm">
+                    Disconnect {{ o.officeName || o.officeId }}? The Case Tracker stops receiving
+                    this clinic's changes; they wait here until it is connected again.
+                  </span>
                 }
-              </span>
-            }
-          </td>
+                <span class="cto-actions">
+                  <button
+                    type="button"
+                    class="cto-btn cto-btn-primary"
+                    (click)="confirmConnection(o)"
+                    [disabled]="saving() === o.officeId"
+                  >
+                    @if (saving() === o.officeId) {
+                      {{
+                        confirming()?.action === 'connect' ? 'Connecting...' : 'Disconnecting...'
+                      }}
+                    } @else {
+                      {{ confirming()?.action === 'connect' ? 'Connect' : 'Disconnect' }}
+                    }
+                  </button>
+                  <button
+                    type="button"
+                    class="cto-btn"
+                    (click)="confirming.set(null)"
+                    [disabled]="saving() === o.officeId"
+                  >
+                    Cancel
+                  </button>
+                </span>
+              } @else {
+                <span class="cto-actions">
+                  <button
+                    type="button"
+                    class="cto-btn"
+                    (click)="askConnection(o)"
+                    [disabled]="saving() === o.officeId"
+                  >
+                    {{ actionFor(o) === 'connect' ? 'Connect' : 'Disconnect' }}
+                  </button>
+                </span>
+              }
+            </td>
+          }
         </tr>
       }
     </tbody>

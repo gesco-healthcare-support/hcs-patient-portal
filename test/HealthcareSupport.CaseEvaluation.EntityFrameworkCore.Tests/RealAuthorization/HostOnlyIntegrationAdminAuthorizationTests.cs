@@ -33,6 +33,9 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.RealAuthorization
 /// setting of "true", and every refusal below re-reads both afterwards. A refusal proven against an
 /// office with nothing in it would pass whether or not the other office was reachable.</para>
 ///
+/// <para>Connecting or disconnecting an office also needs ManageConnection (2026-10-26): a host operator
+/// holding only the integration permission -- the host Staff Supervisor's shape -- is refused too.</para>
+///
 /// <para>THE OFFICE CALLER HOLDS THE GRANTS AN OFFICE ADMIN HAD BEFORE THIS CHANGE. They are written
 /// as rows straight into the permission-grant table, because the permission manager now refuses to
 /// grant a host-only permission inside an office. That is the state a deployed office database is
@@ -44,6 +47,7 @@ public class HostOnlyIntegrationAdminAuthorizationTests : CaseEvaluationRealAuth
     private const string SecondOfficeName = "F2-authz-office-b";
     private const string OfficeAdminRoleName = "F2-authz-office-admin";
     private const string HostOperatorRoleName = "F2-authz-host-operator";
+    private const string HostConnectorRoleName = "F2-authz-host-connector";
     private const string RoleProviderName = "R";
 
     private static readonly SemaphoreSlim SecondOfficeLock = new(1, 1);
@@ -99,25 +103,40 @@ public class HostOnlyIntegrationAdminAuthorizationTests : CaseEvaluationRealAuth
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public async Task FeedActions_AreRefused_ForAnOfficeCaller_TargetingAnotherOffice(bool start)
+    public async Task ConnectionActions_AreRefused_ForAnOfficeCaller_TargetingAnotherOffice(bool connect)
     {
-        // #927: the cutover actions switch how another office's changes reach the Case Tracker.
+        // Connecting (which also starts the feed) or disconnecting changes whether another office's changes
+        // reach the Case Tracker at all.
         var second = await EnsureSecondOfficeAsync();
 
         await AssertRefusedInOfficeAsync(sp =>
         {
             var service = sp.GetRequiredService<ICaseTrackerPushSettingsAppService>();
-            return start ? service.StartFeedAsync(second.OfficeId) : service.ReturnToPushAsync(second.OfficeId);
+            return connect ? service.ConnectAsync(second.OfficeId) : service.DisconnectAsync(second.OfficeId);
         });
 
         await AssertSecondOfficeUntouchedAsync(second);
-        await WithUnitOfWorkAsync(async () =>
+        await AssertSecondOfficeHasNoFeedAsync(second);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ConnectionActions_AreRefused_ForAHostOperatorWhoMayOnlySeeTheOffices(bool connect)
+    {
+        // 2026-10-26: the host Staff Supervisor's shape -- the integration permission and the failures list,
+        // without ManageConnection. It sees every office (PushSettingsList_IsAdmitted_ForAHostOperator) but
+        // may not connect or disconnect one.
+        var second = await EnsureSecondOfficeAsync();
+
+        await Should.ThrowAsync<AbpAuthorizationException>(() => RunAsHostAsync(HostOperatorRoleName, sp =>
         {
-            using (_currentTenant.Change(second.OfficeId))
-            {
-                (await GetRequiredService<ICaseTrackerFeedStateRepository>().FindCurrentAsync()).ShouldBeNull();
-            }
-        }, requiresNew: true);
+            var service = sp.GetRequiredService<ICaseTrackerPushSettingsAppService>();
+            return connect ? service.ConnectAsync(second.OfficeId) : service.DisconnectAsync(second.OfficeId);
+        }));
+
+        await AssertSecondOfficeUntouchedAsync(second);
+        await AssertSecondOfficeHasNoFeedAsync(second);
     }
 
     [Fact]
@@ -127,18 +146,6 @@ public class HostOnlyIntegrationAdminAuthorizationTests : CaseEvaluationRealAuth
 
         await AssertRefusedInOfficeAsync(
             sp => sp.GetRequiredService<ICaseTrackerPushSettingsAppService>().GetOfficesAsync());
-
-        await AssertSecondOfficeUntouchedAsync(second);
-    }
-
-    [Fact]
-    public async Task PushSettingsSwitch_IsRefused_ForAnOfficeCaller_TargetingAnotherOffice()
-    {
-        var second = await EnsureSecondOfficeAsync();
-
-        await AssertRefusedInOfficeAsync(
-            sp => sp.GetRequiredService<ICaseTrackerPushSettingsAppService>()
-                .SetPushEnabledAsync(second.OfficeId, false));
 
         await AssertSecondOfficeUntouchedAsync(second);
     }
@@ -192,15 +199,21 @@ public class HostOnlyIntegrationAdminAuthorizationTests : CaseEvaluationRealAuth
             sp => sp.GetRequiredService<ICaseTrackerDeadLetterAppService>().RetryAllAsync(Guid.Empty)));
     }
 
-    [Fact]
-    public async Task FeedReturn_IsAdmitted_ForAHostOperator()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ConnectionActions_AreAdmitted_ForAHostOperatorHoldingManageConnection(bool connect)
     {
-        // The second office is not on the feed, so an admitted call reaches the method body and is refused
-        // there; a refused one would throw AbpAuthorizationException instead. Nothing changes either way.
-        var second = await EnsureSecondOfficeAsync();
+        // The System owner's and IT Admin's shape. An unknown office: an admitted call reaches the method body
+        // and is refused there as not found; a refused one would throw AbpAuthorizationException instead.
+        // Nothing changes either way, so the shared fixture is left as it was.
+        await EnsureSecondOfficeAsync();
 
-        await Should.ThrowAsync<UserFriendlyException>(() => RunAsHostOperatorAsync(
-            sp => sp.GetRequiredService<ICaseTrackerPushSettingsAppService>().ReturnToPushAsync(second.OfficeId)));
+        await Should.ThrowAsync<EntityNotFoundException>(() => RunAsHostAsync(HostConnectorRoleName, sp =>
+        {
+            var service = sp.GetRequiredService<ICaseTrackerPushSettingsAppService>();
+            return connect ? service.ConnectAsync(Guid.NewGuid()) : service.DisconnectAsync(Guid.NewGuid());
+        }));
     }
 
     [Fact]
@@ -227,20 +240,6 @@ public class HostOnlyIntegrationAdminAuthorizationTests : CaseEvaluationRealAuth
         report.Offices.Where(o => o.OfficeId == second.OfficeId).ShouldHaveSingleItem().Failed.ShouldBeFalse();
     }
 
-    [Fact]
-    public async Task PushSettingsSwitch_IsAdmitted_ForAHostOperator()
-    {
-        var second = await EnsureSecondOfficeAsync();
-
-        // Writes the value the office already has, so the shared fixture is left as it was.
-        var state = await RunAsHostOperatorAsync(
-            sp => sp.GetRequiredService<ICaseTrackerPushSettingsAppService>()
-                .SetPushEnabledAsync(second.OfficeId, true));
-
-        state.OfficeId.ShouldBe(second.OfficeId);
-        state.PushEnabled.ShouldBeTrue();
-    }
-
     // ------------------------------------------------------------------------
 
     private async Task AssertRefusedInOfficeAsync(Func<IServiceProvider, Task> call)
@@ -259,12 +258,29 @@ public class HostOnlyIntegrationAdminAuthorizationTests : CaseEvaluationRealAuth
 
     private Task<T> RunAsHostOperatorAsync<T>(Func<IServiceProvider, Task<T>> call)
     {
+        return RunAsHostAsync(HostOperatorRoleName, call);
+    }
+
+    private Task<T> RunAsHostAsync<T>(string roleName, Func<IServiceProvider, Task<T>> call)
+    {
         return WithUnitOfWorkAsync(async () =>
         {
             using (_currentTenant.Change(null))
-            using (WithCurrentUser.Run(_principalAccessor, Guid.NewGuid(), HostOperatorRoleName))
+            using (WithCurrentUser.Run(_principalAccessor, Guid.NewGuid(), roleName))
             {
                 return await call(ServiceProvider);
+            }
+        }, requiresNew: true);
+    }
+
+    /// <summary>A refused Connect must not have started the second office's feed either.</summary>
+    private Task AssertSecondOfficeHasNoFeedAsync(SecondOffice second)
+    {
+        return WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(second.OfficeId))
+            {
+                (await GetRequiredService<ICaseTrackerFeedStateRepository>().FindCurrentAsync()).ShouldBeNull();
             }
         }, requiresNew: true);
     }
@@ -334,6 +350,10 @@ public class HostOnlyIntegrationAdminAuthorizationTests : CaseEvaluationRealAuth
                     await roleManager.CreateAsync(new IdentityRole(Guid.NewGuid(), HostOperatorRoleName, tenantId: null));
                     await InsertGrantAsync(grants, CaseEvaluationPermissions.Appointments.ViewIntegrationDeadLetters, HostOperatorRoleName, null);
                     await InsertGrantAsync(grants, CaseEvaluationPermissions.CaseTrackerIntegration.Default, HostOperatorRoleName, null);
+
+                    await roleManager.CreateAsync(new IdentityRole(Guid.NewGuid(), HostConnectorRoleName, tenantId: null));
+                    await InsertGrantAsync(grants, CaseEvaluationPermissions.CaseTrackerIntegration.Default, HostConnectorRoleName, null);
+                    await InsertGrantAsync(grants, CaseEvaluationPermissions.CaseTrackerIntegration.ManageConnection, HostConnectorRoleName, null);
                 }
 
                 Guid deadLetterId;

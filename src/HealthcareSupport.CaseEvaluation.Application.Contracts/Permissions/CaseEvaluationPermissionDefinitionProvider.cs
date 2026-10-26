@@ -287,9 +287,14 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
         // 2026-09-24 -- Case Tracker delivery for every office (retry a failed push, read or switch
         // each office's push setting). HOST side, like the two above: these actions reach every
         // office, so an office-side grant must never open them.
-        administration.AddPermission(
+        var caseTrackerIntegration = administration.AddPermission(
             CaseEvaluationPermissions.CaseTrackerIntegration.Default,
             L("Permission:CaseTrackerIntegration"),
+            MultiTenancySides.Host);
+        // 2026-10-26 -- connecting or disconnecting an office is held back from the Supervisor.
+        caseTrackerIntegration.AddChild(
+            CaseEvaluationPermissions.CaseTrackerIntegration.ManageConnection,
+            L("Permission:CaseTrackerIntegration.ManageConnection"),
             MultiTenancySides.Host);
 
         // 2026-09-28 -- the technical consoles (job dashboard, health UI). HOST side: they show and

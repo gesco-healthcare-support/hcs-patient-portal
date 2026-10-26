@@ -462,6 +462,14 @@ public static class CaseEvaluationPermissions
     public static class CaseTrackerIntegration
     {
         public const string Default = GroupName + ".CaseTrackerIntegration";
+
+        /// <summary>
+        /// 2026-10-26 -- connect an office to the Case Tracker or disconnect it. Split from
+        /// <see cref="Default"/> so the host Staff Supervisor keeps seeing the offices and the failures
+        /// (and retrying them) without being able to start or stop an office's delivery: only the System
+        /// owner (host admin) and IT Admin hold it. Host-only, like its parent.
+        /// </summary>
+        public const string ManageConnection = Default + ".ManageConnection";
     }
 
     /// <summary>

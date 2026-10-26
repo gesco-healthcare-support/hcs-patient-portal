@@ -70,7 +70,6 @@ public class ControllerDelegationTests
         "CaseTrackerDeadLetterController.GetDeadLettersAsync()",
         "CaseTrackerDeadLetterController.RetryAllDeadLettersAsync(Guid)",
         "CaseTrackerDeadLetterController.RetryDeadLetterAsync(Guid,Guid)",
-        "CaseTrackerOfficesController.SetPushEnabledAsync(Guid,CaseTrackerPushToggleInput)",
         "DocumentsController.CreateAsync(DocumentCreateDto,IFormFile)",
         "DocumentsController.ReplaceFileAsync(Guid,IFormFile)",
         "ExternalSignupController.ResolveTenantByNameAsync(String)",

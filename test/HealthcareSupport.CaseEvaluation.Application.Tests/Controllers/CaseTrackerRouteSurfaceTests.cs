@@ -1,7 +1,5 @@
 using System;
 using System.Reflection;
-using System.Text.Json.Serialization;
-using HealthcareSupport.CaseEvaluation.Controllers.Integration;
 using HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 using Shouldly;
 using Volo.Abp;
@@ -16,9 +14,10 @@ namespace HealthcareSupport.CaseEvaluation.Controllers;
 /// <remarks>
 /// <para>
 /// While these services were auto-exposed, ABP published a second route for every method beside the
-/// controller's, and a guard written on the controller did not reach it. The push toggle is the case
-/// in point: the controller binds a body whose <c>Enabled</c> is <c>[JsonRequired]</c>, while the
-/// auto route bound the service's <c>bool enabled</c> directly.
+/// controller's, and a guard written on the controller did not reach it. The old push toggle was the
+/// case in point: the controller bound a body whose <c>Enabled</c> was <c>[JsonRequired]</c>, while the
+/// auto route bound the service's <c>bool enabled</c> directly. Since 2026-10-26 an office is connected
+/// or disconnected instead, and the toggle and the two feed routes are gone.
 /// </para>
 /// <para>
 /// The admin screens call the controller routes as literal strings through <c>RestService</c>
@@ -50,9 +49,8 @@ public class CaseTrackerRouteSurfaceTests
     public static TheoryData<string, string> ControllerRoutes() => new()
     {
         { "GET", "api/app/case-tracker/offices" },
-        { "PUT", "api/app/case-tracker/offices/{officeId}/push" },
-        { "POST", "api/app/case-tracker/offices/{officeId}/feed/start" },
-        { "POST", "api/app/case-tracker/offices/{officeId}/feed/return-to-push" },
+        { "POST", "api/app/case-tracker/offices/{officeId}/connect" },
+        { "POST", "api/app/case-tracker/offices/{officeId}/disconnect" },
         { "GET", "api/app/case-tracker/dead-letters" },
         { "POST", "api/app/case-tracker/offices/{officeId}/dead-letters/{id}/retry" },
         { "POST", "api/app/case-tracker/offices/{officeId}/dead-letters/retry-all" },
@@ -67,19 +65,17 @@ public class CaseTrackerRouteSurfaceTests
             .ShouldHaveSingleItem($"{verb} {path} must be answered by exactly one hand-written action");
     }
 
-    [Fact]
-    public void The_push_toggle_binds_the_body_whose_enabled_is_required()
+    /// <summary>
+    /// 2026-10-26: switching an office on without its feed, starting the feed separately and returning an
+    /// office to push are no longer offered. Nothing answers those routes, so a stale screen or script gets a
+    /// 404 instead of leaving an office half connected.
+    /// </summary>
+    [Theory]
+    [InlineData("PUT", "api/app/case-tracker/offices/{officeId}/push")]
+    [InlineData("POST", "api/app/case-tracker/offices/{officeId}/feed/start")]
+    [InlineData("POST", "api/app/case-tracker/offices/{officeId}/feed/return-to-push")]
+    public void The_removed_switch_and_feed_routes_are_not_answered(string verb, string path)
     {
-        var route = AttributeRouteTable.Matching("PUT", "api/app/case-tracker/offices/{officeId}/push")
-            .ShouldHaveSingleItem();
-
-        var input = Array.Find(route.Action.GetParameters(), p => p.Name == "input");
-        input.ShouldNotBeNull("the toggle must take its value from a body named input");
-        input!.ParameterType.ShouldBe(typeof(CaseTrackerPushToggleInput));
-        AttributeRouteTable.BindingOf(input).ShouldBe("Body");
-
-        typeof(CaseTrackerPushToggleInput).GetProperty(nameof(CaseTrackerPushToggleInput.Enabled))!
-            .GetCustomAttribute<JsonRequiredAttribute>()
-            .ShouldNotBeNull("an omitted enabled must be refused, not read as false");
+        AttributeRouteTable.Matching(verb, path).ShouldBeEmpty($"{verb} {path} must no longer be answered");
     }
 }
