@@ -8,7 +8,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink, RouterOutlet } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { PermissionService } from '@abp/ng.core';
 import { ToasterService } from '@abp/ng.theme.shared';
@@ -118,6 +118,7 @@ const COPY_FAILED_AFTER_RESEND = 'The new invite link could not be copied.';
     CommonModule,
     FormsModule,
     RouterLink,
+    RouterOutlet,
     IconComponent,
     OfficeNamePipe,
     ManagedTableComponent,
