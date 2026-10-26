@@ -1350,6 +1350,21 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:UserManagement.UserImportDisabled";
 
     /// <summary>
+    /// 2026-10-26 (Levon) -- a person has exactly one role. Raised by <c>UserExtendedAppService</c> when a
+    /// create, an edit or a role update names none or more than one, for every caller. Mapped to HTTP 400.
+    /// </summary>
+    public const string OneRolePerPerson =
+        "CaseEvaluation:UserManagement.OneRolePerPerson";
+
+    /// <summary>
+    /// 2026-10-26 -- Staff Management's "Change role" switches a person between Intake Staff and Staff
+    /// Supervisor only: never an IT Admin or administrator, never the caller's own account, and never to
+    /// any other role. Mapped to HTTP 400.
+    /// </summary>
+    public const string InternalUserRoleChangeNotAllowed =
+        "CaseEvaluation:InternalUser.RoleChangeNotAllowed";
+
+    /// <summary>
     /// B11 -- the malware scan found a signature in an uploaded file, so it was refused and nothing
     /// was stored. Mapped to HTTP 422.
     ///

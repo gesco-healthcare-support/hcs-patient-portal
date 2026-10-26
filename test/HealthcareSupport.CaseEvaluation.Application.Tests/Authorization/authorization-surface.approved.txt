@@ -285,6 +285,7 @@ HealthcareSupport.CaseEvaluation.Integration.CaseTracker.CaseTrackerPushSettings
 HealthcareSupport.CaseEvaluation.Integration.CaseTracker.CaseTrackerPushSettingsAppService.ReturnToPushAsync(Guid) -> class=(authenticated) method=CaseEvaluation.CaseTrackerIntegration
 HealthcareSupport.CaseEvaluation.Integration.CaseTracker.CaseTrackerPushSettingsAppService.SetPushEnabledAsync(Guid, Boolean) -> class=(authenticated) method=CaseEvaluation.CaseTrackerIntegration
 HealthcareSupport.CaseEvaluation.Integration.CaseTracker.CaseTrackerPushSettingsAppService.StartFeedAsync(Guid) -> class=(authenticated) method=CaseEvaluation.CaseTrackerIntegration
+HealthcareSupport.CaseEvaluation.InternalUsers.InternalUsersAppService.ChangeRoleAsync(Guid, ChangeInternalUserRoleDto) -> class=CaseEvaluation.InternalUsers method=CaseEvaluation.InternalUsers.Edit
 HealthcareSupport.CaseEvaluation.InternalUsers.InternalUsersAppService.CreateAsync(CreateInternalUserDto) -> class=CaseEvaluation.InternalUsers method=CaseEvaluation.InternalUsers.Create
 HealthcareSupport.CaseEvaluation.InternalUsers.InternalUsersAppService.GetInternalUsersAsync(GetInternalUsersInput) -> class=CaseEvaluation.InternalUsers method=CaseEvaluation.InternalUsers
 HealthcareSupport.CaseEvaluation.InternalUsers.InternalUsersAppService.GetTenantOptionsAsync(String) -> class=CaseEvaluation.InternalUsers method=-

@@ -288,7 +288,7 @@ public abstract class UserExtendedAppServicePrivilegeTests<TStartupModule> : Cas
         var viaInterface = GetRequiredService<IIdentityUserAppService>();
 
         await AssertRefusedAndUnchangedAsync(a.Intake, () => AsCallerAsync(a.Supervisor, Supervisor,
-            () => viaInterface.UpdateRolesAsync(a.Intake, new IdentityUserUpdateRolesDto { RoleNames = new[] { Intake, ItAdmin } })));
+            () => viaInterface.UpdateRolesAsync(a.Intake, new IdentityUserUpdateRolesDto { RoleNames = new[] { ItAdmin } })));
         await AssertRefusedAndUnchangedAsync(a.ItAdmin, () => AsCallerAsync(a.Supervisor, Supervisor,
             () => viaInterface.UpdatePasswordAsync(a.ItAdmin, new IdentityUserUpdatePasswordInput { NewPassword = NewPassword })));
     }
@@ -302,7 +302,7 @@ public abstract class UserExtendedAppServicePrivilegeTests<TStartupModule> : Cas
     {
         var a = await SeedActorsAsync();
         await AssertRefusedAndUnchangedAsync(a.Supervisor, () => AsCallerAsync(a.Supervisor, Supervisor,
-            () => _service.UpdateRolesAsync(a.Supervisor, new IdentityUserUpdateRolesDto { RoleNames = new[] { Supervisor, role } })));
+            () => _service.UpdateRolesAsync(a.Supervisor, new IdentityUserUpdateRolesDto { RoleNames = new[] { role } })));
     }
 
     [Theory]
@@ -312,8 +312,8 @@ public abstract class UserExtendedAppServicePrivilegeTests<TStartupModule> : Cas
     {
         var a = await SeedActorsAsync();
         await AssertRefusedAndUnchangedAsync(a.Intake, () => AsCallerAsync(a.Supervisor, Supervisor,
-            () => _service.UpdateRolesAsync(a.Intake, new IdentityUserUpdateRolesDto { RoleNames = new[] { Intake, role } })));
-        var dto = await UpdateDtoAsync(a.Intake, new[] { Intake, role });
+            () => _service.UpdateRolesAsync(a.Intake, new IdentityUserUpdateRolesDto { RoleNames = new[] { role } })));
+        var dto = await UpdateDtoAsync(a.Intake, new[] { role });
         await AssertRefusedAndUnchangedAsync(a.Intake, () => AsCallerAsync(a.Supervisor, Supervisor, () => _service.UpdateAsync(a.Intake, dto)));
     }
 
@@ -322,9 +322,7 @@ public abstract class UserExtendedAppServicePrivilegeTests<TStartupModule> : Cas
     {
         var a = await SeedActorsAsync();
         await AssertRefusedAndUnchangedAsync(a.Supervisor, () => AsCallerAsync(a.Supervisor, Supervisor,
-            () => _service.UpdateRolesAsync(a.Supervisor, new IdentityUserUpdateRolesDto { RoleNames = new[] { Supervisor, Intake } })));
-        await AssertRefusedAndUnchangedAsync(a.Supervisor, () => AsCallerAsync(a.Supervisor, Supervisor,
-            () => _service.UpdateRolesAsync(a.Supervisor, new IdentityUserUpdateRolesDto { RoleNames = Array.Empty<string>() })));
+            () => _service.UpdateRolesAsync(a.Supervisor, new IdentityUserUpdateRolesDto { RoleNames = new[] { Intake } })));
     }
 
     [Theory]
@@ -405,8 +403,8 @@ public abstract class UserExtendedAppServicePrivilegeTests<TStartupModule> : Cas
         var a = await SeedActorsAsync();
 
         await AsCallerAsync(a.Supervisor, Supervisor,
-            () => _service.UpdateRolesAsync(a.Intake, new IdentityUserUpdateRolesDto { RoleNames = new[] { Intake, Supervisor } }));
-        (await SnapshotAsync(a.Intake)).Roles.ShouldBe($"{Intake},{Supervisor}");
+            () => _service.UpdateRolesAsync(a.Intake, new IdentityUserUpdateRolesDto { RoleNames = new[] { Supervisor } }));
+        (await SnapshotAsync(a.Intake)).Roles.ShouldBe(Supervisor);
 
         var name = $"staff-{Guid.NewGuid():N}";
         var created = await AsCallerAsync(a.Supervisor, Supervisor, () => _service.CreateAsync(WithExtensionDefaults(new IdentityUserCreateDto
@@ -439,8 +437,8 @@ public abstract class UserExtendedAppServicePrivilegeTests<TStartupModule> : Cas
         var caller = callerRole == ItAdmin ? a.ItAdmin : a.Admin;
 
         await AsCallerAsync(caller, callerRole,
-            () => _service.UpdateRolesAsync(a.Intake, new IdentityUserUpdateRolesDto { RoleNames = new[] { Intake, ItAdmin } }));
-        (await SnapshotAsync(a.Intake)).Roles.ShouldContain(ItAdmin);
+            () => _service.UpdateRolesAsync(a.Intake, new IdentityUserUpdateRolesDto { RoleNames = new[] { ItAdmin } }));
+        (await SnapshotAsync(a.Intake)).Roles.ShouldBe(ItAdmin);
 
         var other = callerRole == ItAdmin ? a.Admin : a.ItAdmin;
         await AsCallerAsync(caller, callerRole,
@@ -449,6 +447,92 @@ public abstract class UserExtendedAppServicePrivilegeTests<TStartupModule> : Cas
 
         await AsCallerAsync(caller, callerRole, () => _service.DeleteAsync(a.Supervisor));
         (await SnapshotAsync(a.Supervisor)).Exists.ShouldBeFalse();
+    }
+
+    // ------------------------------------------------------------------ one role per person (2026-10-26)
+
+    private async Task AssertOneRoleRefusedAndUnchangedAsync(Guid target, Func<Task> attempt)
+    {
+        var before = await SnapshotAsync(target);
+        var refused = await Should.ThrowAsync<BusinessException>(attempt);
+        refused.Code.ShouldBe(CaseEvaluationDomainErrorCodes.OneRolePerPerson);
+        (await SnapshotAsync(target)).ShouldBe(before);
+    }
+
+    private async Task<bool> ExistsByUserNameAsync(string userName)
+    {
+        using (_currentTenant.Change(null))
+        {
+            return await WithUnitOfWorkAsync(async () => await _userManager.FindByNameAsync(userName) != null);
+        }
+    }
+
+    [Theory]
+    [InlineData(ItAdmin)]
+    [InlineData(Admin)]
+    [InlineData(Supervisor)]
+    public async Task No_caller_can_leave_a_person_with_two_roles_or_none(string callerRole)
+    {
+        var a = await SeedActorsAsync();
+        var caller = callerRole switch { ItAdmin => a.ItAdmin, Admin => a.Admin, _ => a.Supervisor };
+
+        await AssertOneRoleRefusedAndUnchangedAsync(a.Intake, () => AsCallerAsync(caller, callerRole,
+            () => _service.UpdateRolesAsync(a.Intake, new IdentityUserUpdateRolesDto { RoleNames = new[] { Intake, Supervisor } })));
+        await AssertOneRoleRefusedAndUnchangedAsync(a.Intake, () => AsCallerAsync(caller, callerRole,
+            () => _service.UpdateRolesAsync(a.Intake, new IdentityUserUpdateRolesDto { RoleNames = Array.Empty<string>() })));
+
+        var twoRoles = await UpdateDtoAsync(a.Intake, new[] { Intake, Supervisor });
+        await AssertOneRoleRefusedAndUnchangedAsync(a.Intake, () => AsCallerAsync(caller, callerRole,
+            () => _service.UpdateAsync(a.Intake, twoRoles)));
+        var noRole = await UpdateDtoAsync(a.Intake, Array.Empty<string>());
+        await AssertOneRoleRefusedAndUnchangedAsync(a.Intake, () => AsCallerAsync(caller, callerRole,
+            () => _service.UpdateAsync(a.Intake, noRole)));
+    }
+
+    [Theory]
+    [InlineData(ItAdmin)]
+    [InlineData(Admin)]
+    public async Task No_caller_can_create_a_person_with_two_roles_or_none(string callerRole)
+    {
+        var a = await SeedActorsAsync();
+        var caller = callerRole == ItAdmin ? a.ItAdmin : a.Admin;
+
+        foreach (var roles in new[] { new[] { Intake, Supervisor }, Array.Empty<string>() })
+        {
+            var name = $"roles-{Guid.NewGuid():N}";
+            var refused = await Should.ThrowAsync<BusinessException>(() => AsCallerAsync(caller, callerRole,
+                () => _service.CreateAsync(WithExtensionDefaults(new IdentityUserCreateDto
+                {
+                    UserName = name,
+                    Email = $"{name}@example.test",
+                    Password = OriginalPassword,
+                    RoleNames = roles,
+                }))));
+
+            refused.Code.ShouldBe(CaseEvaluationDomainErrorCodes.OneRolePerPerson);
+            (await ExistsByUserNameAsync(name)).ShouldBeFalse();
+        }
+    }
+
+    [Fact]
+    public async Task A_role_named_twice_is_one_role_and_an_edit_without_a_role_list_keeps_the_role_held()
+    {
+        var a = await SeedActorsAsync();
+
+        await AsCallerAsync(a.Admin, Admin,
+            () => _service.UpdateRolesAsync(a.Intake, new IdentityUserUpdateRolesDto { RoleNames = new[] { Supervisor, Supervisor } }));
+        (await SnapshotAsync(a.Intake)).Roles.ShouldBe(Supervisor);
+
+        var dto = await UpdateDtoAsync(a.Intake, null, d =>
+        {
+            d.RoleNames = null!;
+            d.Name = "Renamed";
+        });
+        await AsCallerAsync(a.Admin, Admin, () => _service.UpdateAsync(a.Intake, dto));
+
+        var after = await SnapshotAsync(a.Intake);
+        after.Roles.ShouldBe(Supervisor);
+        (await AsCallerAsync(a.Admin, Admin, () => _service.GetAsync(a.Intake))).Name.ShouldBe("Renamed");
     }
 
     // 2026-10-23: the identity Users screen's "Resend activation email" row action.

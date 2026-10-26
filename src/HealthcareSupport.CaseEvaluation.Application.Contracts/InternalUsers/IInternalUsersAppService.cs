@@ -57,6 +57,17 @@ public interface IInternalUsersAppService : IApplicationService
     Task SendPasswordResetEmailAsync(Guid userId);
 
     /// <summary>
+    /// 2026-10-26 -- switches one staff member between Intake Staff and Staff Supervisor (one role per
+    /// person). Moving off Intake Staff also takes them off every office they were assigned to, exactly as
+    /// Staff Assignments' Unassign does, because a Supervisor enters every office anyway; moving to Intake
+    /// Staff assigns nothing. Gated by <c>CaseEvaluation.InternalUsers.Edit</c>. Refused with
+    /// <c>InternalUser.RoleChangeNotAllowed</c> for an IT Admin or administrator, for the caller's own
+    /// account, and for any other role; <c>InternalUserNotFound</c> when the id names no staff login.
+    /// Returns the person's refreshed row.
+    /// </summary>
+    Task<InternalUserListDto> ChangeRoleAsync(Guid userId, ChangeInternalUserRoleDto input);
+
+    /// <summary>
     /// Returns the active offices for the internal-users form's office picker and the internal
     /// shell's office switcher. Requires <c>CaseEvaluation.InternalUsers</c>. Reads in host
     /// context whichever office the caller is signed in to. Optional case-insensitive substring
