@@ -161,6 +161,17 @@ export const IN_NAV: readonly InternalNavGroup[] = [
         requiredPolicy: 'AbpIdentity.Roles',
       },
       {
+        // 2026-10-26: the office admin's way to its office's user list (add, edit, switch off, resend an
+        // activation email), which had no menu entry. Inside an office only the `admin` role holds
+        // AbpIdentity.Users; staff manage people from the staff site instead.
+        id: 'office-users',
+        label: 'Users',
+        icon: 'user',
+        route: '/identity/users',
+        roles: ['admin'],
+        requiredPolicy: 'AbpIdentity.Users',
+      },
+      {
         id: 'notif-templates',
         label: 'Notification Templates',
         icon: 'doc',
@@ -386,6 +397,18 @@ export const IN_NAV_HOST: readonly InternalNavGroup[] = [
         route: '/admin/roles',
         roles: ['itadmin'],
         requiredPolicy: 'AbpIdentity.Roles',
+      },
+      {
+        // 2026-10-26: the staff site's full user list (add, edit, switch off, resend an activation email),
+        // which was reachable only by typing /identity/users. System owner and IT Admin. The host Staff
+        // Supervisor also holds AbpIdentity.Users (read and edit, no create) but manages staff from
+        // Staff Management, so the link is not shown to it.
+        id: 'host-users',
+        label: 'Users',
+        icon: 'user',
+        route: '/identity/users',
+        roles: ['itadmin'],
+        requiredPolicy: 'AbpIdentity.Users',
       },
       // Notification Templates + System Parameters are TENANT-scoped (they 403 at
       // host); IT Admin manages them by switching into a clinic, where the tenant

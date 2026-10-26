@@ -41,6 +41,42 @@ describe('filterNavGroups', () => {
     expect(ids).not.toContain('settings');
   });
 
+  it('gives the office admin a Users link to the office user list when it holds AbpIdentity.Users', () => {
+    const item = filterNavGroups(IN_NAV, 'admin', (p) => p === 'AbpIdentity.Users')
+      .reduce<{ id: string; route: string }[]>((acc, g) => acc.concat(g.items), [])
+      .find((it) => it.id === 'office-users');
+    expect(item?.route).toBe('/identity/users');
+  });
+
+  it('hides the office Users link from staff, and from an admin without AbpIdentity.Users', () => {
+    // A host Supervisor who enters an office lands as its Staff Supervisor and must not see it.
+    expect(itemIds(filterNavGroups(IN_NAV, 'supervisor'))).not.toContain('office-users');
+    expect(itemIds(filterNavGroups(IN_NAV, 'intake'))).not.toContain('office-users');
+    expect(itemIds(filterNavGroups(IN_NAV, 'admin', () => false))).not.toContain('office-users');
+  });
+
+  it('gives the System owner and IT Admin a Users link on the staff site', () => {
+    const holds = (p: string) => p === 'AbpIdentity.Users';
+    for (const role of ['admin', 'itadmin'] as const) {
+      const item = resolveNavGroups(role, true, holds)
+        .reduce<{ id: string; route: string }[]>((acc, g) => acc.concat(g.items), [])
+        .find((it) => it.id === 'host-users');
+      expect(item?.route).withContext(role).toBe('/identity/users');
+    }
+  });
+
+  it('hides the staff site Users link from host staff, and from anyone without AbpIdentity.Users', () => {
+    expect(itemIds(resolveNavGroups('supervisor', true))).not.toContain('host-users');
+    expect(itemIds(resolveNavGroups('intake', true))).not.toContain('host-users');
+    expect(itemIds(resolveNavGroups('itadmin', true, () => false))).not.toContain('host-users');
+    // Inside an office the office's own Users link applies instead.
+    expect(itemIds(resolveNavGroups('admin', false))).not.toContain('host-users');
+  });
+
+  it('keeps the office Users link out of the staff site nav', () => {
+    expect(itemIds(resolveNavGroups('admin', true))).not.toContain('office-users');
+  });
+
   it('lets the superuser see every item in the source nav', () => {
     const total = IN_NAV.reduce((n, g) => n + g.items.length, 0);
     const adminCount = filterNavGroups(IN_NAV, 'admin').reduce((n, g) => n + g.items.length, 0);

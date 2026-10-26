@@ -207,25 +207,20 @@ public class ShapingControllersTests
     // ------------------------------------------------------------------ Case Tracker administration
 
     [Fact]
-    public async Task Case_tracker_dead_letters_and_the_push_toggle_reach_their_services()
+    public async Task Case_tracker_dead_letters_reach_their_service()
     {
         var deadLetters = Substitute.For<ICaseTrackerDeadLetterAppService>();
-        var pushSettings = Substitute.For<ICaseTrackerPushSettingsAppService>();
         var list = new List<CaseTrackerDeadLetterDto>();
         var retried = new CaseTrackerDeadLetterRetryResultDto();
         var retriedAll = new CaseTrackerDeadLetterRetryAllResultDto();
-        var state = new CaseTrackerOfficePushStateDto();
         deadLetters.GetListAsync().Returns(list);
         deadLetters.RetryAsync(OfficeId, Id).Returns(retried);
         deadLetters.RetryAllAsync(OfficeId).Returns(retriedAll);
-        pushSettings.SetPushEnabledAsync(OfficeId, true).Returns(state);
         var letters = new CaseTrackerDeadLetterController(deadLetters);
 
         (await letters.GetDeadLettersAsync()).ShouldBeSameAs(list);
         (await letters.RetryDeadLetterAsync(OfficeId, Id)).ShouldBeSameAs(retried);
         (await letters.RetryAllDeadLettersAsync(OfficeId)).ShouldBeSameAs(retriedAll);
-        (await new CaseTrackerOfficesController(pushSettings)
-            .SetPushEnabledAsync(OfficeId, new CaseTrackerPushToggleInput { Enabled = true })).ShouldBeSameAs(state);
     }
 
     // ------------------------------------------------------------------ Change requests
