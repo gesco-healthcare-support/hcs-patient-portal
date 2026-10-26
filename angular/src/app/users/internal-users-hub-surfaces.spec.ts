@@ -64,6 +64,9 @@ describe('InternalUsersHubComponent surfaces', () => {
         .and.returnValue(of({ id: 'u1', temporaryPassword: 'x' })),
       sendPasswordReset: jasmine.createSpy('sendPasswordReset').and.returnValue(of(undefined)),
       setUserActive: jasmine.createSpy('setUserActive').and.returnValue(of(undefined)),
+      changeRole: jasmine
+        .createSpy('changeRole')
+        .and.returnValue(of({ id: 'u1', role: 'Staff Supervisor' })),
       officesPage: jasmine.createSpy('officesPage').and.callFake(page),
       getEditionOptions: jasmine.createSpy('getEditionOptions').and.returnValue(of([])),
       createPractice: jasmine.createSpy('createPractice').and.returnValue(of({ id: 'office-1' })),
@@ -680,6 +683,106 @@ describe('InternalUsersHubComponent surfaces', () => {
       c.sendReset(userRow());
       expect(gateway['setUserActive']).not.toHaveBeenCalled();
       expect(gateway['sendPasswordReset']).not.toHaveBeenCalled();
+    });
+
+    // 2026-10-26: one role per person -- Staff Management's "Change role".
+    describe('change role', () => {
+      const intake = () => userRow({ role: 'Intake Staff' });
+      const supervisor = () => userRow({ role: 'Staff Supervisor' });
+
+      it('is offered on a staff row to a caller who may edit staff, never on an IT Admin row', () => {
+        const c = create({ section: 'staff', policies: ['CaseEvaluation.InternalUsers.Edit'] });
+        expect(c.canChangeRole(intake())).toBeTrue();
+        expect(c.canChangeRole(supervisor())).toBeTrue();
+        expect(c.canChangeRole(userRow({ role: 'IT Admin' }))).toBeFalse();
+        expect(c.canChangeRole(userRow({ role: undefined }))).toBeFalse();
+      });
+
+      it('is not offered without the permission', () => {
+        const c = create({ section: 'staff', policies: [] });
+        expect(c.canChangeRole(intake())).toBeFalse();
+      });
+
+      it('opens on the role held, takes one choice, and saving the same role sends nothing', () => {
+        const c = create({ section: 'staff' });
+        c.openRoleChange(intake());
+        expect(c.roleChange()?.role).toBe('Intake Staff');
+
+        c.pickRole('Staff Supervisor');
+        expect(c.roleChange()?.role).toBe('Staff Supervisor');
+        c.pickRole('Intake Staff');
+        c.saveRoleChange();
+
+        expect(gateway['changeRole']).not.toHaveBeenCalled();
+        expect(c.roleChange()).toBeNull();
+      });
+
+      it('moves Intake Staff to Supervisor, says the offices were removed, and reloads', () => {
+        const c = create({ section: 'staff' });
+        const reloaded = spyOn(c.reload$, 'next');
+        c.openRoleChange(intake());
+        c.pickRole('Staff Supervisor');
+
+        c.saveRoleChange();
+
+        expect(gateway['changeRole']).toHaveBeenCalledWith('u1', 'Staff Supervisor');
+        expect(toaster.success).toHaveBeenCalledWith(
+          'Ada Lovelace is now Staff Supervisor. Their office assignments were removed.',
+        );
+        expect(reloaded).toHaveBeenCalled();
+        expect(c.roleChange()).toBeNull();
+        expect(c.isBusy()).toBeFalse();
+      });
+
+      it('moves a Supervisor to Intake Staff and points at Staff Assignments', () => {
+        const c = create({ section: 'staff' });
+        c.openRoleChange(supervisor());
+        c.pickRole('Intake Staff');
+
+        c.saveRoleChange();
+
+        expect(gateway['changeRole']).toHaveBeenCalledWith('u1', 'Intake Staff');
+        expect(toaster.success).toHaveBeenCalledWith(
+          'Ada Lovelace is now Intake Staff. Assign their offices in Staff Assignments.',
+        );
+      });
+
+      it('keeps the choice open when refused, and does nothing while busy or when not open', () => {
+        const c = create({ section: 'staff' });
+        c.saveRoleChange();
+        expect(gateway['changeRole']).not.toHaveBeenCalled();
+
+        gateway['changeRole'].and.returnValue(throwError(() => ({ status: 400 })));
+        c.openRoleChange(intake());
+        c.pickRole('Staff Supervisor');
+        c.saveRoleChange();
+        expect(c.roleChange()).withContext('the operator can see what was refused').not.toBeNull();
+        expect(toaster.success).not.toHaveBeenCalled();
+
+        c.isBusy.set(true);
+        c.saveRoleChange();
+        c.closeRoleChange();
+        expect(gateway['changeRole']).toHaveBeenCalledTimes(1);
+        expect(c.roleChange()).not.toBeNull();
+        c.isBusy.set(false);
+
+        c.pickRole('Intake Staff');
+        c.closeRoleChange();
+        expect(c.roleChange()).toBeNull();
+        c.pickRole('Staff Supervisor');
+        expect(c.roleChange()).toBeNull();
+      });
+
+      it('closes on Escape and when the section changes', () => {
+        const c = create({ section: 'staff' });
+        c.openRoleChange(intake());
+        c.onEscapeKey();
+        expect(c.roleChange()).toBeNull();
+
+        c.openRoleChange(intake());
+        routeData.next({ section: 'invite' });
+        expect(c.roleChange()).toBeNull();
+      });
     });
   });
 

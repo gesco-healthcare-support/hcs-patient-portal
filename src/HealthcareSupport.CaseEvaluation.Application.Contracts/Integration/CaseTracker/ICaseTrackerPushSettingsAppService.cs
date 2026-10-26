@@ -18,19 +18,16 @@ public interface ICaseTrackerPushSettingsAppService : IApplicationService
     /// <summary>Every office with its current push state and pending backlog.</summary>
     Task<List<CaseTrackerOfficePushStateDto>> GetOfficesAsync();
 
-    /// <summary>Turns the push on or off for ONE office. Returns that office's refreshed state.</summary>
-    Task<CaseTrackerOfficePushStateDto> SetPushEnabledAsync(Guid officeId, bool enabled);
+    /// <summary>
+    /// Connects ONE office to the Case Tracker (2026-10-26): starts its changes feed if it is not on, and turns
+    /// its switch on, in one call. Connecting a connected office changes nothing. Returns that office's
+    /// refreshed state.
+    /// </summary>
+    Task<CaseTrackerOfficePushStateDto> ConnectAsync(Guid officeId);
 
     /// <summary>
-    /// Cutover (#927): switches ONE office from push to the changes feed, setting where the feed starts. The
-    /// office's push switch must be on, because it stays the office's gate for everything sent to the Case
-    /// Tracker. Returns that office's refreshed state.
+    /// Disconnects ONE office: turns its switch off and leaves its feed as it is, so its changes wait and are
+    /// delivered once it is connected again. Returns that office's refreshed state.
     /// </summary>
-    Task<CaseTrackerOfficePushStateDto> StartFeedAsync(Guid officeId);
-
-    /// <summary>
-    /// Rollback (#927): returns ONE office from the feed to push. Every Pending row is then pushed, including rows
-    /// the feed already delivered. Returns that office's refreshed state.
-    /// </summary>
-    Task<CaseTrackerOfficePushStateDto> ReturnToPushAsync(Guid officeId);
+    Task<CaseTrackerOfficePushStateDto> DisconnectAsync(Guid officeId);
 }

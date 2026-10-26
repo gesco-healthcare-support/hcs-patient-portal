@@ -1,7 +1,6 @@
 using Asp.Versioning;
 using System;
 using System.Collections.Generic;
-using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 using Microsoft.AspNetCore.Mvc;
@@ -10,7 +9,7 @@ using Volo.Abp.AspNetCore.Mvc;
 namespace HealthcareSupport.CaseEvaluation.Controllers.Integration;
 
 /// <summary>
-/// Per-office control of the Case Tracker push switch. Shares the <c>api/app/case-tracker</c> prefix
+/// Per-office connection to the Case Tracker. Shares the <c>api/app/case-tracker</c> prefix
 /// with <see cref="CaseTrackerDeadLetterController"/> so the integration's admin endpoints stay
 /// grouped, and is a separate controller because the two manage different things -- one inspects
 /// failures, this one decides whether the portal sends at all.
@@ -40,45 +39,21 @@ public class CaseTrackerOfficesController : AbpController
     }
 
     /// <summary>
-    /// Turns the push on or off for one office. PUT rather than POST: the same call with the same body
-    /// leaves the same state, so a retried request cannot compound.
-    /// </summary>
-    [HttpPut]
-    [Route("offices/{officeId}/push")]
-    public virtual Task<CaseTrackerOfficePushStateDto> SetPushEnabledAsync(
-        Guid officeId,
-        [FromBody] CaseTrackerPushToggleInput input)
-    {
-        return _pushSettingsAppService.SetPushEnabledAsync(officeId, input.Enabled);
-    }
-
-    /// <summary>
-    /// Cutover (#927): switches one office from push to the changes feed. POST: it is an action with a starting
-    /// position chosen at the moment it runs, not an idempotent state write -- a repeat is refused.
+    /// Connects one office to the Case Tracker: starts its feed if it is not on, and turns its switch on.
+    /// POST, but connecting a connected office changes nothing, so a retried request cannot compound.
     /// </summary>
     [HttpPost]
-    [Route("offices/{officeId}/feed/start")]
-    public virtual Task<CaseTrackerOfficePushStateDto> StartFeedAsync(Guid officeId)
+    [Route("offices/{officeId}/connect")]
+    public virtual Task<CaseTrackerOfficePushStateDto> ConnectAsync(Guid officeId)
     {
-        return _pushSettingsAppService.StartFeedAsync(officeId);
+        return _pushSettingsAppService.ConnectAsync(officeId);
     }
 
-    /// <summary>Rollback (#927): returns one office from the feed to push.</summary>
+    /// <summary>Disconnects one office: its switch goes off and its changes wait.</summary>
     [HttpPost]
-    [Route("offices/{officeId}/feed/return-to-push")]
-    public virtual Task<CaseTrackerOfficePushStateDto> ReturnToPushAsync(Guid officeId)
+    [Route("offices/{officeId}/disconnect")]
+    public virtual Task<CaseTrackerOfficePushStateDto> DisconnectAsync(Guid officeId)
     {
-        return _pushSettingsAppService.ReturnToPushAsync(officeId);
+        return _pushSettingsAppService.DisconnectAsync(officeId);
     }
-}
-
-/// <summary>Body for the toggle. A named type rather than a bare bool so the JSON stays readable.</summary>
-public class CaseTrackerPushToggleInput
-{
-    /// <summary>
-    /// Required on the wire. Without it a body of <c>{}</c>, or one that misspells the key,
-    /// binds to <c>false</c> and switches the office's push OFF while reporting success.
-    /// </summary>
-    [JsonRequired]
-    public bool Enabled { get; set; }
 }

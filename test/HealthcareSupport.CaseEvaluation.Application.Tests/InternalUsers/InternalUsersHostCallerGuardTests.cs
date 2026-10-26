@@ -73,6 +73,14 @@ public abstract class InternalUsersHostCallerGuardTests<TStartupModule>
     }
 
     [Fact]
+    public async Task ChangeRole_InsideAnOffice_IsRefused()
+    {
+        // An unknown id: at the host this reaches the lookup and fails as not found (below).
+        await ShouldBeRefusedInsideAnOfficeAsync(() => _appService.ChangeRoleAsync(
+            Guid.NewGuid(), new ChangeInternalUserRoleDto { RoleName = "Staff Supervisor" }));
+    }
+
+    [Fact]
     public async Task GetTenantOptions_InsideAnOffice_IsRefused()
     {
         await ShouldBeRefusedInsideAnOfficeAsync(() => _appService.GetTenantOptionsAsync(null));
@@ -105,6 +113,14 @@ public abstract class InternalUsersHostCallerGuardTests<TStartupModule>
     {
         await Should.ThrowAsync<BusinessException>(
             () => WithUnitOfWorkAsync(() => _appService.SendPasswordResetEmailAsync(Guid.NewGuid())));
+    }
+
+    [Fact]
+    public async Task ChangeRole_AtTheHost_ReachesTheBody()
+    {
+        (await Should.ThrowAsync<BusinessException>(() => WithUnitOfWorkAsync(() => _appService.ChangeRoleAsync(
+            Guid.NewGuid(), new ChangeInternalUserRoleDto { RoleName = "Staff Supervisor" }))))
+            .Code.ShouldBe(CaseEvaluationDomainErrorCodes.InternalUserNotFound);
     }
 
     [Fact]

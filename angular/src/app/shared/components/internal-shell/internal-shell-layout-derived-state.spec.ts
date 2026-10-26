@@ -206,6 +206,26 @@ describe('InternalShellLayoutComponent derived state', () => {
       expect(c.activeId()).toBe('appointments');
     });
 
+    it('keeps Users & Access lit on every tab of its hub, the All Users tab included', () => {
+      // The item links to /users/invite; its tabs live under /users (2026-10-26).
+      const c = inOfficeSupervisor();
+      c.currentUrl.set('/users/pending');
+      expect(c.activeId()).toBe('invite-external');
+      c.currentUrl.set('/users/all/users');
+      expect(c.activeId()).toBe('invite-external');
+    });
+
+    it('still lets an item whose own route is longer win on its page', () => {
+      // Staff Management (/users/internal) beats Users & Access's /users on the staff site.
+      const c = createComponent();
+      c.user.set({ name: 'Ada', surname: 'Lovelace', roles: ['IT Admin'] });
+      c.hostScope.set(true);
+      c.currentUrl.set('/users/internal');
+      expect(c.activeId()).toBe('internal-users');
+      c.currentUrl.set('/users/all/users');
+      expect(c.activeId()).toBe('users-access');
+    });
+
     it('is null on a route no nav item owns', () => {
       const c = inOfficeSupervisor();
       c.currentUrl.set('/account/manage');

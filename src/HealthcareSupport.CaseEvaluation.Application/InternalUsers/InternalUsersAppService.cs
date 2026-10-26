@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
 using HealthcareSupport.CaseEvaluation.ExternalAccount;
+using HealthcareSupport.CaseEvaluation.HostOperators;
 using HealthcareSupport.CaseEvaluation.Notifications;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
 using HealthcareSupport.CaseEvaluation.Permissions;
@@ -63,6 +64,8 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
     public static readonly IReadOnlyList<string> CreatableRoleNames =
         new[] { "Intake Staff", "Staff Supervisor" };
 
+    private const string IntakeStaffRoleName = "Intake Staff";
+
     private readonly IdentityUserManager _userManager;
     private readonly IdentityRoleManager _roleManager;
     private readonly IRepository<Tenant, Guid> _tenantRepository;
@@ -72,6 +75,7 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
     // BUG-029 v3 fix (2026-05-21): centralized tenant-aware URL composition.
     private readonly IAccountUrlBuilder _accountUrlBuilder;
     private readonly IAccountActivationSender _activationSender;
+    private readonly IntakeAssignmentRevoker _revoker;
 
     public InternalUsersAppService(
         IdentityUserManager userManager,
@@ -81,7 +85,8 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
         IDataFilter dataFilter,
         ILogger<InternalUsersAppService> logger,
         IAccountUrlBuilder accountUrlBuilder,
-        IAccountActivationSender activationSender)
+        IAccountActivationSender activationSender,
+        IntakeAssignmentRevoker revoker)
     {
         _userManager = userManager;
         _roleManager = roleManager;
@@ -91,6 +96,7 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
         _logger = logger;
         _accountUrlBuilder = accountUrlBuilder;
         _activationSender = activationSender;
+        _revoker = revoker;
     }
 
     [Authorize(CaseEvaluationPermissions.InternalUsers.Create)]
@@ -260,6 +266,81 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
             },
             variables: BuildPasswordResetVariables(user, resetUrl),
             contextTag: NotificationOccurrence.PerRequest($"PasswordReset/AdminTriggered/{user.Id}"));
+    }
+
+    /// <summary>
+    /// 2026-10-26 -- switches one staff member between Intake Staff and Staff Supervisor. See
+    /// <see cref="IInternalUsersAppService.ChangeRoleAsync"/>.
+    ///
+    /// <para>One role per person: the person ends with exactly the role chosen. Moving off Intake Staff
+    /// also takes them off every office they were assigned to, through the same
+    /// <see cref="IntakeAssignmentRevoker"/> that Staff Assignments' Unassign uses (the row goes, the
+    /// per-office shadow login is locked), because a Supervisor enters every office anyway and a left-over
+    /// assignment would only be clutter, or worse, wake up again if they were ever switched back. Moving to
+    /// Intake Staff assigns nothing; they are assigned through Staff Assignments.</para>
+    /// </summary>
+    [Authorize(CaseEvaluationPermissions.InternalUsers.Edit)]
+    public virtual async Task<InternalUserListDto> ChangeRoleAsync(Guid userId, ChangeInternalUserRoleDto input)
+    {
+        EnsureHostCaller();
+        Check.NotNull(input, nameof(input));
+
+        var newRole = CreatableRoleNames.FirstOrDefault(
+            r => string.Equals(r, input.RoleName?.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (newRole == null || CurrentUser.Id == userId)
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.InternalUserRoleChangeNotAllowed);
+        }
+
+        using (CurrentTenant.Change(null))
+        {
+            var user = await _userManager.FindByIdAsync(userId.ToString());
+            if (user == null || user.TenantId != null)
+            {
+                throw new BusinessException(CaseEvaluationDomainErrorCodes.InternalUserNotFound);
+            }
+
+            // Only a person holding exactly one of the two staff roles is switched here: never an IT Admin or
+            // an administrator, whatever the caller may otherwise do.
+            var held = await _userManager.GetRolesAsync(user);
+            if (held.Count != 1 || !CreatableRoleNames.Contains(held[0], StringComparer.OrdinalIgnoreCase))
+            {
+                throw new BusinessException(CaseEvaluationDomainErrorCodes.InternalUserRoleChangeNotAllowed);
+            }
+
+            var oldRole = held[0];
+            if (!string.Equals(oldRole, newRole, StringComparison.OrdinalIgnoreCase))
+            {
+                var result = await _userManager.SetRolesAsync(user, new[] { newRole });
+                if (!result.Succeeded)
+                {
+                    throw new BusinessException(CaseEvaluationDomainErrorCodes.InternalUserRoleAssignFailed)
+                        .WithData("Errors", string.Join("; ", result.Errors.Select(e => e.Description)));
+                }
+
+                var officesRevoked = 0;
+                if (string.Equals(oldRole, IntakeStaffRoleName, StringComparison.OrdinalIgnoreCase))
+                {
+                    officesRevoked = await _revoker.RevokeAllAsync(user.Id);
+                }
+
+                // Audited: a change of what this person may do, in every office.
+                _logger.LogWarning(
+                    "InternalUsersAppService: user {UserId} changed from {OldRole} to {NewRole} by user {CallerId}; {Offices} office assignment(s) revoked.",
+                    user.Id, oldRole, newRole, CurrentUser.Id, officesRevoked);
+            }
+
+            return new InternalUserListDto
+            {
+                Id = user.Id,
+                FirstName = user.Name ?? string.Empty,
+                LastName = user.Surname ?? string.Empty,
+                FullName = ComposeUserFullName(user),
+                Email = user.Email ?? string.Empty,
+                Role = newRole,
+                IsActive = user.IsActive,
+            };
+        }
     }
 
     /// <summary>
