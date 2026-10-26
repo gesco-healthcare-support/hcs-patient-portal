@@ -82,6 +82,13 @@ public class AppointmentApplicantAttorneysAppService : CaseEvaluationAppService,
 
     public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetApplicantAttorneyLookupAsync(LookupRequestDto input)
     {
+        // 2026-10-23: staff only. It lists every attorney record in the office, no external screen uses
+        // it, and its ids were what let a party name another firm's record. Externals get an empty page.
+        if (!BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles))
+        {
+            return new PagedResultDto<LookupDto<Guid>>(0, new List<LookupDto<Guid>>());
+        }
+
         var query = (await _applicantAttorneyRepository.GetQueryableAsync()).WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.FirmName != null && x.FirmName.Contains(input.Filter!));
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<HealthcareSupport.CaseEvaluation.ApplicantAttorneys.ApplicantAttorney>();
         var totalCount = query.Count();
@@ -136,6 +143,7 @@ public class AppointmentApplicantAttorneysAppService : CaseEvaluationAppService,
             throw new UserFriendlyException(L["The {0} field is required.", L["IdentityUser"]]);
         }
 
+        await EnsureCallerMayLinkAccountAsync(input.ApplicantAttorneyId, input.IdentityUserId);
         var appointmentApplicantAttorney = await _appointmentApplicantAttorneyManager.CreateAsync(input.AppointmentId, input.ApplicantAttorneyId, input.IdentityUserId);
         return ObjectMapper.Map<AppointmentApplicantAttorney, AppointmentApplicantAttorneyDto>(appointmentApplicantAttorney);
     }
@@ -165,7 +173,30 @@ public class AppointmentApplicantAttorneysAppService : CaseEvaluationAppService,
         await _childOwnershipGuard.EnsureCanWriteChildAsync(existingChild.AppointmentId, input.AppointmentId);
 
 
+        await EnsureCallerMayLinkAccountAsync(input.ApplicantAttorneyId, input.IdentityUserId);
         var appointmentApplicantAttorney = await _appointmentApplicantAttorneyManager.UpdateAsync(id, input.AppointmentId, input.ApplicantAttorneyId, input.IdentityUserId, input.ConcurrencyStamp);
         return ObjectMapper.Map<AppointmentApplicantAttorney, AppointmentApplicantAttorneyDto>(appointmentApplicantAttorney);
+    }
+
+    /// <summary>
+    /// 2026-10-23: an external caller may put on the link only their own account or the account the
+    /// attorney record is already linked to. Any other id would add that person to the caller's
+    /// appointment and attach the record to an account that is not the attorney's. Staff are unchecked.
+    /// </summary>
+    private async Task EnsureCallerMayLinkAccountAsync(Guid applicantAttorneyId, Guid identityUserId)
+    {
+        if (BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles) || identityUserId == CurrentUser.Id)
+        {
+            return;
+        }
+
+        var master = await _applicantAttorneyRepository.FindAsync(applicantAttorneyId);
+        if (master != null && master.IdentityUserId == identityUserId)
+        {
+            return;
+        }
+
+        throw new Volo.Abp.Authorization.AbpAuthorizationException(
+            "You can link only your own account, or the account already on that attorney's record.");
     }
 }
