@@ -66,3 +66,45 @@ describe('APP_ROUTES booking guard (#554)', () => {
     expect(externalOnly).toHaveSize(1);
   });
 });
+
+/**
+ * The Users & Access hub's All Users tab (2026-10-26): the identity screens load inside the hub at
+ * /users/all, guarded on the same policy as the identity Users screen, opening on Users rather than on
+ * identity's default (Roles), and through the SAME loader as /identity -- so both carry the
+ * activation-email actions.
+ */
+describe('APP_ROUTES All Users tab', () => {
+  function findChild(routes: Routes, path: string): Route | undefined {
+    for (const route of routes) {
+      if (route.path === path) {
+        return route;
+      }
+      const inner = route.children ? findChild(route.children, path) : undefined;
+      if (inner) {
+        return inner;
+      }
+    }
+    return undefined;
+  }
+
+  const users = findChild(APP_ROUTES, 'users');
+  const all = users?.children?.find((r) => r.path === 'all');
+
+  it('is a guarded hub section on AbpIdentity.Users', () => {
+    expect(all).withContext('users/all must exist').toBeDefined();
+    expect(all!.loadComponent).toBeDefined();
+    expect(all!.data?.['section']).toBe('all');
+    expect(all!.data?.['requiredPolicy']).toBe('AbpIdentity.Users');
+    expect((all!.canActivate ?? []) as unknown[]).toContain(permissionGuard as unknown);
+  });
+
+  it('opens on the Users screen and loads the identity screens with the /identity loader', () => {
+    const [redirect, identity] = all!.children ?? [];
+    expect(redirect.path).toBe('');
+    expect(redirect.redirectTo).toBe('users');
+    expect(redirect.pathMatch).toBe('full');
+    expect(identity.path).toBe('');
+    expect(identity.loadChildren).toBeDefined();
+    expect(identity.loadChildren).toBe(findChild(APP_ROUTES, 'identity')!.loadChildren);
+  });
+});

@@ -35,6 +35,12 @@ export interface InternalNavItem {
   requiredPolicy?: string;
   /** Live count badge, when this item carries one. */
   badge?: NavBadgeKey;
+  /**
+   * Further route prefixes that also make this item the active one (2026-10-26): the Users & Access
+   * hub links to /users/invite but its tabs live under /users. An item whose own route is a longer
+   * prefix (Staff Management at /users/internal) still wins on its page.
+   */
+  activeRoutes?: readonly string[];
 }
 
 export interface InternalNavGroup {
@@ -149,6 +155,7 @@ export const IN_NAV: readonly InternalNavGroup[] = [
         label: 'Users & Access',
         icon: 'user',
         route: '/users/invite',
+        activeRoutes: ['/users'],
         roles: ['supervisor', 'intake'],
         requiredPolicy: 'CaseEvaluation.UserManagement.InviteExternalUser',
       },
@@ -355,6 +362,7 @@ export const IN_NAV_HOST: readonly InternalNavGroup[] = [
         label: 'Users & Access',
         icon: 'user',
         route: '/users/invite',
+        activeRoutes: ['/users'],
         roles: ['itadmin'],
         requiredPolicy: 'CaseEvaluation.UserManagement.InviteExternalUser',
       },

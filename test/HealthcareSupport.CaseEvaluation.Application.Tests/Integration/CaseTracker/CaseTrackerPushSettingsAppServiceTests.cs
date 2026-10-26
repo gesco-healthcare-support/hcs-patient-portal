@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
 using Volo.Abp.DependencyInjection;
+using Volo.Abp.Domain.Entities;
 using Volo.Abp.Guids;
 using Volo.Abp.MultiTenancy;
 using Volo.Abp.SettingManagement;
@@ -24,7 +25,7 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 /// reads OFF, because sending is opt-in and anything ambiguous must mean "do not send". Each office's
 /// state carries its name from the tenant store and its count of PENDING pushes only, and offices come
 /// back in name order. Setting the switch writes inside THAT office's tenant scope -- the store the
-/// drain reads -- and returns the fresh state.</para>
+/// drain reads -- and returns the fresh state; an unknown office is refused first.</para>
 ///
 /// <para><b>The results asserted are the returned states and the setting written.</b> The setting
 /// manager, stores and repository are substitutes; nothing is pushed. The service is built with
@@ -161,13 +162,13 @@ public class CaseTrackerPushSettingsAppServiceTests
     }
 
     /// <summary>
-    /// Switching an office on writes "true" INSIDE that office's scope (the store the drain reads) and
-    /// returns the office's fresh state.
+    /// Connecting writes "true" and disconnecting "false", INSIDE that office's scope (the store the drain and
+    /// the feed read), and each returns the office's fresh state.
     /// </summary>
     [Theory]
     [InlineData(true, "true")]
     [InlineData(false, "false")]
-    public async Task SetPushEnabledAsync_WritesInsideTheOfficesScopeAndReturnsTheFreshState(bool enabled, string expectedStored)
+    public async Task ConnectAndDisconnect_WriteInsideTheOfficesScopeAndReturnTheFreshState(bool connect, string expectedStored)
     {
         var rig = new Rig();
         var service = rig.Build();
@@ -182,10 +183,27 @@ public class CaseTrackerPushSettingsAppServiceTests
                 return Task.CompletedTask;
             });
 
-        var state = await service.SetPushEnabledAsync(OfficeA, enabled);
+        var state = connect ? await service.ConnectAsync(OfficeA) : await service.DisconnectAsync(OfficeA);
 
         scopeAtWrite.ShouldBe(OfficeA, "the switch must be written inside the office's own scope, not the host's");
         rig.StoredSwitch[OfficeA].ShouldBe(expectedStored);
-        state.PushEnabled.ShouldBe(enabled);
+        state.PushEnabled.ShouldBe(connect);
+    }
+
+    /// <summary>An id that names no office is refused before any office scope is entered or anything written.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ConnectAndDisconnect_RefuseAnUnknownOffice_AndWriteNothing(bool connect)
+    {
+        var rig = new Rig();
+        var service = rig.Build();
+        var unknown = Guid.NewGuid();
+
+        await Should.ThrowAsync<EntityNotFoundException>(
+            () => connect ? service.ConnectAsync(unknown) : service.DisconnectAsync(unknown));
+
+        rig.Scope.ShouldBeNull("no office scope may be entered for an unknown id");
+        await rig.Settings.DidNotReceiveWithAnyArgs().SetAsync(default!, default, default!, default, default);
     }
 }
