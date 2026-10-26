@@ -176,6 +176,39 @@ systemd-run --unit=hcs-backup-alert-test --property=OnFailure=hcs-portal-backup-
 
 (`192.0.2.1` is a documentation address that answers nothing, so the ship step fails.)
 
+## Disk space alert
+
+Nothing else watches free space between deploys, and a full data disk stops SQL Server writing: every save in the
+portal fails and so does the nightly backup. `scripts/hosting/disk-space-check.sh` looks once a day:
+
+| Unit                          | When        | What                                                         |
+| ----------------------------- | ----------- | ------------------------------------------------------------ |
+| `hcs-portal-disk-space.timer` | 08:45 daily | emails when `/` or `/srv` reaches 70% used, and again at 85% |
+
+It emails once when a disk crosses each line, then again every 7 days while it stays above 70%; a disk that falls
+back below 70% starts over. The email gives the disk's size, used and free, and what is using space: the SQL Server
+volume, the MinIO volume, the `backups/` folder and Docker's images and build cache. Sizes only. It goes to the
+same `BACKUP_ALERT_RECIPIENTS` through the same relay as the backup alerts. The lines and the reminder period are
+`DISK_WARN_PERCENT`, `DISK_CRIT_PERCENT` and `DISK_REMIND_DAYS`; what it remembers is in
+`/var/lib/hcs-portal/disk-space/`.
+
+The one cleanup that is safe on this stack is Docker's build cache:
+`sudo docker builder prune -f --filter until=48h`. **Never** `docker image prune`, `docker system prune`, or
+removing a volume: the pinned MinIO image can no longer be pulled from any registry, and the volumes are the
+databases and documents. If the SQL Server or MinIO volume is the large part, grow the disk instead.
+
+A deploy does not install systemd units. Install or update it by hand (as root, from the repository root):
+
+```bash
+cp scripts/hosting/systemd/hcs-portal-disk-space.service scripts/hosting/systemd/hcs-portal-disk-space.timer /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now hcs-portal-disk-space.timer
+# Prove the wiring without sending or recording anything: low lines force the email, the dry run prints it.
+BACKUP_ALERT_DRY_RUN=1 DISK_WARN_PERCENT=1 DISK_CRIT_PERCENT=2 bash scripts/hosting/disk-space-check.sh
+# The real check, once: at today's usage it should say "OK" for each disk and send nothing.
+systemctl start hcs-portal-disk-space.service && journalctl -u hcs-portal-disk-space.service -n 10 --no-pager
+```
+
 ## Before a deploy that carries the scoped MinIO credential
 
 The application no longer connects to MinIO as root. `docker-compose.prod.yml` now reads

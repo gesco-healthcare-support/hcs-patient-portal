@@ -419,8 +419,9 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
                     a.ClaimExaminerEmail,
                 }));
 
+        // The caller is left out by their CONFIRMED email here, and by id in the user query below.
         var coParties = ExternalCoPartyRules.CollectCoParties(
-            CurrentUser.Email,
+            CurrentUser.GetVerifiedEmail(),
             partyRows.Select(r => new ExternalCoPartyRules.AppointmentParties(
                 r.PatientEmail,
                 r.ApplicantAttorneyEmail,

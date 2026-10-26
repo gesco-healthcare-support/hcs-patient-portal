@@ -1,0 +1,9 @@
+[Unit]
+Description=Daily check that the Patient Portal disks are not filling up
+
+[Timer]
+OnCalendar=*-*-* 08:45:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1342,6 +1342,14 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:UserManagement.PrivilegedChangeNotAllowed";
 
     /// <summary>
+    /// 2026-10-23 -- importing users from a file is switched off (the permission is disabled in
+    /// <c>CaseEvaluationPermissionDefinitionProvider.DisableUserImport</c>). Raised by the import overrides in
+    /// <c>UserExtendedAppService</c>, which a caller reaches only if that permission is ever enabled again.
+    /// </summary>
+    public const string UserImportDisabled =
+        "CaseEvaluation:UserManagement.UserImportDisabled";
+
+    /// <summary>
     /// B11 -- the malware scan found a signature in an uploaded file, so it was refused and nothing
     /// was stored. Mapped to HTTP 422.
     ///
