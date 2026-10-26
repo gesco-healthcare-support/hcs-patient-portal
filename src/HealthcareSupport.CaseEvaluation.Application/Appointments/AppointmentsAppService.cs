@@ -1303,9 +1303,12 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // OLD AppointmentDomain.cs:358-380 forces the field to the booker's
         // own email when the booker is an Adjuster, regardless of what the
         // form posted. Strict parity preserves that override.
+        // 2026-10-23: only a CONFIRMED address is forced in. The appointment's party emails decide
+        // where its packets go, so an address nobody proved must not be written there; with none
+        // confirmed the typed value stands, as it does for every other role.
         var resolvedClaimExaminerEmail = BookingFlowRoles.ResolveClaimExaminerEmail(
             callerRoles,
-            currentUserEmail: CurrentUser.Email,
+            currentUserEmail: CurrentUser.GetVerifiedEmail(),
             dtoClaimExaminerEmail: input.ClaimExaminerEmail);
 
         // W1-1: per T11 lifecycle, every booker submission lands at Pending. The
@@ -1787,99 +1790,23 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
 
     private async Task UpsertApplicantAttorneyInternalAsync(Guid appointmentId, ApplicantAttorneyDetailsDto input)
     {
-        // 2026-05-07 (Bonus issue): drop the IdentityUserId == Guid.Empty
-        // early-return so a brand-new attorney typed by the booker (no
-        // IdentityUser yet) is still persisted. The master ApplicantAttorney
-        // and AppointmentApplicantAttorney rows accept nullable
-        // IdentityUserId; the registration-time linkback contributor patches
-        // them when the attorney later registers with this email + role.
-        // We skip entirely only when the booker submitted no recognisable
-        // identifier at all (no IdentityUser AND no email).
-        var resolvedUserId = await ResolveIdentityUserIdForBookingAsync(input.IdentityUserId, input.Email);
-        if (!resolvedUserId.HasValue && string.IsNullOrWhiteSpace(input.Email))
+        var context = await PrepareAttorneyUpsertAsync(appointmentId, input.IdentityUserId, input.Email, input.FirmName, "ApplicantAttorney");
+        if (context == null)
         {
             return;
         }
 
-        // BUG-012 Sub-bug 2 (2026-05-22): FirmName guard extracted to
-        // EnsureAttorneyFirmNamePresent (private helper below). Same
-        // UserFriendlyException semantics as ExternalSignupAppService's
-        // ValidateRegistrationInput attorney check.
-        EnsureAttorneyFirmNamePresent(input.FirmName, "ApplicantAttorney");
-
-        var appointment = await _appointmentRepository.FindAsync(appointmentId);
-        if (appointment == null)
-        {
-            throw new UserFriendlyException(L["Appointment not found."]);
-        }
-
-        var normalisedEmail = string.IsNullOrWhiteSpace(input.Email) ? null : input.Email.Trim();
-
-        // R2-2 (2026-06-22): email is the authoritative identity for a party. If
-        // the booker did not pick an explicit master but typed an email that
-        // already matches one, reuse that master (filling only blank fields)
-        // instead of creating a duplicate account for the same email.
-        var existingByEmail = normalisedEmail == null
-            ? null
-            : await _applicantAttorneyRepository.FindByNormalizedEmailAsync(normalisedEmail);
-
-        ApplicantAttorney applicantAttorney;
-        if (input.ApplicantAttorneyId.HasValue && input.ApplicantAttorneyId.Value != Guid.Empty)
-        {
-            applicantAttorney = await _applicantAttorneyRepository.GetAsync(input.ApplicantAttorneyId.Value);
-            applicantAttorney = await _applicantAttorneyManager.UpdateAsync(
-                applicantAttorney.Id,
-                input.StateId,
-                resolvedUserId,
-                input.FirmName,
-                applicantAttorney.FirmAddress,
-                input.PhoneNumber,
-                input.WebAddress,
-                input.FaxNumber,
-                input.Street,
-                input.City,
-                input.ZipCode,
-                input.ConcurrencyStamp,
-                normalisedEmail,
-                input.FirstName,
-                input.LastName);
-        }
-        else if (existingByEmail != null)
-        {
-            applicantAttorney = await _applicantAttorneyManager.UpdateAsync(
-                existingByEmail.Id,
-                input.StateId ?? existingByEmail.StateId,
-                resolvedUserId ?? existingByEmail.IdentityUserId,
-                input.FirmName ?? existingByEmail.FirmName,
-                existingByEmail.FirmAddress,
-                input.PhoneNumber ?? existingByEmail.PhoneNumber,
-                input.WebAddress ?? existingByEmail.WebAddress,
-                input.FaxNumber ?? existingByEmail.FaxNumber,
-                input.Street ?? existingByEmail.Street,
-                input.City ?? existingByEmail.City,
-                input.ZipCode ?? existingByEmail.ZipCode,
-                existingByEmail.ConcurrencyStamp,
-                normalisedEmail,
-                input.FirstName ?? existingByEmail.FirstName,
-                input.LastName ?? existingByEmail.LastName);
-        }
-        else
-        {
-            applicantAttorney = await _applicantAttorneyManager.CreateAsync(
-                input.StateId,
-                resolvedUserId,
-                input.FirmName,
-                null,
-                input.PhoneNumber,
-                input.WebAddress,
-                input.FaxNumber,
-                input.Street,
-                input.City,
-                input.ZipCode,
-                normalisedEmail,
-                input.FirstName,
-                input.LastName);
-        }
+        var named = input.ApplicantAttorneyId is { } namedId && namedId != Guid.Empty
+            ? ToAttorneyMasterRecord(await _applicantAttorneyRepository.GetAsync(namedId))
+            : null;
+        var matchedByEmail = named == null && context.NormalisedEmail != null
+            ? ToAttorneyMasterRecord(await _applicantAttorneyRepository.FindByNormalizedEmailAsync(context.NormalisedEmail))
+            : null;
+        var typed = new AttorneyMasterValues(
+            input.StateId, context.ResolvedUserId, input.FirmName, null, input.PhoneNumber, input.WebAddress,
+            input.FaxNumber, input.Street, input.City, input.ZipCode, context.NormalisedEmail, input.FirstName, input.LastName);
+        var write = AttorneyMasterWritePolicy.Decide(context.IsInternalCaller, CurrentUser.Id, typed, input.ConcurrencyStamp, named, matchedByEmail);
+        var applicantAttorneyId = await WriteApplicantAttorneyMasterAsync(write);
 
         var existing = await _appointmentApplicantAttorneyRepository.GetListWithNavigationPropertiesAsync(appointmentId: appointmentId, maxResultCount: 10);
         var link = existing.FirstOrDefault();
@@ -1889,14 +1816,102 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             await _appointmentApplicantAttorneyManager.UpdateAsync(
                 link.AppointmentApplicantAttorney.Id,
                 appointmentId,
-                applicantAttorney.Id,
-                resolvedUserId,
+                applicantAttorneyId,
+                context.ResolvedUserId,
                 link.AppointmentApplicantAttorney.ConcurrencyStamp);
         }
         else
         {
-            await _appointmentApplicantAttorneyManager.CreateAsync(appointmentId, applicantAttorney.Id, resolvedUserId);
+            await _appointmentApplicantAttorneyManager.CreateAsync(appointmentId, applicantAttorneyId, context.ResolvedUserId);
         }
+
+        if (write.TypedOnAppointmentOnly)
+        {
+            // The link above copied the master onto the appointment; the booker's own entries win there.
+            var appointment = context.Appointment;
+            appointment.ApplicantAttorneyFirstName = AttorneyMasterWritePolicy.TypedOr(input.FirstName, appointment.ApplicantAttorneyFirstName);
+            appointment.ApplicantAttorneyLastName = AttorneyMasterWritePolicy.TypedOr(input.LastName, appointment.ApplicantAttorneyLastName);
+            appointment.ApplicantAttorneyFirmName = AttorneyMasterWritePolicy.TypedOr(input.FirmName, appointment.ApplicantAttorneyFirmName);
+            appointment.ApplicantAttorneyWebAddress = AttorneyMasterWritePolicy.TypedOr(input.WebAddress, appointment.ApplicantAttorneyWebAddress);
+            appointment.ApplicantAttorneyPhoneNumber = AttorneyMasterWritePolicy.TypedOr(input.PhoneNumber, appointment.ApplicantAttorneyPhoneNumber);
+            appointment.ApplicantAttorneyFaxNumber = AttorneyMasterWritePolicy.TypedOr(input.FaxNumber, appointment.ApplicantAttorneyFaxNumber);
+            appointment.ApplicantAttorneyStreet = AttorneyMasterWritePolicy.TypedOr(input.Street, appointment.ApplicantAttorneyStreet);
+            appointment.ApplicantAttorneyCity = AttorneyMasterWritePolicy.TypedOr(input.City, appointment.ApplicantAttorneyCity);
+            appointment.ApplicantAttorneyStateId = input.StateId ?? appointment.ApplicantAttorneyStateId;
+            appointment.ApplicantAttorneyZipCode = AttorneyMasterWritePolicy.TypedOr(input.ZipCode, appointment.ApplicantAttorneyZipCode);
+            await _appointmentRepository.UpdateAsync(appointment);
+        }
+    }
+
+    /// <summary>Carries out <see cref="AttorneyMasterWritePolicy.Decide"/> on the applicant side; returns the master to link.</summary>
+    private async Task<Guid> WriteApplicantAttorneyMasterAsync(AttorneyMasterWrite write)
+    {
+        var values = write.Values;
+        if (values == null)
+        {
+            return write.TargetId!.Value;
+        }
+
+        var master = write.TargetId.HasValue
+            ? await _applicantAttorneyManager.UpdateAsync(
+                write.TargetId.Value, values.StateId, values.IdentityUserId, values.FirmName, values.FirmAddress, values.PhoneNumber,
+                values.WebAddress, values.FaxNumber, values.Street, values.City, values.ZipCode, write.ConcurrencyStamp,
+                values.Email, values.FirstName, values.LastName)
+            : await _applicantAttorneyManager.CreateAsync(
+                values.StateId, values.IdentityUserId, values.FirmName, values.FirmAddress, values.PhoneNumber, values.WebAddress,
+                values.FaxNumber, values.Street, values.City, values.ZipCode, values.Email, values.FirstName, values.LastName);
+        return master.Id;
+    }
+
+    /// <summary>
+    /// What both attorney upserts work from, or null when the booker gave nothing to identify the
+    /// attorney by (no account and no email), in which case nothing is written.
+    /// </summary>
+    private sealed record AttorneyUpsertContext(bool IsInternalCaller, Guid? ResolvedUserId, Appointment Appointment, string? NormalisedEmail);
+
+    private async Task<AttorneyUpsertContext?> PrepareAttorneyUpsertAsync(
+        Guid appointmentId, Guid requestedUserId, string? email, string? firmName, string attorneyRole)
+    {
+        // 2026-05-07 (Bonus issue): a brand-new attorney typed by the booker (no IdentityUser yet) is
+        // still persisted; the master and link rows accept a null IdentityUserId and the registration-time
+        // linkback contributor patches them when the attorney later registers with this email + role.
+        // 2026-10-23: for an external caller the account is found from the typed email, never taken from
+        // the request (AttorneyMasterWritePolicy.AccountIdToHonour).
+        var isInternalCaller = BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles);
+        var resolvedUserId = await ResolveIdentityUserIdForBookingAsync(
+            AttorneyMasterWritePolicy.AccountIdToHonour(isInternalCaller, requestedUserId),
+            email);
+        if (!resolvedUserId.HasValue && string.IsNullOrWhiteSpace(email))
+        {
+            return null;
+        }
+
+        // BUG-012 Sub-bug 2 (2026-05-22): same UserFriendlyException semantics as
+        // ExternalSignupAppService's ValidateRegistrationInput attorney check.
+        EnsureAttorneyFirmNamePresent(firmName, attorneyRole);
+
+        var appointment = await _appointmentRepository.FindAsync(appointmentId);
+        if (appointment == null)
+        {
+            throw new UserFriendlyException(L["Appointment not found."]);
+        }
+
+        var normalisedEmail = string.IsNullOrWhiteSpace(email) ? null : email.Trim();
+        return new AttorneyUpsertContext(isInternalCaller, resolvedUserId, appointment, normalisedEmail);
+    }
+
+    private static AttorneyMasterRecord? ToAttorneyMasterRecord(ApplicantAttorney? master)
+    {
+        return master == null ? null : new AttorneyMasterRecord(master.Id, master.ConcurrencyStamp, new AttorneyMasterValues(
+            master.StateId, master.IdentityUserId, master.FirmName, master.FirmAddress, master.PhoneNumber, master.WebAddress,
+            master.FaxNumber, master.Street, master.City, master.ZipCode, master.Email, master.FirstName, master.LastName));
+    }
+
+    private static AttorneyMasterRecord? ToAttorneyMasterRecord(DefenseAttorney? master)
+    {
+        return master == null ? null : new AttorneyMasterRecord(master.Id, master.ConcurrencyStamp, new AttorneyMasterValues(
+            master.StateId, master.IdentityUserId, master.FirmName, master.FirmAddress, master.PhoneNumber, master.WebAddress,
+            master.FaxNumber, master.Street, master.City, master.ZipCode, master.Email, master.FirstName, master.LastName));
     }
 
     /// <summary>
@@ -2054,93 +2069,24 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
 
     private async Task UpsertDefenseAttorneyInternalAsync(Guid appointmentId, DefenseAttorneyDetailsDto input)
     {
-        // 2026-05-07 (Bonus issue): mirror the AA upsert above. Drop the
-        // IdentityUserId == Guid.Empty early-return; resolve via email when
-        // possible; persist with null IdentityUserId otherwise. The
-        // registration-time linkback contributor sets it when the DA later
-        // registers.
-        var resolvedUserId = await ResolveIdentityUserIdForBookingAsync(input.IdentityUserId, input.Email);
-        if (!resolvedUserId.HasValue && string.IsNullOrWhiteSpace(input.Email))
+        // The applicant rules above, for the defense side.
+        var context = await PrepareAttorneyUpsertAsync(appointmentId, input.IdentityUserId, input.Email, input.FirmName, "DefenseAttorney");
+        if (context == null)
         {
             return;
         }
 
-        // BUG-012 Sub-bug 2 (2026-05-22): FirmName guard extracted; see
-        // the AA upsert above + EnsureAttorneyFirmNamePresent below.
-        EnsureAttorneyFirmNamePresent(input.FirmName, "DefenseAttorney");
-
-        var appointment = await _appointmentRepository.FindAsync(appointmentId);
-        if (appointment == null)
-        {
-            throw new UserFriendlyException(L["Appointment not found."]);
-        }
-
-        var normalisedEmail = string.IsNullOrWhiteSpace(input.Email) ? null : input.Email.Trim();
-
-        // R2-2 (2026-06-22): email is the authoritative identity for a party.
-        // Reuse an existing master matched by email (filling only blank fields)
-        // rather than creating a duplicate account for the same email.
-        var existingByEmail = normalisedEmail == null
-            ? null
-            : await _defenseAttorneyRepository.FindByNormalizedEmailAsync(normalisedEmail);
-
-        DefenseAttorney defenseAttorney;
-        if (input.DefenseAttorneyId.HasValue && input.DefenseAttorneyId.Value != Guid.Empty)
-        {
-            defenseAttorney = await _defenseAttorneyRepository.GetAsync(input.DefenseAttorneyId.Value);
-            defenseAttorney = await _defenseAttorneyManager.UpdateAsync(
-                defenseAttorney.Id,
-                input.StateId,
-                resolvedUserId,
-                input.FirmName,
-                defenseAttorney.FirmAddress,
-                input.PhoneNumber,
-                input.WebAddress,
-                input.FaxNumber,
-                input.Street,
-                input.City,
-                input.ZipCode,
-                input.ConcurrencyStamp,
-                normalisedEmail,
-                input.FirstName,
-                input.LastName);
-        }
-        else if (existingByEmail != null)
-        {
-            defenseAttorney = await _defenseAttorneyManager.UpdateAsync(
-                existingByEmail.Id,
-                input.StateId ?? existingByEmail.StateId,
-                resolvedUserId ?? existingByEmail.IdentityUserId,
-                input.FirmName ?? existingByEmail.FirmName,
-                existingByEmail.FirmAddress,
-                input.PhoneNumber ?? existingByEmail.PhoneNumber,
-                input.WebAddress ?? existingByEmail.WebAddress,
-                input.FaxNumber ?? existingByEmail.FaxNumber,
-                input.Street ?? existingByEmail.Street,
-                input.City ?? existingByEmail.City,
-                input.ZipCode ?? existingByEmail.ZipCode,
-                existingByEmail.ConcurrencyStamp,
-                normalisedEmail,
-                input.FirstName ?? existingByEmail.FirstName,
-                input.LastName ?? existingByEmail.LastName);
-        }
-        else
-        {
-            defenseAttorney = await _defenseAttorneyManager.CreateAsync(
-                input.StateId,
-                resolvedUserId,
-                input.FirmName,
-                null,
-                input.PhoneNumber,
-                input.WebAddress,
-                input.FaxNumber,
-                input.Street,
-                input.City,
-                input.ZipCode,
-                normalisedEmail,
-                input.FirstName,
-                input.LastName);
-        }
+        var named = input.DefenseAttorneyId is { } namedId && namedId != Guid.Empty
+            ? ToAttorneyMasterRecord(await _defenseAttorneyRepository.GetAsync(namedId))
+            : null;
+        var matchedByEmail = named == null && context.NormalisedEmail != null
+            ? ToAttorneyMasterRecord(await _defenseAttorneyRepository.FindByNormalizedEmailAsync(context.NormalisedEmail))
+            : null;
+        var typed = new AttorneyMasterValues(
+            input.StateId, context.ResolvedUserId, input.FirmName, null, input.PhoneNumber, input.WebAddress,
+            input.FaxNumber, input.Street, input.City, input.ZipCode, context.NormalisedEmail, input.FirstName, input.LastName);
+        var write = AttorneyMasterWritePolicy.Decide(context.IsInternalCaller, CurrentUser.Id, typed, input.ConcurrencyStamp, named, matchedByEmail);
+        var defenseAttorneyId = await WriteDefenseAttorneyMasterAsync(write);
 
         var existing = await _appointmentDefenseAttorneyRepository.GetListWithNavigationPropertiesAsync(appointmentId: appointmentId, maxResultCount: 10);
         var link = existing.FirstOrDefault();
@@ -2150,14 +2096,50 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             await _appointmentDefenseAttorneyManager.UpdateAsync(
                 link.AppointmentDefenseAttorney.Id,
                 appointmentId,
-                defenseAttorney.Id,
-                resolvedUserId,
+                defenseAttorneyId,
+                context.ResolvedUserId,
                 link.AppointmentDefenseAttorney.ConcurrencyStamp);
         }
         else
         {
-            await _appointmentDefenseAttorneyManager.CreateAsync(appointmentId, defenseAttorney.Id, resolvedUserId);
+            await _appointmentDefenseAttorneyManager.CreateAsync(appointmentId, defenseAttorneyId, context.ResolvedUserId);
         }
+
+        if (write.TypedOnAppointmentOnly)
+        {
+            var appointment = context.Appointment;
+            appointment.DefenseAttorneyFirstName = AttorneyMasterWritePolicy.TypedOr(input.FirstName, appointment.DefenseAttorneyFirstName);
+            appointment.DefenseAttorneyLastName = AttorneyMasterWritePolicy.TypedOr(input.LastName, appointment.DefenseAttorneyLastName);
+            appointment.DefenseAttorneyFirmName = AttorneyMasterWritePolicy.TypedOr(input.FirmName, appointment.DefenseAttorneyFirmName);
+            appointment.DefenseAttorneyWebAddress = AttorneyMasterWritePolicy.TypedOr(input.WebAddress, appointment.DefenseAttorneyWebAddress);
+            appointment.DefenseAttorneyPhoneNumber = AttorneyMasterWritePolicy.TypedOr(input.PhoneNumber, appointment.DefenseAttorneyPhoneNumber);
+            appointment.DefenseAttorneyFaxNumber = AttorneyMasterWritePolicy.TypedOr(input.FaxNumber, appointment.DefenseAttorneyFaxNumber);
+            appointment.DefenseAttorneyStreet = AttorneyMasterWritePolicy.TypedOr(input.Street, appointment.DefenseAttorneyStreet);
+            appointment.DefenseAttorneyCity = AttorneyMasterWritePolicy.TypedOr(input.City, appointment.DefenseAttorneyCity);
+            appointment.DefenseAttorneyStateId = input.StateId ?? appointment.DefenseAttorneyStateId;
+            appointment.DefenseAttorneyZipCode = AttorneyMasterWritePolicy.TypedOr(input.ZipCode, appointment.DefenseAttorneyZipCode);
+            await _appointmentRepository.UpdateAsync(appointment);
+        }
+    }
+
+    /// <summary>Carries out <see cref="AttorneyMasterWritePolicy.Decide"/> on the defense side; returns the master to link.</summary>
+    private async Task<Guid> WriteDefenseAttorneyMasterAsync(AttorneyMasterWrite write)
+    {
+        var values = write.Values;
+        if (values == null)
+        {
+            return write.TargetId!.Value;
+        }
+
+        var master = write.TargetId.HasValue
+            ? await _defenseAttorneyManager.UpdateAsync(
+                write.TargetId.Value, values.StateId, values.IdentityUserId, values.FirmName, values.FirmAddress, values.PhoneNumber,
+                values.WebAddress, values.FaxNumber, values.Street, values.City, values.ZipCode, write.ConcurrencyStamp,
+                values.Email, values.FirstName, values.LastName)
+            : await _defenseAttorneyManager.CreateAsync(
+                values.StateId, values.IdentityUserId, values.FirmName, values.FirmAddress, values.PhoneNumber, values.WebAddress,
+                values.FaxNumber, values.Street, values.City, values.ZipCode, values.Email, values.FirstName, values.LastName);
+        return master.Id;
     }
 
     // B2 (Phase 9, 2026-05-04): legacy thin entry points -- gated on the

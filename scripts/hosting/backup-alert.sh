@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Backup alert (#945, 2026-09-24). Emails a person when the off-box backup fails, or when the daily freshness
-# check finds that it has stopped succeeding.
+# check finds that it has stopped succeeding. Since 2026-10-23 it also carries the daily disk space check's alert.
 #
 # WHY IT EXISTS
 #   The backup units used to fail only into the journal, and nobody reads the journal at 01:30. Backups here
@@ -20,6 +20,7 @@
 # USAGE
 #   backup-alert.sh failed <unit>            # from hcs-portal-backup-alert@.service (%i = the failed unit)
 #   backup-alert.sh stale <what> <detail>    # from backup-freshness-check.sh
+#   backup-alert.sh disk <what> <detail>     # from disk-space-check.sh
 #   BACKUP_ALERT_DRY_RUN=1 backup-alert.sh ...   # print the message and recipients instead of sending
 #
 # Env (all optional): ENV_FILE (default secrets/env.prod), REPO_DIR, BACKUP_ALERT_DRY_RUN.
@@ -30,7 +31,7 @@ REPO_DIR="${REPO_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 cd "$REPO_DIR"
 ENV_FILE="${ENV_FILE:-secrets/env.prod}"
 
-usage() { echo "usage: backup-alert.sh failed <unit> | stale <what> <detail>" >&2; exit 2; }
+usage() { echo "usage: backup-alert.sh failed <unit> | stale <what> <detail> | disk <what> <detail>" >&2; exit 2; }
 refuse() { echo "backup-alert: ERROR: $* -- this alert was NOT sent" >&2; exit 1; }
 
 # One key from the env file; empty when absent. Never echoed.
@@ -39,7 +40,7 @@ env_value() { local key="$1"; { grep -E "^${key}=" "$ENV_FILE" || true; } | head
 kind="${1:-}"
 case "$kind" in
   failed) [[ $# -eq 2 ]] || usage; unit="$2" ;;
-  stale) [[ $# -eq 3 ]] || usage; what="$2"; detail="$3" ;;
+  stale | disk) [[ $# -eq 3 ]] || usage; what="$2"; detail="$3" ;;
   *) usage ;;
 esac
 
@@ -102,6 +103,12 @@ intended. Check the journal (journalctl -u ${unit}) and the runbook docs/runbook
 Last journal lines:
 ${journal}"
   fi
+elif [[ "$kind" = "disk" ]]; then
+  subject="Patient Portal disk: ${what} on ${host}"
+  body="${detail}
+
+Checked ${now} on ${host} by the daily disk space check (scripts/hosting/disk-space-check.sh).
+See \"Disk space alert\" in docs/runbooks/hosting-backup-restore.md."
 else
   subject="Patient Portal backup: the ${what} has not succeeded recently on ${host}"
   body="${detail}
