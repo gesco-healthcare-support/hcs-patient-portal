@@ -39,6 +39,7 @@ public class IntakeAssignmentsAppService : CaseEvaluationAppService, IIntakeAssi
     private readonly IRepository<AppointmentChangeRequest, Guid> _changeRequestRepository;
     private readonly IdentityUserManager _userManager;
     private readonly IIntakeShadowUserProvisioner _shadowProvisioner;
+    private readonly IntakeAssignmentRevoker _revoker;
 
     public IntakeAssignmentsAppService(
         IRepository<IntakeOfficeAssignment, Guid> assignmentRepository,
@@ -46,7 +47,8 @@ public class IntakeAssignmentsAppService : CaseEvaluationAppService, IIntakeAssi
         IRepository<Appointment, Guid> appointmentRepository,
         IRepository<AppointmentChangeRequest, Guid> changeRequestRepository,
         IdentityUserManager userManager,
-        IIntakeShadowUserProvisioner shadowProvisioner)
+        IIntakeShadowUserProvisioner shadowProvisioner,
+        IntakeAssignmentRevoker revoker)
     {
         _assignmentRepository = assignmentRepository;
         _tenantRepository = tenantRepository;
@@ -54,6 +56,7 @@ public class IntakeAssignmentsAppService : CaseEvaluationAppService, IIntakeAssi
         _changeRequestRepository = changeRequestRepository;
         _userManager = userManager;
         _shadowProvisioner = shadowProvisioner;
+        _revoker = revoker;
     }
 
     [Authorize(CaseEvaluationPermissions.IntakeAssignments.Default)]
@@ -218,18 +221,8 @@ public class IntakeAssignmentsAppService : CaseEvaluationAppService, IIntakeAssi
     {
         EnsureHostCaller();
 
-        using (CurrentTenant.Change(null))
-        {
-            var row = await _assignmentRepository.FirstOrDefaultAsync(
-                x => x.OperatorUserId == operatorUserId && x.OfficeId == officeId);
-            if (row != null)
-            {
-                await _assignmentRepository.DeleteAsync(row, autoSave: true);
-            }
-        }
-
-        // Defense in depth: lock the shadow user (the removed row already blocks the gate).
-        await _shadowProvisioner.DisableShadowUserAsync(officeId, operatorUserId);
+        // Removes the row and locks the shadow user; Change role does the same for every office.
+        await _revoker.RevokeAsync(operatorUserId, officeId);
     }
 
     [Authorize(CaseEvaluationPermissions.IntakeAssignments.Manage)]

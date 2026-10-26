@@ -13,6 +13,7 @@ shadow-user provisioning that back those flows.
 | `IntakeOfficeAssignment.cs` | Host `FullAuditedAggregateRoot<Guid>` mapping an operator user to an office (`OperatorUserId` + `OfficeId`, unique). Host-only; never lives in an office database. |
 | `IIntakeAssignmentChecker.cs` / `IntakeAssignmentChecker.cs` | Deny-by-default gate: `IsAssignedAsync(operatorUserId, officeId)`, read at host scope via `CurrentTenant.Change(null)`. |
 | `IIntakeShadowUserProvisioner.cs` / `IntakeShadowUserProvisioner.cs` | Provisions/locates the per-office Intake Staff shadow user (username == operator email) the operator lands as. |
+| `IntakeAssignmentRevoker.cs` | Takes an operator off an office: deletes the assignment row and locks the office's shadow user. Used by Staff Assignments' Unassign (one office) and by Staff Management's Change role from Intake Staff to Staff Supervisor (every office, 2026-10-26), so both leave the same state. |
 
 ## Conventions
 

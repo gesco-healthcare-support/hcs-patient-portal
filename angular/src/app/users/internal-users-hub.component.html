@@ -376,6 +376,16 @@
               <app-icon [name]="u.isActive ? 'x' : 'check'" [size]="15" />
             </button>
           }
+          @if (canChangeRole(u)) {
+            <button
+              class="ra-rowbtn"
+              title="Change role"
+              (click)="openRoleChange(u)"
+              [disabled]="isBusy()"
+            >
+              <app-icon name="user" [size]="15" />
+            </button>
+          }
         </div>
       </app-managed-table>
 
@@ -574,6 +584,67 @@
         <button class="af-btn af-btn--primary" (click)="saveCreateUser()" [disabled]="isBusy()">
           <app-icon name="check" [size]="15" />
           Create user
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ============ Change role modal (2026-10-26, one role per person) ============ -->
+<!-- Closed with Cancel, the X or Escape (the document handler): no click on the backdrop. -->
+@if (roleChange(); as rc) {
+  <div class="ra-scrim">
+    <div
+      class="ra-modal ra-modal--md"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="uh-role-title"
+    >
+      <div class="ra-modal__head">
+        <h3 id="uh-role-title">Change role</h3>
+        <button class="x" title="Close" (click)="closeRoleChange()">
+          <app-icon name="x" [size]="18" />
+        </button>
+      </div>
+      <div class="ra-modal__body">
+        <p>{{ rc.row.fullName || rc.row.email }} has one role. Choose the role they should have.</p>
+        <fieldset class="ra-field">
+          <legend>Role</legend>
+          @for (r of creatableRoles; track r) {
+            <label>
+              <input
+                type="radio"
+                name="uh-role-choice"
+                [value]="r"
+                [checked]="rc.role === r"
+                (change)="pickRole(r)"
+              />
+              {{ r }}
+            </label>
+          }
+        </fieldset>
+        @if (rc.role !== rc.row.role && rc.row.role === 'Intake Staff') {
+          <div class="ra-note warn">
+            Their office assignments will be removed. A Staff Supervisor enters every office.
+          </div>
+        }
+        @if (rc.role !== rc.row.role && rc.role === 'Intake Staff') {
+          <div class="ra-note">
+            They will have no offices until you assign them in Staff Assignments.
+          </div>
+        }
+      </div>
+      <div class="ra-modal__foot">
+        <button class="af-btn af-btn--ghost" (click)="closeRoleChange()" [disabled]="isBusy()">
+          Cancel
+        </button>
+        <button
+          class="af-btn af-btn--primary"
+          (click)="saveRoleChange()"
+          [disabled]="isBusy() || rc.role === rc.row.role"
+        >
+          <app-icon name="check" [size]="15" />
+          Save
         </button>
       </div>
     </div>

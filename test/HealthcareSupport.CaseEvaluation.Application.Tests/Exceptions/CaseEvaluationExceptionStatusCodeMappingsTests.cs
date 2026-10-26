@@ -89,6 +89,14 @@ public class CaseEvaluationExceptionStatusCodeMappingsTests
         options.ErrorCodeToHttpStatusCodeMappings[
             CaseEvaluationDomainErrorCodes.ActivationNotQueued
         ].ShouldBe(HttpStatusCode.ServiceUnavailable);
+
+        // One role per person (2 codes): both are refusals the person can act on.
+        options.ErrorCodeToHttpStatusCodeMappings[
+            CaseEvaluationDomainErrorCodes.OneRolePerPerson
+        ].ShouldBe(HttpStatusCode.BadRequest);
+        options.ErrorCodeToHttpStatusCodeMappings[
+            CaseEvaluationDomainErrorCodes.InternalUserRoleChangeNotAllowed
+        ].ShouldBe(HttpStatusCode.BadRequest);
     }
 
     [Fact]
@@ -105,8 +113,8 @@ public class CaseEvaluationExceptionStatusCodeMappingsTests
         options.ErrorCodeToHttpStatusCodeMappings[
             CaseEvaluationDomainErrorCodes.RegistrationFirmNameRequired
         ].ShouldBe(HttpStatusCode.BadRequest);
-        // Still exactly 17 mappings; no duplicate-key blow up.
-        options.ErrorCodeToHttpStatusCodeMappings.Count.ShouldBe(17);
+        // Still exactly 19 mappings; no duplicate-key blow up.
+        options.ErrorCodeToHttpStatusCodeMappings.Count.ShouldBe(19);
     }
 
     /// <summary>

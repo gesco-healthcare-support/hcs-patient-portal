@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { RestService } from '@abp/ng.core';
 import { of } from 'rxjs';
 import { EditionService, TenantService } from '@volo/abp.ng.saas/proxy';
 
@@ -42,6 +43,7 @@ describe('UsersSectionGateway', () => {
   let doctorTenant: Record<string, jasmine.Spy>;
   let branding: Record<string, jasmine.Spy>;
   let activation: Record<string, jasmine.Spy>;
+  let rest: Record<string, jasmine.Spy>;
 
   /** A fully populated identity user, as the update round trip would read one back. */
   const STORED_USER = {
@@ -108,6 +110,11 @@ describe('UsersSectionGateway', () => {
         .createSpy('resendToOfficeAdministrator')
         .and.returnValue(of(undefined)),
     };
+    rest = {
+      request: jasmine
+        .createSpy('request')
+        .and.returnValue(of({ id: 'u1', role: 'Staff Supervisor' })),
+    };
 
     TestBed.configureTestingModule({
       providers: [
@@ -121,6 +128,7 @@ describe('UsersSectionGateway', () => {
         { provide: DoctorTenantService, useValue: doctorTenant },
         { provide: BrandingService, useValue: branding },
         { provide: AccountActivationService, useValue: activation },
+        { provide: RestService, useValue: rest },
       ],
     });
 
@@ -264,6 +272,26 @@ describe('UsersSectionGateway', () => {
     it('resolves to nothing, so callers cannot accidentally depend on the raw response', () => {
       const g = gateway();
       expect(emitted(g.setUserActive('u-1', false))).toBeUndefined();
+    });
+  });
+
+  // 2026-10-26: Staff Management's "Change role", called by its literal route until the generated
+  // client is regenerated -- so the route, verb and body the controller expects are pinned here.
+  describe('changing a role', () => {
+    it('puts the one role chosen to the staff member role route and returns the refreshed row', () => {
+      const g = gateway();
+
+      const row = emitted(g.changeRole('u1', 'Staff Supervisor'));
+
+      expect(rest['request']).toHaveBeenCalledWith(
+        {
+          method: 'PUT',
+          url: '/api/app/internal-users/u1/role',
+          body: { roleName: 'Staff Supervisor' },
+        },
+        { apiName: 'Default' },
+      );
+      expect(row).toEqual({ id: 'u1', role: 'Staff Supervisor' } as never);
     });
   });
 

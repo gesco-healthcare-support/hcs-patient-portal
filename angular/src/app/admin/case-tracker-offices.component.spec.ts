@@ -305,7 +305,7 @@ describe('CaseTrackerOfficesComponent', () => {
 
       const root = await render([off, connected]);
 
-      expect(root.querySelectorAll('tbody tr').length).toBe(2);
+      expect(root.querySelectorAll('tbody tr')).toHaveSize(2);
       expect(buttons(root)).toEqual([]);
     });
 
