@@ -354,6 +354,10 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return $"{Group}.Appointments.ViewIntegrationDeadLetters";
         yield return $"{Group}.CaseTrackerIntegration";
 
+        // 2026-10-26 -- connecting or disconnecting an office: IT Admin and the host admin only (the
+        // admin role receives it from ABP's permission seeding). The host Supervisor below does NOT.
+        yield return $"{Group}.CaseTrackerIntegration.ManageConnection";
+
         // 2026-09-28 -- the technical consoles (job dashboard, health UI), host side. IT Admin only:
         // they can trigger, requeue and delete jobs for every office, a technical power.
         yield return $"{Group}.BackgroundJobsDashboard";

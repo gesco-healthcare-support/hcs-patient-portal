@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
 using Volo.Abp;
 using Volo.Abp.Authorization;
+using Volo.Abp.Domain.Entities;
 using Volo.Abp.MultiTenancy;
 using Volo.Abp.SettingManagement;
 
@@ -19,8 +20,9 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 ///
 /// <para>Gated on <see cref="CaseEvaluationPermissions.CaseTrackerIntegration"/>, a Host-only
 /// permission, and every method also refuses a caller inside an office (2026-09-24). Each acts on the
-/// office it names, or on all of them, so they belong to the host alone -- including starting the #927
-/// feed and returning an office to push. They used to share
+/// office it names, or on all of them, so they belong to the host alone. Connecting and disconnecting an
+/// office need <see cref="CaseEvaluationPermissions.CaseTrackerIntegration.ManageConnection"/> as well
+/// (2026-10-26): the host Supervisor sees the offices but cannot change them. They used to share
 /// <see cref="CaseEvaluationPermissions.Appointments.PushToCaseTracker"/> with the per-appointment
 /// push button, but that permission is Both-sided because the button lives inside an office. The new
 /// permission reaches IT Admin and the host Supervisor through the role seed
@@ -71,82 +73,81 @@ public class CaseTrackerPushSettingsAppService : CaseEvaluationAppService, ICase
         return states.OrderBy(s => s.OfficeName, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
-    [Authorize(CaseEvaluationPermissions.CaseTrackerIntegration.Default)]
-    public virtual async Task<CaseTrackerOfficePushStateDto> SetPushEnabledAsync(Guid officeId, bool enabled)
+    /// <summary>
+    /// Connects ONE office to the Case Tracker: its feed is started if it is not already on, then its switch
+    /// is turned on, in one call. Before 2026-10-26 these were two buttons ("Turn on", then "Start feed"),
+    /// and an office left between them sat in push mode, which has nowhere to push on Azure.
+    ///
+    /// <para>The feed goes first so that the state in between is the safe one, whichever write lands
+    /// first: a started feed with the switch still off sends nothing and keeps every change waiting, where
+    /// a switch on without the feed would try to push. Both writes run in this call's unit of work, so a
+    /// failure before it completes leaves neither. An office whose feed is already on (disconnected
+    /// earlier) just has its switch turned back on, and the Case Tracker resumes from the position it last
+    /// acknowledged; connecting a connected office changes nothing.</para>
+    /// </summary>
+    [Authorize(CaseEvaluationPermissions.CaseTrackerIntegration.ManageConnection)]
+    public virtual async Task<CaseTrackerOfficePushStateDto> ConnectAsync(Guid officeId)
     {
         EnsureHostCaller();
+        await EnsureOfficeExistsAsync(officeId);
 
-        // Entering the office scope before writing is what makes this correct under
-        // database-per-office: the setting store follows the current tenant's connection, so writing
-        // here puts the row in the SAME database the drain reads from when it enters the same scope
-        // (IntegrationOutboxDrainService). Using SetForTenantAsync from host scope would risk landing
-        // the row in the host database, where the drain would never see it -- the switch would appear
-        // to be on and nothing would send.
+        bool feedStarted;
         using (_currentTenant.Change(officeId))
         {
-            await _settingManager.SetForCurrentTenantAsync(
-                CaseEvaluationSettings.IntegrationPolicy.CaseTrackerPushEnabled,
-                enabled ? "true" : "false");
+            feedStarted = await _feedManager.StartAsync(officeId);
+            await SetSwitchAsync(true);
         }
 
-        // Deliberately audited: this is the action that starts ePHI moving to another system.
+        // Deliberately audited: from here the Case Tracker reads this office's changes, ePHI included.
         _logger.LogWarning(
-            "CaseTrackerPushSettingsAppService: Case Tracker push set to {Enabled} for office {OfficeId} by user {UserId}.",
-            enabled, officeId, CurrentUser.Id);
+            "CaseTrackerPushSettingsAppService: office {OfficeId} CONNECTED to the Case Tracker by user {UserId}; feed {FeedChange}.",
+            officeId, CurrentUser.Id, feedStarted ? "started" : "was already on");
 
         return await ReadStateAsync(officeId);
     }
 
     /// <summary>
-    /// Cutover (#927). Refused while the office's push switch is off: that switch stays the gate for everything
-    /// the portal sends the Case Tracker, and the feed refuses an office that has it off.
+    /// Disconnects ONE office: its switch goes off and its feed is left as it is. The feed then refuses the
+    /// office, nothing is pushed, and its changes wait; connecting it again delivers them.
     /// </summary>
-    [Authorize(CaseEvaluationPermissions.CaseTrackerIntegration.Default)]
-    public virtual async Task<CaseTrackerOfficePushStateDto> StartFeedAsync(Guid officeId)
+    [Authorize(CaseEvaluationPermissions.CaseTrackerIntegration.ManageConnection)]
+    public virtual async Task<CaseTrackerOfficePushStateDto> DisconnectAsync(Guid officeId)
     {
         EnsureHostCaller();
+        await EnsureOfficeExistsAsync(officeId);
 
         using (_currentTenant.Change(officeId))
         {
-            if (!await IsPushSwitchOnAsync())
-            {
-                throw new UserFriendlyException(
-                    "Turn the Case Tracker push on for this office before starting the feed.");
-            }
-
-            if (!await _feedManager.StartAsync(officeId))
-            {
-                throw new UserFriendlyException("The Case Tracker feed is already on for this office.");
-            }
+            await SetSwitchAsync(false);
         }
 
-        // Audited like the push switch: from here the Case Tracker reads this office's changes itself.
         _logger.LogWarning(
-            "CaseTrackerPushSettingsAppService: Case Tracker FEED started for office {OfficeId} by user {UserId}.",
+            "CaseTrackerPushSettingsAppService: office {OfficeId} DISCONNECTED from the Case Tracker by user {UserId}.",
             officeId, CurrentUser.Id);
 
         return await ReadStateAsync(officeId);
     }
 
-    /// <summary>Rollback (#927). Refused when the office is not on the feed.</summary>
-    [Authorize(CaseEvaluationPermissions.CaseTrackerIntegration.Default)]
-    public virtual async Task<CaseTrackerOfficePushStateDto> ReturnToPushAsync(Guid officeId)
+    /// <summary>
+    /// Writes the office's switch. The caller has entered the office's scope: the setting store follows the
+    /// current tenant, so the row lands where the drain and the feed read it when they enter the same scope
+    /// (IntegrationOutboxDrainService). Writing with SetForTenantAsync from host scope would risk a row the
+    /// readers never see -- the switch would appear to be on and nothing would send.
+    /// </summary>
+    private Task SetSwitchAsync(bool on)
     {
-        EnsureHostCaller();
+        return _settingManager.SetForCurrentTenantAsync(
+            CaseEvaluationSettings.IntegrationPolicy.CaseTrackerPushEnabled,
+            on ? "true" : "false");
+    }
 
-        using (_currentTenant.Change(officeId))
+    /// <summary>Refuses an id that names no office, before any office scope is entered.</summary>
+    private async Task EnsureOfficeExistsAsync(Guid officeId)
+    {
+        if (await _tenantStore.FindAsync(officeId) == null)
         {
-            if (!await _feedManager.ReturnToPushAsync())
-            {
-                throw new UserFriendlyException("The Case Tracker feed is not on for this office.");
-            }
+            throw new EntityNotFoundException(typeof(TenantConfiguration), officeId);
         }
-
-        _logger.LogWarning(
-            "CaseTrackerPushSettingsAppService: Case Tracker office {OfficeId} returned from the feed to PUSH by user {UserId}.",
-            officeId, CurrentUser.Id);
-
-        return await ReadStateAsync(officeId);
     }
 
     /// <summary>The office's push switch as the drain reads it; absent or unparseable reads as off.</summary>

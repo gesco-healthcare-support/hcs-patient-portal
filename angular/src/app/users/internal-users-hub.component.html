@@ -22,6 +22,11 @@
   </nav>
 
   <div class="cf-content">
+    <!-- ============ All Users (2026-10-26): the identity Users screen, routed into this outlet ============ -->
+    @if (section() === 'all') {
+      <router-outlet />
+    }
+
     <!-- ============ Invite External ============ -->
     @if (section() === 'invite') {
       <div class="ra-card">

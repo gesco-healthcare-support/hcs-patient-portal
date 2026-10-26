@@ -179,10 +179,11 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
     let bestLen = -1;
     for (const group of this.groups()) {
       for (const item of group.items) {
-        const r = item.route;
-        if ((url === r || url.startsWith(r + '/')) && r.length > bestLen) {
-          bestId = item.id;
-          bestLen = r.length;
+        for (const r of [item.route, ...(item.activeRoutes ?? [])]) {
+          if ((url === r || url.startsWith(r + '/')) && r.length > bestLen) {
+            bestId = item.id;
+            bestLen = r.length;
+          }
         }
       }
     }

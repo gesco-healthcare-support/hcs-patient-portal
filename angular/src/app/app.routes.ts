@@ -26,6 +26,19 @@ import { DEFENSE_ATTORNEY_ROUTES } from './defense-attorneys/defense-attorney/de
 import { CLAIM_EXAMINER_ROUTES } from './claim-examiners/claim-examiner/claim-examiner-routes';
 
 /**
+ * The identity screens with the activation-email changes (2026-10-23): accounts made on the Users screen
+ * are switched on by their owner through an activation email -- no typed password, no "Email confirmed"
+ * box, and a row action to resend. Mounted at /identity and inside the Users & Access hub (/users/all).
+ */
+const loadIdentityRoutes = () =>
+  Promise.all([
+    import('@volo/abp.ng.identity'),
+    import('./users/identity-user-activation.contributors'),
+  ]).then(([identity, activation]) =>
+    identity.createRoutes(activation.IDENTITY_USER_ACTIVATION_OPTIONS),
+  );
+
+/**
  * Internal staff routes wrapped by the redesigned shell (navy sidebar +
  * topbar). Mounted as the children of a canMatch-gated parent below, so they
  * render inside InternalShellLayoutComponent for staff. Every path + guard is
@@ -94,15 +107,7 @@ const INTERNAL_SHELL_CHILDREN: Routes = [
   },
   {
     path: 'identity',
-    // 2026-10-23: accounts made on the Users screen are switched on by their owner through an
-    // activation email -- no typed password, no "Email confirmed" box, and a row action to resend.
-    loadChildren: () =>
-      Promise.all([
-        import('@volo/abp.ng.identity'),
-        import('./users/identity-user-activation.contributors'),
-      ]).then(([identity, activation]) =>
-        identity.createRoutes(activation.IDENTITY_USER_ACTIVATION_OPTIONS),
-      ),
+    loadChildren: loadIdentityRoutes,
   },
   {
     // Prompt 16 Part B (2026-06-16): custom Languages list replaces the ABP
@@ -227,6 +232,20 @@ const INTERNAL_SHELL_CHILDREN: Routes = [
           section: 'pending',
           requiredPolicy: 'CaseEvaluation.UserManagement.InviteExternalUser',
         },
+      },
+      {
+        // 2026-10-26: the hub's All Users tab. The identity screens load INSIDE the hub (its outlet),
+        // so the list sits beside the invites with the hub's rail still showing; /identity/users still
+        // works on its own. /users/all opens the Users screen rather than identity's default (Roles).
+        path: 'all',
+        loadComponent: () =>
+          import('./users/internal-users-hub.component').then((c) => c.InternalUsersHubComponent),
+        canActivate: [authGuard, permissionGuard],
+        data: { section: 'all', requiredPolicy: 'AbpIdentity.Users' },
+        children: [
+          { path: '', redirectTo: 'users', pathMatch: 'full' },
+          { path: '', loadChildren: loadIdentityRoutes },
+        ],
       },
       {
         path: 'internal',
