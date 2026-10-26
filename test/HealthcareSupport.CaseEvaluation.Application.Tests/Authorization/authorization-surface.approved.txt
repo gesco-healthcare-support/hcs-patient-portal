@@ -359,6 +359,8 @@ HealthcareSupport.CaseEvaluation.UserProfile.UserSignatureAppService.UploadAsync
 HealthcareSupport.CaseEvaluation.UserQueries.UserQueryAppService.CreateAsync(UserQueryCreateDto) -> class=(authenticated) method=-
 HealthcareSupport.CaseEvaluation.Users.UserExtendedAppService.CreateAsync(IdentityUserCreateDto) -> class=AbpIdentity.Users method=AbpIdentity.Users.Create
 HealthcareSupport.CaseEvaluation.Users.UserExtendedAppService.DeleteAsync(Guid) -> class=AbpIdentity.Users method=AbpIdentity.Users.Delete
+HealthcareSupport.CaseEvaluation.Users.UserExtendedAppService.ImportExternalUserAsync(ImportExternalUserInput) -> class=AbpIdentity.Users method=AbpIdentity.Users.Import
+HealthcareSupport.CaseEvaluation.Users.UserExtendedAppService.ImportUsersFromFileAsync(ImportUsersFromFileInputWithStream) -> class=AbpIdentity.Users method=AbpIdentity.Users.Import
 HealthcareSupport.CaseEvaluation.Users.UserExtendedAppService.LockAsync(Guid, DateTime) -> class=AbpIdentity.Users method=AbpIdentity.Users.Update
 HealthcareSupport.CaseEvaluation.Users.UserExtendedAppService.SetTwoFactorEnabledAsync(Guid, Boolean) -> class=AbpIdentity.Users method=AbpIdentity.Users.Update
 HealthcareSupport.CaseEvaluation.Users.UserExtendedAppService.UnlockAsync(Guid) -> class=AbpIdentity.Users method=AbpIdentity.Users.Update
