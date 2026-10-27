@@ -1367,10 +1367,21 @@ public static class CaseEvaluationDomainErrorCodes
     /// <summary>
     /// 2026-10-26 -- Staff Management's "Change role" switches a person between Intake Staff and Staff
     /// Supervisor only: never an IT Admin or administrator, never the caller's own account, and never to
-    /// any other role. Mapped to HTTP 400.
+    /// any other role. Mapped to HTTP 400. 2026-10-27: the System owner and IT Admins may also move
+    /// someone to or from IT Admin there; for anyone else that is still refused with this code.
     /// </summary>
     public const string InternalUserRoleChangeNotAllowed =
         "CaseEvaluation:InternalUser.RoleChangeNotAllowed";
+
+    /// <summary>
+    /// 2026-10-27 -- on the staff site, a staff member's role is changed in ONE place: Staff Management's
+    /// "Change role", which also takes the person off their old offices and locks their office logins. The
+    /// identity Users screen's Edit, from host scope, refuses a role change (it would do neither). Resending
+    /// the roles a person already holds, as the switch-off toggle does, is not a change. Inside an office,
+    /// the office admin still changes office users' roles there. Mapped to HTTP 400.
+    /// </summary>
+    public const string StaffRoleChangeUseStaffManagement =
+        "CaseEvaluation:UserManagement.UseChangeRole";
 
     /// <summary>
     /// B11 -- the malware scan found a signature in an uploaded file, so it was refused and nothing

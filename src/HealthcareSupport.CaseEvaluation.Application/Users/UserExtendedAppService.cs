@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.ExternalAccount;
+using HealthcareSupport.CaseEvaluation.HostOperators;
 using HealthcareSupport.CaseEvaluation.Identity;
 using HealthcareSupport.CaseEvaluation.InternalUsers;
 using HealthcareSupport.CaseEvaluation.Notifications;
@@ -40,6 +41,14 @@ namespace HealthcareSupport.CaseEvaluation.Users
     /// confirmed flag set by whoever filled in the form -- on an address that may be somebody
     /// else's -- would hand that person's appointments to the account.</para>
     ///
+    /// <para>2026-10-27 -- and what follows an edit. Changing someone's address sends the new address a
+    /// confirm (or activate) link and the old one a notice (<see cref="SignInEmailChangeNotifier"/>). On
+    /// the staff site (host scope) a role change is refused here: Staff Management's "Change role" is the
+    /// one place, because it also takes the person off their old offices. And a host operator's office
+    /// logins follow the account (<see cref="HostOperatorOfficeLogins"/>): switched off or deleted, they
+    /// are locked; switched back on, an Intake operator's assigned ones wake up; a new address moves
+    /// them, so office mail follows the person.</para>
+    ///
     /// <para>It is registered as a REPLACEMENT for the framework service. Volo publishes
     /// <c>/api/identity/users</c> from <see cref="IIdentityUserAppService"/>, and without the
     /// replacement that route would resolve to the framework class and bypass every guard here.</para>
@@ -49,10 +58,14 @@ namespace HealthcareSupport.CaseEvaluation.Users
     public class UserExtendedAppService : IdentityUserAppService
     {
         private readonly IAccountActivationSender _activationSender;
+        private readonly SignInEmailChangeNotifier _emailChangeNotifier;
+        private readonly HostOperatorOfficeLogins _officeLogins;
 
-        public UserExtendedAppService(IdentityUserManager userManager, IIdentityUserRepository userRepository, IIdentityRoleRepository roleRepository, IOrganizationUnitRepository organizationUnitRepository, IIdentityClaimTypeRepository identityClaimTypeRepository, IdentityProTwoFactorManager identityProTwoFactorManager, IOptions<IdentityOptions> identityOptions, IDistributedEventBus distributedEventBus, IOptions<AbpIdentityOptions> abpIdentityOptions, IPermissionChecker permissionChecker, IDistributedCache<IdentityUserDownloadTokenCacheItem, string> downloadTokenCache, IDistributedCache<ImportInvalidUsersCacheItem, string> importInvalidUsersCache, IdentitySessionManager identitySessionManager, IdentityUserTwoFactorChecker identityUserTwoFactorChecker, ICancellationTokenProvider cancellationTokenProvider, IAccountActivationSender activationSender) : base(userManager, userRepository, roleRepository, organizationUnitRepository, identityClaimTypeRepository, identityProTwoFactorManager, identityOptions, distributedEventBus, abpIdentityOptions, permissionChecker, downloadTokenCache, importInvalidUsersCache, identitySessionManager, identityUserTwoFactorChecker, cancellationTokenProvider)
+        public UserExtendedAppService(IdentityUserManager userManager, IIdentityUserRepository userRepository, IIdentityRoleRepository roleRepository, IOrganizationUnitRepository organizationUnitRepository, IIdentityClaimTypeRepository identityClaimTypeRepository, IdentityProTwoFactorManager identityProTwoFactorManager, IOptions<IdentityOptions> identityOptions, IDistributedEventBus distributedEventBus, IOptions<AbpIdentityOptions> abpIdentityOptions, IPermissionChecker permissionChecker, IDistributedCache<IdentityUserDownloadTokenCacheItem, string> downloadTokenCache, IDistributedCache<ImportInvalidUsersCacheItem, string> importInvalidUsersCache, IdentitySessionManager identitySessionManager, IdentityUserTwoFactorChecker identityUserTwoFactorChecker, ICancellationTokenProvider cancellationTokenProvider, IAccountActivationSender activationSender, SignInEmailChangeNotifier emailChangeNotifier, HostOperatorOfficeLogins officeLogins) : base(userManager, userRepository, roleRepository, organizationUnitRepository, identityClaimTypeRepository, identityProTwoFactorManager, identityOptions, distributedEventBus, abpIdentityOptions, permissionChecker, downloadTokenCache, importInvalidUsersCache, identitySessionManager, identityUserTwoFactorChecker, cancellationTokenProvider)
         {
             _activationSender = activationSender;
+            _emailChangeNotifier = emailChangeNotifier;
+            _officeLogins = officeLogins;
         }
 
         /// <summary>Privileged roles and callers: see <see cref="PrivilegedAccounts"/>.</summary>
@@ -124,6 +137,33 @@ namespace HealthcareSupport.CaseEvaluation.Users
         }
 
         /// <summary>
+        /// 2026-10-27 (Levon): on the staff site a role is changed in ONE place, Staff Management's
+        /// "Change role", which also takes the person off their old offices and locks their office
+        /// logins. From host scope this screen refuses any change to the roles a person holds, for every
+        /// caller; resending the same roles (the switch-off toggle) is not a change. Office scope is
+        /// unaffected: an office admin still changes office users' roles there.
+        /// </summary>
+        private async Task EnsureNotAHostRoleChangeAsync(Guid id, IEnumerable<string>? requested)
+        {
+            if (requested == null || CurrentTenant.Id != null)
+            {
+                return;
+            }
+
+            var target = await UserManager.FindByIdAsync(id.ToString());
+            if (target == null)
+            {
+                return;
+            }
+
+            var held = new HashSet<string>(await UserManager.GetRolesAsync(target), StringComparer.OrdinalIgnoreCase);
+            if (!held.SetEquals(requested.Where(r => !string.IsNullOrWhiteSpace(r)).Select(r => r.Trim())))
+            {
+                throw new BusinessException(CaseEvaluationDomainErrorCodes.StaffRoleChangeUseStaffManagement);
+            }
+        }
+
+        /// <summary>
         /// 2026-10-26 (Levon): a person has exactly one role. A request that names roles must name exactly
         /// one, for every caller. On an edit, no list at all means "leave the roles as they are" (the
         /// switch-off toggle sends the one role the person has); on a create it would leave the person
@@ -184,14 +224,53 @@ namespace HealthcareSupport.CaseEvaluation.Users
 
             await EnsureTargetNotPrivilegedAsync(id);
             await EnsureRoleChangeAllowedAsync(id, input.RoleNames);
+            await EnsureNotAHostRoleChangeAsync(id, input.RoleNames);
 
             var existing = await UserManager.FindByIdAsync(id.ToString());
-            if (existing != null)
+            if (existing == null)
             {
-                input.EmailConfirmed = ConfirmedAfterEdit(existing.EmailConfirmed, existing.Email, input.Email);
+                return await base.UpdateAsync(id, input);
             }
 
-            return await base.UpdateAsync(id, input);
+            var previousEmail = existing.Email;
+            var wasActivated = existing.EmailConfirmed;
+            var wasActive = existing.IsActive;
+            input.EmailConfirmed = ConfirmedAfterEdit(existing.EmailConfirmed, existing.Email, input.Email);
+
+            var updated = await base.UpdateAsync(id, input);
+            await AfterEditAsync(id, previousEmail, wasActivated, wasActive, input);
+            return updated;
+        }
+
+        /// <summary>
+        /// What follows a saved edit. Office logins first, the person's own email last: a confirmation or
+        /// activation link is tied to the account's security stamp, so it is issued after every change.
+        /// </summary>
+        private async Task AfterEditAsync(Guid id, string? previousEmail, bool wasActivated, bool wasActive, IdentityUserUpdateDto input)
+        {
+            var addressChanged = SignInEmailChangeNotifier.AddressChanged(previousEmail, input.Email);
+
+            if (CurrentTenant.Id == null)
+            {
+                if (addressChanged)
+                {
+                    await _officeLogins.AddressChangedAsync(id, previousEmail);
+                }
+
+                if (wasActive && !input.IsActive)
+                {
+                    await _officeLogins.SwitchedOffAsync(id);
+                }
+                else if (!wasActive && input.IsActive)
+                {
+                    await _officeLogins.SwitchedOnAsync(id);
+                }
+            }
+
+            if (addressChanged)
+            {
+                await _emailChangeNotifier.NotifyAsync(await UserManager.GetByIdAsync(id), previousEmail, wasActivated);
+            }
         }
 
         /// <summary>
@@ -209,6 +288,7 @@ namespace HealthcareSupport.CaseEvaluation.Users
             EnsureExactlyOneRole(input.RoleNames);
             await EnsureTargetNotPrivilegedAsync(id);
             await EnsureRoleChangeAllowedAsync(id, input.RoleNames);
+            await EnsureNotAHostRoleChangeAsync(id, input.RoleNames);
             await base.UpdateRolesAsync(id, input);
         }
 
@@ -216,6 +296,14 @@ namespace HealthcareSupport.CaseEvaluation.Users
         public override async Task DeleteAsync(Guid id)
         {
             await EnsureTargetNotPrivilegedAsync(id);
+
+            // 2026-10-27: a deleted host operator's office logins are locked first, while the account can
+            // still be found; otherwise each would keep receiving that office's staff mail.
+            if (CurrentTenant.Id == null && await UserManager.FindByIdAsync(id.ToString()) != null)
+            {
+                await _officeLogins.SwitchedOffAsync(id);
+            }
+
             await base.DeleteAsync(id);
         }
 

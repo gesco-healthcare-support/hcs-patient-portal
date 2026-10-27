@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.ExternalAccount;
 using HealthcareSupport.CaseEvaluation.Notifications.Outbox;
 using HealthcareSupport.CaseEvaluation.Security;
+using HealthcareSupport.CaseEvaluation.TestData;
 using Shouldly;
 using Volo.Abp;
 using Volo.Abp.Domain.Repositories;
@@ -55,19 +56,19 @@ public abstract class UserExtendedAppServicePrivilegeTests<TStartupModule> : Cas
 
     private sealed record Snapshot(string Roles, string Email, bool Active, bool Exists, bool OldPasswordWorks, bool Locked, int ClaimCount);
 
-    private async Task<Guid> SeedAsync(string kind, string role)
+    private async Task<Guid> SeedAsync(string kind, string role, Guid? office = null)
     {
         var id = Guid.NewGuid();
-        using (_currentTenant.Change(null))
+        using (_currentTenant.Change(office))
         {
             await WithUnitOfWorkAsync(async () =>
             {
                 if (await _roleManager.FindByNameAsync(role) == null)
                 {
-                    (await _roleManager.CreateAsync(new IdentityRole(Guid.NewGuid(), role, tenantId: null))).Succeeded.ShouldBeTrue();
+                    (await _roleManager.CreateAsync(new IdentityRole(Guid.NewGuid(), role, tenantId: office))).Succeeded.ShouldBeTrue();
                 }
 
-                var user = new IdentityUser(id, $"{kind}-{id:N}", $"{kind}-{id:N}@example.test", tenantId: null)
+                var user = new IdentityUser(id, $"{kind}-{id:N}", $"{kind}-{id:N}@example.test", tenantId: office)
                 {
                     Name = "Synthetic",
                     Surname = kind,
@@ -85,27 +86,29 @@ public abstract class UserExtendedAppServicePrivilegeTests<TStartupModule> : Cas
         await SeedAsync("itadmin", ItAdmin),
         await SeedAsync("admin", Admin));
 
-    private async Task<T> AsCallerAsync<T>(Guid callerId, string role, Func<Task<T>> call)
+    private async Task<T> AsCallerAsync<T>(Guid callerId, string role, Func<Task<T>> call, Guid? office = null)
     {
-        using (_currentTenant.Change(null))
+        using (_currentTenant.Change(office))
         using (WithCurrentUser.Run(_principalAccessor, callerId, role))
         {
             return await WithUnitOfWorkAsync(call);
         }
     }
 
-    private async Task AsCallerAsync(Guid callerId, string role, Func<Task> call)
+    private async Task AsCallerAsync(Guid callerId, string role, Func<Task> call, Guid? office = null)
     {
-        using (_currentTenant.Change(null))
+        using (_currentTenant.Change(office))
         using (WithCurrentUser.Run(_principalAccessor, callerId, role))
         {
             await WithUnitOfWorkAsync(call);
         }
     }
 
-    private async Task<Snapshot> SnapshotAsync(Guid id)
+    private static readonly Guid Office = TenantsTestData.TenantARef;
+
+    private async Task<Snapshot> SnapshotAsync(Guid id, Guid? office = null)
     {
-        using (_currentTenant.Change(null))
+        using (_currentTenant.Change(office))
         {
             return await WithUnitOfWorkAsync(async () =>
             {
@@ -402,9 +405,12 @@ public abstract class UserExtendedAppServicePrivilegeTests<TStartupModule> : Cas
     {
         var a = await SeedActorsAsync();
 
-        await AsCallerAsync(a.Supervisor, Supervisor,
-            () => _service.UpdateRolesAsync(a.Intake, new IdentityUserUpdateRolesDto { RoleNames = new[] { Supervisor } }));
-        (await SnapshotAsync(a.Intake)).Roles.ShouldBe(Supervisor);
+        // The staff roles of an OFFICE user (2026-10-27: a host user's role moves through Change role).
+        var officeSupervisor = await SeedAsync("officesup", Supervisor, Office);
+        var officeIntake = await SeedAsync("officeintake", Intake, Office);
+        await AsCallerAsync(officeSupervisor, Supervisor,
+            () => _service.UpdateRolesAsync(officeIntake, new IdentityUserUpdateRolesDto { RoleNames = new[] { Supervisor } }), Office);
+        (await SnapshotAsync(officeIntake, Office)).Roles.ShouldBe(Supervisor);
 
         var name = $"staff-{Guid.NewGuid():N}";
         var created = await AsCallerAsync(a.Supervisor, Supervisor, () => _service.CreateAsync(WithExtensionDefaults(new IdentityUserCreateDto
@@ -436,9 +442,19 @@ public abstract class UserExtendedAppServicePrivilegeTests<TStartupModule> : Cas
         var a = await SeedActorsAsync();
         var caller = callerRole == ItAdmin ? a.ItAdmin : a.Admin;
 
-        await AsCallerAsync(caller, callerRole,
-            () => _service.UpdateRolesAsync(a.Intake, new IdentityUserUpdateRolesDto { RoleNames = new[] { ItAdmin } }));
-        (await SnapshotAsync(a.Intake)).Roles.ShouldBe(ItAdmin);
+        // 2026-10-27: on the staff site a role is changed only through Staff Management's Change role
+        // (MultiOfficeInternalUserRoleChangeTests covers a privileged caller giving IT Admin there).
+        (await Should.ThrowAsync<BusinessException>(() => AsCallerAsync(caller, callerRole,
+            () => _service.UpdateRolesAsync(a.Intake, new IdentityUserUpdateRolesDto { RoleNames = new[] { ItAdmin } }))))
+            .Code.ShouldBe(CaseEvaluationDomainErrorCodes.StaffRoleChangeUseStaffManagement);
+        (await SnapshotAsync(a.Intake)).Roles.ShouldBe(Intake);
+
+        // Inside an office, an administrator still changes an office user's role here.
+        var officeAdmin = await SeedAsync("officeadmin", Admin, Office);
+        var officeIntake = await SeedAsync("officeintake", Intake, Office);
+        await AsCallerAsync(officeAdmin, Admin,
+            () => _service.UpdateRolesAsync(officeIntake, new IdentityUserUpdateRolesDto { RoleNames = new[] { Admin } }), Office);
+        (await SnapshotAsync(officeIntake, Office)).Roles.ShouldBe(Admin);
 
         var other = callerRole == ItAdmin ? a.Admin : a.ItAdmin;
         await AsCallerAsync(caller, callerRole,
@@ -519,9 +535,13 @@ public abstract class UserExtendedAppServicePrivilegeTests<TStartupModule> : Cas
     {
         var a = await SeedActorsAsync();
 
-        await AsCallerAsync(a.Admin, Admin,
-            () => _service.UpdateRolesAsync(a.Intake, new IdentityUserUpdateRolesDto { RoleNames = new[] { Supervisor, Supervisor } }));
-        (await SnapshotAsync(a.Intake)).Roles.ShouldBe(Supervisor);
+        // Inside an office, where this screen still changes roles (2026-10-27).
+        var officeAdmin = await SeedAsync("officeadmin", Admin, Office);
+        var officeIntake = await SeedAsync("officeintake", Intake, Office);
+        await SeedAsync("officesup", Supervisor, Office);
+        await AsCallerAsync(officeAdmin, Admin,
+            () => _service.UpdateRolesAsync(officeIntake, new IdentityUserUpdateRolesDto { RoleNames = new[] { Supervisor, Supervisor } }), Office);
+        (await SnapshotAsync(officeIntake, Office)).Roles.ShouldBe(Supervisor);
 
         var dto = await UpdateDtoAsync(a.Intake, null, d =>
         {
@@ -531,7 +551,7 @@ public abstract class UserExtendedAppServicePrivilegeTests<TStartupModule> : Cas
         await AsCallerAsync(a.Admin, Admin, () => _service.UpdateAsync(a.Intake, dto));
 
         var after = await SnapshotAsync(a.Intake);
-        after.Roles.ShouldBe(Supervisor);
+        after.Roles.ShouldBe(Intake);
         (await AsCallerAsync(a.Admin, Admin, () => _service.GetAsync(a.Intake))).Name.ShouldBe("Renamed");
     }
 
@@ -671,5 +691,38 @@ public abstract class UserExtendedAppServicePrivilegeTests<TStartupModule> : Cas
             }));
 
         ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.UserImportDisabled);
+    }
+    // ---- 2026-10-27: on the staff site a role is changed in ONE place, Staff Management's Change role ----
+
+    [Theory]
+    [InlineData(Admin)]
+    [InlineData(ItAdmin)]
+    [InlineData(Supervisor)]
+    public async Task On_the_staff_site_a_role_change_on_this_screen_is_refused_for_every_caller(string callerRole)
+    {
+        var a = await SeedActorsAsync();
+        var caller = callerRole switch { Admin => a.Admin, ItAdmin => a.ItAdmin, _ => a.Supervisor };
+
+        var edit = await UpdateDtoAsync(a.Intake, new[] { Supervisor });
+        (await Should.ThrowAsync<BusinessException>(() => AsCallerAsync(caller, callerRole, () => _service.UpdateAsync(a.Intake, edit))))
+            .Code.ShouldBe(CaseEvaluationDomainErrorCodes.StaffRoleChangeUseStaffManagement);
+        (await Should.ThrowAsync<BusinessException>(() => AsCallerAsync(caller, callerRole,
+            () => _service.UpdateRolesAsync(a.Intake, new IdentityUserUpdateRolesDto { RoleNames = new[] { Supervisor } }))))
+            .Code.ShouldBe(CaseEvaluationDomainErrorCodes.StaffRoleChangeUseStaffManagement);
+
+        (await SnapshotAsync(a.Intake)).Roles.ShouldBe(Intake);
+    }
+
+    [Fact]
+    public async Task Resending_the_roles_a_person_holds_is_not_a_role_change_so_the_switch_off_toggle_still_works()
+    {
+        var a = await SeedActorsAsync();
+
+        var off = await UpdateDtoAsync(a.Intake, new[] { "intake staff" }, d => d.IsActive = false);
+        await AsCallerAsync(a.Supervisor, Supervisor, () => _service.UpdateAsync(a.Intake, off));
+
+        var after = await SnapshotAsync(a.Intake);
+        after.Active.ShouldBeFalse();
+        after.Roles.ShouldBe(Intake);
     }
 }

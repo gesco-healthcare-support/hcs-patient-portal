@@ -227,7 +227,9 @@ public class NotificationTemplatesValidatorUnitTests
         // technical list (+1 -> 70).
         // 2026-10-23 added AccountActivation, the one email an account created by someone else
         // receives: choose a password from its link, which also confirms the email (+1 -> 71).
-        NotificationTemplateConsts.Codes.All.Length.ShouldBe(71);
+        // 2026-10-27 added AccountEmailChanged, the notice to a previous address when an administrator
+        // changes someone's sign-in email (+1 -> 72).
+        NotificationTemplateConsts.Codes.All.Length.ShouldBe(72);
     }
 
     [Fact]

@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute } from '@angular/router';
 import { of } from 'rxjs';
-import { PermissionService } from '@abp/ng.core';
+import { ConfigStateService, PermissionService } from '@abp/ng.core';
 import { ToasterService } from '@abp/ng.theme.shared';
 
 import { InternalUsersHubComponent } from './internal-users-hub.component';
@@ -41,6 +41,7 @@ describe('InternalUsersHubComponent Escape handling (sweep #648)', () => {
         },
         { provide: PermissionService, useValue: { getGrantedPolicy: () => true } },
         { provide: ToasterService, useValue: { success: () => undefined, error: () => undefined } },
+        { provide: ConfigStateService, useValue: { getDeep: () => undefined } },
         { provide: ImpersonationService, useValue: {} },
       ],
     });
