@@ -13,6 +13,12 @@
   gap: 22px;
   align-items: start;
 }
+/* A grid item never shrinks below its content by default. ABP's identity Users table (the All Users tab,
+   2026-10-26) is wide enough to push its column far past the page; this lets it shrink so the table scrolls
+   inside its own card. */
+.cf-content--fluid {
+  min-width: 0;
+}
 .cf-rail {
   background: #fff;
   border: 1px solid var(--border);

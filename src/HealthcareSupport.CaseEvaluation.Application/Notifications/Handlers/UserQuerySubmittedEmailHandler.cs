@@ -24,9 +24,11 @@ namespace HealthcareSupport.CaseEvaluation.Notifications.Handlers;
 ///   <item>When the submitter supplied a confirmation number that resolves
 ///     to an <b>Approved</b> appointment, email that appointment's
 ///     <c>PrimaryResponsibleUserId</c> (the owning internal staffer) with a
-///     patient/claim/ADJ subject.</item>
+///     patient/claim/ADJ subject. When that account is switched off
+///     (2026-10-26) the office's notification inbox gets it instead, if the
+///     office has one (<see cref="ResponsibleUserRecipientResolver"/>).</item>
 ///   <item>Otherwise (no confirmation number, no matching Approved
-///     appointment, OR the responsible user has no resolvable email) fan out
+///     appointment, OR no responsible address resolved) fan out
 ///     to every <c>IT Admin</c> user.</item>
 /// </list>
 ///
@@ -41,6 +43,7 @@ public class UserQuerySubmittedEmailHandler :
 {
     private readonly INotificationDispatcher _dispatcher;
     private readonly DocumentEmailContextResolver _contextResolver;
+    private readonly ResponsibleUserRecipientResolver _responsibleUsers;
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly IdentityUserManager _userManager;
     private readonly ICurrentTenant _currentTenant;
@@ -49,6 +52,7 @@ public class UserQuerySubmittedEmailHandler :
     public UserQuerySubmittedEmailHandler(
         INotificationDispatcher dispatcher,
         DocumentEmailContextResolver contextResolver,
+        ResponsibleUserRecipientResolver responsibleUsers,
         IRepository<Appointment, Guid> appointmentRepository,
         IdentityUserManager userManager,
         ICurrentTenant currentTenant,
@@ -56,6 +60,7 @@ public class UserQuerySubmittedEmailHandler :
     {
         _dispatcher = dispatcher;
         _contextResolver = contextResolver;
+        _responsibleUsers = responsibleUsers;
         _appointmentRepository = appointmentRepository;
         _userManager = userManager;
         _currentTenant = currentTenant;
@@ -89,8 +94,7 @@ public class UserQuerySubmittedEmailHandler :
                     var ctx = await _contextResolver.ResolveAsync(appointment.Id, appointmentDocumentId: null);
                     subjectIdentity = EmailSubjectBuilder.BuildIdentitySuffix(
                         ctx?.PatientFirstName, ctx?.PatientLastName, ctx?.ClaimNumber, ctx?.WcabAdj);
-                    responsibleEmail = await _contextResolver.ResolveResponsibleUserEmailAsync(
-                        ctx?.ResponsibleUserId);
+                    responsibleEmail = (await _responsibleUsers.ResolveAsync(ctx?.ResponsibleUserId))?.Email;
                 }
             }
 
@@ -167,7 +171,7 @@ public class UserQuerySubmittedEmailHandler :
         // host scope so the fallback recipients are actually found.
         using (_currentTenant.Change(null))
         {
-            var users = await _userManager.GetUsersInRoleAsync(
+            var users = await _userManager.GetActiveUsersInRoleAsync(
                 InternalUserRoleDataSeedContributor.ItAdminRoleName);
             foreach (var email in users.Select(user => user.Email).Where(email => !string.IsNullOrWhiteSpace(email)))
             {
