@@ -12,7 +12,8 @@ shadow-user provisioning that back those flows.
 |---|---|
 | `IntakeOfficeAssignment.cs` | Host `FullAuditedAggregateRoot<Guid>` mapping an operator user to an office (`OperatorUserId` + `OfficeId`, unique). Host-only; never lives in an office database. |
 | `IIntakeAssignmentChecker.cs` / `IntakeAssignmentChecker.cs` | Deny-by-default gate: `IsAssignedAsync(operatorUserId, officeId)`, read at host scope via `CurrentTenant.Change(null)`. |
-| `IIntakeShadowUserProvisioner.cs` / `IntakeShadowUserProvisioner.cs` | Provisions/locates the per-office Intake Staff shadow user (username == operator email) the operator lands as. |
+| `IIntakeShadowUserProvisioner.cs` / `IntakeShadowUserProvisioner.cs` | Provisions/locates the per-office shadow user the operator lands as. Since 2026-10-27 a shadow is stamped with the operator's host user id (extra property `HostOperatorUserId`) and found by it; a shadow made before the stamp is found by the operator's address (never their username: the System owner and every office admin are all "admin") and stamped then. Each ensure syncs the address and leaves exactly one shadow role. Also disables or re-addresses an operator's shadows in every office. |
+| `HostOperatorOfficeLogins.cs` | The office side of a host account change (2026-10-27): switched off or deleted locks every shadow; switched back on wakes an Intake operator's assigned ones; a new address moves them; a role change removes Intake assignment rows and locks every shadow. Office staff mail goes to the shadow, so this is what stops it reaching a person who is gone, moved, or readdressed. |
 | `IntakeAssignmentRevoker.cs` | Takes an operator off an office: deletes the assignment row and locks the office's shadow user. Used by Staff Assignments' Unassign (one office) and by Staff Management's Change role from Intake Staff to Staff Supervisor (every office, 2026-10-26), so both leave the same state. |
 
 ## Conventions

@@ -152,6 +152,9 @@ public class HostIntakeImpersonationExtensionGrantTests
 
         ShouldBeRefused(result, "You are not assigned to this office.");
         _assignmentQuestions.ShouldBe(new[] { (OperatorId, OtherOfficeId) });
+
+        // 2026-10-27: the shadow is ensured only PAST the gate, never for an office the operator is not on.
+        _provisionedOffices.ShouldBeEmpty();
     }
 
     [Fact]
@@ -168,6 +171,10 @@ public class HostIntakeImpersonationExtensionGrantTests
 
         entered.OfficeId.ShouldBe(AssignedOfficeId);
         _assignmentQuestions.ShouldBe(new[] { (OperatorId, AssignedOfficeId) });
+
+        // 2026-10-27: past the gate the shadow is ensured for that office (found by the operator's id,
+        // woken if it was locked, moved to a changed address) before the sign-in looks it up by id.
+        _provisionedOffices.ShouldBe(new[] { AssignedOfficeId });
     }
 
     [Theory]
@@ -176,11 +183,10 @@ public class HostIntakeImpersonationExtensionGrantTests
     public async Task An_operator_whose_identity_cannot_be_resolved_is_refused_before_any_office_work(
         bool saasImpersonation, bool intakeImpersonation)
     {
+        // 2026-10-27: the operator's id is the identity; the shadow is found by it, not by the email claim.
         var noId = Grant(saasImpersonation, intakeImpersonation, operatorId: null, OperatorEmail);
-        var noEmail = Grant(saasImpersonation, intakeImpersonation, OperatorId, email: "  ");
 
         ShouldBeRefused(await noId.SwitchIntoAsync(Context(), AssignedOfficeId), "Operator identity could not be resolved.");
-        ShouldBeRefused(await noEmail.SwitchIntoAsync(Context(), AssignedOfficeId), "Operator identity could not be resolved.");
 
         _assignmentQuestions.ShouldBeEmpty();
         _provisionedOffices.ShouldBeEmpty();

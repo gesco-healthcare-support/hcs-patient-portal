@@ -28,9 +28,6 @@ public class RawCurrentUserEmailGuardTests
             "the helper itself: it returns the address only when the email_verified claim is true",
         ["HealthcareSupport.CaseEvaluation.Application/NotificationTemplates/NotificationTemplatesAppService.cs"] =
             "'Send test' mails a template to the staff caller's own inbox; no access or party decision",
-        ["HealthcareSupport.CaseEvaluation.AuthServer/OpenIddict/HostIntakeImpersonationExtensionGrant.cs"] =
-            "a host STAFF operator entering an office; the address only names their own internal shadow user "
-            + "there and is never matched against an appointment's party emails",
     };
 
     private static readonly Regex RawRead =

@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink, RouterOutlet } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { PermissionService } from '@abp/ng.core';
+import { ConfigStateService, PermissionService } from '@abp/ng.core';
 import { ToasterService } from '@abp/ng.theme.shared';
 import { ImpersonationService } from '@volo/abp.commercial.ng.ui/config';
 import { Subject } from 'rxjs';
@@ -27,6 +27,7 @@ import type { OfficeListDto } from '../proxy/dashboards/models';
 import type { LookupDto } from '../proxy/shared/models';
 import {
   avatarColor,
+  changeableRoles,
   CREATABLE_INTERNAL_ROLES,
   expiryChip,
   initials,
@@ -129,10 +130,15 @@ export class InternalUsersHubComponent {
   private readonly permission = inject(PermissionService);
   private readonly toaster = inject(ToasterService);
   private readonly impersonation = inject(ImpersonationService);
+  private readonly configState = inject(ConfigStateService);
 
   protected readonly sections = USERS_SECTIONS;
   protected readonly roleOptions = INVITE_ROLE_OPTIONS;
   protected readonly creatableRoles = CREATABLE_INTERNAL_ROLES;
+  /** 2026-10-27: what Change role offers this caller (IT Admin too for the System owner / an IT Admin). */
+  protected readonly roleChoices = changeableRoles(this.configState.getDeep('currentUser.roles'));
+  /** The staff site (no current office): where a role is changed only through Change role. */
+  protected readonly onStaffSite = !this.configState.getDeep('currentTenant.id');
   protected readonly roleChipClass = roleChipClass;
   protected readonly initials = initials;
   protected readonly avatarColor = avatarColor;
@@ -573,13 +579,15 @@ export class InternalUsersHubComponent {
   // ---- Change role (2026-10-26, one role per person) ----
 
   /**
-   * A staff member is switched between the two staff roles only: never an IT Admin row. Same permission
-   * as the row's reset button. The server also refuses the caller's own account, with a message.
+   * A staff member is moved between the roles this caller may give (an IT Admin row only for the System
+   * owner or an IT Admin), never on their own row. Same permission as the row's reset button. The server
+   * applies the same rules and refuses with a message.
    */
   protected canChangeRole(row: InternalUserListDto): boolean {
     return (
       this.permission.getGrantedPolicy('CaseEvaluation.InternalUsers.Edit') &&
-      this.creatableRoles.includes(row.role ?? '')
+      this.roleChoices.includes(row.role ?? '') &&
+      row.id !== this.configState.getDeep('currentUser.id')
     );
   }
 
@@ -625,12 +633,14 @@ export class InternalUsersHubComponent {
           this.toaster.success(
             leavingIntake
               ? `${name} is now ${change.role}. Their office assignments were removed.`
-              : `${name} is now ${change.role}. Assign their offices in Staff Assignments.`,
+              : change.role === 'Intake Staff'
+                ? `${name} is now ${change.role}. Assign their offices in Staff Assignments.`
+                : `${name} is now ${change.role}.`,
           );
           this.roleChange.set(null);
           this.reload$.next();
         },
-        // Refused (an IT Admin, your own account): the global error handler shows the server's message.
+        // Refused (a role you may not give, your own account): the global error handler shows the server's message.
         error: () => undefined,
       });
   }
