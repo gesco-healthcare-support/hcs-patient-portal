@@ -288,6 +288,28 @@ public class MultiOfficeShadowFollowsHostAccountTests : CaseEvaluationMultiOffic
         officeAdmin.Stamp.ShouldBeNull();
     }
 
+    [Fact]
+    public async Task An_office_admin_whose_username_is_the_operators_email_is_never_adopted_nor_switched_off()
+    {
+        // The same office admin made on the office's Users screen with its address as the username too (the
+        // shape a pre-stamp shadow has). Unstamped and holding the admin role, it is the office's own
+        // administrator, so the operator is refused rather than signed in as it, and switching the operator
+        // off must leave it alone.
+        var (a, _) = await OfficesAsync();
+        var op = await HostUserAsync(NewToken(), Supervisor);
+        var officeAdminId = await OfficeAccountAsync(a.OfficeId, op.Email!, op.Email!, AdminRole);
+
+        (await Should.ThrowAsync<BusinessException>(() => EnsureAsync(a.OfficeId, op.Id, Supervisor)))
+            .Code.ShouldBe(CaseEvaluationDomainErrorCodes.InternalUserDuplicateEmail);
+
+        await EditHostUserAsync(op.Id, Supervisor, d => d.IsActive = false);
+
+        var officeAdmin = (await OfficeAccountByIdAsync(a.OfficeId, officeAdminId))!;
+        officeAdmin.Roles.ShouldBe(new[] { AdminRole });
+        officeAdmin.Stamp.ShouldBeNull();
+        officeAdmin.Active.ShouldBeTrue("switching a host operator off must not lock an office's administrator");
+    }
+
     // ------------------------------------------------------------------ the shadow follows the host account
 
     [Fact]

@@ -234,18 +234,13 @@ public class IntakeShadowUserProvisioner : DomainService, IIntakeShadowUserProvi
         foreach (var address in legacyAddresses.Where(a => !string.IsNullOrWhiteSpace(a)).Distinct(StringComparer.OrdinalIgnoreCase))
         {
             var byName = await _userManager.FindByNameAsync(address!);
-            if (byName != null && IsUnstampedOrOurs(byName, key))
+            if (byName != null && await IsLegacyShadowCandidateAsync(byName, key))
             {
                 return byName;
             }
 
-            // A shadow was always created with its address as the username too, so an account matched
-            // by email ALONE is adopted only if it is not an office administrator: the office's own admin
-            // account has the username "admin" and an address a host operator may share (#593), and
-            // adopting it would strip its admin role on the next ensure.
             var byEmail = await _userManager.FindByEmailAsync(address!);
-            if (byEmail != null && IsUnstampedOrOurs(byEmail, key)
-                && !await _userManager.IsInRoleAsync(byEmail, CaseEvaluationIdentityDataSeedContributor.AdminRoleName))
+            if (byEmail != null && await IsLegacyShadowCandidateAsync(byEmail, key))
             {
                 return byEmail;
             }
@@ -254,8 +249,31 @@ public class IntakeShadowUserProvisioner : DomainService, IIntakeShadowUserProvi
         return null;
     }
 
-    private static bool IsUnstampedOrOurs(IdentityUser user, string key) =>
-        StampOf(user) == null || StampOf(user) == key;
+    /// <summary>
+    /// Whether an account matched by address may be taken as this operator's shadow: one stamped for this
+    /// operator always; one stamped for anybody else never; an unstamped one only if it is not an office
+    /// administrator.
+    ///
+    /// <para>An office's own administrator can carry an address a host operator also has (#593 lets one
+    /// address exist in the host and in an office), as its email, or as its username when it was made on the
+    /// office's Users screen. Adopting it would sign the operator in AS that office's administrator, strip its
+    /// admin role on the next ensure, and switch it off when the operator is switched off. So it is never
+    /// adopted; the operator gets a refusal instead (see <see cref="EnsureShadowUserAsync"/>).</para>
+    ///
+    /// <para>The cost: an IT Admin's shadow made before 2026-10-27 holds the admin role and no stamp, so it is
+    /// refused too and needs a manual fix (stamp it, or remove it so a new one is made). Measured on the Azure
+    /// server that day: none exists.</para>
+    /// </summary>
+    private async Task<bool> IsLegacyShadowCandidateAsync(IdentityUser user, string key)
+    {
+        var stamp = StampOf(user);
+        if (stamp != null)
+        {
+            return stamp == key;
+        }
+
+        return !await _userManager.IsInRoleAsync(user, CaseEvaluationIdentityDataSeedContributor.AdminRoleName);
+    }
 
     private static string? StampOf(IdentityUser user) =>
         user.GetProperty<string>(OperatorIdProperty)?.ToLowerInvariant();
