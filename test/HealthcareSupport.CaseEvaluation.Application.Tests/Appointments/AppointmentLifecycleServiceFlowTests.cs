@@ -23,6 +23,7 @@ using Volo.Abp.Application.Dtos;
 using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.EventBus.Local;
+using Volo.Abp.Identity;
 using Volo.Abp.Modularity;
 using Volo.Abp.MultiTenancy;
 using Volo.Abp.Security.Claims;
@@ -119,6 +120,28 @@ public abstract class AppointmentLifecycleServiceFlowTests<TStartupModule>
 
     private Task AsStaff(Func<Task> body) =>
         InOffice(TenantsTestData.TenantARef, StaffUserId, "Staff Supervisor", body);
+
+    /// <summary>
+    /// Makes <see cref="StaffUserId"/> a real, switched-on Staff Supervisor account of office A. Since
+    /// 2026-10-26 the approval refuses a Responsible User the Approve dialog would not offer.
+    /// </summary>
+    private Task AddStaffUserToOfficeAAsync() => WithUnitOfWorkAsync(async () =>
+    {
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            const string role = "Staff Supervisor";
+            var roles = GetRequiredService<IdentityRoleManager>();
+            if (await roles.FindByNameAsync(role) == null)
+            {
+                (await roles.CreateAsync(new IdentityRole(Guid.NewGuid(), role, TenantsTestData.TenantARef))).Succeeded.ShouldBeTrue();
+            }
+
+            var users = GetRequiredService<IdentityUserManager>();
+            var user = new IdentityUser(StaffUserId, "TEST-lifecycle-staff", "TEST-lifecycle-staff@test.local", TenantsTestData.TenantARef);
+            (await users.CreateAsync(user)).Succeeded.ShouldBeTrue();
+            (await users.AddToRoleAsync(user, role)).Succeeded.ShouldBeTrue();
+        }
+    });
 
     private List<T> Published<T>() =>
         _events.ReceivedCalls()
@@ -240,6 +263,7 @@ public abstract class AppointmentLifecycleServiceFlowTests<TStartupModule>
     public async Task Approving_records_the_responsible_user_and_comments_and_announces_it()
     {
         await AddActiveClaimExaminerAsync();
+        await AddStaffUserToOfficeAAsync();
         AppointmentDto result = null!;
         await AsStaff(async () => result = await _approval.ApproveAppointmentAsync(AppointmentA,
             new ApproveAppointmentInput { PrimaryResponsibleUserId = StaffUserId, InternalUserComments = "Synthetic note" }));

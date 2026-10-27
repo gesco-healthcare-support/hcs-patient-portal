@@ -67,7 +67,7 @@ public class StatusChangeEmailHandler :
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly IRepository<AppointmentInfoRequest, Guid> _infoRequestRepository;
     private readonly IRepository<DoctorAvailability, Guid> _doctorAvailabilityRepository;
-    private readonly IRepository<IdentityUser, Guid> _identityUserRepository;
+    private readonly ResponsibleUserRecipientResolver _responsibleUsers;
     private readonly CcRecipientAppender _ccAppender;
     private readonly BookerCcDispatcher _bookerCcDispatcher;
     private readonly IdentityUserManager _userManager;
@@ -94,7 +94,7 @@ public class StatusChangeEmailHandler :
         IRepository<Appointment, Guid> appointmentRepository,
         IRepository<AppointmentInfoRequest, Guid> infoRequestRepository,
         IRepository<DoctorAvailability, Guid> doctorAvailabilityRepository,
-        IRepository<IdentityUser, Guid> identityUserRepository,
+        ResponsibleUserRecipientResolver responsibleUsers,
         CcRecipientAppender ccAppender,
         BookerCcDispatcher bookerCcDispatcher,
         IdentityUserManager userManager,
@@ -107,7 +107,7 @@ public class StatusChangeEmailHandler :
         _appointmentRepository = appointmentRepository;
         _infoRequestRepository = infoRequestRepository;
         _doctorAvailabilityRepository = doctorAvailabilityRepository;
-        _identityUserRepository = identityUserRepository;
+        _responsibleUsers = responsibleUsers;
         _ccAppender = ccAppender;
         _bookerCcDispatcher = bookerCcDispatcher;
         _userManager = userManager;
@@ -301,9 +301,10 @@ public class StatusChangeEmailHandler :
             return;
         }
 
-        var responsibleUser = await _identityUserRepository.FindAsync(
-            appointment.PrimaryResponsibleUserId.Value);
-        if (responsibleUser == null || string.IsNullOrWhiteSpace(responsibleUser.Email))
+        // 2026-10-26: a switched-off Responsible User is never mailed; the office inbox stands in for them
+        // when the office has one (ResponsibleUserRecipientResolver).
+        var responsible = await _responsibleUsers.ResolveAsync(appointment.PrimaryResponsibleUserId);
+        if (responsible == null)
         {
             _logger.LogWarning(
                 "StatusChangeEmailHandler: PrimaryResponsibleUserId {UserId} for appointment {AppointmentId} has no resolvable email; skipping internal send.",
@@ -314,7 +315,7 @@ public class StatusChangeEmailHandler :
         var internalRecipients = new List<NotificationRecipient>
         {
             new(
-                email: responsibleUser.Email!,
+                email: responsible.Email,
                 role: RecipientRole.OfficeAdmin,
                 isRegistered: true),
         };
@@ -326,7 +327,10 @@ public class StatusChangeEmailHandler :
             internalRecipients,
             contextTagForLogging: $"Approved/Responsible/{eventData.AppointmentId}");
 
-        var responsibleName = JoinName(responsibleUser.Name, responsibleUser.Surname);
+        // The office inbox standing in for a switched-off user has no name, so it is greeted by address.
+        var responsibleName = responsible.User == null
+            ? string.Empty
+            : JoinName(responsible.User.Name, responsible.User.Surname);
         var internalVars = new Dictionary<string, object?>(
             BuildVariables(
                 ctx,
@@ -340,7 +344,7 @@ public class StatusChangeEmailHandler :
             // C2 (2026-06-09): this leg goes only to the responsible user, so
             // greet them by name (falls back to their email when unnamed).
             ["ResponsibleUserName"] = string.IsNullOrWhiteSpace(responsibleName)
-                ? responsibleUser.Email
+                ? responsible.Email
                 : responsibleName,
         };
 
@@ -562,7 +566,7 @@ public class StatusChangeEmailHandler :
         var byEmail = new Dictionary<string, NotificationRecipient>(StringComparer.OrdinalIgnoreCase);
         foreach (var roleName in NoShowInternalRoles)
         {
-            var users = await _userManager.GetUsersInRoleAsync(roleName);
+            var users = await _userManager.GetActiveUsersInRoleAsync(roleName);
             foreach (var user in users)
             {
                 if (string.IsNullOrWhiteSpace(user.Email))

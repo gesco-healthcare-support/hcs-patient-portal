@@ -124,6 +124,25 @@ public static class RoleUserSeeder
     }
 
     /// <summary>
+    /// 2026-10-26: as <see cref="CreateUserInRoleAsync"/>, but the account is switched off -- the state an
+    /// Intake operator's office shadow login is left in when they are unassigned or moved to Staff
+    /// Supervisor: the role stays, the login is off. Such an account must get none of the office's mail.
+    /// </summary>
+    public static async Task<string> CreateInactiveUserInRoleAsync(
+        IdentityUserManager userManager,
+        IdentityRoleManager roleManager,
+        Guid? tenantId,
+        string roleName,
+        string label)
+    {
+        var email = await CreateUserInRoleAsync(userManager, roleManager, tenantId, roleName, label);
+        var user = (await userManager.FindByEmailAsync(email))!;
+        user.SetIsActive(false);
+        (await userManager.UpdateAsync(user)).Succeeded.ShouldBeTrueOrThrow($"switch off {label}");
+        return email;
+    }
+
+    /// <summary>
     /// Creates <paramref name="roleName"/> in <paramref name="tenantId"/> with an id that sorts before
     /// any random one, for an OTHER-office decoy. Call it before <see cref="CreateUserInRoleAsync"/>,
     /// which then reuses the role.

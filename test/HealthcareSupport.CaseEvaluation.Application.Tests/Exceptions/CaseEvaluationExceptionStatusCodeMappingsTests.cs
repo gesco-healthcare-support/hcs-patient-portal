@@ -97,6 +97,11 @@ public class CaseEvaluationExceptionStatusCodeMappingsTests
         options.ErrorCodeToHttpStatusCodeMappings[
             CaseEvaluationDomainErrorCodes.InternalUserRoleChangeNotAllowed
         ].ShouldBe(HttpStatusCode.BadRequest);
+
+        // A Responsible User who is not a switched-on staff account: the Approve dialog shows the message.
+        options.ErrorCodeToHttpStatusCodeMappings[
+            CaseEvaluationDomainErrorCodes.AppointmentResponsibleUserNotEligible
+        ].ShouldBe(HttpStatusCode.BadRequest);
     }
 
     [Fact]
@@ -113,8 +118,8 @@ public class CaseEvaluationExceptionStatusCodeMappingsTests
         options.ErrorCodeToHttpStatusCodeMappings[
             CaseEvaluationDomainErrorCodes.RegistrationFirmNameRequired
         ].ShouldBe(HttpStatusCode.BadRequest);
-        // Still exactly 19 mappings; no duplicate-key blow up.
-        options.ErrorCodeToHttpStatusCodeMappings.Count.ShouldBe(19);
+        // Still exactly 20 mappings; no duplicate-key blow up.
+        options.ErrorCodeToHttpStatusCodeMappings.Count.ShouldBe(20);
     }
 
     /// <summary>
