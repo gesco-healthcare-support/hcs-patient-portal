@@ -82,11 +82,18 @@ public class ResponsibleUserPickerTests : CaseEvaluationEntityFrameworkCoreTestB
 
     private async Task ShouldRefuseAsync(Guid responsibleUserId)
     {
+        // A switched-on colleague, so the office's list is not empty: an empty list refuses everyone, and
+        // the refusal must come from this id not being on it.
+        var colleague = await SeedAsync(TenantsTestData.TenantARef, "Intake Staff", "approve-colleague", switchedOn: true);
+
         await AsStaffInOfficeAAsync(async () =>
+        {
+            (await GetRequiredService<ResponsibleUserCandidates>().GetAsync()).ShouldContain(u => u.Id == colleague);
             (await Should.ThrowAsync<BusinessException>(() => GetRequiredService<IAppointmentApprovalAppService>()
                 .ApproveAppointmentAsync(AppointmentsTestData.Appointment1Id,
                     new ApproveAppointmentInput { PrimaryResponsibleUserId = responsibleUserId })))
-            .Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentResponsibleUserNotEligible));
+            .Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentResponsibleUserNotEligible);
+        });
 
         var stored = await WithUnitOfWorkAsync(async () =>
         {
