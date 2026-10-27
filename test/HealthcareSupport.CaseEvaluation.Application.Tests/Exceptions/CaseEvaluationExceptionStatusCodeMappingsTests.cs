@@ -118,8 +118,8 @@ public class CaseEvaluationExceptionStatusCodeMappingsTests
         options.ErrorCodeToHttpStatusCodeMappings[
             CaseEvaluationDomainErrorCodes.RegistrationFirmNameRequired
         ].ShouldBe(HttpStatusCode.BadRequest);
-        // Still exactly 19 mappings; no duplicate-key blow up.
-        options.ErrorCodeToHttpStatusCodeMappings.Count.ShouldBe(19);
+        // Still exactly 20 mappings; no duplicate-key blow up.
+        options.ErrorCodeToHttpStatusCodeMappings.Count.ShouldBe(20);
     }
 
     /// <summary>
