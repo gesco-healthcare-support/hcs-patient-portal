@@ -68,8 +68,9 @@ public class AppointmentApprovalAppService : CaseEvaluationAppService, IAppointm
     private readonly AppointmentManager _appointmentManager;
     private readonly ILocalEventBus _localEventBus;
     private readonly ILogger<AppointmentApprovalAppService> _logger;
-    // A1 (2026-05-05) -- internal-user dropdown source for the Approve modal.
-    private readonly IdentityUserManager _identityUserManager;
+    // A1 (2026-05-05) -- internal-user dropdown source for the Approve modal; since 2026-10-26 also the
+    // check that the chosen Responsible User is one of them.
+    private readonly ResponsibleUserCandidates _responsibleUsers;
     // 2026-05-28 -- centralised BusinessException -> UserFriendlyException
     // translator so the SPA toast shows the localized message instead of
     // ABP's generic "internal error" fallback.
@@ -79,13 +80,13 @@ public class AppointmentApprovalAppService : CaseEvaluationAppService, IAppointm
         AppointmentManager appointmentManager,
         ILocalEventBus localEventBus,
         ILogger<AppointmentApprovalAppService> logger,
-        IdentityUserManager identityUserManager)
+        ResponsibleUserCandidates responsibleUsers)
     {
         _appointmentRepository = appointmentRepository;
         _appointmentManager = appointmentManager;
         _localEventBus = localEventBus;
         _logger = logger;
-        _identityUserManager = identityUserManager;
+        _responsibleUsers = responsibleUsers;
     }
 
     [Authorize(CaseEvaluationPermissions.Appointments.Approve)]
@@ -95,6 +96,9 @@ public class AppointmentApprovalAppService : CaseEvaluationAppService, IAppointm
 
         var appointment = await _appointmentRepository.GetAsync(id);
         AppointmentApprovalValidator.EnsureApprovable(appointment, input);
+        // 2026-10-26: only someone the Approve dialog would offer -- a switched-on staff account of this
+        // office -- can be made responsible, since they receive the appointment's mail.
+        await _responsibleUsers.EnsureEligibleAsync(input.PrimaryResponsibleUserId);
 
         appointment.PrimaryResponsibleUserId = input.PrimaryResponsibleUserId;
         // A1 (2026-05-05) -- OLD-parity: persist optional approver comments
@@ -184,21 +188,9 @@ public class AppointmentApprovalAppService : CaseEvaluationAppService, IAppointm
     public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetInternalUserLookupAsync(
         LookupRequestDto input)
     {
-        // Aggregate users across the 5 internal roles. UserManager's
-        // GetUsersInRoleAsync uses ABP's identity stack (tenant-scoped + role-
-        // scoped). Dedupe on Id because admin-tier users may hold multiple
-        // internal roles.
-        var byId = new Dictionary<Guid, IdentityUser>();
-        foreach (var roleName in BookingFlowRoles.InternalUserRoles)
-        {
-            var roleUsers = await _identityUserManager.GetUsersInRoleAsync(roleName);
-            foreach (var user in roleUsers)
-            {
-                byId[user.Id] = user;
-            }
-        }
-
-        IEnumerable<IdentityUser> filtered = byId.Values;
+        // The same rule ApproveAppointmentAsync enforces (2026-10-26): switched-on
+        // holders of the internal roles in this office, once each.
+        IEnumerable<IdentityUser> filtered = await _responsibleUsers.GetAsync();
         if (!string.IsNullOrWhiteSpace(input.Filter))
         {
             var needle = input.Filter.Trim();

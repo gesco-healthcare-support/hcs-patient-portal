@@ -114,7 +114,7 @@ public class InternalStaffQueueDigestJob : ITransientDependency
         var byId = new Dictionary<Guid, IdentityUser>();
         foreach (var roleName in InternalStaffRoles)
         {
-            var users = await _userManager.GetUsersInRoleAsync(roleName);
+            var users = await _userManager.GetActiveUsersInRoleAsync(roleName);
             foreach (var user in users)
             {
                 if (string.IsNullOrWhiteSpace(user.Email))

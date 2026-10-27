@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.MultiTenancy;
+using HealthcareSupport.CaseEvaluation.Notifications;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using Microsoft.Extensions.Logging;
 using Volo.Abp.DependencyInjection;
@@ -244,7 +245,7 @@ public class CaseTrackerFailureAlertJob : ITransientDependency
 
         foreach (var roleName in InternalStaffRoles)
         {
-            var users = await _identityUserRepository.GetListByNormalizedRoleNameAsync(roleName.ToUpperInvariant());
+            var users = await _identityUserRepository.GetActiveListByNormalizedRoleNameAsync(roleName.ToUpperInvariant());
             foreach (var user in users.Where(u => !string.IsNullOrWhiteSpace(u.Email)))
             {
                 byId[user.Id] = user; // a user holding both roles is alerted once

@@ -111,6 +111,29 @@ public class BookingSubmissionEmailHandlerTests : CaseEvaluationEntityFrameworkC
     }
 
     [Fact]
+    public async Task ASwitchedOffStaffUser_IsNotToldAboutTheRequest()
+    {
+        WithPatientAndOfficeMailbox();
+        var (supervisor, intake) = await SeedStaffAsync(TenantsTestData.TenantARef, "booking-on", lowIdRoles: false);
+        var switchedOff = string.Empty;
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (GetRequiredService<ICurrentTenant>().Change(TenantsTestData.TenantARef))
+            {
+                switchedOff = await RoleUserSeeder.CreateInactiveUserInRoleAsync(
+                    GetRequiredService<IdentityUserManager>(), GetRequiredService<IdentityRoleManager>(),
+                    TenantsTestData.TenantARef, "Intake Staff", "booking-off");
+            }
+        });
+
+        await RaiseAsync(bookerUserId: Guid.NewGuid());
+
+        var staff = Sent(NotificationTemplateConsts.Codes.PatientAppointmentApproveReject);
+        staff.Recipients.ShouldBe(new[] { supervisor, intake }, ignoreOrder: true);
+        staff.Recipients.ShouldNotContain(switchedOff);
+    }
+
+    [Fact]
     public async Task NoParties_SendsNoRequestNotice()
     {
         // Positive control: the first Fact, the same booking with the parties resolved.

@@ -469,6 +469,14 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:Appointment.ApprovalRequiresResponsibleUser";
 
     /// <summary>
+    /// 2026-10-26 -- raised by <c>AppointmentApprovalAppService.ApproveAppointmentAsync</c> when the
+    /// chosen Responsible User is not someone the Approve dialog would offer: a switched-on account of
+    /// this office holding an internal role. Mapped to HTTP 400.
+    /// </summary>
+    public const string AppointmentResponsibleUserNotEligible =
+        "CaseEvaluation:Appointment.ResponsibleUserNotEligible";
+
+    /// <summary>
     /// Phase 12 (2026-05-04) -- raised by
     /// <c>AppointmentApprovalAppService.ApproveAppointmentAsync</c>
     /// when the appointment is not in status <c>Pending</c>. Mirrors
