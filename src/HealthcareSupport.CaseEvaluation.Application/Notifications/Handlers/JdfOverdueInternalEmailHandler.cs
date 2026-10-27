@@ -128,7 +128,7 @@ public class JdfOverdueInternalEmailHandler :
         var byEmail = new Dictionary<string, NotificationRecipient>(StringComparer.OrdinalIgnoreCase);
         foreach (var roleName in InternalRoles)
         {
-            var users = await _userManager.GetUsersInRoleAsync(roleName);
+            var users = await _userManager.GetActiveUsersInRoleAsync(roleName);
             foreach (var user in users)
             {
                 if (string.IsNullOrWhiteSpace(user.Email))

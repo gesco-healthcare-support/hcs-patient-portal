@@ -12,6 +12,7 @@ deferred until Twilio creds land (Phase 18 open item).
 | `TemplateVariableSubstitutor.cs` | Pure `##Var##` placeholder substitution; no IO |
 | `AppNotification.cs` | In-app notification row for ONE internal staff user. Per-user fan-out, so read state is per-user. `IMultiTenant` |
 | `AppNotificationManager.cs` | Raises those rows for a whole office's Staff Supervisors + Intake Staff. Runs inside the office's tenant scope |
+| `StaffRecipients.cs` | Who a role-based notice goes to: the role's holders who are switched ON (2026-10-26). Every staff email, digest, alert and in-app notice, and the Approve dialog's Responsible User list, reads its users through it, so a switched-off account (an unassigned operator's office login keeps its role) gets nothing |
 | `ReminderCadence.cs` | Value object turning a comma-separated anchor list (`"14,7,3"`) into a firing predicate. No DI, no IO. Parsing is defensive because the list is admin-editable |
 | `Outbox/` | Store-and-forward email: `NotificationOutboxItem`, `NotificationOutboxManager`, `OutboxDrainJob`, `OutboxDrainService`, `OutboxEmailSender` |
 | `Jobs/PendingDailyDigestJob.cs` | 09:00 PT -- digest of Pending appointments to intake-staff inbox |

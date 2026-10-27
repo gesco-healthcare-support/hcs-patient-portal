@@ -1,11 +1,4 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  HostListener,
-  computed,
-  inject,
-  signal,
-} from '@angular/core';
+import { Component, HostListener, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink, RouterOutlet } from '@angular/router';
@@ -111,7 +104,10 @@ const COPY_FAILED_AFTER_RESEND = 'The new invite link could not be copied.';
 @Component({
   selector: 'app-internal-users-hub',
   standalone: true,
-  changeDetection: ChangeDetectionStrategy.OnPush,
+  // Default change detection, deliberately (2026-10-26). The All Users tab routes ABP's identity Users screen
+  // into this component's outlet, and that screen sets its rows from an HTTP callback without marking itself
+  // for check: under OnPush the hub was never re-checked, so the list drew its headers and never its rows.
+  // This hub's own state is signals, which work the same under Default.
   imports: [
     PhoneNumberDirective,
     PacificDatePipe,

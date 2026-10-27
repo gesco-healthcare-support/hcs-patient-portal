@@ -90,7 +90,7 @@ public class CaseTrackerFailureAlertJobTests
             TenantId = OfficeId,
         };
 
-    private static Harness Build(List<IntegrationOutboxItem> rows, bool withStaff = true)
+    private static Harness Build(List<IntegrationOutboxItem> rows, bool withStaff = true, List<IdentityUser>? staff = null)
     {
         var runner = Substitute.For<ITenantWorkRunner>();
         runner.ForEachOfficeAsync(Arg.Any<Func<Guid, Task>>())
@@ -114,9 +114,9 @@ public class CaseTrackerFailureAlertJobTests
 
         var users = Substitute.For<IIdentityUserRepository>();
         users.GetListByNormalizedRoleNameAsync(Arg.Any<string>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(withStaff
+            .Returns(Task.FromResult(staff ?? (withStaff
                 ? new List<IdentityUser> { new(Guid.NewGuid(), "intake", "intake@example.test") }
-                : new List<IdentityUser>()));
+                : new List<IdentityUser>())));
 
         var clock = Substitute.For<IClock>();
         clock.Now.Returns(Now);
@@ -195,6 +195,35 @@ public class CaseTrackerFailureAlertJobTests
 
         h.Rows[0].AlertedAt.ShouldBeNull();
         await h.Bus.DidNotReceiveWithAnyArgs().PublishAsync(Arg.Any<CaseTrackerPushFailedEto>());
+    }
+
+    [Fact]
+    public async Task WithOnlySwitchedOffStaff_NothingIsSentAndRowsStayUnstamped()
+    {
+        // 2026-10-26: a switched-off account keeps its role (an unassigned operator's shadow login) but must
+        // get no alert -- and an office whose only staff are switched off is an office with no staff yet.
+        var switchedOff = new IdentityUser(Guid.NewGuid(), "intake-off", "intake-off@example.test");
+        switchedOff.SetIsActive(false);
+        var h = Build(new List<IntegrationOutboxItem> { NewFailed(alreadyAlerted: false) }, staff: new List<IdentityUser> { switchedOff });
+
+        await h.Job.ExecuteAsync();
+
+        h.Rows[0].AlertedAt.ShouldBeNull();
+        await h.Bus.DidNotReceiveWithAnyArgs().PublishAsync(Arg.Any<CaseTrackerPushFailedEto>());
+    }
+
+    [Fact]
+    public async Task ASwitchedOffStaffUser_GetsNoAlert_WhileAnActiveOneDoes()
+    {
+        var active = new IdentityUser(Guid.NewGuid(), "intake-on", "intake-on@example.test");
+        var switchedOff = new IdentityUser(Guid.NewGuid(), "intake-off", "intake-off@example.test");
+        switchedOff.SetIsActive(false);
+        var h = Build(new List<IntegrationOutboxItem> { NewFailed(alreadyAlerted: false) }, staff: new List<IdentityUser> { active, switchedOff });
+
+        await h.Job.ExecuteAsync();
+
+        await h.Bus.Received(1).PublishAsync(Arg.Is<CaseTrackerPushFailedEto>(e => e.StaffEmail == "intake-on@example.test"));
+        await h.Bus.DidNotReceive().PublishAsync(Arg.Is<CaseTrackerPushFailedEto>(e => e.StaffEmail == "intake-off@example.test"));
     }
 
     [Fact]

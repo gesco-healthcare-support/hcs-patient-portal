@@ -207,21 +207,6 @@ public class DocumentEmailContextResolver : ITransientDependency
     }
 
     /// <summary>
-    /// Looks up the responsible user's email when set. Null when not.
-    /// Separated from <see cref="ResolveAsync"/> so the caller can
-    /// branch (skip the responsible-user leg when null).
-    /// </summary>
-    public virtual async Task<string?> ResolveResponsibleUserEmailAsync(Guid? responsibleUserId)
-    {
-        if (!responsibleUserId.HasValue || responsibleUserId.Value == Guid.Empty)
-        {
-            return null;
-        }
-        var user = await _identityUserRepository.FindAsync(responsibleUserId.Value);
-        return user?.Email;
-    }
-
-    /// <summary>
     /// Resolves the original uploader's email so accept/reject handlers
     /// can email the right person. Falls back to the booker's email if
     /// the uploader is anonymous (verification-code path) or missing.

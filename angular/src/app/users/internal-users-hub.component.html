@@ -21,7 +21,8 @@
     }
   </nav>
 
-  <div class="cf-content">
+  <!-- On All Users the content column may shrink (2026-10-26): ABP's 20-column table otherwise widens it. -->
+  <div class="cf-content" [class.cf-content--fluid]="section() === 'all'">
     <!-- ============ All Users (2026-10-26): the identity Users screen, routed into this outlet ============ -->
     @if (section() === 'all') {
       <router-outlet />
