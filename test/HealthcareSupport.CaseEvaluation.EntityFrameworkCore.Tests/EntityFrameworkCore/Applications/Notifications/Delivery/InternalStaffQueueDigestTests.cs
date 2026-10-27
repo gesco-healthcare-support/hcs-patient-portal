@@ -96,6 +96,30 @@ public class InternalStaffQueueDigestTests : CaseEvaluationEntityFrameworkCoreTe
     }
 
     [Fact]
+    public async Task ASwitchedOffStaffUser_GetsNoDigest()
+    {
+        var staff = await SeedOfficeAStaffAsync();
+        var switchedOff = string.Empty;
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (GetRequiredService<ICurrentTenant>().Change(TenantsTestData.TenantARef))
+            {
+                var users = GetRequiredService<IdentityUserManager>();
+                switchedOff = (await StaffSeeder.CreateAsync(
+                    users, GetRequiredService<IdentityRoleManager>(), TenantsTestData.TenantARef, "Intake Staff", "digest-off")).Email;
+                var user = (await users.FindByEmailAsync(switchedOff))!;
+                user.SetIsActive(false);
+                (await users.UpdateAsync(user)).Succeeded.ShouldBeTrue();
+            }
+        });
+
+        await RunJobAsync();
+
+        _recorder.Sent.SelectMany(s => s.Recipients).ShouldBe(new[] { staff.Supervisor, staff.Intake }, ignoreOrder: true);
+        _recorder.Sent.SelectMany(s => s.Recipients).ShouldNotContain(switchedOff);
+    }
+
+    [Fact]
     public async Task NoStaffInAnyOffice_SendsNothing()
     {
         // Positive control: the first Fact, identical except that it seeds staff.

@@ -10,18 +10,18 @@ using Xunit;
 namespace HealthcareSupport.CaseEvaluation.Notifications.Handlers;
 
 /// <summary>
-/// Unit coverage for the two email lookups on <see cref="DocumentEmailContextResolver"/> that decide
-/// WHERE a document email is addressed: the responsible staff user's email, and the uploader's email
-/// with its fallback.
+/// Unit coverage for the uploader email lookup on <see cref="DocumentEmailContextResolver"/>: the
+/// uploader's email with its fallback. (The responsible staff user's address moved to
+/// <see cref="ResponsibleUserRecipientResolver"/> on 2026-10-26 and is pinned in its own tests.)
 ///
-/// <para><b>WHAT IS PINNED.</b> No user id (or an empty one) resolves to no responsible email, and to
-/// the fallback for an uploader without the user table being read. A found user's email wins; a user
-/// that is gone, or has a blank email, falls back.</para>
+/// <para><b>WHAT IS PINNED.</b> No user id (or an empty one) resolves to the fallback without the user
+/// table being read. A found user's email wins; a user that is gone, or has a blank email, falls
+/// back.</para>
 ///
 /// <para><b>The result asserted is the returned address.</b> The resolver is real; only the identity
-/// user repository is substituted. The other nine constructor arguments are null because these two
-/// methods never touch them (the constructor only stores them) -- in particular
-/// <c>IdentityUserManager</c> is not involved. Synthetic data only (HIPAA).</para>
+/// user repository is substituted. The other nine constructor arguments are null because this method
+/// never touches them (the constructor only stores them) -- in particular <c>IdentityUserManager</c> is
+/// not involved. Synthetic data only (HIPAA).</para>
 /// </summary>
 public class DocumentEmailContextResolverEmailLookupTests
 {
@@ -35,33 +35,6 @@ public class DocumentEmailContextResolverEmailLookupTests
     }
 
     private static IdentityUser User(string email) => new(Guid.NewGuid(), "TEST-user", email);
-
-    [Fact]
-    public async Task ResolveResponsibleUserEmailAsync_AStoredUser_ReturnsTheirEmail()
-    {
-        var (resolver, _) = Build(User("TEST-staff@test.local"));
-
-        (await resolver.ResolveResponsibleUserEmailAsync(Guid.NewGuid())).ShouldBe("TEST-staff@test.local");
-    }
-
-    [Fact]
-    public async Task ResolveResponsibleUserEmailAsync_AUserThatIsGone_ReturnsNull()
-    {
-        var (resolver, _) = Build(stored: null);
-
-        (await resolver.ResolveResponsibleUserEmailAsync(Guid.NewGuid())).ShouldBeNull();
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task ResolveResponsibleUserEmailAsync_NoOrEmptyUserId_ReturnsNullWithoutReadingUsers(bool emptyGuid)
-    {
-        var (resolver, users) = Build(User("TEST-staff@test.local"));
-
-        (await resolver.ResolveResponsibleUserEmailAsync(emptyGuid ? Guid.Empty : null)).ShouldBeNull();
-        await users.DidNotReceive().FindAsync(Arg.Any<Guid>(), Arg.Any<bool>(), Arg.Any<CancellationToken>());
-    }
 
     [Fact]
     public async Task ResolveUploaderEmailAsync_AStoredUserWithAnEmail_WinsOverTheFallback()

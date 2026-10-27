@@ -97,6 +97,11 @@ public class CaseEvaluationExceptionStatusCodeMappingsTests
         options.ErrorCodeToHttpStatusCodeMappings[
             CaseEvaluationDomainErrorCodes.InternalUserRoleChangeNotAllowed
         ].ShouldBe(HttpStatusCode.BadRequest);
+
+        // A Responsible User who is not a switched-on staff account: the Approve dialog shows the message.
+        options.ErrorCodeToHttpStatusCodeMappings[
+            CaseEvaluationDomainErrorCodes.AppointmentResponsibleUserNotEligible
+        ].ShouldBe(HttpStatusCode.BadRequest);
     }
 
     [Fact]

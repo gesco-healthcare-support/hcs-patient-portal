@@ -91,7 +91,7 @@ public class AppNotificationManager : DomainService
         var ids = new HashSet<Guid>();
         foreach (var roleName in InternalStaffRoles)
         {
-            var users = await _userManager.GetUsersInRoleAsync(roleName);
+            var users = await _userManager.GetActiveUsersInRoleAsync(roleName);
             foreach (var user in users)
             {
                 ids.Add(user.Id);

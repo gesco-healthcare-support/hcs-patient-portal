@@ -7,6 +7,7 @@ using HealthcareSupport.CaseEvaluation.Notifications;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using HealthcareSupport.CaseEvaluation.Notifications.Handlers;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
+using HealthcareSupport.CaseEvaluation.Settings;
 using HealthcareSupport.CaseEvaluation.TestData;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -14,6 +15,7 @@ using Shouldly;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Identity;
 using Volo.Abp.MultiTenancy;
+using Volo.Abp.SettingManagement;
 using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Notifications;
@@ -27,6 +29,7 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Notifications;
 public class UserQuerySubmittedEmailHandlerTests : CaseEvaluationEntityFrameworkCoreTestBase
 {
     private const string Message = "TEST- a question from the portal";
+    private const string OfficeInbox = "TEST-office-b-inbox@test.local";
 
     private readonly RecordingNotificationDispatcher _dispatcher = new();
 
@@ -50,6 +53,38 @@ public class UserQuerySubmittedEmailHandlerTests : CaseEvaluationEntityFramework
         sent.Recipients.ShouldNotContain(admins.Admin);
         sent.Variables["UserQueryMessage"].ShouldBe(Message);
         sent.Variables["UserQuerySubjectIdentity"].ShouldBeOfType<string>().ShouldStartWith(" - ");
+    }
+
+    // 2026-10-26: a switched-off Responsible User (an operator who was unassigned or left) is never mailed.
+
+    [Fact]
+    public async Task ASwitchedOffResponsibleUser_TheQueryGoesToTheOfficeInbox()
+    {
+        var switchedOff = await SeedSwitchedOffStaffInOfficeBAsync("query-left");
+        await ChangeAppointment2Async(a => a.PrimaryResponsibleUserId = switchedOff.Id);
+        await SetOfficeBInboxAsync(OfficeInbox);
+        var admins = await SeedItAdminsAsync();
+
+        await RaiseAsync(AppointmentsTestData.Appointment2RequestConfirmationNumber, TenantsTestData.TenantBRef);
+
+        var sent = _dispatcher.Dispatches.ShouldHaveSingleItem();
+        sent.Recipients.ShouldBe(new[] { OfficeInbox });
+        sent.Recipients.ShouldNotContain(switchedOff.Email);
+        sent.Recipients.ShouldNotContain(admins.Admin);
+    }
+
+    [Fact]
+    public async Task ASwitchedOffResponsibleUser_InAnOfficeWithoutAnInbox_FallsBackToTheItAdmins()
+    {
+        var switchedOff = await SeedSwitchedOffStaffInOfficeBAsync("query-left-noinbox");
+        await ChangeAppointment2Async(a => a.PrimaryResponsibleUserId = switchedOff.Id);
+        var admins = await SeedItAdminsAsync();
+
+        await RaiseAsync(AppointmentsTestData.Appointment2RequestConfirmationNumber, TenantsTestData.TenantBRef);
+
+        var sent = _dispatcher.Dispatches.ShouldHaveSingleItem();
+        sent.Recipients.ShouldContain(admins.Admin);
+        sent.Recipients.ShouldNotContain(switchedOff.Email);
     }
 
     [Fact]
@@ -106,6 +141,28 @@ public class UserQuerySubmittedEmailHandlerTests : CaseEvaluationEntityFramework
         await RaiseAsync(AppointmentsTestData.Appointment2RequestConfirmationNumber, TenantsTestData.TenantBRef);
 
         _dispatcher.Dispatches.ShouldHaveSingleItem().Recipients.ShouldContain(admins.Admin);
+    }
+
+    [Fact]
+    public async Task ASwitchedOffItAdmin_IsNotEmailed()
+    {
+        var admins = await SeedItAdminsAsync();
+        var switchedOff = string.Empty;
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (GetRequiredService<ICurrentTenant>().Change(null))
+            {
+                switchedOff = await RoleUserSeeder.CreateInactiveUserInRoleAsync(
+                    GetRequiredService<IdentityUserManager>(), GetRequiredService<IdentityRoleManager>(),
+                    null, InternalUserRoleDataSeedContributor.ItAdminRoleName, "query-itadmin-off");
+            }
+        });
+
+        await RaiseAsync(confirmationNumber: null, TenantsTestData.TenantARef);
+
+        var sent = _dispatcher.Dispatches.ShouldHaveSingleItem();
+        sent.Recipients.ShouldContain(admins.Admin);
+        sent.Recipients.ShouldNotContain(switchedOff);
     }
 
     [Fact]
@@ -175,6 +232,32 @@ public class UserQuerySubmittedEmailHandlerTests : CaseEvaluationEntityFramework
         });
         return (admin, decoy);
     }
+
+    /// <summary>A switched-off Intake Staff account in office B: its role stays, its login is off.</summary>
+    private async Task<(Guid Id, string Email)> SeedSwitchedOffStaffInOfficeBAsync(string label)
+    {
+        (Guid Id, string Email) seeded = default;
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (GetRequiredService<ICurrentTenant>().Change(TenantsTestData.TenantBRef))
+            {
+                var users = GetRequiredService<IdentityUserManager>();
+                var email = await RoleUserSeeder.CreateInactiveUserInRoleAsync(
+                    users, GetRequiredService<IdentityRoleManager>(), TenantsTestData.TenantBRef, "Intake Staff", label);
+                seeded = ((await users.FindByEmailAsync(email))!.Id, email);
+            }
+        });
+        return seeded;
+    }
+
+    private Task SetOfficeBInboxAsync(string inbox) => WithUnitOfWorkAsync(async () =>
+    {
+        using (GetRequiredService<ICurrentTenant>().Change(TenantsTestData.TenantBRef))
+        {
+            await GetRequiredService<ISettingManager>().SetForCurrentTenantAsync(
+                CaseEvaluationSettings.NotificationsPolicy.OfficeEmail, inbox);
+        }
+    });
 
     private Task ChangeAppointment1Async(Action<Appointment> change) =>
         ChangeAppointmentAsync(TenantsTestData.TenantARef, AppointmentsTestData.Appointment1Id, change);

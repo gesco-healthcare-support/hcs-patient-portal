@@ -49,6 +49,29 @@ public class JdfOverdueInternalEmailHandlerTests : CaseEvaluationEntityFramework
     }
 
     [Fact]
+    public async Task ASwitchedOffStaffUser_IsNotEmailed()
+    {
+        var staff = await SeedStaffAsync();
+        var switchedOff = await InOfficeAAsync((users, roles) => RoleUserSeeder.CreateInactiveUserInRoleAsync(
+            users, roles, TenantsTestData.TenantARef, "Intake Staff", "jdf-off"));
+
+        await RaiseAsync(AppointmentsTestData.Appointment1Id);
+
+        var sent = _dispatcher.Dispatches.ShouldHaveSingleItem();
+        sent.Recipients.ShouldBe(new[] { staff.Supervisor, staff.Intake }, ignoreOrder: true);
+        sent.Recipients.ShouldNotContain(switchedOff);
+    }
+
+    private Task<string> InOfficeAAsync(Func<IdentityUserManager, IdentityRoleManager, Task<string>> seed) =>
+        WithUnitOfWorkAsync(async () =>
+        {
+            using (GetRequiredService<ICurrentTenant>().Change(TenantsTestData.TenantARef))
+            {
+                return await seed(GetRequiredService<IdentityUserManager>(), GetRequiredService<IdentityRoleManager>());
+            }
+        });
+
+    [Fact]
     public async Task NoInternalStaff_SendsNothing()
     {
         // Positive control: the Fact above, identical except that it seeds the staff.

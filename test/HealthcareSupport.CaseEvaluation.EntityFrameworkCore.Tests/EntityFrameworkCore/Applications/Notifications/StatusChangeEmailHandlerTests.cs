@@ -7,6 +7,7 @@ using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Notifications;
 using HealthcareSupport.CaseEvaluation.Notifications.Handlers;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
+using HealthcareSupport.CaseEvaluation.Settings;
 using HealthcareSupport.CaseEvaluation.TestData;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -14,6 +15,7 @@ using Shouldly;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Identity;
 using Volo.Abp.MultiTenancy;
+using Volo.Abp.SettingManagement;
 using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Notifications;
@@ -34,6 +36,7 @@ public class StatusChangeEmailHandlerTests : CaseEvaluationEntityFrameworkCoreTe
 {
     private const string StakeholderEmail = "TEST-status-stakeholder@test.local";
     private const string StaffNote = "TEST- staff note";
+    private const string OfficeInbox = "TEST-office-inbox@test.local";
 
     // Field initializers run before the base constructor, so both exist when AfterAddApplication runs.
     private readonly RecordingNotificationDispatcher _dispatcher = new();
@@ -115,6 +118,37 @@ public class StatusChangeEmailHandlerTests : CaseEvaluationEntityFrameworkCoreTe
     {
         WithStakeholder();
         await ChangeAppointmentAsync(a => a.PrimaryResponsibleUserId = null);
+
+        await RaiseAsync(AppointmentStatusType.Approved);
+
+        _dispatcher.Dispatches.Select(d => d.TemplateCode)
+            .ShouldBe(new[] { NotificationTemplateConsts.Codes.PatientAppointmentApprovedExt });
+    }
+
+    // 2026-10-26: a switched-off Responsible User (an operator who was unassigned or left) is never mailed.
+
+    [Fact]
+    public async Task Approved_ASwitchedOffResponsibleUser_IsReplacedByTheOfficeInbox()
+    {
+        WithStakeholder();
+        var (switchedOffId, switchedOffEmail) = await SeedSwitchedOffStaffAsync("approved-left");
+        await SetOfficeInboxAsync(OfficeInbox);
+        await ChangeAppointmentAsync(a => a.PrimaryResponsibleUserId = switchedOffId);
+
+        await RaiseAsync(AppointmentStatusType.Approved);
+
+        var internalLeg = InternalLeg();
+        internalLeg.Recipients.ShouldBe(new[] { OfficeInbox });
+        internalLeg.Recipients.ShouldNotContain(switchedOffEmail);
+        internalLeg.Variables["ResponsibleUserName"].ShouldBe(OfficeInbox);
+    }
+
+    [Fact]
+    public async Task Approved_ASwitchedOffResponsibleUser_InAnOfficeWithoutAnInbox_GetsNoInternalEmail()
+    {
+        WithStakeholder();
+        var (switchedOffId, _) = await SeedSwitchedOffStaffAsync("approved-left-noinbox");
+        await ChangeAppointmentAsync(a => a.PrimaryResponsibleUserId = switchedOffId);
 
         await RaiseAsync(AppointmentStatusType.Approved);
 
@@ -204,6 +238,23 @@ public class StatusChangeEmailHandlerTests : CaseEvaluationEntityFrameworkCoreTe
     }
 
     // ---- NoShow: internal staff only, once each, nobody else ----
+
+    [Fact]
+    public async Task NoShow_DoesNotEmailASwitchedOffStaffUser()
+    {
+        string intake = string.Empty, switchedOff = string.Empty;
+        await InTenantAAsync(async (users, roles) =>
+        {
+            intake = await RoleUserSeeder.CreateUserInRoleAsync(users, roles, TenantsTestData.TenantARef, "Intake Staff", "noshow-on");
+            switchedOff = await RoleUserSeeder.CreateInactiveUserInRoleAsync(users, roles, TenantsTestData.TenantARef, "Intake Staff", "noshow-off");
+        });
+
+        await RaiseAsync(AppointmentStatusType.NoShow);
+
+        var sent = _dispatcher.Dispatches.ShouldHaveSingleItem();
+        sent.Recipients.ShouldBe(new[] { intake });
+        sent.Recipients.ShouldNotContain(switchedOff);
+    }
 
     [Fact]
     public async Task NoShow_EmailsEachStaffSupervisorAndIntakeStaffUserOnce_AndNoOtherRole()
@@ -321,6 +372,28 @@ public class StatusChangeEmailHandlerTests : CaseEvaluationEntityFrameworkCoreTe
             user.Name = name;
             user.Surname = surname;
             await repository.UpdateAsync(user, autoSave: true);
+        }
+    });
+
+    /// <summary>A switched-off Intake Staff account in office A: its role stays, its login is off.</summary>
+    private async Task<(Guid Id, string Email)> SeedSwitchedOffStaffAsync(string label)
+    {
+        (Guid Id, string Email) seeded = default;
+        await InTenantAAsync(async (users, roles) =>
+        {
+            var email = await RoleUserSeeder.CreateInactiveUserInRoleAsync(
+                users, roles, TenantsTestData.TenantARef, "Intake Staff", label);
+            seeded = ((await users.FindByEmailAsync(email))!.Id, email);
+        });
+        return seeded;
+    }
+
+    private Task SetOfficeInboxAsync(string inbox) => WithUnitOfWorkAsync(async () =>
+    {
+        using (GetRequiredService<ICurrentTenant>().Change(TenantsTestData.TenantARef))
+        {
+            await GetRequiredService<ISettingManager>().SetForCurrentTenantAsync(
+                CaseEvaluationSettings.NotificationsPolicy.OfficeEmail, inbox);
         }
     });
 
