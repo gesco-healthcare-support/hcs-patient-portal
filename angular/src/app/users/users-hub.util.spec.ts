@@ -2,6 +2,7 @@ import { ExternalUserType } from '../proxy/external-signups/external-user-type.e
 import { InvitationStatus } from '../proxy/invitations/invitation-status.enum';
 import {
   avatarColor,
+  changeableRoles,
   expiryChip,
   initials,
   invitationStatusChip,
@@ -119,6 +120,23 @@ describe('users-hub.util', () => {
     });
     it('returns a hex color from the palette', () => {
       expect(avatarColor('abc')).toMatch(/^#[0-9a-f]{6}$/);
+    });
+  });
+  // 2026-10-27: Change role is the one place a staff role changes; IT Admin for privileged callers only.
+  describe('changeableRoles', () => {
+    it('offers the two staff roles to anyone who may change roles', () => {
+      expect(changeableRoles(['Staff Supervisor'])).toEqual(['Staff Supervisor', 'Intake Staff']);
+      expect(changeableRoles([])).toEqual(['Staff Supervisor', 'Intake Staff']);
+      expect(changeableRoles(null)).toEqual(['Staff Supervisor', 'Intake Staff']);
+    });
+
+    it('adds IT Admin for the System owner and IT Admins, whatever the case', () => {
+      expect(changeableRoles(['admin'])).toEqual(['Staff Supervisor', 'Intake Staff', 'IT Admin']);
+      expect(changeableRoles(['it admin'])).toContain('IT Admin');
+    });
+
+    it('never offers the administrator role', () => {
+      expect(changeableRoles(['admin'])).not.toContain('admin');
     });
   });
 });

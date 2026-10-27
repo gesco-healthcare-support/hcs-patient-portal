@@ -104,6 +104,9 @@ public static class CaseEvaluationExceptionStatusCodeMappings
         options.Map(
             CaseEvaluationDomainErrorCodes.InternalUserRoleChangeNotAllowed,
             HttpStatusCode.BadRequest);
+        options.Map(
+            CaseEvaluationDomainErrorCodes.StaffRoleChangeUseStaffManagement,
+            HttpStatusCode.BadRequest);
 
         // 2026-10-26: a Responsible User who is not a switched-on staff account of the office. Kept with the
         // internal-user codes so both hosts carry it; only HttpApi.Host can raise it.
