@@ -21,8 +21,8 @@ namespace HealthcareSupport.CaseEvaluation.OpenIddict;
 
 /// <summary>
 /// Extends the stock <see cref="ImpersonationExtensionGrant"/> so EVERY host operator who
-/// switches into an office lands as their OWN per-office shadow user (username == operator
-/// email) -- never the single shared office <c>admin</c> account. Replaces the stock
+/// switches into an office lands as their OWN per-office shadow user (stamped with the operator's
+/// host user id, 2026-10-27) -- never the single shared office <c>admin</c> account. Replaces the stock
 /// "Impersonation" grant (registered in <c>CaseEvaluationAuthServerModule</c>).
 ///
 /// <para>Only <see cref="ImpersonateTenantAsync"/> is overridden. The requested
@@ -44,7 +44,7 @@ namespace HealthcareSupport.CaseEvaluation.OpenIddict;
 /// </list>
 ///
 /// The mechanism (host -> named per-office user in a separate office DB, with the office's
-/// tenant claim) is proven: <c>currentTenant.Change(officeId)</c> + <c>FindByNameAsync</c>
+/// tenant claim) is proven: <c>currentTenant.Change(officeId)</c> + <c>FindByIdAsync</c>
 /// resolves the shadow in the office's physical database.
 /// </summary>
 public class HostIntakeImpersonationExtensionGrant : ImpersonationExtensionGrant
@@ -90,8 +90,7 @@ public class HostIntakeImpersonationExtensionGrant : ImpersonationExtensionGrant
         Guid officeId)
     {
         var operatorId = currentUser.Id;
-        var operatorEmail = currentUser.Email;
-        if (operatorId == null || string.IsNullOrWhiteSpace(operatorEmail))
+        if (operatorId == null)
         {
             return Forbid(context, "Operator identity could not be resolved.");
         }
@@ -107,11 +106,11 @@ public class HostIntakeImpersonationExtensionGrant : ImpersonationExtensionGrant
         // Lazily provision-or-find the operator's own shadow in the office DB.
         var shadowProvisioner = context.HttpContext.RequestServices
             .GetRequiredService<IIntakeShadowUserProvisioner>();
-        await shadowProvisioner.EnsureShadowUserAsync(officeId, operatorId.Value, tenantRole);
+        var shadowId = await shadowProvisioner.EnsureShadowUserAsync(officeId, operatorId.Value, tenantRole);
 
         return await SignInAsShadowUserAsync(
-            context, principal, officeId, operatorId.Value, operatorEmail,
-            currentUser.UserName ?? operatorEmail,
+            context, principal, officeId, operatorId.Value, shadowId,
+            currentUser.UserName ?? operatorId.Value.ToString(),
             missingShadowError: "Could not provision office access. Please try again.");
     }
 
@@ -121,8 +120,7 @@ public class HostIntakeImpersonationExtensionGrant : ImpersonationExtensionGrant
         Guid officeId)
     {
         var operatorId = currentUser.Id;
-        var operatorEmail = currentUser.Email;
-        if (operatorId == null || string.IsNullOrWhiteSpace(operatorEmail))
+        if (operatorId == null)
         {
             return Forbid(context, "Operator identity could not be resolved.");
         }
@@ -135,32 +133,40 @@ public class HostIntakeImpersonationExtensionGrant : ImpersonationExtensionGrant
             return Forbid(context, "You are not assigned to this office.");
         }
 
+        // 2026-10-27: past the gate, ensure the shadow exactly as assignment made it. It finds the
+        // shadow by the operator's id, wakes one locked while the operator was switched off, follows a
+        // changed address, and stamps a shadow made before the id stamp existed.
+        var shadowProvisioner = context.HttpContext.RequestServices
+            .GetRequiredService<IIntakeShadowUserProvisioner>();
+        var shadowId = await shadowProvisioner.EnsureShadowUserAsync(
+            officeId, operatorId.Value, InternalUserRoleDataSeedContributor.IntakeStaffRoleName);
+
         return await SignInAsShadowUserAsync(
-            context, principal, officeId, operatorId.Value, operatorEmail,
-            currentUser.UserName ?? operatorEmail,
+            context, principal, officeId, operatorId.Value, shadowId,
+            currentUser.UserName ?? operatorId.Value.ToString(),
             missingShadowError: "No active intake access for this office.");
     }
 
     /// <summary>
-    /// Signs the operator in AS their per-office shadow user (username == operator email),
-    /// carrying the ImpersonatorUserId/UserName claims so the shell shows who they really are.
-    /// The shadow must already exist in the office DB (Intake provisions on assignment;
-    /// Supervisor/IT-Admin provision just before calling this). The requested TenantUserName is
-    /// ignored. Body mirrors stock ImpersonateTenantAsync minus the broad-permission check.
+    /// Signs the operator in AS their per-office shadow user, the one the provisioner just ensured
+    /// (found by the operator's id, 2026-10-27; before that by the operator's email, which missed a
+    /// shadow after an address change), carrying the ImpersonatorUserId/UserName claims so the shell
+    /// shows who they really are. The requested TenantUserName is ignored. Body mirrors stock
+    /// ImpersonateTenantAsync minus the broad-permission check.
     /// </summary>
     private async Task<IActionResult> SignInAsShadowUserAsync(
         ExtensionGrantContext context,
         ClaimsPrincipal principal,
         Guid officeId,
         Guid operatorId,
-        string operatorEmail,
+        Guid shadowUserId,
         string operatorUserName,
         string missingShadowError)
     {
         using (currentTenant.Change(officeId))
         {
-            var shadowUser = await userManager.FindByNameAsync(operatorEmail);
-            if (shadowUser == null)
+            var shadowUser = await userManager.FindByIdAsync(shadowUserId.ToString());
+            if (shadowUser == null || !shadowUser.IsActive)
             {
                 return Forbid(context, missingShadowError);
             }

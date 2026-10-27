@@ -2,7 +2,7 @@ import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
-import { PermissionService } from '@abp/ng.core';
+import { ConfigStateService, PermissionService } from '@abp/ng.core';
 import { ToasterService } from '@abp/ng.theme.shared';
 import { ImpersonationService } from '@volo/abp.commercial.ng.ui/config';
 import { of } from 'rxjs';
@@ -45,6 +45,7 @@ describe('InternalUsersHubComponent All Users tab', () => {
           useValue: { getGrantedPolicy: (p: string) => granted.includes(p) },
         },
         { provide: ToasterService, useValue: {} },
+        { provide: ConfigStateService, useValue: { getDeep: () => undefined } },
         { provide: ImpersonationService, useValue: {} },
         {
           provide: ActivatedRoute,
@@ -106,6 +107,7 @@ describe('InternalUsersHubComponent All Users tab', () => {
         { provide: UsersSectionGateway, useValue: {} },
         { provide: PermissionService, useValue: { getGrantedPolicy: () => true } },
         { provide: ToasterService, useValue: {} },
+        { provide: ConfigStateService, useValue: { getDeep: () => undefined } },
         { provide: ImpersonationService, useValue: {} },
       ],
     });

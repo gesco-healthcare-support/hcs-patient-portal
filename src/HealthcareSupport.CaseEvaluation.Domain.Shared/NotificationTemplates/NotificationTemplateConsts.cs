@@ -275,7 +275,15 @@ public static class NotificationTemplateConsts
         public const string AccountActivation = "AccountActivation";
 
         /// <summary>
-        /// All 70 codes in seed order (count asserted by
+        /// 2026-10-27 -- sent to a person's PREVIOUS address when an administrator changes the email they
+        /// sign in with: a heads-up, with no link, so a change they did not expect does not go unnoticed.
+        /// The new address gets its own confirmation (or activation) email. In <see cref="HostScoped"/>
+        /// because a host operator's address is changed from host scope.
+        /// </summary>
+        public const string AccountEmailChanged = "AccountEmailChanged";
+
+        /// <summary>
+        /// All 72 codes in seed order (count asserted by
         /// <c>NotificationTemplatesValidatorUnitTests.Codes_All_Has64Codes</c> -- keep both in step;
         /// this comment had drifted by one before 2026-07-28). Used by
         /// <c>NotificationTemplateDataSeedContributor</c> to ensure each
@@ -341,6 +349,9 @@ public static class NotificationTemplateConsts
 
             // 2026-10-23 -- activate-your-account link (choose a password, which confirms the email).
             AccountActivation,
+
+            // 2026-10-27 -- "your sign-in email was changed", to the previous address.
+            AccountEmailChanged,
         };
 
         /// <summary>
@@ -360,6 +371,8 @@ public static class NotificationTemplateConsts
         ///         2FA / confirmation code for a host user.</item>
         ///   <item><c>AccountActivation</c> (2026-10-23) -- a host user created on the host identity
         ///         screen, or one asking for a new activation link, is sent it from host scope.</item>
+        ///   <item><c>AccountEmailChanged</c> (2026-10-27) -- an administrator changes a host user's
+        ///         sign-in email from host scope.</item>
         ///   <item><c>CaseTrackerMissingIntakes</c> (#944, 2026-09-24) -- the weekly cross-office
         ///         missing-intake report, sent by a host recurring job. The one entry that is not
         ///         account lifecycle: it reports on every office at once, so no office scope fits.</item>
@@ -376,6 +389,7 @@ public static class NotificationTemplateConsts
             UserRegistered,
             CaseTrackerMissingIntakes,
             AccountActivation,
+            AccountEmailChanged,
         };
     }
 }

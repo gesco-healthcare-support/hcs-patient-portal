@@ -25,6 +25,10 @@
   <div class="cf-content" [class.cf-content--fluid]="section() === 'all'">
     <!-- ============ All Users (2026-10-26): the identity Users screen, routed into this outlet ============ -->
     @if (section() === 'all') {
+      @if (onStaffSite) {
+        <!-- 2026-10-27: the Users screen's Edit refuses a staff role change here; Change role is the one place. -->
+        <p class="ra-hint">To change someone's role, use Staff Management, then Change role.</p>
+      }
       <router-outlet />
     }
 
@@ -611,7 +615,7 @@
         <p>{{ rc.row.fullName || rc.row.email }} has one role. Choose the role they should have.</p>
         <fieldset class="ra-field">
           <legend>Role</legend>
-          @for (r of creatableRoles; track r) {
+          @for (r of roleChoices; track r) {
             <label>
               <input
                 type="radio"
@@ -632,6 +636,17 @@
         @if (rc.role !== rc.row.role && rc.role === 'Intake Staff') {
           <div class="ra-note">
             They will have no offices until you assign them in Staff Assignments.
+          </div>
+        }
+        @if (rc.role !== rc.row.role && (rc.role === 'IT Admin' || rc.row.role === 'IT Admin')) {
+          <div class="ra-note warn">
+            An IT Admin manages offices and staff, and enters every office as its administrator.
+          </div>
+        }
+        @if (rc.role !== rc.row.role) {
+          <div class="ra-note">
+            Their office sign-ins are switched off now and come back with the new role the next time
+            they enter an office.
           </div>
         }
       </div>
