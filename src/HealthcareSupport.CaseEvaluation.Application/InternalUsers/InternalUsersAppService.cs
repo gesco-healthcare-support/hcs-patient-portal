@@ -5,11 +5,13 @@ using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
 using HealthcareSupport.CaseEvaluation.ExternalAccount;
 using HealthcareSupport.CaseEvaluation.HostOperators;
+using HealthcareSupport.CaseEvaluation.Identity;
 using HealthcareSupport.CaseEvaluation.Notifications;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
 using HealthcareSupport.CaseEvaluation.Permissions;
 using HealthcareSupport.CaseEvaluation.Settings;
 using HealthcareSupport.CaseEvaluation.Shared;
+using HealthcareSupport.CaseEvaluation.Users;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
 using Volo.Abp;
@@ -64,8 +66,6 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
     public static readonly IReadOnlyList<string> CreatableRoleNames =
         new[] { "Intake Staff", "Staff Supervisor" };
 
-    private const string IntakeStaffRoleName = "Intake Staff";
-
     private readonly IdentityUserManager _userManager;
     private readonly IdentityRoleManager _roleManager;
     private readonly IRepository<Tenant, Guid> _tenantRepository;
@@ -75,7 +75,7 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
     // BUG-029 v3 fix (2026-05-21): centralized tenant-aware URL composition.
     private readonly IAccountUrlBuilder _accountUrlBuilder;
     private readonly IAccountActivationSender _activationSender;
-    private readonly IntakeAssignmentRevoker _revoker;
+    private readonly HostOperatorOfficeLogins _officeLogins;
 
     public InternalUsersAppService(
         IdentityUserManager userManager,
@@ -86,7 +86,7 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
         ILogger<InternalUsersAppService> logger,
         IAccountUrlBuilder accountUrlBuilder,
         IAccountActivationSender activationSender,
-        IntakeAssignmentRevoker revoker)
+        HostOperatorOfficeLogins officeLogins)
     {
         _userManager = userManager;
         _roleManager = roleManager;
@@ -96,7 +96,7 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
         _logger = logger;
         _accountUrlBuilder = accountUrlBuilder;
         _activationSender = activationSender;
-        _revoker = revoker;
+        _officeLogins = officeLogins;
     }
 
     [Authorize(CaseEvaluationPermissions.InternalUsers.Create)]
@@ -278,6 +278,13 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
     /// per-office shadow login is locked), because a Supervisor enters every office anyway and a left-over
     /// assignment would only be clutter, or worse, wake up again if they were ever switched back. Moving to
     /// Intake Staff assigns nothing; they are assigned through Staff Assignments.</para>
+    ///
+    /// <para>2026-10-27 -- this is now the ONE place a staff role is changed on the staff site (the
+    /// identity Users screen refuses it from host scope). A privileged caller (System owner, IT Admin) may
+    /// also move someone to or from IT Admin, which was only possible through that screen before. The
+    /// System owner's own administrator role is never changed here. Whatever the move, every office login
+    /// the person has is locked (<see cref="HostOperatorOfficeLogins.RoleChangedAsync"/>): it holds the
+    /// old tier's office role, and the next entry or assignment makes it again with the new one.</para>
     /// </summary>
     [Authorize(CaseEvaluationPermissions.InternalUsers.Edit)]
     public virtual async Task<InternalUserListDto> ChangeRoleAsync(Guid userId, ChangeInternalUserRoleDto input)
@@ -285,7 +292,8 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
         EnsureHostCaller();
         Check.NotNull(input, nameof(input));
 
-        var newRole = CreatableRoleNames.FirstOrDefault(
+        var changeable = ChangeableRoleNames(PrivilegedAccounts.CallerIsPrivileged(CurrentUser));
+        var newRole = changeable.FirstOrDefault(
             r => string.Equals(r, input.RoleName?.Trim(), StringComparison.OrdinalIgnoreCase));
         if (newRole == null || CurrentUser.Id == userId)
         {
@@ -300,10 +308,10 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
                 throw new BusinessException(CaseEvaluationDomainErrorCodes.InternalUserNotFound);
             }
 
-            // Only a person holding exactly one of the two staff roles is switched here: never an IT Admin or
-            // an administrator, whatever the caller may otherwise do.
+            // Only a person holding exactly one role this caller may change is switched here: an IT Admin
+            // only by a privileged caller, and never an administrator.
             var held = await _userManager.GetRolesAsync(user);
-            if (held.Count != 1 || !CreatableRoleNames.Contains(held[0], StringComparer.OrdinalIgnoreCase))
+            if (held.Count != 1 || !changeable.Contains(held[0], StringComparer.OrdinalIgnoreCase))
             {
                 throw new BusinessException(CaseEvaluationDomainErrorCodes.InternalUserRoleChangeNotAllowed);
             }
@@ -318,11 +326,7 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
                         .WithData("Errors", string.Join("; ", result.Errors.Select(e => e.Description)));
                 }
 
-                var officesRevoked = 0;
-                if (string.Equals(oldRole, IntakeStaffRoleName, StringComparison.OrdinalIgnoreCase))
-                {
-                    officesRevoked = await _revoker.RevokeAllAsync(user.Id);
-                }
+                var officesRevoked = await _officeLogins.RoleChangedAsync(user.Id, oldRole);
 
                 // Audited: a change of what this person may do, in every office.
                 _logger.LogWarning(
@@ -342,6 +346,15 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
             };
         }
     }
+
+    /// <summary>
+    /// The roles Change role may move a person between. IT Admin is added for a privileged caller
+    /// only; the administrator role is never one of them.
+    /// </summary>
+    internal static IReadOnlyList<string> ChangeableRoleNames(bool callerIsPrivileged) =>
+        callerIsPrivileged
+            ? CreatableRoleNames.Append(InternalUserRoleDataSeedContributor.ItAdminRoleName).ToList()
+            : CreatableRoleNames;
 
     /// <summary>
     /// Variable bag for the <c>ResetPassword</c> template (admin-triggered

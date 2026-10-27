@@ -1,7 +1,7 @@
 import { TestBed, fakeAsync, flushMicrotasks } from '@angular/core/testing';
 import { ActivatedRoute } from '@angular/router';
 import { Subject, of, throwError } from 'rxjs';
-import { PermissionService } from '@abp/ng.core';
+import { ConfigStateService, PermissionService } from '@abp/ng.core';
 import { ToasterService } from '@abp/ng.theme.shared';
 import { ImpersonationService } from '@volo/abp.commercial.ng.ui/config';
 
@@ -41,8 +41,21 @@ describe('InternalUsersHubComponent surfaces', () => {
   const page = () => of({ items: [], totalCount: 0 });
 
   function create(
-    options: { section?: string; policies?: string[]; query?: Record<string, string> } = {},
+    options: {
+      section?: string;
+      policies?: string[];
+      query?: Record<string, string>;
+      /** The signed-in caller's roles and id, and the office they are in (none = the staff site). */
+      callerRoles?: string[];
+      callerId?: string;
+      tenantId?: string;
+    } = {},
   ): Probe {
+    const config: Record<string, unknown> = {
+      'currentUser.roles': options.callerRoles ?? [],
+      'currentUser.id': options.callerId ?? 'me',
+      'currentTenant.id': options.tenantId,
+    };
     routeData = new Subject();
     queryParams = options.query ?? {};
     granted = new Set(options.policies ?? []);
@@ -92,6 +105,7 @@ describe('InternalUsersHubComponent surfaces', () => {
           provide: PermissionService,
           useValue: { getGrantedPolicy: (p: string) => granted.has(p) },
         },
+        { provide: ConfigStateService, useValue: { getDeep: (key: string) => config[key] } },
         { provide: ToasterService, useValue: toaster },
         { provide: ImpersonationService, useValue: { impersonateTenant } },
         {
@@ -690,12 +704,62 @@ describe('InternalUsersHubComponent surfaces', () => {
       const intake = () => userRow({ role: 'Intake Staff' });
       const supervisor = () => userRow({ role: 'Staff Supervisor' });
 
-      it('is offered on a staff row to a caller who may edit staff, never on an IT Admin row', () => {
+      it('is offered on a staff row to a caller who may edit staff, not on an IT Admin row', () => {
         const c = create({ section: 'staff', policies: ['CaseEvaluation.InternalUsers.Edit'] });
         expect(c.canChangeRole(intake())).toBeTrue();
         expect(c.canChangeRole(supervisor())).toBeTrue();
         expect(c.canChangeRole(userRow({ role: 'IT Admin' }))).toBeFalse();
         expect(c.canChangeRole(userRow({ role: undefined }))).toBeFalse();
+        expect(c.roleChoices).toEqual(['Staff Supervisor', 'Intake Staff']);
+      });
+
+      // 2026-10-27: Change role is the one place a staff role changes, so IT Admin moves here too.
+      it('offers IT Admin rows and the IT Admin choice to the System owner and IT Admins only', () => {
+        const policies = ['CaseEvaluation.InternalUsers.Edit'];
+        for (const role of ['admin', 'IT Admin']) {
+          const c = create({ section: 'staff', policies, callerRoles: [role] });
+          expect(c.canChangeRole(userRow({ role: 'IT Admin' })))
+            .withContext(role)
+            .toBeTrue();
+          expect(c.roleChoices).withContext(role).toContain('IT Admin');
+          expect(c.canChangeRole(userRow({ role: 'admin' })))
+            .withContext(role)
+            .toBeFalse();
+          TestBed.resetTestingModule();
+        }
+
+        const supervisorCaller = create({
+          section: 'staff',
+          policies,
+          callerRoles: ['Staff Supervisor'],
+        });
+        expect(supervisorCaller.roleChoices).not.toContain('IT Admin');
+      });
+
+      it("is never offered on the caller's own row", () => {
+        const c = create({
+          section: 'staff',
+          policies: ['CaseEvaluation.InternalUsers.Edit'],
+          callerId: 'u1',
+        });
+        expect(c.canChangeRole(intake())).toBeFalse();
+      });
+
+      it('moving someone to IT Admin does not point at Staff Assignments', () => {
+        const c = create({ section: 'staff', callerRoles: ['admin'] });
+        c.openRoleChange(supervisor());
+        c.pickRole('IT Admin');
+
+        c.saveRoleChange();
+
+        expect(gateway['changeRole']).toHaveBeenCalledWith('u1', 'IT Admin');
+        expect(toaster.success).toHaveBeenCalledWith('Ada Lovelace is now IT Admin.');
+      });
+
+      it('the All Users tab says where a role is changed, on the staff site only', () => {
+        expect(create({ section: 'all' }).onStaffSite).toBeTrue();
+        TestBed.resetTestingModule();
+        expect(create({ section: 'all', tenantId: 'office-1' }).onStaffSite).toBeFalse();
       });
 
       it('is not offered without the permission', () => {

@@ -20,19 +20,35 @@ namespace HealthcareSupport.CaseEvaluation.HostOperators;
 /// <para>The human never logs into the shadow user; it is purely an impersonation
 /// target. Provisioning is idempotent. Unassignment disables it (defense in depth --
 /// the assignment gate is the primary block for Intake).</para>
+///
+/// <para>2026-10-27: a shadow belongs to its operator's host user id, not to an address, and it
+/// follows the host account: switching the operator off, deleting them or changing their role
+/// disables every shadow they have, and changing their address moves every shadow to the new one
+/// (<c>HostOperatorOfficeLogins</c> applies those).</para>
 /// </summary>
 public interface IIntakeShadowUserProvisioner
 {
     /// <summary>
     /// Idempotently ensure the operator's shadow user exists and is active in
-    /// <paramref name="officeId"/>'s database, holding exactly the per-office role
-    /// <paramref name="roleName"/>. Returns the shadow user's id.
+    /// <paramref name="officeId"/>'s database, carrying the operator's current address and holding
+    /// exactly the per-office role <paramref name="roleName"/> (any other shadow role is removed).
+    /// Returns the shadow user's id.
     /// </summary>
     Task<Guid> EnsureShadowUserAsync(Guid officeId, Guid operatorUserId, string roleName);
 
     /// <summary>
-    /// Disable (lock out) the operator's shadow Intake user in
-    /// <paramref name="officeId"/> if it exists. No-op when absent.
+    /// Disable (lock out) the operator's shadow user in <paramref name="officeId"/> if it
+    /// exists. Logs a warning when there is none to disable.
     /// </summary>
     Task DisableShadowUserAsync(Guid officeId, Guid operatorUserId);
+
+    /// <summary>Disables the operator's shadow user in every office that has one.</summary>
+    Task DisableAllShadowUsersAsync(Guid operatorUserId);
+
+    /// <summary>
+    /// Moves the operator's shadow user in every office to their current host address and name.
+    /// <paramref name="previousEmail"/> finds a shadow made before shadows were stamped with the
+    /// operator's id, which still carries the address the operator had then.
+    /// </summary>
+    Task SyncShadowUsersAsync(Guid operatorUserId, string? previousEmail);
 }

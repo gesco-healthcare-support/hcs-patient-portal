@@ -329,10 +329,12 @@ public class MultiOfficeImpersonationRoleTests : CaseEvaluationMultiOfficeTestBa
 
     /// <summary>
     /// The other side of the guard: a real shadow holding a role the provisioner grants is still
-    /// adopted and given the new one, so the allowlist does not refuse legitimate re-entry.
+    /// adopted and given the new one, so the allowlist does not refuse legitimate re-entry. Since
+    /// 2026-10-27 it holds ONLY the new one: one person, one office role, so a shadow re-used across a
+    /// tier change is never two tiers at once.
     /// </summary>
     [Fact]
-    public async Task EnsureShadowUser_WhenTheShadowAlreadyHoldsIntakeStaff_AdoptsItAndAddsTheRequestedRole()
+    public async Task EnsureShadowUser_WhenTheShadowAlreadyHoldsIntakeStaff_AdoptsItAndLeavesOnlyTheRequestedRole()
     {
         var (officeA, _) = await GetSeededOfficesAsync();
         await SeedTenantRolesAsync(officeA.OfficeId);
@@ -354,8 +356,8 @@ public class MultiOfficeImpersonationRoleTests : CaseEvaluationMultiOfficeTestBa
             using (_currentTenant.Change(officeA.OfficeId))
             {
                 var shadow = await _userManager.FindByIdAsync(shadowId.ToString());
-                (await _userManager.IsInRoleAsync(
-                    shadow!, InternalUserRoleDataSeedContributor.StaffSupervisorRoleName)).ShouldBeTrue();
+                (await _userManager.GetRolesAsync(shadow!)).ShouldBe(
+                    new[] { InternalUserRoleDataSeedContributor.StaffSupervisorRoleName });
             }
         }, requiresNew: true);
     }

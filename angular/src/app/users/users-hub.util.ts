@@ -86,6 +86,21 @@ export const INVITE_ROLE_OPTIONS: InviteRoleOption[] = [
 /** Internal roles an admin may create (the create-internal-user modal select). */
 export const CREATABLE_INTERNAL_ROLES = ['Staff Supervisor', 'Intake Staff'];
 
+/** The host roles whose holders may move someone to or from IT Admin (the server's PrivilegedAccounts). */
+export const PRIVILEGED_CALLER_ROLES = ['IT Admin', 'admin'];
+
+/**
+ * 2026-10-27: the roles Staff Management's "Change role" offers. Everyone with the permission moves people
+ * between the two staff roles; the System owner and IT Admins may also move someone to or from IT Admin.
+ * The administrator role is never offered. Mirrors InternalUsersAppService.ChangeableRoleNames.
+ */
+export function changeableRoles(callerRoles: readonly string[] | null | undefined): string[] {
+  const privileged = (callerRoles ?? []).some((r) =>
+    PRIVILEGED_CALLER_ROLES.some((p) => p.toLowerCase() === (r ?? '').toLowerCase()),
+  );
+  return privileged ? [...CREATABLE_INTERNAL_ROLES, 'IT Admin'] : [...CREATABLE_INTERNAL_ROLES];
+}
+
 /**
  * Maps the People-hub deep-link `userType` query string to the numeric
  * ExternalUserType the invite form binds to. Unknown/blank defaults to Patient.

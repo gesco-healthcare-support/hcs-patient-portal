@@ -64,6 +64,11 @@ public interface IInternalUsersAppService : IApplicationService
     /// <c>InternalUser.RoleChangeNotAllowed</c> for an IT Admin or administrator, for the caller's own
     /// account, and for any other role; <c>InternalUserNotFound</c> when the id names no staff login.
     /// Returns the person's refreshed row.
+    ///
+    /// <para>2026-10-27: the ONE place a staff role is changed on the staff site (the identity Users screen
+    /// refuses it from host scope). The System owner and IT Admins may also move someone to or from IT
+    /// Admin; an administrator is never changed here. Every office login the person has is locked by any
+    /// change, and comes back with the new role on their next entry or assignment.</para>
     /// </summary>
     Task<InternalUserListDto> ChangeRoleAsync(Guid userId, ChangeInternalUserRoleDto input);
 
