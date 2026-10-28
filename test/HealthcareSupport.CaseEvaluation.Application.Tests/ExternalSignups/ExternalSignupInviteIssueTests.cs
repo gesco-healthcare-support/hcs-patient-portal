@@ -7,6 +7,7 @@ using HealthcareSupport.CaseEvaluation.NotificationTemplates;
 using HealthcareSupport.CaseEvaluation.TestData;
 using Shouldly;
 using Volo.Abp;
+using Volo.Abp.Validation;
 using Volo.Abp.Modularity;
 using Volo.Abp.MultiTenancy;
 using Xunit;
@@ -134,6 +135,8 @@ public abstract class ExternalSignupInviteIssueTests<TStartupModule>
         });
 
         result.InviteUrl.ShouldNotBeNullOrWhiteSpace();
+        // 2026-10-27: and it says the email did not go, so the screen does not announce "Invite sent".
+        result.EmailQueued.ShouldBeFalse();
 
         using (_currentTenant.Change(TenantsTestData.TenantARef))
         {
@@ -167,6 +170,34 @@ public abstract class ExternalSignupInviteIssueTests<TStartupModule>
             }));
 
         ex.Message.ShouldContain("external roles");
+    }
+
+    /// <summary>
+    /// 2026-10-27: an invited name longer than the account record holds (50) is refused when the invite is
+    /// sent, with a message saying so. It used to be accepted (up to 128) and then made the recipient's
+    /// sign-up fail with a generic error.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task InviteExternalUserAsync_ANameLongerThan50_IsRefusedWithAClearMessage(bool firstName)
+    {
+        var token = NewToken();
+        var tooLong = new string('N', 51);
+
+        var ex = await Should.ThrowAsync<AbpValidationException>(
+            () => _appService.InviteExternalUserAsync(new InviteExternalUserDto
+            {
+                Email = $"name-{token}@test.local",
+                UserType = ExternalUserType.ApplicantAttorney,
+                TenantId = TenantsTestData.TenantARef,
+                FirstName = firstName ? tooLong : "TEST",
+                LastName = firstName ? "TEST" : tooLong,
+            }));
+
+        ex.ValidationErrors.ShouldContain(e => e.ErrorMessage == (firstName
+            ? "First name can be at most 50 characters."
+            : "Last name can be at most 50 characters."));
     }
 
     /// <summary>

@@ -250,6 +250,41 @@ public class MultiOfficeIntakeAssignmentsAppServiceTests : CaseEvaluationMultiOf
         second.Items.ShouldHaveSingleItem().OperatorName.ShouldBe($"Ivy {token}");
     }
 
+    /// <summary>
+    /// 2026-10-27: assigning provisions an ACTIVE office login that receives the office's staff mail, so
+    /// assigning a switched-off person would undo the switch-off. They are not offered, and a direct call is
+    /// refused before anything is written. The switched-on colleague is the positive control.
+    /// </summary>
+    [Fact]
+    public async Task A_switched_off_intake_operator_is_not_offered_and_cannot_be_assigned()
+    {
+        var (a, _) = await OfficesAsync();
+        var token = NewToken();
+        var on = await HostUserAsync("Ivy", token, intake: true);
+        var off = await HostUserAsync("Oz", token, intake: true);
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(null))
+            {
+                var user = await _users.GetByIdAsync(off.Id);
+                user.SetIsActive(false);
+                (await _users.UpdateAsync(user)).Succeeded.ShouldBeTrue();
+            }
+        }, requiresNew: true);
+
+        var operators = await _service.GetAssignableOperatorsAsync();
+        operators.Items.ShouldContain(o => o.Id == on.Id);
+        operators.Items.ShouldNotContain(o => o.Id == off.Id);
+
+        (await Should.ThrowAsync<BusinessException>(() => AssignAsync(off.Id, a.OfficeId)))
+            .Code.ShouldBe(CaseEvaluationDomainErrorCodes.IntakeAssignmentOperatorInactive);
+        (await AssignmentsOfAsync(off.Id)).ShouldBeEmpty();
+        (await ShadowAsync(a.OfficeId, off.Email!)).User.ShouldBeNull();
+
+        await AssignAsync(on.Id, a.OfficeId);
+        (await AssignmentsOfAsync(on.Id)).ShouldHaveSingleItem();
+    }
+
     [Fact]
     public async Task The_pickers_offer_host_intake_operators_and_every_office()
     {

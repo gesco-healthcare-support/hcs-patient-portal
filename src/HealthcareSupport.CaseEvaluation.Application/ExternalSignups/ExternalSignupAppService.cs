@@ -1307,7 +1307,9 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             // Dispatch through the per-tenant InviteExternalUser
             // NotificationTemplate. Failure is logged (by the dispatcher) but
             // does NOT bubble: the admin can always copy + share the inviteUrl
-            // manually when SMTP is degraded.
+            // manually when SMTP is degraded. Whether it was queued is returned
+            // (2026-10-27), so the screen does not announce an email that never left.
+            var emailQueued = true;
             try
             {
                 await _notificationDispatcher.DispatchAsync(
@@ -1326,6 +1328,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             {
                 // Swallowed by design -- the dispatcher logs its own failures
                 // and the admin always sees the inviteUrl in the response.
+                emailQueued = false;
             }
 
             return new InviteExternalUserResultDto
@@ -1335,6 +1338,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
                 RoleName = roleName,
                 TenantName = tenantName,
                 ExpiresAt = invitation.ExpiresAt,
+                EmailQueued = emailQueued,
             };
         }
     }
