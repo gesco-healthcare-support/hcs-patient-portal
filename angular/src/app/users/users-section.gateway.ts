@@ -1,5 +1,4 @@
 import { Injectable, inject } from '@angular/core';
-import { RestService } from '@abp/ng.core';
 import { Observable } from 'rxjs';
 import { map, switchMap } from 'rxjs/operators';
 import { EditionService, TenantService } from '@volo/abp.ng.saas/proxy';
@@ -13,7 +12,7 @@ import { ExternalSignupStaffService } from '../proxy/external-signups/external-s
 import { InternalUsersService } from '../proxy/internal-users/internal-users.service';
 import { UserExtendedService } from '../proxy/users/user-extended.service';
 import { DashboardService } from '../proxy/dashboards/dashboard.service';
-import { AccountActivationService } from './account-activation.service';
+import { AccountActivationService } from '../proxy/external-account/account-activation.service';
 import type {
   InvitationDto,
   InviteExternalUserDto,
@@ -66,7 +65,6 @@ export class UsersSectionGateway {
   private readonly doctorTenant = inject(DoctorTenantService);
   private readonly branding = inject(BrandingService);
   private readonly activation = inject(AccountActivationService);
-  private readonly rest = inject(RestService);
 
   // ---- Invite External ----
   sendInvite(input: InviteExternalUserDto): Observable<InviteExternalUserResultDto> {
@@ -139,14 +137,11 @@ export class UsersSectionGateway {
    */
   /**
    * 2026-10-26: Staff Management's "Change role" -- switches one staff member between Intake Staff and
-   * Staff Supervisor (one role per person). Called by its literal route until the generated client is
-   * regenerated; the server refuses anything else with a message the global handler shows.
+   * Staff Supervisor (one role per person); the server refuses anything else with a message the global
+   * handler shows.
    */
   changeRole(id: string, roleName: string): Observable<InternalUserListDto> {
-    return this.rest.request<{ roleName: string }, InternalUserListDto>(
-      { method: 'PUT', url: `/api/app/internal-users/${id}/role`, body: { roleName } },
-      { apiName: 'Default' },
-    );
+    return this.internalUsers.changeRole(id, { roleName });
   }
 
   setUserActive(id: string, isActive: boolean): Observable<void> {

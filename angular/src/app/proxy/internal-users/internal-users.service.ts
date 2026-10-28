@@ -1,4 +1,4 @@
-import type { CreateInternalUserDto, GetInternalUsersInput, InternalUserCreatedDto, InternalUserListDto } from './models';
+import type { ChangeInternalUserRoleDto, CreateInternalUserDto, GetInternalUsersInput, InternalUserCreatedDto, InternalUserListDto } from './models';
 import { RestService, Rest } from '@abp/ng.core';
 import type { ListResultDto, PagedResultDto } from '@abp/ng.core';
 import { Injectable, inject } from '@angular/core';
@@ -10,6 +10,15 @@ import type { LookupDto } from '../shared/models';
 export class InternalUsersService {
   private restService = inject(RestService);
   apiName = 'Default';
+  
+
+  changeRole = (id: string, input: ChangeInternalUserRoleDto, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, InternalUserListDto>({
+      method: 'PUT',
+      url: `/api/app/internal-users/${id}/role`,
+      body: input,
+    },
+    { apiName: this.apiName,...config });
   
 
   create = (input: CreateInternalUserDto, config?: Partial<Rest.Config>) =>
