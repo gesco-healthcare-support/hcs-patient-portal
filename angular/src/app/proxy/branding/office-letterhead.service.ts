@@ -18,10 +18,27 @@ export class OfficeLetterheadService {
     { apiName: this.apiName,...config });
   
 
+  getForOffice = (officeId: string, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, OfficeLetterheadDto>({
+      method: 'GET',
+      url: `/api/app/branding/offices/${officeId}/letterhead`,
+    },
+    { apiName: this.apiName,...config });
+  
+
   update = (input: UpdateOfficeLetterheadInput, config?: Partial<Rest.Config>) =>
     this.restService.request<any, OfficeLetterheadDto>({
       method: 'PUT',
       url: '/api/app/branding/letterhead',
+      body: input,
+    },
+    { apiName: this.apiName,...config });
+  
+
+  updateForOffice = (officeId: string, input: UpdateOfficeLetterheadInput, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, OfficeLetterheadDto>({
+      method: 'PUT',
+      url: `/api/app/branding/offices/${officeId}/letterhead`,
       body: input,
     },
     { apiName: this.apiName,...config });

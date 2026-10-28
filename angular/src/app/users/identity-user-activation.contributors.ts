@@ -7,7 +7,7 @@ import {
 } from '@abp/ng.components/extensible';
 import type { IdentityConfigOptions } from '@volo/abp.ng.identity';
 import type { IdentityUserDto } from '@volo/abp.ng.identity/proxy';
-import { AccountActivationService } from './account-activation.service';
+import { AccountActivationService } from '../proxy/external-account/account-activation.service';
 
 /**
  * How an account made on the identity Users screen (office or host) is switched on, 2026-10-23.
