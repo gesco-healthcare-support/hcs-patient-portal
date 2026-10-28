@@ -3,10 +3,12 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Enums;
+using HealthcareSupport.CaseEvaluation.Settings;
 using HealthcareSupport.CaseEvaluation.TestData;
 using Shouldly;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Modularity;
+using Volo.Abp.SettingManagement;
 using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.Dashboards;
@@ -164,6 +166,30 @@ public abstract class DashboardOfficeRegistryTests<TStartupModule> : DashboardTe
     /// changes nothing observable. This test is behaviour-pinning for the inner hop
     /// and coverage-oriented for the outer one.</para>
     /// </summary>
+    /// <summary>
+    /// 2026-10-27: each row says whether its office has a notification inbox. Without one, the office-level
+    /// notices (new requests, cancellations, the daily digest) reach nobody, and the Practices page warns.
+    /// Office A gets an inbox here and office B does not, so a flag read from the wrong office, or the
+    /// host's, fails one half.
+    /// </summary>
+    [Fact]
+    public async Task GetOfficesAsync_SaysWhichOfficesHaveANotificationInbox()
+    {
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (Tenancy.Change(TenantsTestData.TenantARef))
+            {
+                await GetRequiredService<ISettingManager>().SetForCurrentTenantAsync(
+                    CaseEvaluationSettings.NotificationsPolicy.OfficeEmail, "TEST-registry-inbox@test.local");
+            }
+        });
+
+        var page = await GetOfficePageAsync(new GetOfficesInput { MaxResultCount = 100 });
+
+        page.Items.Single(o => o.Id == TenantsTestData.TenantARef).HasNotificationInbox.ShouldBeTrue();
+        page.Items.Single(o => o.Id == TenantsTestData.TenantBRef).HasNotificationInbox.ShouldBeFalse();
+    }
+
     [Fact]
     public async Task GetOfficesAsync_CalledInsideAnOfficeStillReturnsEveryOfficeWithItsOwnCounts()
     {

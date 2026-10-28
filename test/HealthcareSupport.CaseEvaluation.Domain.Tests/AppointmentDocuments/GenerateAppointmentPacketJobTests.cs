@@ -63,10 +63,9 @@ public class GenerateAppointmentPacketJobTests
             .Returns(_ => throw new AbpDbConcurrencyException("simulated concurrency"));
 
         var ex = await Record.ExceptionAsync(() => fixture.Job.ExecuteAsync(fixture.Args));
-        // Per-kind AbpDbConcurrencyException is still CAUGHT + marked Failed (not
-        // propagated raw); T5 then surfaces a controlled PacketGenerationIncompleteException
-        // so Hangfire retries + dead-letters instead of reporting Succeeded.
-        ex.ShouldBeOfType<PacketGenerationIncompleteException>();
+        // Per-kind AbpDbConcurrencyException is still CAUGHT + marked Failed (not propagated raw), and
+        // since 2026-10-27 the job completes so the Failed rows commit (a throw rolled them back).
+        ex.ShouldBeNull();
 
         await fixture.PacketManager.Received(3).MarkFailedAsync(
             Arg.Any<Guid>(),
@@ -82,8 +81,8 @@ public class GenerateAppointmentPacketJobTests
             .ThrowsAsync(new InvalidOperationException("template render failure"));
 
         var ex = await Record.ExceptionAsync(() => fixture.Job.ExecuteAsync(fixture.Args));
-        // Each kind is marked Failed (caught), and the job surfaces the partial failure.
-        ex.ShouldBeOfType<PacketGenerationIncompleteException>();
+        // Each kind is marked Failed (caught), and the job completes so that record is kept (2026-10-27).
+        ex.ShouldBeNull();
 
         await fixture.PacketManager.Received(3).MarkFailedAsync(
             Arg.Any<Guid>(),
@@ -174,7 +173,7 @@ public class GenerateAppointmentPacketJobTests
     }
 
     [Fact]
-    public async Task GenerateInsideTenantAsync_WhenOneKindFails_GeneratesOthersAndSurfaces()
+    public async Task GenerateInsideTenantAsync_WhenOneKindFails_GeneratesOthersAndRecordsTheFailure()
     {
         var fixture = new JobFixture();
         // Only the attorney render fails; Patient + Doctor succeed.
@@ -184,10 +183,10 @@ public class GenerateAppointmentPacketJobTests
 
         var ex = await Record.ExceptionAsync(() => fixture.Job.ExecuteAsync(fixture.Args));
 
-        // T5: the two good kinds still generate; the failed kind is marked Failed;
-        // the job SURFACES the partial failure so it is visible + retriable rather
-        // than silently reported Succeeded.
-        ex.ShouldBeOfType<PacketGenerationIncompleteException>();
+        // The two good kinds still generate and the failed kind is marked Failed. Since 2026-10-27 the job
+        // completes so both are kept: a throw rolled back the Failed row with the Generated ones, leaving no
+        // record of the failure (EfCorePacketFailureIsRecordedTests proves it on a real unit of work).
+        ex.ShouldBeNull();
         await fixture.PacketManager.Received(2).MarkGeneratedAsync(
             Arg.Any<Guid>(), Arg.Any<string?>());
         await fixture.PacketManager.Received(1).MarkFailedAsync(

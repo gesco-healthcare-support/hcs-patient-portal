@@ -2088,6 +2088,74 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
         });
     }
 
+    /// <summary>
+    /// 2026-10-27: a location the office has switched off ("Active -- bookable by external users") is not
+    /// offered to an external booker. Staff still see it, because this lookup also fills the appointments
+    /// list's filter, where past appointments there must stay findable. Location 3 is seeded switched off.
+    /// </summary>
+    [Fact]
+    public async Task GetLocationLookupAsync_HidesASwitchedOffLocationFromExternalBookers_ButNotFromStaff()
+    {
+        LocationsTestData.Location3IsActive.ShouldBeFalse("the seed must hold a switched-off location");
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var input = new LookupRequestDto { MaxResultCount = 1000 };
+                List<Guid> external, staff;
+                using (WithCurrentUser.Run(_currentPrincipalAccessor, Guid.NewGuid(), IdentityUsersTestData.PatientRoleName))
+                {
+                    external = (await _appointmentsAppService.GetLocationLookupAsync(input)).Items.Select(i => i.Id).ToList();
+                }
+
+                using (WithCurrentUser.Run(_currentPrincipalAccessor, Guid.NewGuid(), "Intake Staff"))
+                {
+                    staff = (await _appointmentsAppService.GetLocationLookupAsync(input)).Items.Select(i => i.Id).ToList();
+                }
+
+                external.ShouldContain(LocationsTestData.Location1Id);
+                external.ShouldNotContain(LocationsTestData.Location3Id);
+                staff.ShouldContain(LocationsTestData.Location1Id);
+                staff.ShouldContain(LocationsTestData.Location3Id);
+            }
+        });
+    }
+
+    /// <summary>
+    /// 2026-10-27: an external booker cannot book a switched-off location, whatever the client sends. Staff
+    /// can: the same request as an internal caller gets past that check (it may stop later, on the slot).
+    /// </summary>
+    [Fact]
+    public async Task CreateAsync_RefusesAnExternalBookerAtASwitchedOffLocation_ButNotStaff()
+    {
+        var input = BuildValidCreateDto();
+        input.PatientId = PatientsTestData.Patient1Id;
+        input.IdentityUserId = IdentityUsersTestData.Patient1UserId;
+        input.AppointmentTypeId = LocationsTestData.AppointmentType1Id;
+        input.LocationId = LocationsTestData.Location3Id;
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                Exception? external, staff;
+                using (WithCurrentUser.Run(_currentPrincipalAccessor, IdentityUsersTestData.Patient1UserId, IdentityUsersTestData.PatientRoleName))
+                {
+                    external = await Record.ExceptionAsync(() => _appointmentsAppService.CreateAsync(input));
+                }
+
+                using (WithCurrentUser.Run(_currentPrincipalAccessor, Guid.NewGuid(), "Intake Staff"))
+                {
+                    staff = await Record.ExceptionAsync(() => _appointmentsAppService.CreateAsync(input));
+                }
+
+                external.ShouldBeOfType<UserFriendlyException>().Message.ShouldContain("not taking bookings");
+                (staff?.Message ?? string.Empty).ShouldNotContain("not taking bookings");
+            }
+        });
+    }
+
     [Fact]
     public async Task GetDoctorAvailabilityLookupAsync_ReturnsSeededSlots()
     {

@@ -6,6 +6,7 @@ using HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Identity;
+using HealthcareSupport.CaseEvaluation.Notifications;
 using HealthcareSupport.CaseEvaluation.Permissions;
 using HealthcareSupport.CaseEvaluation.Shared;
 using Microsoft.AspNetCore.Authorization;
@@ -195,6 +196,12 @@ public class IntakeAssignmentsAppService : CaseEvaluationAppService, IIntakeAssi
                     .WithData("AttemptedRole", "(not Intake Staff)")
                     .WithData("AllowedRoles", InternalUserRoleDataSeedContributor.IntakeStaffRoleName);
             }
+            if (!op.IsActive)
+            {
+                // 2026-10-27: assigning provisions an ACTIVE office login, which then receives that office's
+                // staff mail; for a switched-off person that would undo the switch-off.
+                throw new BusinessException(CaseEvaluationDomainErrorCodes.IntakeAssignmentOperatorInactive);
+            }
             if (await _tenantRepository.FindAsync(input.OfficeId) == null)
             {
                 throw new EntityNotFoundException(typeof(Tenant), input.OfficeId);
@@ -232,7 +239,8 @@ public class IntakeAssignmentsAppService : CaseEvaluationAppService, IIntakeAssi
 
         using (CurrentTenant.Change(null))
         {
-            var operators = await _userManager.GetUsersInRoleAsync(
+            // Switched-off staff are not offered (2026-10-27): assigning them is refused.
+            var operators = await _userManager.GetActiveUsersInRoleAsync(
                 InternalUserRoleDataSeedContributor.IntakeStaffRoleName);
             var items = operators
                 .Where(u => u.TenantId == null) // host operators only (exclude per-office shadows)

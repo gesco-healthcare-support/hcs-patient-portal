@@ -5,6 +5,7 @@ using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments;
+using HealthcareSupport.CaseEvaluation.HostOperators;
 using HealthcareSupport.CaseEvaluation.Notifications;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
 using HealthcareSupport.CaseEvaluation.TestData;
@@ -18,6 +19,7 @@ using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Shouldly;
 using Volo.Abp;
+using Volo.Abp.Data;
 using Volo.Abp.Identity;
 using Volo.Abp.Modularity;
 using Volo.Abp.MultiTenancy;
@@ -152,6 +154,30 @@ public abstract class ExternalAccountFailurePathTests<TStartupModule>
         Sends(NotificationTemplateConsts.Codes.ResetPassword).Count.ShouldBe(1);
         (await _cache.GetStringAsync(Key(ResetPrefix, "cooldown", email))).ShouldBe("1");
         (await _cache.GetStringAsync(Key(ResetPrefix, "hourly", email))).ShouldBe("1");
+    }
+
+    /// <summary>
+    /// 2026-10-27: an office login made for a host staff member (it carries the operator stamp) is reached
+    /// only through "Enter practice", so forgot-password sends it nothing: no reset link, no activation link.
+    /// The page answers success as it does for everyone. The Fact above is the control: the same request for
+    /// an unstamped account sends the reset email.
+    /// </summary>
+    [Fact]
+    public async Task An_office_login_made_for_a_host_staff_member_is_sent_nothing()
+    {
+        var (id, email) = await CreateUserAsync(TenantsTestData.TenantARef, confirmEmail: true);
+        await InOfficeA(async () =>
+        {
+            var user = await _userManager.GetByIdAsync(id);
+            user.SetProperty(IntakeShadowUserProvisioner.OperatorIdProperty, Guid.NewGuid().ToString("D"));
+            (await _userManager.UpdateAsync(user)).Succeeded.ShouldBeTrue();
+        });
+
+        await InOfficeA(() => _account.SendPasswordResetCodeAsync(new SendPasswordResetCodeInput { Email = email }));
+
+        _dispatcher.ReceivedCalls()
+            .Where(c => c.GetMethodInfo().Name == nameof(INotificationDispatcher.DispatchAsync))
+            .ShouldBeEmpty();
     }
 
     [Fact]

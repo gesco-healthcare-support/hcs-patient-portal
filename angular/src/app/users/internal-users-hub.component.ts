@@ -44,6 +44,11 @@ import { TenantFormState, UsersSectionGateway } from './users-section.gateway';
 
 import { PacificDatePipe } from '../shared/pipes/pacific-date.pipe';
 import { PhoneNumberDirective } from '../shared/phone-number.directive';
+import { enterPracticeErrorMessage } from '../shared/enter-practice-error.util';
+import {
+  INVITE_EMAIL_NOT_SENT_MESSAGE,
+  inviteEmailWasNotQueued,
+} from '../shared/invite-email.util';
 interface InviteDraft {
   firstName: string;
   lastName: string;
@@ -155,6 +160,7 @@ export class InternalUsersHubComponent {
   // Invite External
   protected readonly invite = signal<InviteDraft>(this.emptyInvite());
   protected readonly inviteResult = signal<InviteExternalUserResultDto | null>(null);
+  protected readonly inviteEmailWasNotQueued = inviteEmailWasNotQueued;
 
   /**
    * Item F follow-up (2026-08-22): true once the sign-in link has been emailed for the current
@@ -373,6 +379,11 @@ export class InternalUsersHubComponent {
           // false success on the exact support call this feature exists to help with.
           if (r.alreadyRegistered) {
             this.toaster.info('That email already has an account. No invitation was sent.');
+            return;
+          }
+          // 2026-10-27: the invitation exists but its email did not go; say so, the link is on screen.
+          if (inviteEmailWasNotQueued(r)) {
+            this.toaster.warn(INVITE_EMAIL_NOT_SENT_MESSAGE);
             return;
           }
           this.toaster.success('Invite sent.');
@@ -677,6 +688,17 @@ export class InternalUsersHubComponent {
       displayName: '',
     });
   }
+  /**
+   * 2026-10-27: the practice has no Office notification inbox, so its office-level notices (new
+   * requests, cancellations, the daily digest) reach nobody. Only an explicit false counts: a server
+   * that does not send the flag shows no warning. (The flag is newer than the generated proxy type.)
+   */
+  protected missingNotificationInbox(row: OfficeListDto): boolean {
+    return (
+      (row as OfficeListDto & { hasNotificationInbox?: boolean }).hasNotificationInbox === false
+    );
+  }
+
   protected openEditTenant(row: OfficeListDto): void {
     // editionId is preserved on the DTO but no longer editable (O4 removed the
     // unused SaaS-edition selector); new practices are always created edition-less.
@@ -820,6 +842,7 @@ export class InternalUsersHubComponent {
     this.impersonation
       .impersonateTenant(row.id ?? '', 'admin')
       .pipe(finalize(() => this.isBusy.set(false)))
-      .subscribe({ error: () => undefined });
+      // 2026-10-27: say why it failed; it used to fail silently.
+      .subscribe({ error: (err: unknown) => this.toaster.error(enterPracticeErrorMessage(err)) });
   }
 }

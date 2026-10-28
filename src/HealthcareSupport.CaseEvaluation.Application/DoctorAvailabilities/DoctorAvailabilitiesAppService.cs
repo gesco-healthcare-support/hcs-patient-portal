@@ -641,6 +641,17 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
             throw new UserFriendlyException(L["The {0} field is required.", L["Location"]]);
         }
 
+        // 2026-10-27: a location switched off ("Active -- bookable by external users") offers an external
+        // booker no slots. Staff still see its slots.
+        if (!BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles))
+        {
+            var location = await _locationRepository.FindAsync(input.LocationId);
+            if (location == null || !location.IsActive)
+            {
+                return new List<DoctorAvailabilityDto>();
+            }
+        }
+
         var systemParameter = await _systemParameterRepository.GetCurrentTenantAsync();
         var leadTimeDays = systemParameter?.AppointmentLeadTime ?? 0;
         var minDate = (input.AvailableDateFrom?.Date ?? PacificToday).AddDays(leadTimeDays);

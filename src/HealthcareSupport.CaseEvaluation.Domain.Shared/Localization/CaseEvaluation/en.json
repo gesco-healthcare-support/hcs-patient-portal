@@ -276,6 +276,8 @@
     "CaseEvaluation:UserManagement.OneRolePerPerson": "A person can have only one role. Choose one role.",
     "CaseEvaluation:InternalUser.RoleChangeNotAllowed": "That role change is not allowed. Only the System owner and IT Admins can move someone to or from IT Admin, and nobody can change their own role.",
     "CaseEvaluation:UserManagement.UseChangeRole": "To change a staff member's role, use Staff Management, then Change role.",
+    "The selected location is not taking bookings.": "The selected location is not taking bookings right now. Please choose another location.",
+    "CaseEvaluation:IntakeAssignment.OperatorInactive": "This staff member is switched off. Switch them on in Staff Management before assigning them to an office.",
     "CaseEvaluation:AdminPassword.IsAKnownDefault": "That password is one this product ships as a default and cannot be used. Choose a different password.",
     "CaseEvaluation:Office.DatabaseSettingIsFixed": "An office's database is set when the office is created and cannot be changed here. The database server and sign-in come from the server's configuration.",
     "CaseEvaluation:AppointmentDocument.FileEmpty": "The selected file is empty.",

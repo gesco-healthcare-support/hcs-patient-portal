@@ -278,6 +278,14 @@ public class IntakeShadowUserProvisioner : DomainService, IIntakeShadowUserProvi
     private static string? StampOf(IdentityUser user) =>
         user.GetProperty<string>(OperatorIdProperty)?.ToLowerInvariant();
 
+    /// <summary>
+    /// 2026-10-27 -- whether <paramref name="user"/> is an office login made for a host staff member (it carries
+    /// the operator stamp). Such a login is reached only through "Enter practice"; the sign-in page and
+    /// forgot-password refuse it. A shadow made before the stamp is covered once it is stamped, which happens on
+    /// the operator's next entry or assignment.
+    /// </summary>
+    public static bool IsStampedShadow(IdentityUser user) => StampOf(user) != null;
+
     private static void Stamp(IdentityUser shadow, Guid operatorUserId) =>
         shadow.SetProperty(OperatorIdProperty, operatorUserId.ToString("D"));
 

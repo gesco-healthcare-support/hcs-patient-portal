@@ -331,6 +331,38 @@ describe('InternalLocationsComponent surfaces', () => {
       expect(body.appointmentTypeIds).toEqual(['t-1', 't-2']);
     });
 
+    it('trims the address, city and ZIP, so a pasted ZIP passes the server pattern', () => {
+      const c = create();
+      c.openNew();
+      c.patch({
+        name: 'Encino',
+        facilityId: 'FAC-1',
+        address: ' 1 Main St ',
+        city: ' Encino ',
+        zipCode: ' 91436 ',
+      });
+
+      c.save();
+
+      const body = service['create'].calls.mostRecent().args[0];
+      expect(body.address).toBe('1 Main St');
+      expect(body.city).toBe('Encino');
+      expect(body.zipCode).toBe('91436');
+    });
+
+    it('nulls an optional field that is only spaces', () => {
+      const c = create();
+      c.openNew();
+      c.patch({ name: 'Encino', facilityId: 'FAC-1', address: '   ', city: '  ', zipCode: ' ' });
+
+      c.save();
+
+      const body = service['create'].calls.mostRecent().args[0];
+      expect(body.address).toBeNull();
+      expect(body.city).toBeNull();
+      expect(body.zipCode).toBeNull();
+    });
+
     it('trims the name and facility id and nulls the blank optional fields', () => {
       const c = create();
       c.openNew();

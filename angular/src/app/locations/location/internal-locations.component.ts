@@ -245,9 +245,10 @@ export class InternalLocationsComponent implements OnInit {
     const body = {
       name: f.name.trim(),
       facilityId: f.facilityId.trim(),
-      address: f.address || null,
-      city: f.city || null,
-      zipCode: f.zipCode || null,
+      // 2026-10-27: trimmed -- a pasted " 91436" failed the server's ZIP pattern with a bare 400.
+      address: f.address.trim() || null,
+      city: f.city.trim() || null,
+      zipCode: f.zipCode.trim() || null,
       stateId: f.stateId || null,
       parkingFee: Number(f.parkingFee) || 0,
       isActive: f.isActive,

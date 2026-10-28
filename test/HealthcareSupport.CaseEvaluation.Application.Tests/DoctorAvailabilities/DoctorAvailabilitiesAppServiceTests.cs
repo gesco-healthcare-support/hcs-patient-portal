@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Enums;
+using HealthcareSupport.CaseEvaluation.Security;
 using HealthcareSupport.CaseEvaluation.TestData;
 using HealthcareSupport.CaseEvaluation.Timing;
 using Shouldly;
@@ -11,6 +12,7 @@ using Volo.Abp.Application.Dtos;
 using Volo.Abp.Data;
 using Volo.Abp.Modularity;
 using Volo.Abp.MultiTenancy;
+using Volo.Abp.Security.Claims;
 using Volo.Abp.Validation;
 using Xunit;
 
@@ -40,9 +42,11 @@ public abstract class DoctorAvailabilitiesAppServiceTests<TStartupModule> : Case
     private readonly IDoctorAvailabilityRepository _slotRepository;
     private readonly ICurrentTenant _currentTenant;
     private readonly IDataFilter _dataFilter;
+    private readonly ICurrentPrincipalAccessor _principal;
 
     protected DoctorAvailabilitiesAppServiceTests()
     {
+        _principal = GetRequiredService<ICurrentPrincipalAccessor>();
         _appService = GetRequiredService<IDoctorAvailabilitiesAppService>();
         _slotRepository = GetRequiredService<IDoctorAvailabilityRepository>();
         _currentTenant = GetRequiredService<ICurrentTenant>();
@@ -1064,6 +1068,55 @@ public abstract class DoctorAvailabilitiesAppServiceTests<TStartupModule> : Case
     // computes RemainingCapacity = Capacity - activeAppointmentCount and
     // excludes full slots / Reserved slots from the picker.
     // =====================================================================
+
+    /// <summary>
+    /// 2026-10-27: a location the office has switched off offers an external booker no slots, even when it
+    /// has open ones. Staff still see them. Location 3 is seeded switched off.
+    /// </summary>
+    [Fact]
+    public async Task GetDoctorAvailabilityLookupAsync_ASwitchedOffLocationOffersExternalBookersNoSlots_ButStaffSeeThem()
+    {
+        LocationsTestData.Location3IsActive.ShouldBeFalse("the seed must hold a switched-off location");
+        var date = DateTime.Today.AddDays(15);
+        var slotId = Guid.NewGuid();
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                await _slotRepository.InsertAsync(new DoctorAvailability(
+                    id: slotId,
+                    locationId: LocationsTestData.Location3Id,
+                    availableDate: date,
+                    fromTime: new TimeOnly(9, 0),
+                    toTime: new TimeOnly(10, 0),
+                    bookingStatusId: BookingStatus.Available,
+                    capacity: 3), autoSave: true);
+            }
+        });
+
+        var input = new GetDoctorAvailabilityLookupInput
+        {
+            LocationId = LocationsTestData.Location3Id,
+            AvailableDateFrom = DateTime.Today.AddDays(-1),
+            AvailableDateTo = date.AddDays(1),
+        };
+        List<DoctorAvailabilityDto> external, staff;
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            using (WithCurrentUser.Run(_principal, Guid.NewGuid(), IdentityUsersTestData.PatientRoleName))
+            {
+                external = await _appService.GetDoctorAvailabilityLookupAsync(input);
+            }
+
+            using (WithCurrentUser.Run(_principal, Guid.NewGuid(), "Intake Staff"))
+            {
+                staff = await _appService.GetDoctorAvailabilityLookupAsync(input);
+            }
+        }
+
+        external.ShouldBeEmpty();
+        staff.ShouldContain(x => x.Id == slotId);
+    }
 
     [Fact]
     public async Task GetDoctorAvailabilityLookupAsync_RemainingCapacityComputed()
