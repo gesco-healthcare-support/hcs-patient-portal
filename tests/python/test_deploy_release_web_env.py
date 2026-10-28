@@ -32,8 +32,8 @@ from shell_harness import BASH, shell_path
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "hosting" / "deploy-release.sh"
-API = "hcs-patient-portal-api-1"
-AUTH = "hcs-patient-portal-authserver-1"
+API_CONTAINER = "hcs-patient-portal-api-1"
+SIGN_IN_CONTAINER = "hcs-patient-portal-authserver-1"
 
 # `docker exec <container> printenv <VAR>`, as the real one behaves: a set variable prints its value and a newline,
 # an unset one prints nothing and exits 1, and a stopped container is an error on stderr.
@@ -109,8 +109,8 @@ class TheCheckReadsTheRunningContainers(unittest.TestCase):
         (self.dir / "down" / container).write_text("", encoding="utf-8")
 
     def both_production(self):
-        self.set_env(API, "ASPNETCORE_ENVIRONMENT", "Production")
-        self.set_env(AUTH, "ASPNETCORE_ENVIRONMENT", "Production")
+        self.set_env(API_CONTAINER, "ASPNETCORE_ENVIRONMENT", "Production")
+        self.set_env(SIGN_IN_CONTAINER, "ASPNETCORE_ENVIRONMENT", "Production")
 
     def run_check(self):
         env = dict(os.environ, FAKE_DIR=shell_path(self.dir))
@@ -136,13 +136,13 @@ class TheCheckReadsTheRunningContainers(unittest.TestCase):
 
     def test_dotnet_environment_set_to_production_also_passes(self):
         self.both_production()
-        self.set_env(API, "DOTNET_ENVIRONMENT", "Production")
+        self.set_env(API_CONTAINER, "DOTNET_ENVIRONMENT", "Production")
         rc, hosts = self.run_check()
         self.assertEqual(rc, "RC=0")
         self.assertTrue(hosts["api"].endswith("  OK"), hosts["api"])
 
     def test_an_unset_aspnetcore_environment_fails_rather_than_passing_on_nothing(self):
-        self.set_env(AUTH, "ASPNETCORE_ENVIRONMENT", "Production")
+        self.set_env(SIGN_IN_CONTAINER, "ASPNETCORE_ENVIRONMENT", "Production")
         rc, hosts = self.run_check()
         self.assertEqual(rc, "RC=1")
         self.assertIn("ASPNETCORE_ENVIRONMENT=[] ", hosts["api"])
@@ -152,8 +152,8 @@ class TheCheckReadsTheRunningContainers(unittest.TestCase):
     def test_any_aspnetcore_value_other_than_production_fails(self):
         for value in ("Development", "Staging", ""):
             with self.subTest(value=value):
-                self.set_env(API, "ASPNETCORE_ENVIRONMENT", "Production")
-                self.set_env(AUTH, "ASPNETCORE_ENVIRONMENT", value)
+                self.set_env(API_CONTAINER, "ASPNETCORE_ENVIRONMENT", "Production")
+                self.set_env(SIGN_IN_CONTAINER, "ASPNETCORE_ENVIRONMENT", value)
                 rc, hosts = self.run_check()
                 self.assertEqual(rc, "RC=1")
                 self.assertIn("WRONG", hosts["auth"])
@@ -163,7 +163,7 @@ class TheCheckReadsTheRunningContainers(unittest.TestCase):
         for value in ("Development", "Staging"):
             with self.subTest(value=value):
                 self.both_production()
-                self.set_env(API, "DOTNET_ENVIRONMENT", value)
+                self.set_env(API_CONTAINER, "DOTNET_ENVIRONMENT", value)
                 rc, hosts = self.run_check()
                 self.assertEqual(rc, "RC=1")
                 self.assertIn(f"DOTNET_ENVIRONMENT=[{value}]", hosts["api"])
@@ -171,7 +171,7 @@ class TheCheckReadsTheRunningContainers(unittest.TestCase):
 
     def test_a_stopped_container_fails_and_shows_why(self):
         self.both_production()
-        self.stop(AUTH)
+        self.stop(SIGN_IN_CONTAINER)
         rc, hosts = self.run_check()
         self.assertEqual(rc, "RC=1")
         self.assertIn("is not running", hosts["auth"])
