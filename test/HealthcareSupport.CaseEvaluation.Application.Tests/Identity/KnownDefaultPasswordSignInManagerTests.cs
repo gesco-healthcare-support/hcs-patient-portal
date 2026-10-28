@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AuthServer.AdminPasswords;
+using HealthcareSupport.CaseEvaluation.HostOperators;
 using HealthcareSupport.CaseEvaluation.Identity.AdminPasswords;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
@@ -10,6 +11,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using Shouldly;
+using Volo.Abp.Data;
 using Volo.Abp.Identity;
 using Volo.Abp.Modularity;
 using Volo.Abp.Settings;
@@ -106,6 +108,28 @@ public abstract class KnownDefaultPasswordSignInManagerTests<TStartupModule>
             .CheckPasswordSignInAsync(user, ARealPassword, lockoutOnFailure: false);
 
         result.Succeeded.ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// 2026-10-27: an office login made for a host staff member (it carries the operator stamp) is reached
+    /// only through "Enter practice", never a password, so a password sign-in is refused even with its real
+    /// password and in Development. The unstamped account above, on the same kind of password, is the control.
+    /// </summary>
+    [Fact]
+    public async Task AnOfficeLoginMadeForAHostStaffMember_IsRefusedEvenWithItsRealPassword()
+    {
+        var user = await GivenAUserWithPasswordAsync(ARealPassword);
+        user.SetProperty(IntakeShadowUserProvisioner.OperatorIdProperty, Guid.NewGuid().ToString("D"));
+        (await _userManager.CheckPasswordAsync(user, ARealPassword))
+            .ShouldBeTrue("the fixture needs the password to actually be correct");
+
+        foreach (var isDevelopment in new[] { false, true })
+        {
+            var result = await SignInManager(isDevelopment)
+                .CheckPasswordSignInAsync(user, ARealPassword, lockoutOnFailure: false);
+
+            result.Succeeded.ShouldBeFalse();
+        }
     }
 
     /// <summary>

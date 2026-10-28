@@ -28,7 +28,7 @@ import { InviteExternalUserComponent } from './invite-external-user.component';
  */
 describe('InviteExternalUserComponent surfaces', () => {
   let rest: { request: jasmine.Spy };
-  let toaster: { success: jasmine.Spy; error: jasmine.Spy };
+  let toaster: { success: jasmine.Spy; error: jasmine.Spy; warn: jasmine.Spy };
   let router: { navigateByUrl: jasmine.Spy };
   let clipboardWrite: jasmine.Spy | null;
 
@@ -46,7 +46,11 @@ describe('InviteExternalUserComponent surfaces', () => {
 
   function create(): Probe {
     rest = { request: jasmine.createSpy('request').and.returnValue(of(INVITE_RESPONSE)) };
-    toaster = { success: jasmine.createSpy('success'), error: jasmine.createSpy('error') };
+    toaster = {
+      success: jasmine.createSpy('success'),
+      error: jasmine.createSpy('error'),
+      warn: jasmine.createSpy('warn'),
+    };
     router = { navigateByUrl: jasmine.createSpy('navigateByUrl') };
 
     TestBed.configureTestingModule({
@@ -210,7 +214,21 @@ describe('InviteExternalUserComponent surfaces', () => {
       await c.onSubmit();
       expect(c.result()).toEqual(INVITE_RESPONSE);
       expect(toaster.success).toHaveBeenCalled();
+      expect(c.emailNotSent()).toBeFalse();
       expect(c.isSubmitting()).toBeFalse();
+    });
+
+    it('keeps the link but does NOT claim it was sent when the email could not be queued', async () => {
+      const c = create();
+      rest.request.and.returnValue(of({ ...INVITE_RESPONSE, emailQueued: false }));
+      valid(c);
+
+      await c.onSubmit();
+
+      expect(c.result()?.inviteUrl).toBe(INVITE_RESPONSE.inviteUrl);
+      expect(c.emailNotSent()).toBeTrue();
+      expect(toaster.success).not.toHaveBeenCalled();
+      expect(toaster.warn).toHaveBeenCalled();
     });
 
     it('clears any previous result and error before it starts', async () => {

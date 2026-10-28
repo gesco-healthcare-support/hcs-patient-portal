@@ -29,6 +29,7 @@ import {
   auditStatusClass,
   buildAuditCsv,
   filterPermParents,
+  firstInvalidSystemParameter,
   insertVariable,
   isAdminSectionVisible,
   isLockedRole,
@@ -465,6 +466,11 @@ export class InternalAdminHubComponent {
   protected saveParameters(): void {
     const p = this.params();
     if (!p || this.isBusy() || !this.canEditParams()) {
+      return;
+    }
+    const invalid = firstInvalidSystemParameter(p as unknown as Record<string, unknown>);
+    if (invalid) {
+      this.toaster.warn(invalid);
       return;
     }
     this.isBusy.set(true);

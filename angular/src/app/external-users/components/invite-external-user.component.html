@@ -176,10 +176,23 @@
 
   @if (result(); as r) {
     <div class="card border-0 shadow-sm mt-4">
-      <div class="card-header bg-success text-white">
-        <h4 class="mb-0 fw-bold">Invite sent</h4>
+      <div
+        class="card-header"
+        [class.bg-success]="!emailNotSent()"
+        [class.text-white]="!emailNotSent()"
+        [class.bg-warning]="emailNotSent()"
+        [class.text-dark]="emailNotSent()"
+      >
+        <h4 class="mb-0 fw-bold">
+          {{ emailNotSent() ? 'Invitation created - email not sent' : 'Invite sent' }}
+        </h4>
       </div>
       <div class="card-body">
+        @if (emailNotSent()) {
+          <p class="mb-3">
+            The email could not be sent. Copy the link and send it to them yourself.
+          </p>
+        }
         <div class="row g-3 mb-3">
           <div class="col-md-3">
             <div class="text-muted small">Tenant</div>

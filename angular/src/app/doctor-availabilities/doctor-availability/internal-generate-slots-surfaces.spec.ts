@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { ToasterService } from '@abp/ng.theme.shared';
 
 import { DoctorAvailabilityService } from '../../proxy/doctor-availabilities/doctor-availability.service';
@@ -574,6 +574,41 @@ describe('InternalGenerateSlotsComponent surfaces', () => {
       service['generatePreview'].and.returnValue(throwError(() => ({ status: 500 })));
       c.genPreview();
       expect(c.isBusy()).toBeFalse();
+    });
+
+    it('hides the preview and refuses to generate once the form changes (2026-10-27)', () => {
+      const c = create();
+      c.locationId.set('l-1');
+      service['generatePreview'].and.returnValue(of(preview(2, 0)));
+      c.genPreview();
+      expect(c.canSubmit()).withContext('fixture: a fresh preview can be submitted').toBeTrue();
+
+      c.capacity.set(c.capacity() + 1);
+
+      expect(c.previewStale()).toBeTrue();
+      expect(c.shownPreview()).toBeNull();
+      expect(c.canSubmit()).toBeFalse();
+      c.submit();
+      expect(service['createRange']).not.toHaveBeenCalled();
+
+      c.genPreview();
+      expect(c.previewStale()).withContext('a new preview matches the form again').toBeFalse();
+      expect(c.canSubmit()).toBeTrue();
+    });
+
+    it('treats a preview answered after the form changed as stale', () => {
+      const c = create();
+      c.locationId.set('l-1');
+      const answer = new Subject<unknown>();
+      service['generatePreview'].and.returnValue(answer);
+      c.genPreview();
+
+      c.toDate.set(addDays(30));
+      answer.next(preview(2, 0));
+      answer.complete();
+
+      expect(c.previewStale()).toBeTrue();
+      expect(c.canSubmit()).toBeFalse();
     });
 
     it('discards the preview when it is cancelled', () => {

@@ -114,6 +114,16 @@ export class InternalGenerateSlotsComponent implements OnInit {
     appointmentTypeIds: this.selectedTypeIds(),
   }));
 
+  // 2026-10-27: the form a preview was taken for. A preview describes the form AS IT WAS, so once any
+  // field changes it is stale: hidden, and Generate is off until it is taken again, so slots are never
+  // created that were not shown. Null for a preview with nothing to compare against.
+  private readonly previewKey = signal<string | null>(null);
+  protected readonly previewStale = computed(() => {
+    const key = this.previewKey();
+    return this.preview() !== null && key !== null && key !== JSON.stringify(this.genState());
+  });
+  protected readonly shownPreview = computed(() => (this.previewStale() ? null : this.preview()));
+
   protected readonly estimate = computed(() => estimateSlotCount(this.genState()));
   protected readonly overLimit = computed(() => exceedsLimit(this.estimate()));
 
@@ -124,7 +134,9 @@ export class InternalGenerateSlotsComponent implements OnInit {
   protected readonly totalSlots = computed(() => countPreviewSlots(this.preview() ?? []));
   protected readonly conflicts = computed(() => countPreviewConflicts(this.preview() ?? []));
   protected readonly creatable = computed(() => this.totalSlots() - this.conflicts());
-  protected readonly canSubmit = computed(() => this.preview() !== null && this.creatable() > 0);
+  protected readonly canSubmit = computed(
+    () => this.shownPreview() !== null && this.creatable() > 0,
+  );
   protected readonly previewCols = computed(() =>
     Math.min(Math.max(this.previewDays().length, 1), 7),
   );
@@ -342,11 +354,16 @@ export class InternalGenerateSlotsComponent implements OnInit {
       return;
     }
     this.isBusy.set(true);
+    // Keyed to the form as it is NOW: a change made while the request is out makes the answer stale.
+    const key = JSON.stringify(this.genState());
     this.service
       .generatePreview(buildGenerateInput(this.genState()))
       .pipe(finalize(() => this.isBusy.set(false)))
       .subscribe({
-        next: (res) => this.preview.set(res ?? []),
+        next: (res) => {
+          this.previewKey.set(key);
+          this.preview.set(res ?? []);
+        },
         error: () => undefined,
       });
   }

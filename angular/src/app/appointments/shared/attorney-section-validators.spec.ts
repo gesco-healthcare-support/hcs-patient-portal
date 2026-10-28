@@ -51,10 +51,10 @@ describe('attorney-section-validators', () => {
       expect(ATTORNEY_SECTION_SUFFIXES.find((s) => s.name === 'FaxNumber')).toBeUndefined();
     });
 
-    it('includes FirmName with maxLength 50', () => {
+    it('includes FirmName with maxLength 256 (2026-10-27; was 50)', () => {
       const firm = ATTORNEY_SECTION_SUFFIXES.find((s) => s.name === 'FirmName');
       expect(firm).toBeDefined();
-      expect(firm!.maxLength).toBe(50);
+      expect(firm!.maxLength).toBe(256);
     });
 
     it('includes split FirstName + LastName, each maxLength 50 (BUG-042)', () => {
@@ -116,9 +116,11 @@ describe('attorney-section-validators', () => {
     it('preserves Validators.maxLength on fields with maxLength > 0', () => {
       applyAttorneySectionValidators(form, 'applicantAttorney', false);
 
-      // FirmName has maxLength 50 -- a 51-char string should fail.
+      // FirmName has maxLength 256 -- a 120-char firm passes and a 257-char one fails.
       const firmControl = form.get('applicantAttorneyFirmName');
-      firmControl!.setValue('x'.repeat(51));
+      firmControl!.setValue('x'.repeat(120));
+      expect(firmControl!.hasError('maxlength')).toBe(false);
+      firmControl!.setValue('x'.repeat(257));
       expect(firmControl!.hasError('maxlength')).toBe(true);
     });
 

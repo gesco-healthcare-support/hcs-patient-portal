@@ -361,6 +361,18 @@ describe('AppointmentAddComponent remaining paths', () => {
       expect(body.has('otherDocumentTypeName')).toBeFalse();
     });
 
+    it('says why at Submit when a gate refuses it, not only in the patient section', async () => {
+      const c = create();
+      fillValidForm(c);
+      c.injuryDrafts = [];
+
+      await c.onSubmit();
+
+      expect(toaster.warn).toHaveBeenCalledWith(
+        'Please add at least one Claim Information entry before saving.',
+      );
+    });
+
     it('keeps the booker on the form when a document fails after the booking is created', async () => {
       const c = create({
         rest: {

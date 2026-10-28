@@ -14,6 +14,7 @@ import {
   splitPermissionNodes,
   roleKind,
   SP_GROUPS,
+  firstInvalidSystemParameter,
   SpField,
 } from './admin-hub.util';
 
@@ -353,6 +354,33 @@ describe('permission matrix helpers (sweep #644)', () => {
       const out = filterPermParents(parents, childrenByParent, 'patients');
       expect(out).toHaveSize(1);
       expect(out[0].children).toEqual([]);
+    });
+  });
+
+  describe('firstInvalidSystemParameter (2026-10-27)', () => {
+    const all = (): Record<string, unknown> => {
+      const p: Record<string, unknown> = {};
+      SP_GROUPS.forEach((g) => g.fields.forEach((f) => (p[f.key] = 3)));
+      return p;
+    };
+
+    it('passes when every parameter is a whole number of at least 1', () => {
+      expect(firstInvalidSystemParameter(all())).toBeNull();
+    });
+
+    it('names the first field that is 0, negative, fractional or blank', () => {
+      const label = SP_GROUPS[0].fields[0].label;
+      for (const bad of [0, -1, 1.5, null, '']) {
+        const p = all();
+        p[SP_GROUPS[0].fields[0].key] = bad;
+        expect(firstInvalidSystemParameter(p)).toBe(`${label} must be a whole number, 1 or more.`);
+      }
+    });
+
+    it('skips a field the object does not carry', () => {
+      const p = all();
+      delete p[SP_GROUPS[0].fields[0].key];
+      expect(firstInvalidSystemParameter(p)).toBeNull();
     });
   });
 });

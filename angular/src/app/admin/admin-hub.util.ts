@@ -387,6 +387,27 @@ export const SP_GROUPS: SpGroup[] = [
   },
 ];
 
+/**
+ * 2026-10-27: the message for the first system parameter that is not a whole number of at least 1, or null
+ * when every one is. The server refuses 0 or less for all of them, but only with a generic error, so the
+ * page checks first and names the field. A key the object does not carry is skipped.
+ */
+export function firstInvalidSystemParameter(params: Record<string, unknown>): string | null {
+  for (const group of SP_GROUPS) {
+    for (const field of group.fields) {
+      if (!(field.key in params)) {
+        continue;
+      }
+      const raw = params[field.key];
+      const value = raw === null || raw === '' ? Number.NaN : Number(raw);
+      if (!Number.isInteger(value) || value < 1) {
+        return `${field.label} must be a whole number, 1 or more.`;
+      }
+    }
+  }
+  return null;
+}
+
 /** A single permission node in the role matrix (item 10 Part B nesting). */
 export interface PermNode {
   name: string;

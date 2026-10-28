@@ -51,19 +51,22 @@ public class JdfOverdueInternalEmailHandler :
     private readonly IdentityUserManager _userManager;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<JdfOverdueInternalEmailHandler> _logger;
+    private readonly IAccountUrlBuilder _accountUrlBuilder;
 
     public JdfOverdueInternalEmailHandler(
         INotificationDispatcher dispatcher,
         DocumentEmailContextResolver contextResolver,
         IdentityUserManager userManager,
         ICurrentTenant currentTenant,
-        ILogger<JdfOverdueInternalEmailHandler> logger)
+        ILogger<JdfOverdueInternalEmailHandler> logger,
+        IAccountUrlBuilder accountUrlBuilder)
     {
         _dispatcher = dispatcher;
         _contextResolver = contextResolver;
         _userManager = userManager;
         _currentTenant = currentTenant;
         _logger = logger;
+        _accountUrlBuilder = accountUrlBuilder;
     }
 
     [UnitOfWork]
@@ -109,7 +112,9 @@ public class JdfOverdueInternalEmailHandler :
                 // Filled by NotificationTemplateRenderer from the tenant store (#1014):
                 // ICurrentTenant.Name is null inside Change(TenantId).
                 clinicName: null,
-                portalUrl: ctx.PortalBaseUrl);
+                // 2026-10-27: staff-only email, so the link goes to the staff site (a staff login does not
+                // work on the office site).
+                portalUrl: await _accountUrlBuilder.BuildPortalRootUrlAsync(null));
 
             await _dispatcher.DispatchAsync(
                 templateCode: NotificationTemplateConsts.Codes.AppointmentJointDeclarationOverdueInternal,

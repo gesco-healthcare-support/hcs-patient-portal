@@ -38,6 +38,7 @@ import {
 } from './pending-office-switch';
 import { OAuthService } from 'angular-oauth2-oidc';
 import { clickLandedInside } from '../../ui/click-inside.util';
+import { enterPracticeErrorMessage } from '../../enter-practice-error.util';
 
 const ROLE_LABELS: Record<InternalRoleKey, string> = {
   itadmin: 'IT Admin',
@@ -432,12 +433,10 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
         // The back-to-host grant runs through the OAuth token path (no RestService),
         // so a failure surfaces only here. Drop the pending record so the operator is
         // not auto-bounced on the next load.
-        error: () => {
+        error: (err: unknown) => {
           clearPendingOfficeSwitch();
           this.switching.set(false);
-          this.toaster.error(
-            'Could not switch into that office. Please try again, or contact an administrator.',
-          );
+          this.toaster.error(enterPracticeErrorMessage(err));
         },
       });
       return;
@@ -448,11 +447,9 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
       // Impersonation runs through the OAuth token grant, NOT RestService, so ABP's
       // global HTTP error dialog never fires -- this handler is the only place a
       // failed switch can surface. Without it the spinner just stops (looks frozen).
-      error: () => {
+      error: (err: unknown) => {
         this.switching.set(false);
-        this.toaster.error(
-          'Could not switch into that office. Please try again, or contact an administrator.',
-        );
+        this.toaster.error(enterPracticeErrorMessage(err));
       },
     });
   }
@@ -574,11 +571,9 @@ export class InternalShellLayoutComponent implements OnInit, OnDestroy {
     this.switching.set(true);
     this.toaster.info('Switching offices...');
     this.impersonation.impersonateTenant(pending.officeId, pending.userName).subscribe({
-      error: () => {
+      error: (err: unknown) => {
         this.switching.set(false);
-        this.toaster.error(
-          'Could not switch into that office. Please try again, or contact an administrator.',
-        );
+        this.toaster.error(enterPracticeErrorMessage(err));
       },
     });
   }
