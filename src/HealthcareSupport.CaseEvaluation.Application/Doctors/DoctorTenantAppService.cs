@@ -10,6 +10,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Volo.Abp;
+using Volo.Abp.Application.Dtos;
+using Volo.Abp.Authorization;
 using Volo.Abp.Data;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.EventBus.Distributed;
@@ -64,6 +66,7 @@ namespace HealthcareSupport.CaseEvaluation.Doctors
 
         public override async Task<SaasTenantDto> CreateAsync(SaasTenantCreateDto input)
         {
+            EnsureHostCaller();
             Check.NotNull(input, nameof(input));
             Check.NotNullOrWhiteSpace(input.Name, nameof(input.Name));
             Check.NotNullOrWhiteSpace(input.AdminPassword, nameof(input.AdminPassword));
@@ -84,6 +87,7 @@ namespace HealthcareSupport.CaseEvaluation.Doctors
         [Authorize(SaasHostPermissions.Tenants.ManageConnectionStrings)]
         public override async Task<SaasTenantConnectionStringsDto> GetConnectionStringsAsync(Guid id)
         {
+            EnsureHostCaller();
             var tenant = await _tenantRepository.GetAsync(id);
             return new SaasTenantConnectionStringsDto
             {
@@ -102,6 +106,7 @@ namespace HealthcareSupport.CaseEvaluation.Doctors
         [Authorize(SaasHostPermissions.Tenants.ManageConnectionStrings)]
         public override Task UpdateConnectionStringsAsync(Guid id, SaasTenantConnectionStringsDto input)
         {
+            EnsureHostCaller();
             throw new BusinessException(CaseEvaluationDomainErrorCodes.OfficeDatabaseSettingIsFixed);
         }
 
@@ -128,6 +133,7 @@ namespace HealthcareSupport.CaseEvaluation.Doctors
         [Authorize(SaasHostPermissions.Tenants.Create)]
         public async Task<SaasTenantDto> CreatePracticeAsync(CreatePracticeInput input)
         {
+            EnsureHostCaller();
             Check.NotNull(input, nameof(input));
             Check.NotNullOrWhiteSpace(input.Slug, nameof(input.Slug));
             Check.NotNullOrWhiteSpace(input.DoctorFirstName, nameof(input.DoctorFirstName));
@@ -247,6 +253,76 @@ namespace HealthcareSupport.CaseEvaluation.Doctors
             await _activationSender.TrySendToOfficeAdminAsync(tenant.Id, doctorFirstName);
 
             return tenant;
+        }
+
+        // 2026-10-28: the rest of the practice registry, inherited from the SaaS module. Each override only adds
+        // the host check below and keeps the module's own permission (an override inherits its [Authorize]).
+        public override Task<SaasTenantDto> GetAsync(Guid id)
+        {
+            EnsureHostCaller();
+            return base.GetAsync(id);
+        }
+
+        public override Task<PagedResultDto<SaasTenantDto>> GetListAsync(GetTenantsInput input)
+        {
+            EnsureHostCaller();
+            return base.GetListAsync(input);
+        }
+
+        public override Task<SaasTenantDto> UpdateAsync(Guid id, SaasTenantUpdateDto input)
+        {
+            EnsureHostCaller();
+            return base.UpdateAsync(id, input);
+        }
+
+        public override Task DeleteAsync(Guid id)
+        {
+            EnsureHostCaller();
+            return base.DeleteAsync(id);
+        }
+
+        public override Task<SaasTenantDatabasesDto> GetDatabasesAsync()
+        {
+            EnsureHostCaller();
+            return base.GetDatabasesAsync();
+        }
+
+        public override Task ApplyDatabaseMigrationsAsync(Guid id)
+        {
+            EnsureHostCaller();
+            return base.ApplyDatabaseMigrationsAsync(id);
+        }
+
+        public override Task<List<EditionLookupDto>> GetEditionLookupAsync()
+        {
+            EnsureHostCaller();
+            return base.GetEditionLookupAsync();
+        }
+
+        public override Task<bool> CheckConnectionStringAsync(string connectionString)
+        {
+            EnsureHostCaller();
+            return base.CheckConnectionStringAsync(connectionString);
+        }
+
+        public override Task SetPasswordAsync(Guid id, SaasTenantSetPasswordDto input)
+        {
+            EnsureHostCaller();
+            return base.SetPasswordAsync(id, input);
+        }
+
+        /// <summary>
+        /// 2026-10-28 -- refuses a caller who is inside an office, before anything is read or written. The practice
+        /// registry lists, creates and changes every office, so it belongs to the host alone. The SaaS permissions on
+        /// these methods are host-side and already stop an office caller at the authorization interceptor; this
+        /// check keeps the refusal in place even if a permission's side is ever widened.
+        /// </summary>
+        private void EnsureHostCaller()
+        {
+            if (CurrentTenant.IsAvailable)
+            {
+                throw new AbpAuthorizationException("Practices are managed from the host, not from inside an office.");
+            }
         }
 
         // Host-side branding row (display name) for the new office. Runs in host scope
