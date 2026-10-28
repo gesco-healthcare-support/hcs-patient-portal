@@ -315,6 +315,43 @@ public abstract class DoctorTenantAppServiceTests<TStartupModule>
         page.Items.ShouldContain(t => t.Id == TenantsTestData.TenantBRef);
     }
 
+    /// <summary>
+    /// The rest of the positive control: from the host, each inherited action gets past the check and
+    /// reaches the SaaS module. The reads are asserted on their result. The three writes are aimed at an
+    /// office id that does not exist, so whatever the module does with it, nothing seeded is changed; all
+    /// this asserts for them is that the refusal above is not what stops them. ApplyDatabaseMigrations is
+    /// left out on purpose: it raises the event our migration handler acts on.
+    /// </summary>
+    [Fact]
+    public async Task TheInheritedActions_FromTheHost_GetPastTheCheck()
+    {
+        (await _service.GetAsync(TenantsTestData.TenantARef)).Id.ShouldBe(TenantsTestData.TenantARef);
+        (await _service.GetEditionLookupAsync()).ShouldNotBeNull();
+        await ShouldGetPastTheHostCheckAsync(() => _service.GetDatabasesAsync());
+        await ShouldGetPastTheHostCheckAsync(() => _service.CheckConnectionStringAsync("not a connection string"));
+
+        var noSuchOffice = Guid.NewGuid();
+        await ShouldGetPastTheHostCheckAsync(() => _service.UpdateAsync(noSuchOffice, new SaasTenantUpdateDto { Name = "TEST-renamed" }));
+        await ShouldGetPastTheHostCheckAsync(() => _service.DeleteAsync(noSuchOffice));
+        await ShouldGetPastTheHostCheckAsync(() => _service.SetPasswordAsync(noSuchOffice, new SaasTenantSetPasswordDto { Username = "admin", Password = SyntheticAdminPassword }));
+    }
+
+    private static async Task ShouldGetPastTheHostCheckAsync(Func<Task> call)
+    {
+        try
+        {
+            await call();
+        }
+        catch (AbpAuthorizationException ex)
+        {
+            throw new ShouldAssertException($"A host caller was refused: {ex.Message}");
+        }
+        catch (Exception)
+        {
+            // Past the check: the module itself refused the input (an unknown office, a bad string).
+        }
+    }
+
     // --- Builders. Every field is DataAnnotations-valid so that DTO validation,
     // whether or not the interceptor runs it, can never be what fails a test. ---
 
