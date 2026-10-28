@@ -589,24 +589,32 @@ public class BookingSubmissionEmailHandler :
         }
 
         var staffRecipients = await ResolveStaffApprovalRecipientsAsync(eventData.AppointmentId);
-        if (staffRecipients.Count == 0)
-        {
-            _logger.LogInformation(
-                "BookingSubmissionEmailHandler: no Staff Supervisor / Intake Staff users in tenant; skipping ApproveReject for appointment {AppointmentId}.",
-                eventData.AppointmentId);
-            return;
-        }
 
         // Phase 2.B (Adrian Decision 2.2 2026-05-08): plus office mailbox CC'd
         // on the staff blast. OLD's :950 SendSMTPMail overload at this leg
         // takes only 3 args (no CC) -- this is an explicit override of OLD
         // behavior to keep an off-staff office address in the loop.
+        // 2026-10-27: appended BEFORE the no-staff check. A new office has no Staff Supervisor or Intake
+        // login until someone is assigned or enters it, and the CC list used to be skipped with them, so
+        // nobody on the office side was asked to act on a law office's first request.
         await _ccAppender.AppendAsync(
             staffRecipients,
             contextTagForLogging: $"ApproveReject/{eventData.AppointmentId}");
 
+        if (staffRecipients.Count == 0)
+        {
+            _logger.LogWarning(
+                "BookingSubmissionEmailHandler: no Staff Supervisor / Intake Staff users and no CC addresses in tenant; "
+                + "nobody on staff is asked to approve appointment {AppointmentId}.",
+                eventData.AppointmentId);
+            return;
+        }
+
+        // 2026-10-27: staff work on the staff site, so the link goes there (as the office notice's has since
+        // 2026-07-23); a staff login does not work on the office site.
         var vars = BuildVariables(
-            ctx, appointment, appointmentDate, appointmentFromTime, appointmentToTime);
+            ctx, appointment, appointmentDate, appointmentFromTime, appointmentToTime,
+            portalUrl: await _accountUrlBuilder.BuildPortalRootUrlAsync(null));
 
         await _dispatcher.DispatchAsync(
             templateCode: NotificationTemplateConsts.Codes.PatientAppointmentApproveReject,
@@ -684,7 +692,8 @@ public class BookingSubmissionEmailHandler :
         Appointment appointment,
         string appointmentDate,
         string appointmentFromTime,
-        string appointmentToTime)
+        string appointmentToTime,
+        string portalUrl)
     {
         var baseVars = DocumentNotificationContext.BuildVariables(
             patientFirstName: ctx.PatientFirstName,
@@ -697,7 +706,7 @@ public class BookingSubmissionEmailHandler :
             documentName: null,
             rejectionNotes: null,
             clinicName: null,
-            portalUrl: ctx.PortalBaseUrl);
+            portalUrl: portalUrl);
 
         var vars = new Dictionary<string, object?>(baseVars, StringComparer.Ordinal)
         {

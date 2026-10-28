@@ -1384,6 +1384,13 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:UserManagement.UseChangeRole";
 
     /// <summary>
+    /// 2026-10-27 -- Staff Assignments refuses to assign a switched-off Intake operator to an office: it would
+    /// provision an active office login that receives that office's staff mail. Mapped to HTTP 400.
+    /// </summary>
+    public const string IntakeAssignmentOperatorInactive =
+        "CaseEvaluation:IntakeAssignment.OperatorInactive";
+
+    /// <summary>
     /// B11 -- the malware scan found a signature in an uploaded file, so it was refused and nothing
     /// was stored. Mapped to HTTP 422.
     ///

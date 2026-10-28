@@ -107,6 +107,18 @@ public class CaseEvaluationExceptionStatusCodeMappingsTests
         options.ErrorCodeToHttpStatusCodeMappings[
             CaseEvaluationDomainErrorCodes.AppointmentResponsibleUserNotEligible
         ].ShouldBe(HttpStatusCode.BadRequest);
+
+        // 2026-10-27: approving an appointment that is no longer Pending, or with no Responsible User,
+        // shows the message instead of the full-screen 403 page.
+        options.ErrorCodeToHttpStatusCodeMappings[
+            CaseEvaluationDomainErrorCodes.AppointmentNotPendingForApproval
+        ].ShouldBe(HttpStatusCode.BadRequest);
+        options.ErrorCodeToHttpStatusCodeMappings[
+            CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresResponsibleUser
+        ].ShouldBe(HttpStatusCode.BadRequest);
+        options.ErrorCodeToHttpStatusCodeMappings[
+            CaseEvaluationDomainErrorCodes.IntakeAssignmentOperatorInactive
+        ].ShouldBe(HttpStatusCode.BadRequest);
     }
 
     [Fact]
@@ -123,8 +135,8 @@ public class CaseEvaluationExceptionStatusCodeMappingsTests
         options.ErrorCodeToHttpStatusCodeMappings[
             CaseEvaluationDomainErrorCodes.RegistrationFirmNameRequired
         ].ShouldBe(HttpStatusCode.BadRequest);
-        // Still exactly 21 mappings; no duplicate-key blow up.
-        options.ErrorCodeToHttpStatusCodeMappings.Count.ShouldBe(21);
+        // Still exactly 24 mappings; no duplicate-key blow up.
+        options.ErrorCodeToHttpStatusCodeMappings.Count.ShouldBe(24);
     }
 
     /// <summary>

@@ -11,7 +11,10 @@ public static class ApplicantAttorneyConsts
 
     public const int FirstNameMaxLength = 50;
     public const int LastNameMaxLength = 50;
-    public const int FirmNameMaxLength = 50;
+    // 2026-10-27: was 50. Real firm names ("Law Offices of ... & Associates, A Professional Corporation")
+    // run longer, and the invite and sign-up already take 256, so an invited firm over 50 failed sign-up.
+    // The attorney record and the appointment's copy of it are widened together (both migration sets).
+    public const int FirmNameMaxLength = 256;
     public const int FirmAddressMaxLength = 100;
     public const int WebAddressMaxLength = 100;
     public const int PhoneNumberMaxLength = 20;

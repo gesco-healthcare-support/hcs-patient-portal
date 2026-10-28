@@ -23,4 +23,9 @@ public class OfficeListDto
     public bool IsActive { get; set; }
     /// <summary>Tenant concurrency stamp, so the edit modal can update without a refetch.</summary>
     public string? ConcurrencyStamp { get; set; }
+    /// <summary>
+    /// 2026-10-27: whether the office has its "Office notification inbox" set. Without it the office's copy of
+    /// every notice is dropped, so the Practices row warns.
+    /// </summary>
+    public bool HasNotificationInbox { get; set; }
 }

@@ -681,7 +681,12 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     {
         // Tenant IS the doctor (locked 2026-05-06): no separate Doctor entity rows
         // exist, so query Location directly. IMultiTenant filter scopes by tenant.
+        // 2026-10-27: a location switched off ("Active -- bookable by external users") is not offered to an
+        // external booker. Staff still see it: this lookup also fills the appointments list's filter, where
+        // past appointments at a closed location must stay findable.
+        var externalCaller = !BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles);
         var query = (await _locationRepository.GetQueryableAsync())
+            .WhereIf(externalCaller, x => x.IsActive)
             .WhereIf(!string.IsNullOrWhiteSpace(input.Filter), x => x.Name != null && x.Name.Contains(input.Filter!)).OrderBy(x => x.Name);
         var lookupData = await query.PageBy(input.SkipCount, input.MaxResultCount).ToDynamicListAsync<HealthcareSupport.CaseEvaluation.Locations.Location>();
         var totalCount = query.Count();
@@ -1258,6 +1263,13 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         if (location == null)
         {
             throw new UserFriendlyException(L["The selected location does not exist."]);
+        }
+
+        // 2026-10-27: an external booker cannot book a location the office has switched off, whatever the
+        // client sends (the lookups above already hide it). Staff can still book there.
+        if (!location.IsActive && !BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles))
+        {
+            throw new UserFriendlyException(L["The selected location is not taking bookings."]);
         }
 
         // 2026-05-15 slot rework: eager-load the AppointmentTypes M2M so the

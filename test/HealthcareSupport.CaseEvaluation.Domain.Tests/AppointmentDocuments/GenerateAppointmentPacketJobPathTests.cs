@@ -110,13 +110,13 @@ public class GenerateAppointmentPacketJobPathTests
     }
 
     [Fact]
-    public async Task A_kind_with_no_template_is_marked_failed_and_the_job_reports_it_incomplete()
+    public async Task A_kind_with_no_template_is_marked_failed_and_the_job_completes_so_it_is_kept()
     {
         var world = new World();
         var unknownKind = (PacketKind)99;
 
-        await Should.ThrowAsync<PacketGenerationIncompleteException>(() => world.Job.ExecuteAsync(
-            new GenerateAppointmentPacketArgs { AppointmentId = AppointmentId, TenantId = TenantId, Kind = unknownKind }));
+        await world.Job.ExecuteAsync(
+            new GenerateAppointmentPacketArgs { AppointmentId = AppointmentId, TenantId = TenantId, Kind = unknownKind });
 
         await world.PacketManager.Received(1).MarkFailedAsync(
             Arg.Any<Guid>(), Arg.Is<string>(m => m.Contains("No HTML template for this PacketKind.")));

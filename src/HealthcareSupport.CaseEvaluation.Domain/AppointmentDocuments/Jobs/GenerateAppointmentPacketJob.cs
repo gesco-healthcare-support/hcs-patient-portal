@@ -156,11 +156,19 @@ public class GenerateAppointmentPacketJob :
 
         if (anyFailed)
         {
-            // T5: a kind ended Failed. Surface it so Hangfire retries (T1 makes the
-            // retry skip already-Generated kinds and re-render only the Failed one)
-            // and, once the 5-attempt policy exhausts, dead-letters visibly on
-            // /hangfire -- instead of silently reporting the whole job Succeeded.
-            throw new PacketGenerationIncompleteException(args.AppointmentId);
+            // 2026-10-27: a kind that failed permanently (a rendering error, not a transport one) is
+            // recorded Failed and the job COMMITS. It used to throw here so Hangfire would retry, but the
+            // job runs in one unit of work, so the throw rolled back the Failed row together with the
+            // kinds that had just been Generated: staff saw "no packets yet" with no error, the retry
+            // could not skip the kinds already done, and nothing ever recorded the failure, so the Case
+            // Tracker stalled-set release (which looks for a non-Generated row) never fired. Now the
+            // Failed row carries the error, staff can Regenerate it, the release sees it, and the kinds
+            // that worked are kept and mailed. Transport and timeout failures still propagate from the
+            // render call and get Hangfire's retry.
+            _logger.LogWarning(
+                "GenerateAppointmentPacketJob: appointment {AppointmentId} finished with a Failed packet kind; "
+                + "the failure is recorded on its packet row for staff to regenerate.",
+                args.AppointmentId);
         }
     }
 
@@ -269,10 +277,9 @@ public class GenerateAppointmentPacketJob :
                 "GenerateAppointmentPacketJob: appointment {AppointmentId} kind {Kind} failed; marking Failed (no retry).",
                 appointmentId, kind);
             await _packetManager.MarkFailedAsync(packet.Id, ex.Message);
-            // T5: return false so GenerateInsideTenantAsync surfaces the partial
-            // failure at the end (Hangfire retry -> T1 re-renders only this kind ->
-            // dead-letter if it stays broken). Do NOT rethrow the raw render
-            // exception here -- that would abort the sibling kinds mid-loop.
+            // Return false: the job records it and commits (2026-10-27; see the end of
+            // GenerateInsideTenantAsync). Do NOT rethrow the raw render exception here --
+            // that would abort the sibling kinds mid-loop and roll back this Failed row.
             return false;
         }
     }
