@@ -6,6 +6,7 @@ import { IconComponent } from '../shared/ui/icon/icon.component';
 import { OfficeNamePipe } from '../shared/pipes/office-name.pipe';
 import { IntakeAssignmentsService } from '../proxy/host-operators/intake-assignments.service';
 import type { IntakeOfficeMetricsDto } from '../proxy/host-operators/models';
+import { enterPracticeErrorMessage } from '../shared/enter-practice-error.util';
 
 /**
  * Phase D (2026-06-25) -- the host Intake operator's landing page. Lists ONLY
@@ -161,6 +162,7 @@ export class IntakeOfficeSwitcherComponent {
     this.impersonation
       .impersonateTenant(officeId, '')
       .pipe(finalize(() => this.busy.set(false)))
-      .subscribe({ error: () => undefined });
+      // 2026-10-27: say why it failed (the grant's reason, e.g. not assigned); it used to fail silently.
+      .subscribe({ error: (err: unknown) => this.toaster.error(enterPracticeErrorMessage(err)) });
   }
 }

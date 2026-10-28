@@ -380,11 +380,33 @@ describe('InternalUsersHubComponent surfaces', () => {
       expect(toaster.success).not.toHaveBeenCalled();
     });
 
+    it('flags a practice with no notification inbox, and only on an explicit false', () => {
+      const c = ready();
+      expect(c.missingNotificationInbox({ hasNotificationInbox: false })).toBeTrue();
+      expect(c.missingNotificationInbox({ hasNotificationInbox: true })).toBeFalse();
+      expect(c.missingNotificationInbox({}))
+        .withContext('an older server sends no flag')
+        .toBeFalse();
+    });
+
     it('announces a genuine invite', () => {
       const c = ready();
       c.patchInvite({ email: 'ada@example.test' });
       c.sendInvite();
       expect(toaster.success).toHaveBeenCalledWith('Invite sent.');
+    });
+
+    it('does NOT announce an invite whose email could not be sent, and says so', () => {
+      const c = ready();
+      gateway['sendInvite'].and.returnValue(of({ inviteUrl: 'x', emailQueued: false }));
+      c.patchInvite({ email: 'ada@example.test' });
+
+      c.sendInvite();
+
+      expect(toaster.success).not.toHaveBeenCalled();
+      expect(toaster.warn).toHaveBeenCalledWith(
+        'The invitation was created, but its email could not be sent. Copy the link and send it to them yourself.',
+      );
     });
 
     it('refuses a second send while one is in flight', () => {

@@ -427,7 +427,8 @@ export class AppointmentViewComponent implements OnInit {
     applicantAttorneyFirstName: [null as string | null, [Validators.maxLength(50)]],
     applicantAttorneyLastName: [null as string | null, [Validators.maxLength(50)]],
     applicantAttorneyEmail: [null as string | null, [Validators.maxLength(50), Validators.email]],
-    applicantAttorneyFirmName: [null as string | null, [Validators.maxLength(50)]],
+    // 2026-10-27: 256, the attorney record's limit since then (real firm names run past 50).
+    applicantAttorneyFirmName: [null as string | null, [Validators.maxLength(256)]],
     applicantAttorneyWebAddress: [null as string | null, [Validators.maxLength(100)]],
     applicantAttorneyPhoneNumber: [null as string | null, [Validators.maxLength(20)]],
     applicantAttorneyFaxNumber: [null as string | null, [Validators.maxLength(19)]],
@@ -442,7 +443,7 @@ export class AppointmentViewComponent implements OnInit {
     defenseAttorneyFirstName: [null as string | null, [Validators.maxLength(50)]],
     defenseAttorneyLastName: [null as string | null, [Validators.maxLength(50)]],
     defenseAttorneyEmail: [null as string | null, [Validators.maxLength(50), Validators.email]],
-    defenseAttorneyFirmName: [null as string | null, [Validators.maxLength(50)]],
+    defenseAttorneyFirmName: [null as string | null, [Validators.maxLength(256)]],
     defenseAttorneyWebAddress: [null as string | null, [Validators.maxLength(100)]],
     defenseAttorneyPhoneNumber: [null as string | null, [Validators.maxLength(20)]],
     defenseAttorneyFaxNumber: [null as string | null, [Validators.maxLength(19)]],

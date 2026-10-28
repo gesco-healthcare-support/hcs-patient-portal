@@ -25,7 +25,8 @@ export const ATTORNEY_SECTION_SUFFIXES: ReadonlyArray<{
 }> = [
   { name: 'FirstName', maxLength: 50 },
   { name: 'LastName', maxLength: 50 },
-  { name: 'FirmName', maxLength: 50 },
+  // 2026-10-27: 256, the attorney record's limit since then (real firm names run past 50).
+  { name: 'FirmName', maxLength: 256 },
   { name: 'PhoneNumber', maxLength: 20 },
   // 2026-06-01: Fax is optional. FaxNumber intentionally NOT in this list so
   // the section toggle never marks it required; its maxLength(19) lives on the

@@ -213,8 +213,13 @@
         } @else {
           <div class="ux-result">
             <div class="ux-result__head">
-              <app-icon name="check" [size]="16" />
-              Invite sent
+              @if (inviteEmailWasNotQueued(res)) {
+                <app-icon name="bell" [size]="16" />
+                Invitation created - email not sent
+              } @else {
+                <app-icon name="check" [size]="16" />
+                Invite sent
+              }
             </div>
             <div class="ux-result__body">
               <div class="ux-result__grid">
@@ -243,7 +248,13 @@
                   Copy link
                 </button>
               </div>
-              <p class="ra-hint">Share the link manually if email delivery is delayed.</p>
+              @if (inviteEmailWasNotQueued(res)) {
+                <p class="ra-hint">
+                  The email could not be sent. Copy the link and send it to them yourself.
+                </p>
+              } @else {
+                <p class="ra-hint">Share the link manually if email delivery is delayed.</p>
+              }
             </div>
           </div>
         }
@@ -457,6 +468,15 @@
             {{ initials(t.name) }}
           </span>
           <b>{{ t.name | officeName }}</b>
+          <!-- 2026-10-27: without an office inbox the office-level notices reach nobody. -->
+          @if (missingNotificationInbox(t)) {
+            <span
+              class="badge text-bg-warning ms-2"
+              title="New-request, cancellation and daily-digest notices for this practice are not sent until an Office notification inbox is set in its System Parameters."
+            >
+              No notification inbox
+            </span>
+          }
         </span>
         <span class="ia-sub" *managedTableCell="'subdomain'; let t">
           {{ t.subdomain }}.{{ tenantBaseDomain }}

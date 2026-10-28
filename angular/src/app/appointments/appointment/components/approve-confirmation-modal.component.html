@@ -42,7 +42,12 @@
           rows="3"
           formControlName="internalUserComments"
           placeholder="Please enter comments regarding this appointment"
+          aria-describedby="approve-comments-hint"
         ></textarea>
+        <!-- 2026-10-27: the comment is printed in the approval email every party receives. -->
+        <div id="approve-comments-hint" class="form-text">
+          Included in the approval email to everyone on the case.
+        </div>
       </div>
     </form>
   </ng-template>
