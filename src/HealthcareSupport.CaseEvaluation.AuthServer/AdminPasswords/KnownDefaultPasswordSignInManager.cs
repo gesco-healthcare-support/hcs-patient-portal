@@ -1,4 +1,5 @@
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.HostOperators;
 using HealthcareSupport.CaseEvaluation.Identity.AdminPasswords;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
@@ -69,6 +70,18 @@ public class KnownDefaultPasswordSignInManager : AbpSignInManager
         string password,
         bool lockoutOnFailure)
     {
+        // 2026-10-27: an office login made for a host staff member is reached only through "Enter practice",
+        // which goes through the office-access grant, never a password. Refused like any failed attempt, so
+        // the sign-in page reveals nothing about the account.
+        if (IntakeShadowUserProvisioner.IsStampedShadow(user))
+        {
+            Logger.LogWarning(
+                "Refused a password sign-in to office login {UserId}: it is reached only through Enter practice.",
+                user.Id);
+
+            return Task.FromResult(SignInResult.Failed);
+        }
+
         if (!_hostEnvironment.IsDevelopment() && AdminPasswordPolicy.IsKnownDefault(password))
         {
             Logger.LogWarning(

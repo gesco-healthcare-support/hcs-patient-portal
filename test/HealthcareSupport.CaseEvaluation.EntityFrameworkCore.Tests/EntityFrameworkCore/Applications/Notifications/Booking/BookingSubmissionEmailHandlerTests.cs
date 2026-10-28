@@ -6,10 +6,12 @@ using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
 using HealthcareSupport.CaseEvaluation.Notifications;
 using HealthcareSupport.CaseEvaluation.Notifications.Handlers;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
+using HealthcareSupport.CaseEvaluation.SystemParameters;
 using HealthcareSupport.CaseEvaluation.TestData;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Shouldly;
+using Volo.Abp.Data;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Identity;
 using Volo.Abp.MultiTenancy;
@@ -28,6 +30,7 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Notifications.Boo
 public class BookingSubmissionEmailHandlerTests : CaseEvaluationEntityFrameworkCoreTestBase
 {
     private const string OfficeMailbox = "TEST-booking-office-mailbox@test.local";
+    private const string CcAddress = "TEST-booking-cc@test.local";
 
     // Field initializers run before the base constructor, so both exist when AfterAddApplication runs.
     private readonly RecordingNotificationDispatcher _dispatcher = new();
@@ -133,6 +136,42 @@ public class BookingSubmissionEmailHandlerTests : CaseEvaluationEntityFrameworkC
         staff.Recipients.ShouldNotContain(switchedOff);
     }
 
+    /// <summary>
+    /// 2026-10-27: a new office has no Staff Supervisor or Intake login until someone is assigned or enters
+    /// it. The office's CC list used to be skipped together with the missing staff, so nobody on the office
+    /// side was asked to act on a law office's first request. The CC list is now asked on its own.
+    /// </summary>
+    [Fact]
+    public async Task AnOfficeWithNoStaff_StillAsksItsCcList_ToActOnARequest()
+    {
+        WithPatientAndOfficeMailbox();
+        await SetCcListAsync(CcAddress);
+
+        await RaiseAsync(bookerUserId: Guid.NewGuid());
+
+        Sent(NotificationTemplateConsts.Codes.PatientAppointmentApproveReject).Recipients
+            .ShouldBe(new[] { CcAddress });
+    }
+
+    /// <summary>
+    /// 2026-10-27: the request to approve goes to staff, who sign in on the staff site; a staff login does
+    /// not work on the office site, so the link in that email is the staff site's.
+    /// </summary>
+    [Fact]
+    public async Task TheStaffNotice_LinksToTheStaffSite_NotTheOfficeSite()
+    {
+        WithPatientAndOfficeMailbox();
+        await SeedStaffAsync(TenantsTestData.TenantARef, "booking-link", lowIdRoles: false);
+        var urls = GetRequiredService<IAccountUrlBuilder>();
+        var staffSite = await WithUnitOfWorkAsync(() => urls.BuildPortalRootUrlAsync(null));
+        var officeSite = await WithUnitOfWorkAsync(() => urls.BuildPortalRootUrlAsync(TenantsTestData.TenantARef));
+        staffSite.ShouldNotBe(officeSite, "the two sites must differ or this test proves nothing");
+
+        await RaiseAsync(bookerUserId: Guid.NewGuid());
+
+        Sent(NotificationTemplateConsts.Codes.PatientAppointmentApproveReject).Variables["PortalUrl"].ShouldBe(staffSite);
+    }
+
     [Fact]
     public async Task NoParties_SendsNoRequestNotice()
     {
@@ -210,6 +249,19 @@ public class BookingSubmissionEmailHandlerTests : CaseEvaluationEntityFrameworkC
                 SubmittedAt = new DateTime(2026, 9, 24, 12, 0, 0, DateTimeKind.Utc),
             }));
     }
+
+    private Task SetCcListAsync(string ccEmailIds) => WithUnitOfWorkAsync(async () =>
+    {
+        using (GetRequiredService<ICurrentTenant>().Change(TenantsTestData.TenantARef))
+        {
+            await GetRequiredService<SystemParameterDataSeedContributor>()
+                .SeedAsync(new DataSeedContext(TenantsTestData.TenantARef));
+            var repository = GetRequiredService<ISystemParameterRepository>();
+            var row = (await repository.GetCurrentTenantAsync()).ShouldNotBeNull();
+            row.CcEmailIds = ccEmailIds;
+            await repository.UpdateAsync(row, autoSave: true);
+        }
+    });
 
     private Task NamePatient1UserAsync(string name, string surname) => WithUnitOfWorkAsync(async () =>
     {

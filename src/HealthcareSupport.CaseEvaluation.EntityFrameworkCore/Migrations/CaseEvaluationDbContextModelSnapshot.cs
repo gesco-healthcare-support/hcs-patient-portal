@@ -80,8 +80,8 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .HasColumnName("FirmAddress");
 
                     b.Property<string>("FirmName")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)")
                         .HasColumnName("FirmName");
 
                     b.Property<string>("FirstName")
@@ -2106,8 +2106,8 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .HasColumnName("ApplicantAttorneyFaxNumber");
 
                     b.Property<string>("ApplicantAttorneyFirmName")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)")
                         .HasColumnName("ApplicantAttorneyFirmName");
 
                     b.Property<string>("ApplicantAttorneyFirstName")
@@ -2207,8 +2207,8 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .HasColumnName("DefenseAttorneyFaxNumber");
 
                     b.Property<string>("DefenseAttorneyFirmName")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)")
                         .HasColumnName("DefenseAttorneyFirmName");
 
                     b.Property<string>("DefenseAttorneyFirstName")
@@ -2909,8 +2909,8 @@ namespace HealthcareSupport.CaseEvaluation.Migrations
                         .HasColumnName("FirmAddress");
 
                     b.Property<string>("FirmName")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)")
                         .HasColumnName("FirmName");
 
                     b.Property<string>("FirstName")

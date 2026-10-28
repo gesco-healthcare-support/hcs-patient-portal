@@ -107,11 +107,24 @@ public static class CaseEvaluationExceptionStatusCodeMappings
         options.Map(
             CaseEvaluationDomainErrorCodes.StaffRoleChangeUseStaffManagement,
             HttpStatusCode.BadRequest);
+        options.Map(
+            CaseEvaluationDomainErrorCodes.IntakeAssignmentOperatorInactive,
+            HttpStatusCode.BadRequest);
 
         // 2026-10-26: a Responsible User who is not a switched-on staff account of the office. Kept with the
         // internal-user codes so both hosts carry it; only HttpApi.Host can raise it.
         options.Map(
             CaseEvaluationDomainErrorCodes.AppointmentResponsibleUserNotEligible,
+            HttpStatusCode.BadRequest);
+
+        // 2026-10-27: approving an appointment that is no longer Pending (a second staff member, or the
+        // booking wizard's auto-approve retrying) and approving with no Responsible User. Unmapped, each was
+        // ABP's default 403, which the SPA shows as its full-screen error page instead of the message.
+        options.Map(
+            CaseEvaluationDomainErrorCodes.AppointmentNotPendingForApproval,
+            HttpStatusCode.BadRequest);
+        options.Map(
+            CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresResponsibleUser,
             HttpStatusCode.BadRequest);
     }
 

@@ -11,6 +11,7 @@ using HealthcareSupport.CaseEvaluation.Locations;
 using HealthcareSupport.CaseEvaluation.MultiTenancy;
 using HealthcareSupport.CaseEvaluation.Patients;
 using HealthcareSupport.CaseEvaluation.Permissions;
+using HealthcareSupport.CaseEvaluation.Settings;
 using HealthcareSupport.CaseEvaluation.SystemParameters;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
@@ -304,12 +305,15 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
             {
                 int userCount;
                 int appointmentCount;
+                bool hasNotificationInbox;
                 // Database-per-office: each count runs inside that office's own
                 // database (the IMultiTenant filter scopes it naturally).
                 using (CurrentTenant.Change(tenant.Id))
                 {
                     userCount = await _identityUserRepository.CountAsync();
                     appointmentCount = await _appointmentRepository.CountAsync();
+                    hasNotificationInbox = !string.IsNullOrWhiteSpace(
+                        await SettingProvider.GetOrNullAsync(CaseEvaluationSettings.NotificationsPolicy.OfficeEmail));
                 }
 
                 rows.Add(new OfficeListDto
@@ -323,6 +327,7 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
                     AppointmentCount = appointmentCount,
                     IsActive = tenant.ActivationState != TenantActivationState.Passive,
                     ConcurrencyStamp = tenant.ConcurrencyStamp,
+                    HasNotificationInbox = hasNotificationInbox,
                 });
             }
 

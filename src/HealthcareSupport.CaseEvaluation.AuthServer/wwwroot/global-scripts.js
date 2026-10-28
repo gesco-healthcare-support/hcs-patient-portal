@@ -273,7 +273,8 @@
       name: 'FirmName',
       label: 'Firm name',
       autocomplete: 'organization',
-      maxLength: 50,
+      // 2026-10-27: 256, the attorney record's firm-name limit (was 50).
+      maxLength: 256,
       afterContainer: selectContainer,
     });
 
