@@ -108,7 +108,12 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
         input.LastName = "Tester";
         input.Email = "alice.tester@test.local";
 
-        var created = await _patientsAppService.CreateAsync(input);
+        // 2026-10-28: a patient is created inside an office; the office comes from the caller, not the input.
+        PatientDto created;
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            created = await _patientsAppService.CreateAsync(input);
+        }
 
         created.ShouldNotBeNull();
         created.FirstName.ShouldBe("Alice");
@@ -223,12 +228,18 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
         // Create a disposable patient so we don't disturb the seed for later tests.
         var input = BuildValidCreateDto();
         input.Email = "delete.target@test.local";
-        var created = await _patientsAppService.CreateAsync(input);
 
-        await _patientsAppService.DeleteAsync(created.Id);
+        // Inside the office: a host-scope FindAsync would miss the office's row whether or not it was deleted.
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var created = await _patientsAppService.CreateAsync(input);
+            (await _patientRepository.FindAsync(created.Id)).ShouldNotBeNull();
 
-        var result = await _patientRepository.FindAsync(created.Id);
-        result.ShouldBeNull();
+            await _patientsAppService.DeleteAsync(created.Id);
+
+            var result = await _patientRepository.FindAsync(created.Id);
+            result.ShouldBeNull();
+        }
     }
 
     // ------------------------------------------------------------------------
@@ -243,7 +254,11 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
         var input = BuildValidCreateDto();
         input.IdentityUserId = null;
 
-        var created = await _patientsAppService.CreateAsync(input);
+        PatientDto created;
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            created = await _patientsAppService.CreateAsync(input);
+        }
 
         created.ShouldNotBeNull();
         created.Id.ShouldNotBe(Guid.Empty);
@@ -257,7 +272,11 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
         // Use a fresh record-only patient so seeded Patient1 is untouched.
         var createInput = BuildValidCreateDto();
         createInput.IdentityUserId = null;
-        var created = await _patientsAppService.CreateAsync(createInput);
+        PatientDto created;
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            created = await _patientsAppService.CreateAsync(createInput);
+        }
 
         var update = new PatientUpdateDto
         {
@@ -276,6 +295,75 @@ public abstract class PatientsAppServiceTests<TStartupModule> : CaseEvaluationAp
 
         result.FirstName.ShouldBe("Renamed-RecordOnly");
         result.IdentityUserId.ShouldBeNull();
+    }
+
+    // ------------------------------------------------------------------------
+    // 2026-10-28 -- the patient's office comes from the caller, never from the input.
+    // The staff People page sends no TenantId: create was refused and an edit cleared the
+    // office id, hiding the patient. Another office's id would write a row no office sees.
+    // ------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CreateAsync_InsideAnOffice_FilesThePatientUnderThatOffice(bool sendAnotherOfficesId)
+    {
+        var input = BuildValidCreateDto();
+        input.Email = $"office.owned.{sendAnotherOfficesId}@test.local";
+        input.TenantId = sendAnotherOfficesId ? TenantsTestData.TenantBRef : null;
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var created = await _patientsAppService.CreateAsync(input);
+
+            var persisted = await _patientRepository.FindAsync(created.Id);
+            persisted.ShouldNotBeNull();
+            persisted!.TenantId.ShouldBe(TenantsTestData.TenantARef);
+        }
+    }
+
+    [Fact]
+    public async Task CreateAsync_FromTheHost_IsRefused()
+    {
+        // The input names an office, and that no longer counts: the host is not inside one.
+        var input = BuildValidCreateDto();
+        input.Email = "host.create@test.local";
+
+        var ex = await Should.ThrowAsync<BusinessException>(
+            async () => await _patientsAppService.CreateAsync(input));
+
+        ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.PatientTenantRequired);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WhenTheClientSendsNoOffice_KeepsThePatientsOffice()
+    {
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var createInput = BuildValidCreateDto();
+            createInput.Email = "keep.office@test.local";
+            var created = await _patientsAppService.CreateAsync(createInput);
+
+            var update = new PatientUpdateDto
+            {
+                FirstName = "Kept-Office",
+                LastName = created.LastName,
+                Email = created.Email,
+                GenderId = created.GenderId,
+                DateOfBirth = created.DateOfBirth,
+                PhoneNumberTypeId = created.PhoneNumberTypeId,
+                IdentityUserId = created.IdentityUserId,
+                TenantId = null,
+                ConcurrencyStamp = created.ConcurrencyStamp,
+            };
+
+            await _patientsAppService.UpdateAsync(created.Id, update);
+
+            var refetched = await _patientRepository.FindAsync(created.Id);
+            refetched.ShouldNotBeNull();
+            refetched!.FirstName.ShouldBe("Kept-Office");
+            refetched.TenantId.ShouldBe(TenantsTestData.TenantARef);
+        }
     }
 
     // ------------------------------------------------------------------------

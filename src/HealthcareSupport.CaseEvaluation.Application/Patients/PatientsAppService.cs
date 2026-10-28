@@ -652,7 +652,10 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
     [Authorize(CaseEvaluationPermissions.Patients.Create)]
     public virtual async Task<PatientDto> CreateAsync(PatientCreateDto input)
     {
-        var patient = await _patientManager.CreateAsync(input.StateId, input.AppointmentLanguageId, input.IdentityUserId, input.TenantId, input.FirstName, input.LastName, input.Email, input.GenderId, input.DateOfBirth, input.PhoneNumberTypeId, input.MiddleName, input.PhoneNumber, input.SocialSecurityNumber, input.Address, input.City, input.ZipCode, input.CellPhoneNumber, input.Street, input.InterpreterVendorName, input.ApptNumber, input.OthersLanguageName);
+        // 2026-10-28: the patient belongs to the office the caller is in; the client's TenantId is not used. The
+        // staff People page sends none, so every create there was refused, and another office's id would write a
+        // row into this office's database that no office can see. From the host this is refused (no practice).
+        var patient = await _patientManager.CreateAsync(input.StateId, input.AppointmentLanguageId, input.IdentityUserId, CurrentTenant.Id, input.FirstName, input.LastName, input.Email, input.GenderId, input.DateOfBirth, input.PhoneNumberTypeId, input.MiddleName, input.PhoneNumber, input.SocialSecurityNumber, input.Address, input.City, input.ZipCode, input.CellPhoneNumber, input.Street, input.InterpreterVendorName, input.ApptNumber, input.OthersLanguageName);
         return MapToMaskedDto(patient);
     }
 
@@ -666,7 +669,10 @@ public class PatientsAppService : CaseEvaluationAppService, IPatientsAppService
         Patient patient;
         using (isHost ? _dataFilter.Disable() : null)
         {
-            patient = await _patientManager.UpdateAsync(id, input.StateId, input.AppointmentLanguageId, input.IdentityUserId, input.TenantId, input.FirstName, input.LastName, input.Email, input.GenderId, input.DateOfBirth, input.PhoneNumberTypeId, input.MiddleName, input.PhoneNumber, input.SocialSecurityNumber, input.Address, input.City, input.ZipCode, input.CellPhoneNumber, input.Street, input.InterpreterVendorName, input.ApptNumber, input.OthersLanguageName, input.ConcurrencyStamp);
+            // 2026-10-28: a patient's office never changes on an edit; the client's TenantId is not used. The staff
+            // People page sends none, which used to clear the office id and hide the patient from every office screen.
+            var owningOfficeId = (await _patientRepository.GetAsync(id)).TenantId;
+            patient = await _patientManager.UpdateAsync(id, input.StateId, input.AppointmentLanguageId, input.IdentityUserId, owningOfficeId, input.FirstName, input.LastName, input.Email, input.GenderId, input.DateOfBirth, input.PhoneNumberTypeId, input.MiddleName, input.PhoneNumber, input.SocialSecurityNumber, input.Address, input.City, input.ZipCode, input.CellPhoneNumber, input.Street, input.InterpreterVendorName, input.ApptNumber, input.OthersLanguageName, input.ConcurrencyStamp);
         }
         return MapToMaskedDto(patient);
     }

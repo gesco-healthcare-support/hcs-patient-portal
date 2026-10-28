@@ -1,8 +1,12 @@
+using System;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.MultiTenancy;
+using HealthcareSupport.CaseEvaluation.TestData;
 using Shouldly;
 using Volo.Abp;
+using Volo.Abp.Authorization;
 using Volo.Abp.Modularity;
+using Volo.Abp.MultiTenancy;
 using Volo.Saas.Host.Dtos;
 using Xunit;
 
@@ -259,6 +263,56 @@ public abstract class DoctorTenantAppServiceTests<TStartupModule>
             async () => await _service.CreateAsync(BuildSaasInput("TEST Practice")));
 
         ex.Message.ShouldContain("DNS-safe");
+    }
+
+    // --- 2026-10-28: the practice registry is the host's alone ---
+
+    /// <summary>
+    /// Every action on this service lists, creates or changes offices, so each one refuses a
+    /// caller who is inside an office before it reads or writes anything. The SaaS permissions
+    /// are host-side and stop such a caller already; this pins the explicit check that keeps the
+    /// refusal if a permission's side is ever widened. The arguments are never reached.
+    /// </summary>
+    [Fact]
+    public async Task EveryAction_RefusesACallerInsideAnOffice()
+    {
+        var id = TenantsTestData.TenantBRef;
+        var actions = new (string Name, Func<Task> Call)[]
+        {
+            ("Get", () => _service.GetAsync(id)),
+            ("GetList", () => _service.GetListAsync(new GetTenantsInput())),
+            ("Create", () => _service.CreateAsync(BuildSaasInput("TEST-office-refused"))),
+            ("CreatePractice", () => _service.CreatePracticeAsync(BuildPracticeInput("test-office-refused"))),
+            ("Update", () => _service.UpdateAsync(id, new SaasTenantUpdateDto { Name = "TEST-renamed" })),
+            ("Delete", () => _service.DeleteAsync(id)),
+            ("GetConnectionStrings", () => _service.GetConnectionStringsAsync(id)),
+            ("UpdateConnectionStrings", () => _service.UpdateConnectionStringsAsync(id, new SaasTenantConnectionStringsDto())),
+            ("GetDatabases", () => _service.GetDatabasesAsync()),
+            ("ApplyDatabaseMigrations", () => _service.ApplyDatabaseMigrationsAsync(id)),
+            ("GetEditionLookup", () => _service.GetEditionLookupAsync()),
+            ("CheckConnectionString", () => _service.CheckConnectionStringAsync("Server=TEST;Database=TEST")),
+            ("SetPassword", () => _service.SetPasswordAsync(id, new SaasTenantSetPasswordDto { Username = "admin", Password = SyntheticAdminPassword })),
+        };
+
+        using (GetRequiredService<ICurrentTenant>().Change(TenantsTestData.TenantARef))
+        {
+            foreach (var (name, call) in actions)
+            {
+                await Should.ThrowAsync<AbpAuthorizationException>(call, $"{name} must refuse an office caller");
+            }
+        }
+    }
+
+    /// <summary>
+    /// The positive control for the refusal above: from the host the registry still reads.
+    /// </summary>
+    [Fact]
+    public async Task GetListAsync_FromTheHost_StillListsTheOffices()
+    {
+        var page = await _service.GetListAsync(new GetTenantsInput { MaxResultCount = 100 });
+
+        page.Items.ShouldContain(t => t.Id == TenantsTestData.TenantARef);
+        page.Items.ShouldContain(t => t.Id == TenantsTestData.TenantBRef);
     }
 
     // --- Builders. Every field is DataAnnotations-valid so that DTO validation,

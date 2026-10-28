@@ -7,6 +7,7 @@ using HealthcareSupport.CaseEvaluation.Settings;
 using HealthcareSupport.CaseEvaluation.TestData;
 using Shouldly;
 using Volo.Abp.Application.Dtos;
+using Volo.Abp.Authorization;
 using Volo.Abp.Modularity;
 using Volo.Abp.SettingManagement;
 using Xunit;
@@ -152,21 +153,6 @@ public abstract class DashboardOfficeRegistryTests<TStartupModule> : DashboardTe
     }
 
     /// <summary>
-    /// Called from inside an office, the endpoint still returns every office, and
-    /// each row still carries its OWN counts.
-    ///
-    /// <para>The appointment goes into the OTHER office, so the row that has to move
-    /// is the one the caller's own tenant scope would hide. Dropping the per-office
-    /// hop leaves every row reporting whatever the ambient scope sees and the delta
-    /// goes to zero.</para>
-    ///
-    /// <para>Honest label: the outer host-scope switch around the registry read is
-    /// not independently pinned here. <c>Tenant</c> and <c>Edition</c> are registry
-    /// types that ABP's tenant filter does not touch, so removing that switch
-    /// changes nothing observable. This test is behaviour-pinning for the inner hop
-    /// and coverage-oriented for the outer one.</para>
-    /// </summary>
-    /// <summary>
     /// 2026-10-27: each row says whether its office has a notification inbox. Without one, the office-level
     /// notices (new requests, cancellations, the daily digest) reach nobody, and the Practices page warns.
     /// Office A gets an inbox here and office B does not, so a flag read from the wrong office, or the
@@ -190,22 +176,58 @@ public abstract class DashboardOfficeRegistryTests<TStartupModule> : DashboardTe
         page.Items.Single(o => o.Id == TenantsTestData.TenantBRef).HasNotificationInbox.ShouldBeFalse();
     }
 
+    /// <summary>
+    /// Every office is listed, and each row carries its OWN counts.
+    ///
+    /// <para>The appointment goes into office B only. B's delta of one proves the
+    /// per-office hop (without it every row reports the host scope, which holds no
+    /// appointments); A's delta of zero proves the count is not shared across rows.</para>
+    ///
+    /// <para>Honest label: the outer host-scope switch around the registry read is
+    /// not independently pinned here. <c>Tenant</c> and <c>Edition</c> are registry
+    /// types that ABP's tenant filter does not touch, so removing that switch
+    /// changes nothing observable. This test is behaviour-pinning for the inner hop
+    /// and coverage-oriented for the outer one.</para>
+    /// </summary>
     [Fact]
-    public async Task GetOfficesAsync_CalledInsideAnOfficeStillReturnsEveryOfficeWithItsOwnCounts()
+    public async Task GetOfficesAsync_ReturnsEveryOfficeWithItsOwnCounts()
     {
-        var before = await GetOfficePageAsync(new GetOfficesInput(), TenantsTestData.TenantARef);
+        var before = await GetOfficePageAsync(new GetOfficesInput());
 
         await InsertAppointmentAsync(TenantsTestData.TenantBRef, "R3b", AppointmentStatusType.Pending);
 
-        var after = await GetOfficePageAsync(new GetOfficesInput(), TenantsTestData.TenantARef);
+        var after = await GetOfficePageAsync(new GetOfficesInput());
 
         after.Items.ShouldContain(o => o.Id == TenantsTestData.TenantARef);
         after.Items.ShouldContain(o => o.Id == TenantsTestData.TenantBRef);
 
+        var beforeA = before.Items.First(o => o.Id == TenantsTestData.TenantARef);
+        var afterA = after.Items.First(o => o.Id == TenantsTestData.TenantARef);
         var beforeB = before.Items.First(o => o.Id == TenantsTestData.TenantBRef);
         var afterB = after.Items.First(o => o.Id == TenantsTestData.TenantBRef);
 
         (afterB.AppointmentCount - beforeB.AppointmentCount).ShouldBe(1);
+        (afterA.AppointmentCount - beforeA.AppointmentCount).ShouldBe(0);
+    }
+
+    /// <summary>
+    /// 2026-10-28: the registry covers every office, so all three endpoints refuse a
+    /// caller who is inside an office, before reading anything. Their permissions are
+    /// host-side already; this pins the explicit check that keeps the refusal if a
+    /// permission's side is ever widened.
+    /// </summary>
+    [Fact]
+    public async Task TheRegistryEndpoints_RefuseACallerInsideAnOffice()
+    {
+        using (Tenancy.Change(TenantsTestData.TenantARef))
+        {
+            await Should.ThrowAsync<AbpAuthorizationException>(
+                async () => await Dashboard.GetTenantSummariesAsync());
+            await Should.ThrowAsync<AbpAuthorizationException>(
+                async () => await Dashboard.GetOfficesAsync(new GetOfficesInput()));
+            await Should.ThrowAsync<AbpAuthorizationException>(
+                async () => await Dashboard.GetTenantBreakdownAsync(new GetTenantBreakdownInput()));
+        }
     }
 
     /// <summary>

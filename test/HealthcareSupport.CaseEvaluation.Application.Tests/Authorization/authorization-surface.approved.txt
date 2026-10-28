@@ -229,9 +229,18 @@ HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailabilitiesAppSer
 HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailabilitiesAppService.UpdateAsync(Guid, DoctorAvailabilityUpdateDto) -> class=(authenticated) method=CaseEvaluation.DoctorAvailabilities.Edit
 HealthcareSupport.CaseEvaluation.DoctorPreferredLocations.DoctorPreferredLocationsAppService.GetByDoctorAsync(Guid) -> class=(authenticated) method=CaseEvaluation.DoctorPreferredLocations
 HealthcareSupport.CaseEvaluation.DoctorPreferredLocations.DoctorPreferredLocationsAppService.ToggleAsync(ToggleDoctorPreferredLocationInput) -> class=(authenticated) method=CaseEvaluation.DoctorPreferredLocations.Toggle
+HealthcareSupport.CaseEvaluation.Doctors.DoctorTenantAppService.ApplyDatabaseMigrationsAsync(Guid) -> class=Saas.Tenants method=Saas.Tenants.ManageConnectionStrings
+HealthcareSupport.CaseEvaluation.Doctors.DoctorTenantAppService.CheckConnectionStringAsync(String) -> class=Saas.Tenants method=-
 HealthcareSupport.CaseEvaluation.Doctors.DoctorTenantAppService.CreateAsync(SaasTenantCreateDto) -> class=Saas.Tenants method=Saas.Tenants.Create
 HealthcareSupport.CaseEvaluation.Doctors.DoctorTenantAppService.CreatePracticeAsync(CreatePracticeInput) -> class=Saas.Tenants method=Saas.Tenants.Create
+HealthcareSupport.CaseEvaluation.Doctors.DoctorTenantAppService.DeleteAsync(Guid) -> class=Saas.Tenants method=Saas.Tenants.Delete
+HealthcareSupport.CaseEvaluation.Doctors.DoctorTenantAppService.GetAsync(Guid) -> class=Saas.Tenants method=-
 HealthcareSupport.CaseEvaluation.Doctors.DoctorTenantAppService.GetConnectionStringsAsync(Guid) -> class=Saas.Tenants method=Saas.Tenants.ManageConnectionStrings
+HealthcareSupport.CaseEvaluation.Doctors.DoctorTenantAppService.GetDatabasesAsync() -> class=Saas.Tenants method=Saas.Tenants.ManageConnectionStrings
+HealthcareSupport.CaseEvaluation.Doctors.DoctorTenantAppService.GetEditionLookupAsync() -> class=Saas.Tenants method=-
+HealthcareSupport.CaseEvaluation.Doctors.DoctorTenantAppService.GetListAsync(GetTenantsInput) -> class=Saas.Tenants method=-
+HealthcareSupport.CaseEvaluation.Doctors.DoctorTenantAppService.SetPasswordAsync(Guid, SaasTenantSetPasswordDto) -> class=Saas.Tenants method=Saas.Tenants.SetPassword
+HealthcareSupport.CaseEvaluation.Doctors.DoctorTenantAppService.UpdateAsync(Guid, SaasTenantUpdateDto) -> class=Saas.Tenants method=Saas.Tenants.Update
 HealthcareSupport.CaseEvaluation.Doctors.DoctorTenantAppService.UpdateConnectionStringsAsync(Guid, SaasTenantConnectionStringsDto) -> class=Saas.Tenants method=Saas.Tenants.ManageConnectionStrings
 HealthcareSupport.CaseEvaluation.Doctors.DoctorsAppService.CreateAsync(DoctorCreateDto) -> class=CaseEvaluation.Doctors method=CaseEvaluation.Doctors.Create
 HealthcareSupport.CaseEvaluation.Doctors.DoctorsAppService.DeleteAsync(Guid) -> class=CaseEvaluation.Doctors method=CaseEvaluation.Doctors.Delete
