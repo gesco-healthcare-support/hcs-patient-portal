@@ -103,6 +103,13 @@ export interface AppointmentInjurySubmitDto {
   bodyParts?: AppointmentBodyPartCreateDto[];
 }
 
+export interface AppointmentPartiesUpdateDto {
+  patientEmail?: string | null;
+  applicantAttorney?: StaffAttorneyChangeDto | null;
+  defenseAttorney?: StaffAttorneyChangeDto | null;
+  claimExaminer?: StaffClaimExaminerChangeDto | null;
+}
+
 export interface AppointmentStatusCountDto {
   status?: AppointmentStatusType;
   count?: number;
@@ -241,4 +248,33 @@ export interface RescheduleChainDto {
   sideAAgreedAt?: string | null;
   sideBAgreedAt?: string | null;
   decidedAt?: string | null;
+}
+
+export interface StaffAttorneyChangeDto {
+  remove?: boolean;
+  attorneyId?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  email?: string | null;
+  firmName?: string | null;
+  webAddress?: string | null;
+  phoneNumber?: string | null;
+  faxNumber?: string | null;
+  street?: string | null;
+  city?: string | null;
+  stateId?: string | null;
+  zipCode?: string | null;
+}
+
+export interface StaffClaimExaminerChangeDto {
+  remove?: boolean;
+  name?: string | null;
+  email?: string | null;
+  phoneNumber?: string | null;
+  fax?: string | null;
+  suite?: string | null;
+  street?: string | null;
+  city?: string | null;
+  stateId?: string | null;
+  zip?: string | null;
 }

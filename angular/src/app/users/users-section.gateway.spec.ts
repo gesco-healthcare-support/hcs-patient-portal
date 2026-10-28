@@ -1,5 +1,4 @@
 import { TestBed } from '@angular/core/testing';
-import { RestService } from '@abp/ng.core';
 import { of } from 'rxjs';
 import { EditionService, TenantService } from '@volo/abp.ng.saas/proxy';
 
@@ -11,7 +10,7 @@ import { UserExtendedService } from '../proxy/users/user-extended.service';
 import { DashboardService } from '../proxy/dashboards/dashboard.service';
 import { DoctorTenantService } from '../proxy/doctors/doctor-tenant.service';
 import { BrandingService } from '../shared/branding/branding.service';
-import { AccountActivationService } from './account-activation.service';
+import { AccountActivationService } from '../proxy/external-account/account-activation.service';
 
 /**
  * The Users hub's section gateway: invitations, internal users, and practices, each routed to
@@ -43,7 +42,6 @@ describe('UsersSectionGateway', () => {
   let doctorTenant: Record<string, jasmine.Spy>;
   let branding: Record<string, jasmine.Spy>;
   let activation: Record<string, jasmine.Spy>;
-  let rest: Record<string, jasmine.Spy>;
 
   /** A fully populated identity user, as the update round trip would read one back. */
   const STORED_USER = {
@@ -91,6 +89,9 @@ describe('UsersSectionGateway', () => {
       sendPasswordResetEmail: jasmine
         .createSpy('sendPasswordResetEmail')
         .and.returnValue(of(undefined)),
+      changeRole: jasmine
+        .createSpy('changeRole')
+        .and.returnValue(of({ id: 'u1', role: 'Staff Supervisor' })),
     };
     userExtended = {
       get: jasmine.createSpy('get').and.returnValue(of(STORED_USER)),
@@ -110,11 +111,6 @@ describe('UsersSectionGateway', () => {
         .createSpy('resendToOfficeAdministrator')
         .and.returnValue(of(undefined)),
     };
-    rest = {
-      request: jasmine
-        .createSpy('request')
-        .and.returnValue(of({ id: 'u1', role: 'Staff Supervisor' })),
-    };
 
     TestBed.configureTestingModule({
       providers: [
@@ -128,7 +124,6 @@ describe('UsersSectionGateway', () => {
         { provide: DoctorTenantService, useValue: doctorTenant },
         { provide: BrandingService, useValue: branding },
         { provide: AccountActivationService, useValue: activation },
-        { provide: RestService, useValue: rest },
       ],
     });
 
@@ -275,22 +270,16 @@ describe('UsersSectionGateway', () => {
     });
   });
 
-  // 2026-10-26: Staff Management's "Change role", called by its literal route until the generated
-  // client is regenerated -- so the route, verb and body the controller expects are pinned here.
+  // 2026-10-26: Staff Management's "Change role" goes through the generated client (2026-10-28).
   describe('changing a role', () => {
-    it('puts the one role chosen to the staff member role route and returns the refreshed row', () => {
+    it('sends the one role chosen for that staff member and returns the refreshed row', () => {
       const g = gateway();
 
       const row = emitted(g.changeRole('u1', 'Staff Supervisor'));
 
-      expect(rest['request']).toHaveBeenCalledWith(
-        {
-          method: 'PUT',
-          url: '/api/app/internal-users/u1/role',
-          body: { roleName: 'Staff Supervisor' },
-        },
-        { apiName: 'Default' },
-      );
+      expect(internalUsers['changeRole']).toHaveBeenCalledWith('u1', {
+        roleName: 'Staff Supervisor',
+      });
       expect(row).toEqual({ id: 'u1', role: 'Staff Supervisor' } as never);
     });
   });

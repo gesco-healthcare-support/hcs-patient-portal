@@ -96,6 +96,7 @@ export interface OfficeListDto {
   appointmentCount?: number;
   isActive?: boolean;
   concurrencyStamp?: string | null;
+  hasNotificationInbox?: boolean;
 }
 
 export interface TenantSummaryDto {
