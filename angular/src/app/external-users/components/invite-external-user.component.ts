@@ -8,6 +8,10 @@ import { LocalizationPipe, RestService } from '@abp/ng.core';
 import { ToasterService } from '@abp/ng.theme.shared';
 
 import { PacificDatePipe } from '../../shared/pipes/pacific-date.pipe';
+import {
+  INVITE_EMAIL_NOT_SENT_MESSAGE,
+  inviteEmailWasNotQueued,
+} from '../../shared/invite-email.util';
 /**
  * Admin-side invite form for external users (Patient, Applicant Attorney,
  * Defense Attorney, Claim Examiner). Backend constrains the role to those
@@ -67,6 +71,8 @@ export class InviteExternalUserComponent {
     expiresAt: string;
   } | null>(null);
   readonly copyConfirmation = signal<string | null>(null);
+  /** 2026-10-27: the invitation exists but its email could not be sent (the link is on screen). */
+  readonly emailNotSent = signal(false);
 
   /**
    * Item F (2026-08-22): the email already has an account in this office, so no invite was issued.
@@ -103,6 +109,7 @@ export class InviteExternalUserComponent {
     this.isSubmitting.set(true);
     this.errorMessage.set(null);
     this.result.set(null);
+    this.emailNotSent.set(false);
     this.copyConfirmation.set(null);
     this.alreadyRegistered.set(null);
     this.portalLinkConfirmation.set(null);
@@ -119,6 +126,7 @@ export class InviteExternalUserComponent {
             expiresAt: string;
             alreadyRegistered?: boolean;
             existingRoleName?: string | null;
+            emailQueued?: boolean;
           }
         >(
           {
@@ -149,8 +157,14 @@ export class InviteExternalUserComponent {
         tenantName: response.tenantName,
         expiresAt: response.expiresAt,
       });
-      // OBS-28: success toast in addition to the inline result card.
-      this.toaster.success('Invitation sent to ' + response.email + '.', 'Invite sent');
+      if (inviteEmailWasNotQueued(response)) {
+        // 2026-10-27: the invitation exists but its email did not go; say so, the link is on screen.
+        this.emailNotSent.set(true);
+        this.toaster.warn(INVITE_EMAIL_NOT_SENT_MESSAGE, 'Email not sent');
+      } else {
+        // OBS-28: success toast in addition to the inline result card.
+        this.toaster.success('Invitation sent to ' + response.email + '.', 'Invite sent');
+      }
     } catch (err: any) {
       const message =
         err?.error?.error?.message ??

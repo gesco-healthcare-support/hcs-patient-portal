@@ -18,6 +18,7 @@ describe('IntakeOfficeSwitcherComponent', () => {
   let getMyOfficeMetrics: jasmine.Spy;
   let impersonateTenant: jasmine.Spy;
   let info: jasmine.Spy;
+  let error: jasmine.Spy;
 
   interface Probe {
     [key: string]: any;
@@ -29,11 +30,12 @@ describe('IntakeOfficeSwitcherComponent', () => {
     getMyOfficeMetrics = jasmine.createSpy('getMyOfficeMetrics').and.returnValue(metrics);
     impersonateTenant = jasmine.createSpy('impersonateTenant').and.returnValue(of({}));
     info = jasmine.createSpy('info');
+    error = jasmine.createSpy('error');
     TestBed.configureTestingModule({
       providers: [
         { provide: IntakeAssignmentsService, useValue: { getMyOfficeMetrics } },
         { provide: ImpersonationService, useValue: { impersonateTenant } },
-        { provide: ToasterService, useValue: { info } },
+        { provide: ToasterService, useValue: { info, error } },
       ],
     });
     return TestBed.runInInjectionContext(
@@ -89,13 +91,33 @@ describe('IntakeOfficeSwitcherComponent', () => {
       expect(impersonateTenant).not.toHaveBeenCalled();
     });
 
-    it('releases the button when the switch fails', () => {
+    it('releases the button when the switch fails, and says so', () => {
       const c = create();
       impersonateTenant.and.returnValue(throwError(() => ({ status: 400 })));
 
       c.switchInto(office);
 
       expect(c.busy()).toBeFalse();
+      expect(error).toHaveBeenCalledWith(
+        'Could not switch into that office. Please try again, or contact an administrator.',
+      );
+    });
+
+    it("shows the server's reason when the switch is refused", () => {
+      const c = create();
+      impersonateTenant.and.returnValue(
+        throwError(() => ({
+          status: 400,
+          error: {
+            error: 'invalid_grant',
+            error_description: 'You are not assigned to this office.',
+          },
+        })),
+      );
+
+      c.switchInto(office);
+
+      expect(error).toHaveBeenCalledWith('You are not assigned to this office.');
     });
   });
 });
