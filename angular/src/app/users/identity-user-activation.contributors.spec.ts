@@ -2,7 +2,7 @@ import { of, throwError } from 'rxjs';
 import { EntityActionList, FormProp, FormPropList } from '@abp/ng.components/extensible';
 import { ToasterService } from '@abp/ng.theme.shared';
 import type { IdentityUserDto } from '@volo/abp.ng.identity/proxy';
-import { AccountActivationService } from './account-activation.service';
+import { AccountActivationService } from '../proxy/external-account/account-activation.service';
 import {
   IDENTITY_USER_ACTIVATION_OPTIONS,
   IDENTITY_USERS_COMPONENT_KEY,

@@ -87,4 +87,5 @@ export interface InviteExternalUserResultDto {
   expiresAt?: string;
   alreadyRegistered?: boolean;
   existingRoleName?: string | null;
+  emailQueued?: boolean;
 }
