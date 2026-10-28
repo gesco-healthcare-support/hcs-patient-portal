@@ -76,9 +76,9 @@ class SqlAppLogin(unittest.TestCase):
             lines.append(f"SQL_APP_PASSWORD={password}")
         (self.dir / "env.prod").write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
 
-    def run_script(self, *args, real_password=None, **extra):
+    def run_script(self, *args, stored_login_value=None, **extra):
         env = dict(os.environ, FAKE_DIR=shell_path(self.dir), ENV_FILE=shell_path(self.dir / "env.prod"),
-                   FAKE_REAL_PASSWORD=self.password if real_password is None else real_password)
+                   FAKE_REAL_PASSWORD=self.password if stored_login_value is None else stored_login_value)
         env.update(extra)
         env["PATH"] = (shell_path(self.dir / "bin") + ":/usr/bin:/bin" if sys.platform == "win32"
                        else str(self.dir / "bin") + os.pathsep + os.environ.get("PATH", ""))
@@ -117,7 +117,7 @@ class SqlAppLogin(unittest.TestCase):
         self.assertIn("wrong server rights", output)
 
     def test_a_password_that_no_longer_matches_the_login_is_an_error_not_a_change(self):
-        code, output = self.run_script(real_password="Pp-the-old-one-1234")
+        code, output = self.run_script(stored_login_value="Pp-the-old-one-1234")
         self.assertNotEqual(code, 0)
         self.assertIn("do NOT change it here", output)
 

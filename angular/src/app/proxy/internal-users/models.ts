@@ -1,5 +1,9 @@
 import type { PagedAndSortedResultRequestDto } from '@abp/ng.core';
 
+export interface ChangeInternalUserRoleDto {
+  roleName: string;
+}
+
 export interface CreateInternalUserDto {
   email: string;
   firstName: string;

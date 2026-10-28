@@ -691,12 +691,10 @@ export class InternalUsersHubComponent {
   /**
    * 2026-10-27: the practice has no Office notification inbox, so its office-level notices (new
    * requests, cancellations, the daily digest) reach nobody. Only an explicit false counts: a server
-   * that does not send the flag shows no warning. (The flag is newer than the generated proxy type.)
+   * that does not send the flag shows no warning.
    */
   protected missingNotificationInbox(row: OfficeListDto): boolean {
-    return (
-      (row as OfficeListDto & { hasNotificationInbox?: boolean }).hasNotificationInbox === false
-    );
+    return row.hasNotificationInbox === false;
   }
 
   protected openEditTenant(row: OfficeListDto): void {
