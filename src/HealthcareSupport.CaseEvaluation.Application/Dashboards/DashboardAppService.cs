@@ -254,6 +254,7 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
     [Authorize("Saas.Tenants")]
     public virtual async Task<List<TenantSummaryDto>> GetTenantSummariesAsync()
     {
+        EnsureHostCaller();
         var tenants = await _tenantRepository.GetListAsync();
         var nameById = tenants.ToDictionary(t => t.Id, t => t.Name);
 
@@ -280,6 +281,7 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
     [Authorize("Saas.Tenants")]
     public virtual async Task<PagedResultDto<OfficeListDto>> GetOfficesAsync(GetOfficesInput input)
     {
+        EnsureHostCaller();
         Check.NotNull(input, nameof(input));
 
         using (CurrentTenant.Change(null))
@@ -347,6 +349,7 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
     public virtual async Task<PagedResultDto<DashboardTenantRowDto>> GetTenantBreakdownAsync(
         GetTenantBreakdownInput input)
     {
+        EnsureHostCaller();
         Check.NotNull(input, nameof(input));
 
         var lastMondayUtc = GetLastMondayUtc(_clock.Now);
@@ -811,5 +814,19 @@ public class DashboardAppService : CaseEvaluationAppService, IDashboardAppServic
             daysToMonday += 7;
         }
         return today.AddDays(-daysToMonday).Date;
+    }
+
+    /// <summary>
+    /// 2026-10-28 -- refuses a caller who is inside an office. The office registry (summaries, the Practices list,
+    /// the per-office breakdown) covers every office, so it belongs to the host alone. Their permissions are
+    /// host-side and already stop an office caller at the authorization interceptor; this check keeps the
+    /// refusal in place even if a permission's side is ever widened.
+    /// </summary>
+    private void EnsureHostCaller()
+    {
+        if (CurrentTenant.IsAvailable)
+        {
+            throw new AbpAuthorizationException("The office registry is available only from the host.");
+        }
     }
 }
