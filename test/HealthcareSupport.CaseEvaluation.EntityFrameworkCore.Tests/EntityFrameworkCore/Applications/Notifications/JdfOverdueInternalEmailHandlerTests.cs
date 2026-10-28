@@ -48,6 +48,24 @@ public class JdfOverdueInternalEmailHandlerTests : CaseEvaluationEntityFramework
         sent.Variables.Values.ShouldContain(AppointmentsTestData.Appointment1RequestConfirmationNumber);
     }
 
+    /// <summary>
+    /// 2026-10-27: the email goes only to staff, who sign in on the staff site; a staff login does not work
+    /// on the office site, so the link is the staff site's.
+    /// </summary>
+    [Fact]
+    public async Task TheLink_IsTheStaffSite_NotTheOfficeSite()
+    {
+        await SeedStaffAsync();
+        var urls = GetRequiredService<IAccountUrlBuilder>();
+        var staffSite = await WithUnitOfWorkAsync(() => urls.BuildPortalRootUrlAsync(null));
+        var officeSite = await WithUnitOfWorkAsync(() => urls.BuildPortalRootUrlAsync(TenantsTestData.TenantARef));
+        staffSite.ShouldNotBe(officeSite, "the two sites must differ or this test proves nothing");
+
+        await RaiseAsync(AppointmentsTestData.Appointment1Id);
+
+        _dispatcher.Dispatches.ShouldHaveSingleItem().Variables["PortalUrl"].ShouldBe(staffSite);
+    }
+
     [Fact]
     public async Task ASwitchedOffStaffUser_IsNotEmailed()
     {

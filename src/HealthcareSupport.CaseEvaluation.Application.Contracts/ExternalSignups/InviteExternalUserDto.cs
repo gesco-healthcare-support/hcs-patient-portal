@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
 
 namespace HealthcareSupport.CaseEvaluation.ExternalSignups;
 
@@ -33,11 +34,13 @@ public class InviteExternalUserDto
     /// personalize the invite email greeting and pre-fill the register form
     /// (the recipient may override it at registration).
     /// </summary>
-    [StringLength(128)]
+    /// <remarks>2026-10-27: at most 50, the attorney record's limit: a longer invited name made the
+    /// recipient's sign-up fail with a generic error instead of being refused here.</remarks>
+    [StringLength(ApplicantAttorneyConsts.FirstNameMaxLength, ErrorMessage = "First name can be at most 50 characters.")]
     public string? FirstName { get; set; }
 
     /// <summary>Optional recipient last name. See <see cref="FirstName"/>.</summary>
-    [StringLength(128)]
+    [StringLength(ApplicantAttorneyConsts.LastNameMaxLength, ErrorMessage = "Last name can be at most 50 characters.")]
     public string? LastName { get; set; }
 
     /// <summary>

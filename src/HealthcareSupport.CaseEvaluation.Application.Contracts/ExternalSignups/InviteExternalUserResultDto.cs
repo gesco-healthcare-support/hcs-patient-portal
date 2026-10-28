@@ -14,6 +14,10 @@ namespace HealthcareSupport.CaseEvaluation.ExternalSignups;
 /// retry pipeline; surfacing the queue state to the UI was confusing
 /// for staff. The "always copy the link manually" UX absorbs the
 /// dispatch-failed case without needing a separate flag.</para>
+///
+/// <para>2026-10-27 -- <see cref="EmailQueued"/> brought back. The removal above assumed a 200
+/// always meant the email was queued; the service has since swallowed a failed dispatch so the
+/// link survives, and the screens then announced "Invite sent" for an email that never left.</para>
 /// </summary>
 public class InviteExternalUserResultDto
 {
@@ -47,4 +51,11 @@ public class InviteExternalUserResultDto
     /// staff at a glance whether they have the wrong person or merely the wrong role.
     /// </summary>
     public string? ExistingRoleName { get; set; }
+
+    /// <summary>
+    /// 2026-10-27 -- true when the invitation email was queued for sending. False when the invitation
+    /// was issued but its email could not be queued (the link above still works and staff send it
+    /// themselves), and when <see cref="AlreadyRegistered"/> is true (nothing was issued).
+    /// </summary>
+    public bool EmailQueued { get; set; }
 }

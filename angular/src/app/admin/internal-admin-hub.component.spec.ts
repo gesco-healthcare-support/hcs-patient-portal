@@ -30,7 +30,7 @@ import { AdminSectionGateway, type NtRow, type RoleRow } from './admin-section.g
  */
 describe('InternalAdminHubComponent', () => {
   let gateway: Record<string, jasmine.Spy>;
-  let toaster: { info: jasmine.Spy; success: jasmine.Spy; error: jasmine.Spy };
+  let toaster: { info: jasmine.Spy; success: jasmine.Spy; error: jasmine.Spy; warn: jasmine.Spy };
   let routeData: Subject<Record<string, unknown>>;
   let granted: Set<string>;
   let currentTenant: unknown;
@@ -82,6 +82,7 @@ describe('InternalAdminHubComponent', () => {
       info: jasmine.createSpy('info'),
       success: jasmine.createSpy('success'),
       error: jasmine.createSpy('error'),
+      warn: jasmine.createSpy('warn'),
     };
 
     TestBed.configureTestingModule({
@@ -614,6 +615,18 @@ describe('InternalAdminHubComponent', () => {
       expect(gateway['updateParameters'].calls.mostRecent().args[0].appointmentLeadTime).toBe(5);
       expect(c.params().appointmentLeadTime).toBe(5);
       expect(toaster.success).toHaveBeenCalled();
+    });
+
+    it('refuses a value below 1 before calling the server, naming the field', () => {
+      const c = ready(['CaseEvaluation.SystemParameters.Edit']);
+      c.patchParam('appointmentLeadTime', 0);
+
+      c.saveParameters();
+
+      expect(gateway['updateParameters']).not.toHaveBeenCalled();
+      expect(toaster.warn).toHaveBeenCalledWith(
+        'Minimum lead time must be a whole number, 1 or more.',
+      );
     });
 
     it('refuses to save without the edit permission', () => {

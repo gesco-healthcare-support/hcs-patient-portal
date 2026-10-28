@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
+using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.Invitations;
 using HealthcareSupport.CaseEvaluation.TestData;
 using Shouldly;
@@ -43,6 +44,7 @@ public abstract class ExternalSignupInviteRegistrationTests<TStartupModule>
     private readonly InvitationManager _invitationManager;
     private readonly IdentityUserManager _userManager;
     private readonly IRepository<ApplicantAttorney, Guid> _applicantAttorneyRepository;
+    private readonly IRepository<DefenseAttorney, Guid> _defenseAttorneyRepository;
     private readonly ICurrentTenant _currentTenant;
 
     protected ExternalSignupInviteRegistrationTests()
@@ -51,6 +53,7 @@ public abstract class ExternalSignupInviteRegistrationTests<TStartupModule>
         _invitationManager = GetRequiredService<InvitationManager>();
         _userManager = GetRequiredService<IdentityUserManager>();
         _applicantAttorneyRepository = GetRequiredService<IRepository<ApplicantAttorney, Guid>>();
+        _defenseAttorneyRepository = GetRequiredService<IRepository<DefenseAttorney, Guid>>();
         _currentTenant = GetRequiredService<ICurrentTenant>();
     }
 
@@ -250,6 +253,46 @@ public abstract class ExternalSignupInviteRegistrationTests<TStartupModule>
                 a => a.Email != null && a.Email == email);
             masters.Count.ShouldBe(1);
             masters[0].FirmName.ShouldBe(invitedFirm);
+        }
+    }
+
+    /// <summary>
+    /// 2026-10-27: an invited firm name over the old 50-character limit. The invite took 256 but the attorney
+    /// record took 50, so the recipient's sign-up failed with a generic error. Both attorney kinds now keep it.
+    /// </summary>
+    [Theory]
+    [InlineData(ExternalUserType.ApplicantAttorney)]
+    [InlineData(ExternalUserType.DefenseAttorney)]
+    public async Task RegisterAsync_AttorneyInvite_KeepsAFirmNameOf120CharactersWhole(ExternalUserType userType)
+    {
+        var token = NewToken();
+        var email = $"long-{token}@test.local";
+        var invitedFirm = ($"TEST Law Offices of Synthetic Example {token} and Partners, A Professional Corporation "
+                           + new string('X', 120))[..120];
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var (_, rawToken) = await _invitationManager.IssueAsync(
+                tenantId: TenantsTestData.TenantARef,
+                email: email,
+                userType: userType,
+                invitedByUserId: IdentityUsersTestData.TenantAdmin1UserId,
+                firmName: invitedFirm);
+
+            await _appService.RegisterAsync(new ExternalUserSignUpDto
+            {
+                UserType = userType,
+                Email = email,
+                Password = Password,
+                ConfirmPassword = Password,
+                FirmName = null,
+                InviteToken = rawToken,
+            });
+
+            var firm = userType == ExternalUserType.ApplicantAttorney
+                ? (await _applicantAttorneyRepository.GetListAsync(a => a.Email == email)).Single().FirmName
+                : (await _defenseAttorneyRepository.GetListAsync(a => a.Email == email)).Single().FirmName;
+            firm.ShouldBe(invitedFirm);
         }
     }
 }

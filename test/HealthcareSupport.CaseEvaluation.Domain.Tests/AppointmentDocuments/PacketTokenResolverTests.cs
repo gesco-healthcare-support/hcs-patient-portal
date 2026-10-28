@@ -261,4 +261,30 @@ public class PacketTokenResolverTests
         ctx.DefenseAttorneyName.ShouldBeEmpty();
         ctx.DefenseAttorneyStreet.ShouldBeEmpty();
     }
+
+    /// <summary>
+    /// 2026-10-27: a firm name longer than the old 50-character limit. Real firm names run that long, and
+    /// the invite already took 256, so an invited firm over 50 used to fail at sign-up. The attorney record
+    /// now holds it, and the packet prints it whole.
+    /// </summary>
+    [Fact]
+    public async Task A_firm_name_of_120_characters_is_kept_whole_on_the_attorney_record_and_the_packet()
+    {
+        var longFirm = ("TEST Law Offices of Synthetic Example and Partners, A Professional Law Corporation "
+                        + new string('X', 120))[..120];
+        longFirm.Length.ShouldBe(120);
+
+        var w = new World();
+        var appointment = NewAppointment(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        w.Appointments.Add(appointment);
+        var firmAccount = new IdentityUser(Guid.NewGuid(), "test-longfirm", "longfirm@test.local");
+        w.Users.Add(firmAccount);
+        var applicant = new ApplicantAttorney(Guid.NewGuid(), null, firmAccount.Id, longFirm);
+        w.Applicants.Add(applicant);
+        w.ApplicantLinks.Add(new AppointmentApplicantAttorney(Guid.NewGuid(), appointment.Id, applicant.Id, firmAccount.Id));
+
+        var ctx = await w.Resolver().ResolveAsync(appointment.Id);
+
+        ctx.PatientAttorneyName.ShouldBe(longFirm.ToUpperInvariant());
+    }
 }

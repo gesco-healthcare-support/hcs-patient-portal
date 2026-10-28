@@ -761,7 +761,8 @@ export class AppointmentAddComponent {
     applicantAttorneyFirstName: [null as string | null, [Validators.maxLength(50)]],
     applicantAttorneyLastName: [null as string | null, [Validators.maxLength(50)]],
     applicantAttorneyEmail: [null as string | null, [Validators.maxLength(50), Validators.email]],
-    applicantAttorneyFirmName: [null as string | null, [Validators.maxLength(50)]],
+    // 2026-10-27: 256, the attorney record's limit since then (real firm names run past 50).
+    applicantAttorneyFirmName: [null as string | null, [Validators.maxLength(256)]],
     applicantAttorneyWebAddress: [null as string | null, [Validators.maxLength(100)]],
     applicantAttorneyPhoneNumber: [null as string | null, [Validators.maxLength(20)]],
     applicantAttorneyFaxNumber: [null as string | null, [Validators.maxLength(19)]],
@@ -778,7 +779,7 @@ export class AppointmentAddComponent {
     defenseAttorneyFirstName: [null as string | null, [Validators.maxLength(50)]],
     defenseAttorneyLastName: [null as string | null, [Validators.maxLength(50)]],
     defenseAttorneyEmail: [null as string | null, [Validators.maxLength(50), Validators.email]],
-    defenseAttorneyFirmName: [null as string | null, [Validators.maxLength(50)]],
+    defenseAttorneyFirmName: [null as string | null, [Validators.maxLength(256)]],
     defenseAttorneyWebAddress: [null as string | null, [Validators.maxLength(100)]],
     defenseAttorneyPhoneNumber: [null as string | null, [Validators.maxLength(20)]],
     defenseAttorneyFaxNumber: [null as string | null, [Validators.maxLength(19)]],
@@ -2126,9 +2127,11 @@ export class AppointmentAddComponent {
       return;
     }
     if (this.isSubmitBlockedByPatient(this.form.getRawValue())) {
+      this.announceSubmitBlocked();
       return;
     }
     if (this.isSubmitBlockedByBookingGates()) {
+      this.announceSubmitBlocked();
       return;
     }
 
@@ -2200,6 +2203,17 @@ export class AppointmentAddComponent {
       return 'Look up the appointment you want to book again by confirmation number before submitting.';
     }
     return 'The prior appointment could not be loaded, so this re-request cannot be submitted.';
+  }
+
+  /**
+   * 2026-10-27: a blocked Submit says why where the user is. The gates write their reason to the
+   * patient section, which is not on screen at the wizard's last step, so a refused Submit looked
+   * like nothing happened.
+   */
+  private announceSubmitBlocked(): void {
+    if (this.patientLoadMessage) {
+      this.toaster.warn(this.patientLoadMessage);
+    }
   }
 
   /** True when the patient half of the form cannot be submitted; marks the fields as it goes. */

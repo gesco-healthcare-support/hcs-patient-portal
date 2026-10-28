@@ -5,6 +5,7 @@ using System.Net;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
 using HealthcareSupport.CaseEvaluation.Extensions;
+using HealthcareSupport.CaseEvaluation.HostOperators;
 using HealthcareSupport.CaseEvaluation.Notifications;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
 using HealthcareSupport.CaseEvaluation.Settings;
@@ -130,6 +131,14 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
         await StampPasswordResetRateLimitAsync(normalizedEmail);
 
         var user = await _userManager.FindByEmailAsync(normalizedEmail);
+
+        // 2026-10-27 -- an office login made for a host staff member has no password anyone uses: it is reached
+        // only through "Enter practice", and password sign-in refuses it. Send nothing; the page shows the same
+        // success it shows everyone. (Their own host account resets on the staff site.)
+        if (user != null && IntakeShadowUserProvisioner.IsStampedShadow(user))
+        {
+            return;
+        }
 
         // 2026-10-23 -- an UNCONFIRMED account asking for a reset gets an activation link instead.
         //
