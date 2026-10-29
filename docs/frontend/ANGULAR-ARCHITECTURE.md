@@ -184,7 +184,6 @@ Other runtime libraries, as declared in `angular/package.json` (the version in b
 | `angular-oauth2-oidc` | via `@abp/ng.oauth` (20.0.2) | OAuth code flow with PKCE, token storage and refresh |
 | `ngx-mask` | ~20.0.3 (20.0.3) | Input masks, including the on-screen SSN mask |
 | `@rxweb/reactive-form-validators` | ^13 (13.0.1) | Named validators on top of Angular's `Validators` |
-| `ngx-quill` + `quill` | 28.0.2 + 2.0.3 | Rich-text editor in the admin hub's notification templates |
 | `@fullcalendar/angular` + `fullcalendar` | ^7.0.2 (7.0.2) | The staff schedule calendar (`/doctor-management/schedule`) |
 | `temporal-polyfill` | ^1.0.2 (1.0.2) | Peer dependency of FullCalendar 7; no application code imports it |
 
@@ -261,9 +260,9 @@ abp generate-proxy -t ng
 It also keeps the LeptonX custom properties (theme backgrounds and logo) that the ABP components still read. The
 LeptonX layout itself is not rendered.
 
-Third-party stylesheets are listed in the build target's `styles` array in `angular.json`: Quill (snow theme),
-ngx-datatable, Font Awesome, the ng-zorro tree, the LeptonX bundles, Bootstrap Icons, Cropper.js, the Uppy core and
-dashboard, and the Roboto font.
+Third-party stylesheets are listed in the build target's `styles` array in `angular.json`: ngx-datatable, Font
+Awesome, the ng-zorro tree, the LeptonX bundles, Bootstrap Icons, Cropper.js, the Uppy core and dashboard, and the
+Roboto font.
 
 ## Build, Test and Lint
 

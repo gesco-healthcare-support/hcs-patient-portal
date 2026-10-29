@@ -1,4 +1,4 @@
-import { TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { ActivatedRoute } from '@angular/router';
 import { Subject, of, throwError } from 'rxjs';
 import { ConfigStateService, PermissionService } from '@abp/ng.core';
@@ -34,6 +34,7 @@ describe('InternalAdminHubComponent', () => {
   let routeData: Subject<Record<string, unknown>>;
   let granted: Set<string>;
   let currentTenant: unknown;
+  let fixture: ComponentFixture<InternalAdminHubComponent>;
 
   interface Probe {
     [key: string]: any;
@@ -102,8 +103,8 @@ describe('InternalAdminHubComponent', () => {
       ],
     });
 
-    const component = TestBed.createComponent(InternalAdminHubComponent)
-      .componentInstance as unknown as Probe;
+    fixture = TestBed.createComponent(InternalAdminHubComponent);
+    const component = fixture.componentInstance as unknown as Probe;
     if (options.section !== undefined) {
       routeData.next({ section: options.section });
     }
@@ -388,15 +389,6 @@ describe('InternalAdminHubComponent', () => {
   });
 
   describe('inserting a merge variable', () => {
-    function editorStub() {
-      return {
-        getSelection: jasmine.createSpy('getSelection').and.returnValue({ index: 6, length: 0 }),
-        getLength: jasmine.createSpy('getLength').and.returnValue(20),
-        insertText: jasmine.createSpy('insertText'),
-        setSelection: jasmine.createSpy('setSelection'),
-      };
-    }
-
     function ready(): Probe {
       const c = create({ tenant: { id: 'office-a' } });
       gateway['listTemplates'].and.returnValue(of([ntRow()]));
@@ -404,32 +396,40 @@ describe('InternalAdminHubComponent', () => {
       return c;
     }
 
-    it('inserts at the caret when the editor is live', () => {
+    /** Stands in for the rendered HTML box: this spec never renders, so the view query is empty. */
+    function withSourceBox(c: Probe, start: number, end = start): HTMLTextAreaElement {
+      const source = document.createElement('textarea');
+      source.value = c.ntDraft().bodyEmail;
+      source.setSelectionRange(start, end);
+      c.bodySource = () => ({ nativeElement: source });
+      return source;
+    }
+
+    it('inserts at the caret of the HTML box and puts the caret after it', fakeAsync(() => {
       const c = ready();
-      const editor = editorStub();
-      c.onEditorCreated(editor);
+      const source = withSourceBox(c, '<p>'.length);
 
-      c.insertVar('Patient.FirstName');
+      c.insertVar('Claim.Number');
 
-      expect(editor.insertText).toHaveBeenCalledWith(6, '##Patient.FirstName##', 'user');
-      expect(editor.setSelection).toHaveBeenCalledWith(6 + '##Patient.FirstName##'.length, 0);
+      expect(c.ntDraft().bodyEmail).toBe('<p>##Claim.Number##Hello ##Patient.FirstName##</p>');
+      source.value = c.ntDraft().bodyEmail; // what ngModel does on the next render
+      tick();
+      expect(source.selectionStart).toBe('<p>##Claim.Number##'.length);
       expect(toaster.info).toHaveBeenCalled();
-    });
+    }));
 
-    it('inserts at the end when the editor is unfocused', () => {
-      // getSelection(true) returns null when the editor never had focus; falling back to the
-      // document length is what stops the token landing at index 0, ahead of the greeting.
+    it('replaces the selected text', fakeAsync(() => {
       const c = ready();
-      const editor = editorStub();
-      editor.getSelection.and.returnValue(null);
-      c.onEditorCreated(editor);
+      const start = '<p>Hello '.length;
+      withSourceBox(c, start, start + '##Patient.FirstName##'.length);
 
-      c.insertVar('Patient.FirstName');
+      c.insertVar('Claim.Number');
+      tick();
 
-      expect(editor.insertText).toHaveBeenCalledWith(20, '##Patient.FirstName##', 'user');
-    });
+      expect(c.ntDraft().bodyEmail).toBe('<p>Hello ##Claim.Number##</p>');
+    }));
 
-    it('appends to the draft body when the editor has not been created', () => {
+    it('appends to the draft body when the HTML box has not rendered', () => {
       const c = ready();
       c.insertVar('Patient.FirstName');
       expect(c.ntDraft().bodyEmail).toContain('##Patient.FirstName##');
@@ -444,6 +444,37 @@ describe('InternalAdminHubComponent', () => {
       c.selectTemplate(null);
       c.insertVar('Patient.FirstName');
       expect(toaster.info).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('the email body preview', () => {
+    it('keeps the stored HTML and shows each variable as its label', () => {
+      const c = create({ tenant: { id: 'office-a' } });
+      gateway['listTemplates'].and.returnValue(of([ntRow()]));
+      routeData.next({ section: 'templates' });
+      c.selectTemplate(ntRow({ bodyEmail: '<td style="color:#123456">##PatientFirstName##</td>' }));
+      c.ntVariables.set([{ token: 'PatientFirstName', label: 'First name' }]);
+
+      expect(c.ntPreviewBody()).toBe('<td style="color:#123456">[First name]</td>');
+    });
+
+    it('renders an HTML box and a sandboxed frame showing the body with its styles intact', () => {
+      // The one rendered test here: the frame's srcdoc is set on the element precisely so that
+      // Angular's sanitizer does not strip the inline style, and only a real DOM can show that.
+      create({ tenant: { id: 'office-a' } });
+      gateway['listTemplates'].and.returnValue(
+        of([ntRow({ bodyEmail: '<p style="color:#123456">Hi ##PatientFirstName##</p>' })]),
+      );
+      routeData.next({ section: 'templates' });
+      fixture.detectChanges();
+      fixture.detectChanges();
+
+      const host = fixture.nativeElement as HTMLElement;
+      const frame = host.querySelector('iframe.nt-body-frame') as HTMLIFrameElement;
+      expect(frame).not.toBeNull();
+      expect(frame.getAttribute('sandbox')).toBe('');
+      expect(frame.srcdoc).toBe('<p style="color:#123456">Hi [Patient First Name]</p>');
+      expect(host.querySelector('textarea#iah-template-body')).not.toBeNull();
     });
   });
 

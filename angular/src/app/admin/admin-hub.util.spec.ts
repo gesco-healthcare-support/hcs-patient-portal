@@ -8,8 +8,10 @@ import {
   firstVisibleAdminSection,
   humanizeToken,
   insertVariable,
+  insertVariableAt,
   isAdminSectionVisible,
   isLockedRole,
+  previewEmailBody,
   previewSegments,
   splitPermissionNodes,
   roleKind,
@@ -137,6 +139,52 @@ describe('admin-hub.util', () => {
     });
     it('handles an empty body', () => {
       expect(insertVariable('', 'X')).toBe('##X##');
+    });
+  });
+
+  describe('insertVariableAt', () => {
+    it('inserts at the caret and puts the caret after the placeholder', () => {
+      expect(insertVariableAt('<p>Hi </p>', 6, 6, 'X')).toEqual({
+        body: '<p>Hi ##X##</p>',
+        caret: 11,
+      });
+    });
+    it('replaces a selection', () => {
+      expect(insertVariableAt('<p>Hi NAME</p>', 6, 10, 'X')).toEqual({
+        body: '<p>Hi ##X##</p>',
+        caret: 11,
+      });
+    });
+    it('clamps out-of-range positions instead of cutting the body', () => {
+      expect(insertVariableAt('abc', 99, 120, 'X')).toEqual({ body: 'abc##X##', caret: 8 });
+      expect(insertVariableAt('abc', -5, -1, 'X')).toEqual({ body: '##X##abc', caret: 5 });
+      expect(insertVariableAt('abc', 2, 1, 'X')).toEqual({ body: 'ab##X##c', caret: 7 });
+    });
+    it('handles an empty body', () => {
+      expect(insertVariableAt(null, 0, 0, 'X')).toEqual({ body: '##X##', caret: 5 });
+    });
+  });
+
+  describe('previewEmailBody', () => {
+    it('keeps the HTML, including the styles and tables a rich-text editor would drop', () => {
+      const html =
+        '<table><tr><td style="color:#000">Hi</td></tr></table><a style="background:#0d6efd">Go</a>';
+      expect(previewEmailBody(html)).toBe(html);
+    });
+    it('shows each variable as its label, falling back to the humanized token', () => {
+      expect(
+        previewEmailBody('<p>##PatientFirstName## ##ClaimNumber##</p>', {
+          PatientFirstName: 'Patient first name',
+        }),
+      ).toBe('<p>[Patient first name] [Claim Number]</p>');
+    });
+    it('escapes the label, so a placeholder inside an attribute keeps the attribute intact', () => {
+      expect(previewEmailBody('<a href="##PortalUrl##">Open</a>', { PortalUrl: '"x" <y>' })).toBe(
+        '<a href="[&quot;x&quot; &lt;y&gt;]">Open</a>',
+      );
+    });
+    it('returns an empty string for no body', () => {
+      expect(previewEmailBody(undefined)).toBe('');
     });
   });
 
