@@ -197,6 +197,61 @@ public class CaseTrackerReconciliationJobTests
     }
 
     /// <summary>
+    /// Sets that can never release -- nothing generated -- must not take batch slots. Before
+    /// 2026-10-29 the batch was the first 51 appointment ids with ANY unfinished packet, so 51 sets
+    /// that had rendered nothing kept a releasable set out of every sweep, forever. The hopeless sets
+    /// are added first, which is the order the old query returned them in, and they stalled more
+    /// recently than the releasable one, so ordering alone would also put them ahead of it: only the
+    /// "something generated" filter lets it through.
+    /// </summary>
+    [Fact]
+    public async Task ExecuteAsync_SetsThatCanNeverRelease_DoNotCrowdOutOneThatCan()
+    {
+        var rig = new Rig();
+        for (var i = 0; i < CaseTrackerReconciliationJob.PacketReleaseBatchSize + 1; i++)
+        {
+            var hopeless = NewAppointment(AppointmentStatusType.Approved);
+            rig.Appointments.Add(hopeless);
+            var packet = Packet(hopeless.Id, PacketKind.Patient, PacketGenerationStatus.Failed);
+            packet.LastModificationTime = Now.AddMinutes(-40);
+            rig.Packets.Add(packet);
+        }
+        var releasable = rig.AddStalledSet();
+
+        await rig.Build().ExecuteAsync();
+
+        rig.Published().ShouldHaveSingleItem().Id.ShouldBe(releasable.Id);
+    }
+
+    /// <summary>
+    /// A stalled set stays a candidate after it is released, so with more than 50 the batch must
+    /// favour the one that stalled most recently -- the one not yet released. Before 2026-10-29 the
+    /// batch had no order and was the same 51 every sweep, so a 52nd set was never looked at. The
+    /// older sets are added first, which is the order the old query returned them in.
+    /// </summary>
+    [Fact]
+    public async Task ExecuteAsync_MoreThanFiftyStalledSets_TheMostRecentlyStalledGoesFirst()
+    {
+        var rig = new Rig();
+        for (var i = 0; i < CaseTrackerReconciliationJob.PacketReleaseBatchSize + 1; i++)
+        {
+            rig.AddStalledSet();
+        }
+        var newest = rig.AddStalledSet();
+        foreach (var packet in rig.Packets.Where(p => p.AppointmentId == newest.Id))
+        {
+            // Past the 30-minute cutoff, so stalled -- just later than the others.
+            packet.LastModificationTime = Now.AddMinutes(-40);
+        }
+
+        await rig.Build().ExecuteAsync();
+
+        var published = rig.Published();
+        published.Count.ShouldBe(CaseTrackerReconciliationJob.PacketReleaseBatchSize);
+        published.ShouldContain(a => a.Id == newest.Id);
+    }
+
+    /// <summary>
     /// One office whose sweep throws must not stop the rest: the next office is still reconciled and
     /// drained.
     /// </summary>
