@@ -100,6 +100,9 @@ OLD source: `user-queries/add/user-query-add.component.html:1-34`
 3. Email routing:
    - **With appointmentId**: looks up `PrimaryResponsibleUserId` from the appointment; sends email to that user.
    - **Without appointmentId** (free-form): sends email to all users with `RoleId == ITAdmin` (semicolon-separated blast).
+   - **NEW, as built (2026-10-29):** whenever no responsible user's address resolves, the query goes to the
+     office's notification inbox, and the IT Admin blast is only the fallback for an office without one.
+     Live has no IT Admin user, so the blast alone delivered every free-form question to nobody.
 4. Email subject: `Patient Appointment Portal - (Patient: {FirstName} {LastName} - Claim: {claimNumber} - ADJ: {adjNumber}) - User query`
 5. Email body: `EmailTemplate.UserQuery` HTML template.
 6. Success toast: query submitted confirmation.
