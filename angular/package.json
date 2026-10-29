@@ -48,8 +48,6 @@
     "@volosoft/abp.ng.theme.lepton-x": "~5.0.2",
     "fullcalendar": "^7.0.2",
     "ngx-mask": "~20.0.3",
-    "ngx-quill": "28.0.2",
-    "quill": "2.0.3",
     "rxjs": "~7.8.0",
     "temporal-polyfill": "^1.0.2",
     "tslib": "^2.0.0",

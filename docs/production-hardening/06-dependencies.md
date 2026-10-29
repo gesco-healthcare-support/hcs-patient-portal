@@ -100,6 +100,12 @@ So this lane cannot close on a version bump. It needs a written decision -- acce
 justification, sanitise the export output through the existing `HtmlSanitizer`, remove the editor,
 or replace it.
 
+**Resolved 2026-10-29: the editor was removed.** It was also destroying the templates it edited --
+Quill rebuilds loaded HTML from its own small model, so the stored bodies' tables, inline styles and
+document wrapper were dropped on the first edit-and-save. The email body is now an HTML source box
+with a sandboxed rendered preview, and `quill`, `ngx-quill` and the global `quill.snow.css` bundle
+are gone from `angular/`.
+
 ### 6.3 Angular framework packages (highest risk) -- issue #587
 
 **12 advisories across three packages, not 9 across two.** `@angular/compiler` (3) was missing from

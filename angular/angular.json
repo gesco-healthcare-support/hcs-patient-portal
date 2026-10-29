@@ -52,11 +52,6 @@
             ],
             "styles": [
               {
-                "input": "node_modules/quill/dist/quill.snow.css",
-                "inject": true,
-                "bundleName": "quill-snow"
-              },
-              {
                 "input": "node_modules/@swimlane/ngx-datatable/index.css",
                 "inject": true,
                 "bundleName": "ngx-datatable-index"
