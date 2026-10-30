@@ -4,6 +4,7 @@ using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Identity;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
+using HealthcareSupport.CaseEvaluation.Settings;
 using Microsoft.Extensions.Logging;
 using Volo.Abp;
 using Volo.Abp.DependencyInjection;
@@ -11,6 +12,7 @@ using Volo.Abp.Domain.Repositories;
 using Volo.Abp.EventBus;
 using Volo.Abp.Identity;
 using Volo.Abp.MultiTenancy;
+using Volo.Abp.Settings;
 using Volo.Abp.Uow;
 
 namespace HealthcareSupport.CaseEvaluation.Notifications.Handlers;
@@ -28,9 +30,15 @@ namespace HealthcareSupport.CaseEvaluation.Notifications.Handlers;
 ///     (2026-10-26) the office's notification inbox gets it instead, if the
 ///     office has one (<see cref="ResponsibleUserRecipientResolver"/>).</item>
 ///   <item>Otherwise (no confirmation number, no matching Approved
-///     appointment, OR no responsible address resolved) fan out
-///     to every <c>IT Admin</c> user.</item>
+///     appointment, OR no responsible address resolved) the office's
+///     notification inbox gets it (2026-10-29). Only an office with no inbox
+///     falls back to every <c>IT Admin</c> user.</item>
 /// </list>
+///
+/// <para>Why the inbox comes before the IT Admins: the IT Admin pool is host
+/// staff, and on the live server it is empty, so a patient's or attorney's
+/// Contact-Us question went to nobody and only a warning reached the log. A
+/// question asked inside an office is that office's to answer.</para>
 ///
 /// <para>OLD bug B-09-02 dereferenced the responsible-user email after a
 /// <c>FirstOrDefault()</c> with no null guard -- an NRE after the row was
@@ -46,6 +54,7 @@ public class UserQuerySubmittedEmailHandler :
     private readonly ResponsibleUserRecipientResolver _responsibleUsers;
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly IdentityUserManager _userManager;
+    private readonly ISettingProvider _settingProvider;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<UserQuerySubmittedEmailHandler> _logger;
 
@@ -55,6 +64,7 @@ public class UserQuerySubmittedEmailHandler :
         ResponsibleUserRecipientResolver responsibleUsers,
         IRepository<Appointment, Guid> appointmentRepository,
         IdentityUserManager userManager,
+        ISettingProvider settingProvider,
         ICurrentTenant currentTenant,
         ILogger<UserQuerySubmittedEmailHandler> logger)
     {
@@ -63,6 +73,7 @@ public class UserQuerySubmittedEmailHandler :
         _responsibleUsers = responsibleUsers;
         _appointmentRepository = appointmentRepository;
         _userManager = userManager;
+        _settingProvider = settingProvider;
         _currentTenant = currentTenant;
         _logger = logger;
     }
@@ -108,16 +119,20 @@ public class UserQuerySubmittedEmailHandler :
             }
             else
             {
-                // OLD branch-2 fan-out + B-09-02 fix: broadcast to all
-                // IT-Admins when no Approved appointment matched OR the
-                // responsible user had no resolvable email (OLD NRE'd here).
-                recipients = await ResolveItAdminRecipientsAsync();
+                // No responsible address: the office's inbox, read in the office's own scope. OLD's
+                // branch-2 fan-out to every IT Admin (+ the B-09-02 null guard) is now only the
+                // fallback for an office that has no inbox.
+                recipients = await ResolveOfficeInboxRecipientsAsync();
+                if (recipients.Count == 0)
+                {
+                    recipients = await ResolveItAdminRecipientsAsync();
+                }
             }
 
             if (recipients.Count == 0)
             {
                 _logger.LogWarning(
-                    "UserQuerySubmittedEmailHandler: no recipients for query {UserQueryId} (no IT-Admin users in tenant); email skipped.",
+                    "UserQuerySubmittedEmailHandler: no recipients for query {UserQueryId} (no office inbox and no IT-Admin users); email skipped.",
                     eventData.UserQueryId);
                 return;
             }
@@ -153,6 +168,23 @@ public class UserQuerySubmittedEmailHandler :
                     eventData.UserQueryId);
             }
         }
+    }
+
+    /// <summary>
+    /// The office's notification inbox as a single recipient, or none when the office has not set one.
+    /// Runs inside the caller's office scope, so it reads that office's setting and never another's.
+    /// </summary>
+    private async Task<List<NotificationRecipient>> ResolveOfficeInboxRecipientsAsync()
+    {
+        var officeInbox = (await _settingProvider.GetOrNullAsync(
+            CaseEvaluationSettings.NotificationsPolicy.OfficeEmail))?.Trim();
+
+        return string.IsNullOrWhiteSpace(officeInbox)
+            ? new List<NotificationRecipient>()
+            : new List<NotificationRecipient>
+            {
+                new(email: officeInbox, role: RecipientRole.OfficeAdmin, isRegistered: true),
+            };
     }
 
     /// <summary>
