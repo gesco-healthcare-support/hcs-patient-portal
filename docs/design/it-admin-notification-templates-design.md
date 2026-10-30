@@ -141,6 +141,9 @@ names from the parity audit (e.g., "Rejected Joint Declaration Document" not
 - NEW: surface a `<textarea>` (plain HTML or basic rich-text via Angular Material
   - a simple WYSIWYG if available). At minimum, raw HTML textarea so IT Admin
   can paste / edit email bodies. See Exception 1.
+- **As built (2026-10-29):** a raw HTML textarea with a sandboxed rendered
+  preview. A Quill WYSIWYG was tried and removed: it dropped the bodies'
+  tables and inline styles on load, so saving any edit stripped the template.
 
 **Buttons:** Save (`btn btn-primary`) / Cancel (`btn btn-secondary`)
 

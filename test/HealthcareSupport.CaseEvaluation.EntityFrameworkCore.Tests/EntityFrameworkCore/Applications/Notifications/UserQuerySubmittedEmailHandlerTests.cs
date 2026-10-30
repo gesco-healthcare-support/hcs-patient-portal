@@ -22,14 +22,17 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Notifications;
 
 /// <summary>
 /// <see cref="UserQuerySubmittedEmailHandler"/> on the real rig. A query that names an APPROVED
-/// appointment goes to that appointment's responsible user; anything else goes to every host
-/// IT Admin. The IT-Admin Facts seed a host user in ANOTHER role as a decoy, so "only IT Admins"
-/// is shown against someone who could have been wrongly included.
+/// appointment goes to that appointment's responsible user; anything else goes to the office's
+/// notification inbox, and only an office without one falls back to every host IT Admin. The
+/// IT-Admin Facts seed a host user in ANOTHER role as a decoy, so "only IT Admins" is shown against
+/// someone who could have been wrongly included; the inbox Facts seed IT Admins too, so "the inbox
+/// and not the IT Admins" is shown against the pool that used to get everything.
 /// </summary>
 public class UserQuerySubmittedEmailHandlerTests : CaseEvaluationEntityFrameworkCoreTestBase
 {
     private const string Message = "TEST- a question from the portal";
     private const string OfficeInbox = "TEST-office-b-inbox@test.local";
+    private const string OfficeAInbox = "TEST-office-a-inbox@test.local";
 
     private readonly RecordingNotificationDispatcher _dispatcher = new();
 
@@ -143,6 +146,68 @@ public class UserQuerySubmittedEmailHandlerTests : CaseEvaluationEntityFramework
         _dispatcher.Dispatches.ShouldHaveSingleItem().Recipients.ShouldContain(admins.Admin);
     }
 
+    // 2026-10-29: a question with no responsible user goes to the office's inbox. The live server
+    // has no IT Admin at all, so before this every such question went to nobody.
+
+    [Fact]
+    public async Task NoConfirmationNumber_InAnOfficeWithAnInbox_GoesToTheInbox_NotTheItAdmins()
+    {
+        await SetOfficeBInboxAsync(OfficeInbox);
+        var admins = await SeedItAdminsAsync();
+
+        await RaiseAsync(confirmationNumber: null, TenantsTestData.TenantBRef);
+
+        var sent = _dispatcher.Dispatches.ShouldHaveSingleItem();
+        sent.Recipients.ShouldBe(new[] { OfficeInbox });
+        sent.Recipients.ShouldNotContain(admins.Admin);
+        sent.Variables["UserQuerySubjectIdentity"].ShouldBe(string.Empty);
+    }
+
+    [Fact]
+    public async Task ConfirmationNumberOfANonApprovedAppointment_InAnOfficeWithAnInbox_GoesToTheInbox()
+    {
+        // Appointment1 is seeded Pending in office A: its responsible user is still NOT used.
+        await ChangeAppointment1Async(a => a.PrimaryResponsibleUserId = IdentityUsersTestData.TenantAdmin1UserId);
+        await SetOfficeInboxAsync(TenantsTestData.TenantARef, OfficeAInbox);
+        var admins = await SeedItAdminsAsync();
+
+        await RaiseAsync(AppointmentsTestData.Appointment1RequestConfirmationNumber, TenantsTestData.TenantARef);
+
+        var sent = _dispatcher.Dispatches.ShouldHaveSingleItem();
+        sent.Recipients.ShouldBe(new[] { OfficeAInbox });
+        sent.Recipients.ShouldNotContain(IdentityUsersTestData.TenantAdmin1Email);
+        sent.Recipients.ShouldNotContain(admins.Admin);
+    }
+
+    [Fact]
+    public async Task ApprovedAppointmentWithNoResponsibleUser_InAnOfficeWithAnInbox_GoesToTheInbox()
+    {
+        await ChangeAppointment2Async(a => a.PrimaryResponsibleUserId = null);
+        await SetOfficeBInboxAsync(OfficeInbox);
+        var admins = await SeedItAdminsAsync();
+
+        await RaiseAsync(AppointmentsTestData.Appointment2RequestConfirmationNumber, TenantsTestData.TenantBRef);
+
+        var sent = _dispatcher.Dispatches.ShouldHaveSingleItem();
+        sent.Recipients.ShouldBe(new[] { OfficeInbox });
+        sent.Recipients.ShouldNotContain(admins.Admin);
+    }
+
+    [Fact]
+    public async Task AnotherOfficesInbox_IsNeverUsed()
+    {
+        // The OFFICE decoy for the inbox: office B has one, the question is asked in office A, which
+        // has none. It must reach the IT Admins, never office B's inbox.
+        await SetOfficeBInboxAsync(OfficeInbox);
+        var admins = await SeedItAdminsAsync();
+
+        await RaiseAsync(confirmationNumber: null, TenantsTestData.TenantARef);
+
+        var sent = _dispatcher.Dispatches.ShouldHaveSingleItem();
+        sent.Recipients.ShouldNotContain(OfficeInbox);
+        sent.Recipients.ShouldContain(admins.Admin);
+    }
+
     [Fact]
     public async Task ASwitchedOffItAdmin_IsNotEmailed()
     {
@@ -250,9 +315,11 @@ public class UserQuerySubmittedEmailHandlerTests : CaseEvaluationEntityFramework
         return seeded;
     }
 
-    private Task SetOfficeBInboxAsync(string inbox) => WithUnitOfWorkAsync(async () =>
+    private Task SetOfficeBInboxAsync(string inbox) => SetOfficeInboxAsync(TenantsTestData.TenantBRef, inbox);
+
+    private Task SetOfficeInboxAsync(Guid tenantId, string inbox) => WithUnitOfWorkAsync(async () =>
     {
-        using (GetRequiredService<ICurrentTenant>().Change(TenantsTestData.TenantBRef))
+        using (GetRequiredService<ICurrentTenant>().Change(tenantId))
         {
             await GetRequiredService<ISettingManager>().SetForCurrentTenantAsync(
                 CaseEvaluationSettings.NotificationsPolicy.OfficeEmail, inbox);

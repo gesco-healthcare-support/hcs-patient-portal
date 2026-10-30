@@ -186,6 +186,50 @@ export function insertVariable(body: string | null | undefined, token: string): 
   return base + (needsSpace ? ' ' : '') + '##' + token + '##';
 }
 
+/**
+ * Puts a ##token## placeholder in place of the selection [start, end) -- or at the caret when the
+ * two are equal -- and returns the new body with the caret just after the placeholder. Out-of-range
+ * positions are clamped, so a stale selection can never cut the body.
+ */
+export function insertVariableAt(
+  body: string | null | undefined,
+  start: number,
+  end: number,
+  token: string,
+): { body: string; caret: number } {
+  const base = body ?? '';
+  const from = Math.min(Math.max(start, 0), base.length);
+  const to = Math.min(Math.max(end, from), base.length);
+  const placeholder = '##' + token + '##';
+  return {
+    body: base.slice(0, from) + placeholder + base.slice(to),
+    caret: from + placeholder.length,
+  };
+}
+
+/**
+ * The email body as the preview shows it: the stored HTML with each ##Var## swapped for its
+ * "[Label]". The label is escaped, and is plain text rather than markup, because a placeholder can
+ * sit inside an attribute (href="##PortalUrl##") where a tag would break the HTML around it.
+ */
+export function previewEmailBody(
+  html: string | null | undefined,
+  labelByToken: Record<string, string> = {},
+): string {
+  return (html ?? '').replaceAll(TOKEN_RE, (_match, token: string) =>
+    escapeHtml('[' + (labelByToken[token] || humanizeToken(token)) + ']'),
+  );
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
 /** "EmailSubjectIdentity" -> "Email Subject Identity"; acronyms stay intact. */
 export function humanizeToken(token: string): string {
   return (token ?? '').replace(/([a-z0-9])([A-Z])/g, '$1 $2');

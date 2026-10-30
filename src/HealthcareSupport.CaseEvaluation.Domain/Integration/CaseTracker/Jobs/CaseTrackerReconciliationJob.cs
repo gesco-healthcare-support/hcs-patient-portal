@@ -60,8 +60,8 @@ public class CaseTrackerReconciliationJob : ITransientDependency
 
     /// <summary>
     /// Ceiling on releases per office per sweep, so a backlog cannot turn one sweep into a long-running
-    /// job. Anything skipped is picked up 15 minutes later; a truncated pass is logged rather than
-    /// silently dropped.
+    /// job. The most recently stalled sets go first (see <see cref="ReleaseStalledPacketSetsAsync"/>);
+    /// a truncated pass is logged rather than silently dropped.
     /// </summary>
     public const int PacketReleaseBatchSize = 50;
 
@@ -108,6 +108,17 @@ public class CaseTrackerReconciliationJob : ITransientDependency
     /// <para>Re-running is safe and expected: the entry set is unchanged between sweeps, so the outbox
     /// idempotency key matches and the enqueue collapses onto the existing row. Once the missing kind
     /// eventually renders, the set changes and a fresh push goes out.</para>
+    ///
+    /// <para><b>Which sets fill the batch (2026-10-29).</b> A failed kind never turns Generated, so a
+    /// stalled set stays a candidate for good, released or not. The batch used to be the first 51
+    /// distinct appointment ids SQL Server happened to return, with no order (EF logged a warning every
+    /// sweep), so it was the SAME arbitrary 51 every 15 minutes: past 50 stalled sets in an office, the
+    /// rest were never looked at, and an appointment whose intake waits on its packets never reached
+    /// the Case Tracker at all. Sets that can never release -- nothing generated -- also took slots.
+    /// Now the query applies <see cref="PacketSetPolicy.ShouldRelease"/>'s own test in the database,
+    /// so only releasable sets are counted, and it takes the most recently stalled first, with the id
+    /// as a tie-break so the order is stable. A set is therefore picked up on the first pass after it
+    /// stalls; an older one was released when it was new, and repeating that is the no-op above.</para>
     /// </summary>
     private async Task<int> ReleaseStalledPacketSetsAsync(Guid officeId)
     {
@@ -115,10 +126,18 @@ public class CaseTrackerReconciliationJob : ITransientDependency
 
         var packetQueryable = await _packetRepository.GetQueryableAsync();
         var candidateIds = packetQueryable
-            .Where(p => p.Status != PacketGenerationStatus.Generated)
-            .Where(p => (p.LastModificationTime ?? p.CreationTime) < cutoff)
-            .Select(p => p.AppointmentId)
-            .Distinct()
+            .GroupBy(p => p.AppointmentId)
+            .Select(set => new
+            {
+                AppointmentId = set.Key,
+                NotGenerated = set.Count(p => p.Status != PacketGenerationStatus.Generated),
+                Generated = set.Count(p => p.Status == PacketGenerationStatus.Generated),
+                LastChangedAt = set.Max(p => p.LastModificationTime ?? p.CreationTime),
+            })
+            .Where(set => set.NotGenerated > 0 && set.Generated > 0 && set.LastChangedAt < cutoff)
+            .OrderByDescending(set => set.LastChangedAt)
+            .ThenBy(set => set.AppointmentId)
+            .Select(set => set.AppointmentId)
             .Take(PacketReleaseBatchSize + 1)
             .ToList();
 

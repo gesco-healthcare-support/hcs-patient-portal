@@ -188,7 +188,7 @@
   color: var(--blue-700);
 }
 
-/* #6 (2026-06-19): list pager + WYSIWYG email-body editor (ngx-quill snow). */
+/* #6 (2026-06-19): list pager. */
 .nt-pager {
   display: flex;
   align-items: center;
@@ -220,33 +220,25 @@
   opacity: 0.4;
   cursor: not-allowed;
 }
-/* ngx-quill's component :host sets display:block and a height that clips to the
-   container alone, so the toolbar's ~42px overflowed down into the next field
-   (the "SMS body" label landed in the email-body box). :host wins at equal
-   specificity (it loads after global CSS), so override with !important: a flex
-   column with auto height sizes the host to toolbar + container. */
-.nt-editor {
-  display: flex !important;
-  flex-direction: column;
-  height: auto !important;
+/* 2026-10-29: the email body is edited as HTML source (the Quill editor it replaced dropped the
+   templates' tables and inline styles), with the rendered result in a sandboxed frame below. */
+.nt-source {
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+  font-size: 12.5px;
+  line-height: 1.5;
+  min-height: 240px;
+  resize: vertical;
+  white-space: pre;
+  overflow-wrap: normal;
+  overflow-x: auto;
 }
-.nt-editor .ql-toolbar {
-  border-top-left-radius: var(--r-md);
-  border-top-right-radius: var(--r-md);
-  border-color: var(--border-strong);
-  flex: 0 0 auto;
-}
-.nt-editor .ql-container {
-  border-bottom-left-radius: var(--r-md);
-  border-bottom-right-radius: var(--r-md);
-  border-color: var(--border-strong);
-  font-family: inherit;
-  font-size: 13.5px;
-  flex: 1 1 auto;
-  min-height: 200px;
-}
-.nt-editor .ql-editor {
-  min-height: 200px;
+.nt-body-frame {
+  display: block;
+  width: 100%;
+  height: 360px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: #fff;
 }
 
 /* ---- system parameters ---- */

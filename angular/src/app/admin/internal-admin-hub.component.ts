@@ -1,4 +1,13 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  ElementRef,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -16,8 +25,6 @@ import type { AuditLogDto } from '@volo/abp.ng.audit-logging/proxy';
 import { IconComponent } from '../shared/ui/icon/icon.component';
 import { SortHeaderComponent } from '../shared/sort/sort-header.component';
 import { makeComparator, type SortModel, type SortValue } from '../shared/sort/sort-state';
-import { QuillEditorComponent } from 'ngx-quill';
-import type Quill from 'quill';
 import type { NotificationTemplateVariableDto } from '../proxy/notification-templates/models';
 import type { SystemParameterDto } from '../proxy/system-parameters/models';
 import {
@@ -31,9 +38,11 @@ import {
   filterPermParents,
   firstInvalidSystemParameter,
   insertVariable,
+  insertVariableAt,
   isAdminSectionVisible,
   isLockedRole,
   type PermParentNode,
+  previewEmailBody,
   previewSegments,
   splitPermissionNodes,
   SP_GROUPS,
@@ -108,7 +117,6 @@ function auditSortValue(row: AuditLogDto, key: string): SortValue {
     RouterLink,
     IconComponent,
     SortHeaderComponent,
-    QuillEditorComponent,
     CaseTrackerOfficesComponent,
     IntegrationFailuresComponent,
     CaseTrackerMissingIntakesComponent,
@@ -167,18 +175,15 @@ export class InternalAdminHubComponent {
   protected readonly ntSelectedId = signal<string | null>(null);
   protected readonly ntDraft = signal<NtDraft | null>(null);
   protected readonly ntVariables = signal<NotificationTemplateVariableDto[]>([]);
-  /** Live Quill instance for the email body (cursor-aware variable inserts). */
-  private editor: Quill | null = null;
-  /** Toolbar: common email formatting. ##Var## tokens insert as literal text. */
-  protected readonly quillModules = {
-    toolbar: [
-      [{ header: [1, 2, 3, false] }],
-      ['bold', 'italic', 'underline'],
-      [{ list: 'ordered' }, { list: 'bullet' }],
-      ['link'],
-      ['clean'],
-    ],
-  };
+  /**
+   * The email body is edited as its HTML source, with a rendered preview beside it (2026-10-29).
+   * It used to be a Quill rich-text editor, but Quill rebuilds whatever it loads from its own small
+   * model: the stored bodies' tables, inline styles (the button links, the body font) and
+   * DOCTYPE/head/body wrapper were dropped on load, so the first edit-and-save replaced a template
+   * with a stripped copy, and nothing could bring the original back.
+   */
+  private readonly bodySource = viewChild<ElementRef<HTMLTextAreaElement>>('bodySource');
+  private readonly bodyPreview = viewChild<ElementRef<HTMLIFrameElement>>('bodyPreview');
 
   protected readonly ntShown = computed(() => {
     const q = this.ntQuery();
@@ -209,6 +214,9 @@ export class InternalAdminHubComponent {
   });
   protected readonly ntPreviewSubject = computed(() =>
     previewSegments(this.ntDraft()?.subject, this.ntLabelByToken()),
+  );
+  protected readonly ntPreviewBody = computed(() =>
+    previewEmailBody(this.ntDraft()?.bodyEmail, this.ntLabelByToken()),
   );
 
   // ---- System Parameters ----
@@ -273,6 +281,15 @@ export class InternalAdminHubComponent {
   });
 
   constructor() {
+    // The preview frame is sandboxed with no permissions (no scripts, links or forms, an opaque
+    // origin), and its srcdoc is set on the element rather than bound: binding would run Angular's
+    // HTML sanitizer, which strips the inline styles the preview is there to show.
+    effect(() => {
+      const frame = this.bodyPreview()?.nativeElement;
+      if (frame) {
+        frame.srcdoc = this.ntPreviewBody();
+      }
+    });
     this.route.data.pipe(takeUntilDestroyed()).subscribe((data) => {
       this.section.set((data['section'] as AdminSectionKey) ?? 'templates');
       this.load();
@@ -375,24 +392,29 @@ export class InternalAdminHubComponent {
   protected setNtTypeFilter(value: string): void {
     this.ntTypeFilter.set(value);
   }
-  /** Capture the Quill instance so variable inserts land at the cursor. */
-  protected onEditorCreated(editor: Quill): void {
-    this.editor = editor;
-  }
   protected insertVar(token: string | undefined): void {
     const current = this.ntDraft();
     if (!current || !token) {
       return;
     }
     const placeholder = '##' + token + '##';
-    if (this.editor) {
-      // Insert at the caret (or end if unfocused); ngModelChange syncs the draft.
-      const range = this.editor.getSelection(true);
-      const index = range ? range.index : this.editor.getLength();
-      this.editor.insertText(index, placeholder, 'user');
-      this.editor.setSelection(index + placeholder.length, 0);
+    const source = this.bodySource()?.nativeElement;
+    if (source) {
+      // Replace the selection, or insert at the caret, then put the caret after the placeholder
+      // once the textarea shows the new value.
+      const { body, caret } = insertVariableAt(
+        current.bodyEmail,
+        source.selectionStart,
+        source.selectionEnd,
+        token,
+      );
+      this.ntDraft.set({ ...current, bodyEmail: body });
+      setTimeout(() => {
+        source.focus();
+        source.setSelectionRange(caret, caret);
+      });
     } else {
-      // Editor not ready: fall back to appending to the body string.
+      // Editor not rendered: fall back to appending to the body string.
       this.ntDraft.set({ ...current, bodyEmail: insertVariable(current.bodyEmail, token) });
     }
     this.toaster.info(placeholder + ' inserted.');
