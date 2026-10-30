@@ -22,7 +22,7 @@ are booked against them. Slots belong to the office, so each office database hol
 | `FromTime`, `ToTime` | The time window (`TimeOnly`) |
 | `LocationId` | Where the appointment takes place |
 | `AppointmentTypes` | The appointment types the slot offers -- a collection, so one slot can offer several types |
-| `Capacity` | How many active appointments the slot takes. Default 3, at least 1 |
+| `Capacity` | How many active appointments the slot takes. Default 3, at least 1 when created; staff may later set 0 to 50 (0 = closed to new requests) |
 | `BookingStatusId` | Available, Booked or Reserved -- see below |
 
 ## How a slot fills: the capacity model
@@ -31,6 +31,13 @@ A slot does **not** change status as it is booked. Whether it can take another a
 booking time by counting its **active** appointments against its `Capacity`. Appointments in the five
 terminal statuses (Rejected, CancelledNoBill, CancelledLate, RescheduledNoBill, RescheduledLate) do not
 count, so a cancellation frees capacity without anything writing to the slot.
+
+**Changing capacity on existing slots.** Staff holding `DoctorAvailabilities.Edit` (office admin, Staff
+Supervisor, Intake Staff) set one capacity on one slot or on every slot one location has on one day
+(`PUT api/app/doctor-availabilities/capacity`, all or nothing). **0 closes the slot to new requests**
+while it stays Available: the picker hides it, the booking gate refuses it as closed, and no reschedule
+can propose it. Appointments already on the slot are untouched, and capacity can never be lowered below
+them.
 
 `BookingStatus` (`Domain.Shared/Enums/BookingStatus.cs`):
 
@@ -53,7 +60,8 @@ are left out.
 The picker is a convenience; the server re-checks the slot when the appointment is booked
 (`AppointmentsAppService.ValidateDoctorAvailabilityForBookingAsync`), in this order:
 
-1. **Closed** -- a `Reserved` slot always refuses (`AppointmentBookingSlotClosed`).
+1. **Closed** -- a `Reserved` slot, or one staff set to capacity 0, always refuses
+   (`AppointmentBookingSlotClosed`).
 2. **Full** -- active appointments >= `Capacity` refuses (`AppointmentBookingSlotFull`).
 3. **Wrong type** -- if the slot lists appointment types and the requested type is not among them, it
    refuses (`AppointmentBookingSlotTypeMismatch`).

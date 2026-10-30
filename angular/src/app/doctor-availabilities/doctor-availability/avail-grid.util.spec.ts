@@ -1,9 +1,11 @@
 import { BookingStatus } from '../../proxy/enums/booking-status.enum';
 import type { DoctorAvailabilityWithNavigationPropertiesDto } from '../../proxy/doctor-availabilities/models';
 import {
+  bookedCount,
   bookingStatusToKey,
   bookingStatusLabel,
   buildWeekColumns,
+  capacityLabel,
   formatTimeRange,
   formatWeekRange,
   isoDate,
@@ -225,6 +227,59 @@ describe('avail-grid.util', () => {
 
       expect(monday.slots[0].statusKey).toBe('available');
       expect(monday.busy).toBe(0);
+    });
+  });
+
+  // 2026-10-30 -- capacity 0 is a slot staff closed; the grid shows it grey and counts it as taken.
+  describe('capacity 0 and the booked count', () => {
+    it('reads a 0-capacity slot as closed, unless it is a manual Reserved close', () => {
+      expect(slotStatusKey(BookingStatus.Available, 0, 0)).toBe('closed');
+      expect(slotStatusKey(BookingStatus.Booked, null, 0)).toBe('closed');
+      expect(slotStatusKey(BookingStatus.Reserved, 0, 0)).toBe('reserved');
+      expect(slotStatusKey(BookingStatus.Available, 1, 3)).toBe('available');
+    });
+
+    it('counts booked appointments from the remaining capacity, or the name list when larger', () => {
+      expect(bookedCount(3, 1, 0)).toBe(2);
+      expect(bookedCount(3, 3, 0)).toBe(0);
+      // The server clamps remaining at 0, so an over-full slot reads low; the names do not.
+      expect(bookedCount(2, 0, 3)).toBe(3);
+      expect(bookedCount(3, null, 0)).toBeNull();
+      expect(bookedCount(3, null, 2)).toBe(2);
+    });
+
+    it('labels the slot by what is booked against its capacity', () => {
+      expect(capacityLabel({ capacity: 3, booked: 2 })).toBe('Booked 2 of 3');
+      expect(capacityLabel({ capacity: 3, booked: null })).toBe('Capacity 3');
+      expect(capacityLabel({ capacity: 0, booked: 0 })).toBe('Closed');
+      expect(capacityLabel({ capacity: 0, booked: 1 })).toBe('Closed (1 booked)');
+    });
+
+    it('carries the location, the concurrency stamp and the booked count onto each grid slot', () => {
+      const monday = new Date(2026, 5, 15);
+      const [col] = buildWeekColumns(
+        [
+          {
+            doctorAvailability: {
+              id: 's1',
+              locationId: 'loc-1',
+              concurrencyStamp: 'stamp-1',
+              availableDate: '2026-06-15T00:00:00',
+              fromTime: '09:00:00',
+              toTime: '09:30:00',
+              capacity: 0,
+              remainingCapacity: 0,
+            },
+          } as DoctorAvailabilityWithNavigationPropertiesDto,
+        ],
+        [monday],
+      );
+      const [s] = col.slots;
+      expect(s.locationId).toBe('loc-1');
+      expect(s.concurrencyStamp).toBe('stamp-1');
+      expect(s.booked).toBe(0);
+      expect(s.statusKey).toBe('closed');
+      expect(col.busy).toBe(1);
     });
   });
 });

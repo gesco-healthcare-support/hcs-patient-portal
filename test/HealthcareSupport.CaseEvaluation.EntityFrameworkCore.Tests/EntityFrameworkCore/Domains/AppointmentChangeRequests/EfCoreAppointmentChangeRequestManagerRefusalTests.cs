@@ -144,6 +144,28 @@ public class EfCoreAppointmentChangeRequestManagerRefusalTests : CaseEvaluationE
     }
 
     [Fact]
+    public async Task Reschedule_ToASlotStaffClosedBySettingCapacityToZero_IsRefused_AndWritesNoRequest()
+    {
+        // 2026-10-30: the slot reads Available, so the status check alone would accept it and move
+        // the appointment onto a time staff have closed.
+        var appointmentId = await InsertApprovedAppointmentAsync();
+        var closedSlot = await InsertSlotAsync(FarFuture().AddDays(4), BookingStatus.Available);
+        await InTenantAAsync(async () =>
+        {
+            var slot = await _slots.GetAsync(closedSlot);
+            slot.Capacity = 0;
+            return await _slots.UpdateAsync(slot, autoSave: true);
+        });
+
+        var ex = await Should.ThrowAsync<BusinessException>(() => InTenantAAsync(() =>
+            _manager.SubmitRescheduleAsync(appointmentId, closedSlot, "TEST-reason", false, false, null)));
+
+        ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.ChangeRequestNewSlotNotAvailable);
+        (await CountRequestsAsync(appointmentId)).ShouldBe(0);
+        (await InTenantAAsync(() => _slots.GetAsync(closedSlot))).BookingStatusId.ShouldBe(BookingStatus.Available);
+    }
+
+    [Fact]
     public async Task Reschedule_ToTheAppointmentsOwnSlot_IsRefused_AndWritesNoRequest()
     {
         // 2026-10-15: the slot reads Available, as a booked slot can under the capacity model, so

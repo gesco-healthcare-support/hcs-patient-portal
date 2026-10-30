@@ -19,6 +19,12 @@ public interface IDoctorAvailabilitiesAppService : IApplicationService
     Task<DoctorAvailabilityBulkDeleteResultDto> DeleteByDateAsync(DoctorAvailabilityDeleteByDateInputDto input);
     Task<DoctorAvailabilityDto> CreateAsync(DoctorAvailabilityCreateDto input);
     Task<DoctorAvailabilityDto> UpdateAsync(Guid id, DoctorAvailabilityUpdateDto input);
+
+    /// <summary>
+    /// 2026-10-30 -- one capacity for one or more existing slots, all or nothing. 0 closes them to
+    /// new requests. Gated on <c>DoctorAvailabilities.Edit</c>.
+    /// </summary>
+    Task<DoctorAvailabilitySetCapacityResultDto> SetCapacityAsync(DoctorAvailabilitySetCapacityInputDto input);
     /// <summary>
     /// 2026-05-15 (slot rework plan 4) -- preview projection for the
     /// multi-axis generation input. Pure function over the input shape:
