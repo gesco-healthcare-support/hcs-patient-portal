@@ -760,7 +760,7 @@ describe('InternalAvailabilitiesComponent capacity editing', () => {
       e.textContent?.trim(),
     );
     expect(labels).toEqual(['Booked 2 of 3', 'Closed']);
-    expect(root.querySelectorAll('.av-slot.closed').length).toBe(1);
+    expect(root.querySelectorAll('.av-slot.closed')).toHaveSize(1);
   });
 
   it('changes one slot to 0 with its concurrency stamp, then reloads the week', () => {
