@@ -1524,7 +1524,9 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // Arm 1: explicit manual close. The error CODE is load-bearing: the SPA's
         // catch block in appointment-add.component.ts pattern-matches on it to refetch
         // the slot picker, so it must survive to the client.
-        if (doctorAvailability.BookingStatusId == BookingStatus.Reserved)
+        // 2026-10-30: capacity 0 is the same close, set from the staff capacity editor. Checked here
+        // rather than left to arm 2 so the caller hears "closed by the clinic", not "full (0 of 0)".
+        if (doctorAvailability.BookingStatusId == BookingStatus.Reserved || doctorAvailability.Capacity <= 0)
         {
             throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentBookingSlotClosed);
         }

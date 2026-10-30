@@ -68,6 +68,17 @@ export interface DoctorAvailabilityGenerateInputDto {
   capacity?: number;
 }
 
+export interface DoctorAvailabilitySetCapacityInputDto {
+  slots: DoctorAvailabilitySlotStampDto[];
+  capacity?: number;
+  locationId?: string | null;
+}
+
+export interface DoctorAvailabilitySetCapacityResultDto {
+  updatedCount?: number;
+  capacity?: number;
+}
+
 export interface DoctorAvailabilitySlotPreviewDto {
   availableDate?: string;
   fromTime?: string;
@@ -78,6 +89,11 @@ export interface DoctorAvailabilitySlotPreviewDto {
   capacity?: number;
   timeId?: number;
   isConflict?: boolean;
+}
+
+export interface DoctorAvailabilitySlotStampDto {
+  id?: string;
+  concurrencyStamp?: string | null;
 }
 
 export interface DoctorAvailabilitySlotsPreviewDto {

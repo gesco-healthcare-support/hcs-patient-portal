@@ -12,6 +12,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
+import { PermissionService } from '@abp/ng.core';
 import { ToasterService } from '@abp/ng.theme.shared';
 import { finalize } from 'rxjs/operators';
 import { DoctorAvailabilityService } from '../../proxy/doctor-availabilities/doctor-availability.service';
@@ -19,11 +20,25 @@ import type { DoctorAvailabilityWithNavigationPropertiesDto } from '../../proxy/
 import { IconComponent } from '../../shared/ui/icon/icon.component';
 import {
   buildWeekColumns,
+  capacityLabel,
   formatWeekRange,
   weekDatesFor,
+  type GridSlot,
   type SlotStatusKey,
   type WeekDayColumn,
 } from './avail-grid.util';
+
+/** The most a slot may admit from this editor; mirrors DoctorAvailabilityConsts.MaxCapacity. */
+export const MAX_SLOT_CAPACITY = 50;
+
+/** The capacity dialog: one slot, or every slot one location has on one day. */
+interface CapacityEdit {
+  kind: 'slot' | 'day';
+  title: string;
+  detail: string;
+  locationId: string | null;
+  slots: { id: string; concurrencyStamp: string }[];
+}
 
 type StatusFilter = 'all' | 'busy' | SlotStatusKey;
 interface LocationOption {
@@ -51,6 +66,13 @@ export class InternalAvailabilitiesComponent implements OnInit {
   private readonly service = inject(DoctorAvailabilityService);
   private readonly toaster = inject(ToasterService);
   private readonly router = inject(Router);
+  private readonly permissions = inject(PermissionService);
+
+  /** 2026-10-30 -- the capacity controls need the same permission the server demands. */
+  protected readonly canEditCapacity = this.permissions.getGrantedPolicy(
+    'CaseEvaluation.DoctorAvailabilities.Edit',
+  );
+  protected readonly maxCapacity = MAX_SLOT_CAPACITY;
 
   // Anchor "today" captured once so week math + labels stay stable per visit.
   private readonly anchor = new Date();
@@ -67,6 +89,10 @@ export class InternalAvailabilitiesComponent implements OnInit {
   protected readonly patientNames = signal<Record<string, string[]>>({});
   protected readonly expanded = signal<ReadonlySet<string>>(new Set());
   protected readonly confirmDay = signal<WeekDayColumn | null>(null);
+  protected readonly capacityEdit = signal<CapacityEdit | null>(null);
+  protected readonly capacityValue = signal<number | null>(null);
+  /** The server's refusal (which slot, how many active appointments), shown in the dialog. */
+  protected readonly capacityError = signal('');
 
   protected readonly weekDates = computed(() => weekDatesFor(this.anchor, this.weekOffset()));
   protected readonly weekRange = computed(() => formatWeekRange(this.weekDates()));
@@ -82,11 +108,11 @@ export class InternalAvailabilitiesComponent implements OnInit {
       return cols;
     }
     if (filter === 'busy') {
-      // R2-3: booked + reserved only -- hides the available flood that makes a
+      // R2-3: everything not open -- hides the available flood that makes a
       // full work day of 15-20min slots overflow the week grid.
       return cols.map((c) => ({
         ...c,
-        slots: c.slots.filter((s) => s.statusKey === 'booked' || s.statusKey === 'reserved'),
+        slots: c.slots.filter((s) => s.statusKey !== 'available'),
       }));
     }
     return cols.map((c) => ({ ...c, slots: c.slots.filter((s) => s.statusKey === filter) }));
@@ -237,6 +263,9 @@ export class InternalAvailabilitiesComponent implements OnInit {
     if (this.confirmDay()) {
       this.cancelDeleteDay();
     }
+    if (this.capacityEdit()) {
+      this.cancelCapacity();
+    }
   }
 
   @ViewChild('scrim') private readonly scrim?: ElementRef<HTMLElement>;
@@ -252,6 +281,116 @@ export class InternalAvailabilitiesComponent implements OnInit {
     if (event.target === this.scrim?.nativeElement) {
       this.cancelDeleteDay();
     }
+    if (event.target === this.capacityScrim?.nativeElement) {
+      this.cancelCapacity();
+    }
+  }
+
+  @ViewChild('capacityScrim') private readonly capacityScrim?: ElementRef<HTMLElement>;
+
+  // ---- capacity (2026-10-30) ----
+  /** Change one slot's capacity. 0 closes it to new requests. */
+  protected openSlotCapacity(slot: GridSlot, col: WeekDayColumn): void {
+    this.openCapacity(
+      {
+        kind: 'slot',
+        title: `Change capacity: ${slot.timeLabel}`,
+        detail: `${this.dayLabel(col)}. Currently ${capacityLabel(slot)}.`,
+        locationId: slot.locationId || null,
+        slots: [{ id: slot.id, concurrencyStamp: slot.concurrencyStamp }],
+      },
+      slot.capacity,
+    );
+  }
+
+  /**
+   * One capacity for every slot the SELECTED location has that day. The slots come from the full
+   * column (not the status-filtered one) and are narrowed to the selected location, and the
+   * location travels with the request, so another location's slots on the same day are never
+   * changed. Hidden in the All-locations view, and guarded here as well.
+   */
+  protected openDayCapacity(col: WeekDayColumn): void {
+    const locationId = this.locationId();
+    const full = this.columns().find((c) => c.iso === col.iso);
+    const slots = (full?.slots ?? []).filter((s) => s.locationId === locationId);
+    if (!locationId || slots.length === 0) {
+      return;
+    }
+    this.openCapacity(
+      {
+        kind: 'day',
+        title: `Set capacity for ${this.dayLabel(col)}`,
+        detail: `All ${slots.length} slot(s) at ${this.selectedLocationName()} that day get the same capacity.`,
+        locationId,
+        slots: slots.map((s) => ({ id: s.id, concurrencyStamp: s.concurrencyStamp })),
+      },
+      slots[0].capacity,
+    );
+  }
+
+  private openCapacity(edit: CapacityEdit, current: number): void {
+    this.capacityError.set('');
+    this.capacityValue.set(current);
+    this.capacityEdit.set(edit);
+  }
+
+  protected cancelCapacity(): void {
+    if (!this.isBusy()) {
+      this.capacityEdit.set(null);
+    }
+  }
+
+  protected capacityValid(): boolean {
+    const v = this.capacityValue();
+    return v != null && Number.isInteger(v) && v >= 0 && v <= MAX_SLOT_CAPACITY;
+  }
+
+  protected saveCapacity(): void {
+    const edit = this.capacityEdit();
+    const capacity = this.capacityValue();
+    if (!edit || this.isBusy() || !this.capacityValid() || capacity == null) {
+      return;
+    }
+    this.isBusy.set(true);
+    this.capacityError.set('');
+    this.service
+      .setCapacity(
+        { slots: edit.slots, capacity, locationId: edit.locationId ?? undefined },
+        // The dialog shows the refusal itself (which slot, how many booked), so ABP's generic
+        // error modal is skipped.
+        { skipHandleError: true },
+      )
+      .pipe(finalize(() => this.isBusy.set(false)))
+      .subscribe({
+        next: (res) => {
+          const n = res.updatedCount ?? edit.slots.length;
+          this.toaster.success(
+            capacity === 0
+              ? `${n} slot(s) closed to new requests.`
+              : `Capacity set to ${capacity} for ${n} slot(s).`,
+          );
+          this.capacityEdit.set(null);
+          this.loadWeek();
+        },
+        error: (err: { status?: number; error?: { error?: { message?: string } } }) => {
+          this.capacityError.set(
+            err?.status === 409
+              ? 'Someone changed these slots after the schedule loaded. Close this, reload the week and try again.'
+              : (err?.error?.error?.message ??
+                  'The capacity could not be changed. Nothing was saved.'),
+          );
+        },
+      });
+  }
+
+  private dayLabel(col: WeekDayColumn): string {
+    const [y, m, d] = col.iso.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
   }
 
   protected cancelDeleteDay(): void {
@@ -287,6 +426,7 @@ export class InternalAvailabilitiesComponent implements OnInit {
   }
 
   // ---- presentation ----
+  protected readonly capacityLabel = capacityLabel;
   protected utilPct(col: WeekDayColumn): number {
     return col.total === 0 ? 0 : Math.round((col.busy / col.total) * 100);
   }

@@ -126,6 +126,20 @@ public static class CaseEvaluationExceptionStatusCodeMappings
         options.Map(
             CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresResponsibleUser,
             HttpStatusCode.BadRequest);
+
+        // 2026-10-30: slot capacity edits. Each refusal carries a message the staff member can act on (which
+        // slot, how many active appointments); unmapped, ABP answers 403 and the dialog shows nothing useful.
+        // The single-slot edit's below-booked refusal was unmapped until now for the same reason. Only
+        // HttpApi.Host can raise them; kept here with the other staff-screen codes.
+        options.Map(
+            CaseEvaluationDomainErrorCodes.DoctorAvailabilityCannotReduceCapacityBelowBooked,
+            HttpStatusCode.BadRequest);
+        options.Map(
+            CaseEvaluationDomainErrorCodes.DoctorAvailabilityCannotSetCapacityBelowActive,
+            HttpStatusCode.BadRequest);
+        options.Map(
+            CaseEvaluationDomainErrorCodes.DoctorAvailabilitySetCapacitySlotsNotFound,
+            HttpStatusCode.BadRequest);
     }
 
     /// <summary>

@@ -231,7 +231,7 @@ public class AppointmentChangeRequestsApprovalAppService :
         // acceptable: an internal staff-filed reschedule reserves its proposed slot at submit,
         // so requiring Available here would reject staff confirming their own proposal.
         var isHeldByThisRequest = changeRequest.NewDoctorAvailabilityId == slot.Id;
-        if (!isHeldByThisRequest && !RescheduleRequestValidators.IsSlotAvailable(slot.BookingStatusId))
+        if (!isHeldByThisRequest && !RescheduleRequestValidators.IsSlotAvailable(slot.BookingStatusId, slot.Capacity))
         {
             throw new BusinessException(CaseEvaluationDomainErrorCodes.ChangeRequestNewSlotNotAvailable);
         }

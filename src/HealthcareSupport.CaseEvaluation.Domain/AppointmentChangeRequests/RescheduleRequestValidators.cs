@@ -62,6 +62,16 @@ public static class RescheduleRequestValidators
     }
 
     /// <summary>
+    /// 2026-10-30 -- as <see cref="IsSlotAvailable(BookingStatus)"/>, and the slot must not have been
+    /// closed by setting its capacity to 0. A reschedule must not land on a time staff have closed,
+    /// any more than a new booking can.
+    /// </summary>
+    public static bool IsSlotAvailable(BookingStatus slotStatus, int capacity)
+    {
+        return IsSlotAvailable(slotStatus) && capacity > 0;
+    }
+
+    /// <summary>
     /// 2026-10-15 -- throws when a reschedule proposes the slot the appointment already holds.
     /// Moving an appointment to where it already is asks both parties to consent to nothing, and
     /// completing it closes the original as Rescheduled and books a copy onto the same slot. The
