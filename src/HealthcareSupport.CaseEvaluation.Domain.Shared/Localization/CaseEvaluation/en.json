@@ -307,6 +307,8 @@
     "CaseEvaluation:DoctorAvailability.CannotBulkDeleteWithBookedSlots": "Cannot delete all slots for this date and location because one or more slots are reserved or booked.",
     "CaseEvaluation:DoctorAvailability.CannotDeleteReferenced": "This slot cannot be deleted because it is referenced by an existing appointment or change request.",
     "CaseEvaluation:DoctorAvailability.CannotReduceCapacityBelowBooked": "Capacity cannot be set below the {activeCount} active appointments already booked on this slot. Cancel or reschedule one first.",
+    "CaseEvaluation:DoctorAvailability.CannotSetCapacityBelowActive": "Capacity cannot be set to {capacity}: the {slotTime} slot on {slotDate} already has {activeCount} active appointments. Cancel or reschedule them first, or choose a higher number. Nothing was changed.",
+    "CaseEvaluation:DoctorAvailability.SetCapacitySlotsNotFound": "{missingCount} of the chosen slots no longer exist at this location. Reload the schedule and try again. Nothing was changed.",
     "CaseEvaluation:DoctorAvailability.CannotRemoveTypeInUse": "An accepted appointment type cannot be removed while an active appointment on this slot uses it. Cancel or reschedule that appointment first.",
     "CaseEvaluation:DoctorAvailability.SlotClash": "This time slot overlaps an existing slot at this location on {availableDate}. Choose a different time.",
     "DoctorAvailability:DurationMustBeGreaterThanZero": "Appointment duration must be greater than zero.",

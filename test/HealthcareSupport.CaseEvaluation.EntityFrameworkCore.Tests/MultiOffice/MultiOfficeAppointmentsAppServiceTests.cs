@@ -319,6 +319,37 @@ public partial class MultiOfficeAppointmentsAppServiceTests : CaseEvaluationMult
         });
     }
 
+    /// <summary>
+    /// 2026-10-30 -- staff closed the slot by setting its capacity to 0. A booking is refused as
+    /// CLOSED, not as "full (0 of 0)", whether staff or an outside party books it; the slot is still
+    /// Available, so only the capacity arm can refuse it.
+    /// </summary>
+    [Theory]
+    [InlineData("Intake Staff", 42)]
+    [InlineData("Patient", 43)]
+    public async Task CreateAsync_WhenStaffSetTheSlotCapacityToZero_ThrowsSlotClosed(string role, int daysAhead)
+    {
+        var (officeA, _) = await GetSeededOfficesAsync();
+
+        await InOfficeAsync(officeA, async () =>
+        {
+            var date = TestToday.AddDays(daysAhead);
+            var slotId = await InsertSlotAsync(officeA, date, new TimeOnly(9, 0), new TimeOnly(10, 0));
+            var slot = await _slotRepository.GetAsync(slotId);
+            slot.Capacity = 0;
+            await _slotRepository.UpdateAsync(slot, autoSave: true);
+
+            using (WithCurrentUser.Run(_principalAccessor, officeA.BookerUserId, role))
+            {
+                var ex = await Should.ThrowAsync<BusinessException>(
+                    () => _appointmentsAppService.CreateAsync(BuildCreateDto(officeA, slotId, date.AddHours(9).AddMinutes(15))));
+                ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentBookingSlotClosed);
+            }
+
+            (await _appointmentRepository.CountAsync(a => a.DoctorAvailabilityId == slotId)).ShouldBe(0);
+        });
+    }
+
     [Fact]
     public async Task CreateAsync_WhenSlotCapacityIsExhausted_ThrowsSlotFull()
     {

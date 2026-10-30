@@ -26,9 +26,10 @@ public class DoctorAvailabilityUpdateDto : IHasConcurrencyStamp
     public List<Guid> AppointmentTypeIds { get; set; } = new();
 
     /// <summary>
-    /// 2026-05-15 -- max simultaneous appointments. Minimum 1.
+    /// 2026-05-15 -- max simultaneous appointments. 2026-10-30: 0 is allowed on an edit and
+    /// closes the slot to new requests; creating or generating a slot still needs at least 1.
     /// </summary>
-    [Range(1, int.MaxValue)]
+    [Range(0, int.MaxValue)]
     public int Capacity { get; set; } = 3;
 
     public string ConcurrencyStamp { get; set; } = null!;

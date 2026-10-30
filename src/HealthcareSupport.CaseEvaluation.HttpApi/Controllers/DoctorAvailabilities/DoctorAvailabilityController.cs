@@ -72,6 +72,16 @@ public class DoctorAvailabilityController : AbpController, IDoctorAvailabilities
         return _doctorAvailabilitiesAppService.UpdateAsync(id, input);
     }
 
+    // 2026-10-30 -- staff set capacity on existing slots (0 = closed to new requests). The app service
+    // demands DoctorAvailabilities.Edit; [Authorize] here refuses an anonymous caller at the edge.
+    [HttpPut]
+    [Route("capacity")]
+    [Authorize]
+    public virtual Task<DoctorAvailabilitySetCapacityResultDto> SetCapacityAsync(DoctorAvailabilitySetCapacityInputDto input)
+    {
+        return _doctorAvailabilitiesAppService.SetCapacityAsync(input);
+    }
+
     [HttpDelete]
     [Route("{id:guid}")]
     public virtual Task DeleteAsync(Guid id)
