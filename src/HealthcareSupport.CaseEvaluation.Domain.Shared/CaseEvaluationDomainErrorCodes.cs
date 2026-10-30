@@ -92,6 +92,26 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:DoctorAvailability.CannotReduceCapacityBelowBooked";
 
     /// <summary>
+    /// 2026-10-30 -- raised by <c>DoctorAvailabilitiesAppService.SetCapacityAsync</c> when the new
+    /// capacity is below the active appointments already on one of the chosen slots. Nothing is
+    /// changed. Carries <c>capacity</c>, <c>slotDate</c>, <c>slotTime</c>, <c>activeCount</c> and
+    /// <c>blockedCount</c> (how many of the chosen slots are affected) via <c>WithData</c>.
+    /// Mapped to HTTP 400.
+    /// Localization key <c>CaseEvaluation:DoctorAvailability.CannotSetCapacityBelowActive</c>.
+    /// </summary>
+    public const string DoctorAvailabilityCannotSetCapacityBelowActive =
+        "CaseEvaluation:DoctorAvailability.CannotSetCapacityBelowActive";
+
+    /// <summary>
+    /// 2026-10-30 -- raised by <c>DoctorAvailabilitiesAppService.SetCapacityAsync</c> when one of
+    /// the chosen slots no longer exists, or is not at the location the change was made for.
+    /// Nothing is changed. Carries <c>missingCount</c>. Mapped to HTTP 400.
+    /// Localization key <c>CaseEvaluation:DoctorAvailability.SetCapacitySlotsNotFound</c>.
+    /// </summary>
+    public const string DoctorAvailabilitySetCapacitySlotsNotFound =
+        "CaseEvaluation:DoctorAvailability.SetCapacitySlotsNotFound";
+
+    /// <summary>
     /// Raised when an edit would remove an accepted appointment type that an active appointment on
     /// the slot is using.
     /// Localization key <c>CaseEvaluation:DoctorAvailability.CannotRemoveTypeInUse</c>.
@@ -960,6 +980,8 @@ public static class CaseEvaluationDomainErrorCodes
     /// when the slot's <c>BookingStatusId</c> is <c>Reserved</c>
     /// (manually closed by the doctor's-admin -- never bookable
     /// regardless of capacity). Mapped to HTTP 400 Bad Request.
+    /// 2026-10-30: also raised when staff have set the slot's capacity to 0
+    /// (closed to new requests from the capacity editor).
     /// Localization key <c>CaseEvaluation:Appointment.BookingSlotClosed</c>.
     /// </summary>
     public const string AppointmentBookingSlotClosed =

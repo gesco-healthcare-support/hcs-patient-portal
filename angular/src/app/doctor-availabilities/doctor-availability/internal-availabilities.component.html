@@ -38,10 +38,11 @@
       (ngModelChange)="statusFilter.set($event)"
     >
       <option value="all">All statuses</option>
-      <option value="busy">Booked &amp; reserved</option>
+      <option value="busy">Not available</option>
       <option value="available">Available</option>
       <option value="booked">Booked</option>
       <option value="reserved">Reserved</option>
+      <option value="closed">Closed</option>
     </select>
   </div>
 
@@ -82,6 +83,10 @@
     <span class="sw" style="background: var(--st-pending-dot)"></span>
     Reserved
   </span>
+  <span class="it">
+    <span class="sw" style="background: var(--n-300)"></span>
+    Closed (capacity 0)
+  </span>
 </div>
 
 @if (loading()) {
@@ -99,14 +104,27 @@
               <span class="num">{{ col.dayNum }}</span>
             </span>
             @if (col.total > 0 && locationId()) {
-              <button
-                class="del"
-                type="button"
-                title="Delete all slots this day"
-                (click)="askDeleteDay(col)"
-              >
-                <app-icon name="x" [size]="13" />
-              </button>
+              <span>
+                @if (canEditCapacity) {
+                  <button
+                    class="del ia-daycap"
+                    type="button"
+                    title="Set capacity for this day"
+                    aria-label="Set capacity for this day"
+                    (click)="openDayCapacity(col)"
+                  >
+                    <app-icon name="users" [size]="13" />
+                  </button>
+                }
+                <button
+                  class="del"
+                  type="button"
+                  title="Delete all slots this day"
+                  (click)="askDeleteDay(col)"
+                >
+                  <app-icon name="x" [size]="13" />
+                </button>
+              </span>
             }
           </div>
           @if (col.total > 0) {
@@ -124,15 +142,27 @@
                 [class.available]="slot.statusKey === 'available'"
                 [class.booked]="slot.statusKey === 'booked'"
                 [class.reserved]="slot.statusKey === 'reserved'"
+                [class.closed]="slot.statusKey === 'closed'"
               >
                 <span class="t">{{ slot.timeLabel }}</span>
-                <span class="c">Capacity {{ slot.capacity }}</span>
+                <span class="c">{{ capacityLabel(slot) }}</span>
                 @if (slot.patientNames.length > 0) {
                   <div class="av-slot__names">
                     @for (name of slot.patientNames; track $index) {
                       <span class="av-slot__name" [title]="name">{{ name }}</span>
                     }
                   </div>
+                }
+                @if (canEditCapacity) {
+                  <button
+                    class="x cap"
+                    type="button"
+                    title="Change capacity"
+                    aria-label="Change capacity"
+                    (click)="openSlotCapacity(slot, col)"
+                  >
+                    <app-icon name="edit" [size]="12" />
+                  </button>
                 }
                 <button class="x" type="button" title="Delete slot" (click)="deleteSlot(slot.id)">
                   <app-icon name="x" [size]="12" />
@@ -177,6 +207,7 @@
           <th>Available</th>
           <th>Booked</th>
           <th>Reserved</th>
+          <th>Closed</th>
           <th>Total slots</th>
           <th style="text-align: right">Action</th>
         </tr>
@@ -184,7 +215,7 @@
       <tbody>
         @if (tableColumns().length === 0) {
           <tr>
-            <td colspan="7" class="ia-sub" style="text-align: center; padding: 22px">
+            <td colspan="8" class="ia-sub" style="text-align: center; padding: 22px">
               No slots this week.
             </td>
           </tr>
@@ -208,6 +239,7 @@
             <td>{{ count(col, 'available') }}</td>
             <td>{{ count(col, 'booked') }}</td>
             <td>{{ count(col, 'reserved') }}</td>
+            <td>{{ count(col, 'closed') }}</td>
             <td>{{ col.total }}</td>
             <!--
               Enter is stopped here as well as click, so pressing Enter on a button in this
@@ -219,6 +251,17 @@
               (click)="$event.stopPropagation()"
               (keydown.enter)="$event.stopPropagation()"
             >
+              @if (locationId() && canEditCapacity) {
+                <button
+                  class="ra-rowbtn"
+                  type="button"
+                  title="Set capacity for this day"
+                  aria-label="Set capacity for this day"
+                  (click)="openDayCapacity(col)"
+                >
+                  <app-icon name="users" [size]="14" />
+                </button>
+              }
               @if (locationId()) {
                 <button
                   class="ra-rowbtn danger"
@@ -236,18 +279,31 @@
               <tr style="background: var(--n-25)">
                 <td></td>
                 <td colspan="2" class="ia-sub">{{ slot.timeLabel }}</td>
-                <td colspan="3">
+                <td colspan="4">
                   <span
                     class="av-slot"
                     [class.available]="slot.statusKey === 'available'"
                     [class.booked]="slot.statusKey === 'booked'"
                     [class.reserved]="slot.statusKey === 'reserved'"
+                    [class.closed]="slot.statusKey === 'closed'"
                     style="padding: 3px 10px; display: inline-block; cursor: default"
                   >
                     {{ slot.statusKey }}
                   </span>
+                  <span class="ia-sub" style="margin-left: 8px">{{ capacityLabel(slot) }}</span>
                 </td>
                 <td style="text-align: right">
+                  @if (canEditCapacity) {
+                    <button
+                      class="ra-rowbtn"
+                      type="button"
+                      title="Change capacity"
+                      aria-label="Change capacity"
+                      (click)="openSlotCapacity(slot, col)"
+                    >
+                      <app-icon name="edit" [size]="14" />
+                    </button>
+                  }
                   <button class="ra-rowbtn danger" type="button" (click)="deleteSlot(slot.id)">
                     <app-icon name="x" [size]="14" />
                   </button>
@@ -290,6 +346,64 @@
         >
           <app-icon name="x" [size]="15" />
           Delete all
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (capacityEdit(); as edit) {
+  <div #capacityScrim class="ra-scrim">
+    <div class="ra-modal ra-modal--md" role="dialog" aria-labelledby="ia-capacity-title">
+      <div class="ra-modal__head">
+        <h3 id="ia-capacity-title">{{ edit.title }}</h3>
+        <button class="ext-iconbtn x" type="button" aria-label="Close" (click)="cancelCapacity()">
+          <app-icon name="x" [size]="17" />
+        </button>
+      </div>
+      <div class="ra-modal__body">
+        <p style="margin: 0 0 12px; font-size: 14px; color: var(--n-600); line-height: 1.5">
+          {{ edit.detail }}
+        </p>
+        <label for="ia-capacity" style="display: block; font-size: 12px; color: var(--n-600)">
+          Patients per slot (0 to {{ maxCapacity }})
+        </label>
+        <input
+          id="ia-capacity"
+          class="ia-input"
+          type="number"
+          min="0"
+          [max]="maxCapacity"
+          step="1"
+          style="width: 120px"
+          [ngModel]="capacityValue()"
+          [ngModelOptions]="{ standalone: true }"
+          (ngModelChange)="capacityValue.set($event)"
+        />
+        <p style="margin: 8px 0 0; font-size: 12.5px; color: var(--n-500); line-height: 1.5">
+          0 closes the slot to new requests. Appointments already booked are not affected.
+        </p>
+        @if (capacityError()) {
+          <p
+            class="ia-capacity-error"
+            role="alert"
+            style="margin: 10px 0 0; font-size: 13px; color: var(--st-rejected-fg)"
+          >
+            {{ capacityError() }}
+          </p>
+        }
+      </div>
+      <div class="ra-modal__foot">
+        <button class="af-btn af-btn--ghost" type="button" (click)="cancelCapacity()">
+          Cancel
+        </button>
+        <button
+          class="af-btn af-btn--primary"
+          type="button"
+          [disabled]="isBusy() || !capacityValid()"
+          (click)="saveCapacity()"
+        >
+          Save
         </button>
       </div>
     </div>

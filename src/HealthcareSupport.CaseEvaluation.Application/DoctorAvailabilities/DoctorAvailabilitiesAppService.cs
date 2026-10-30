@@ -9,12 +9,14 @@ using System;
 using System.Linq;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.Globalization;
 using System.Threading.Tasks;
 using System.Linq.Dynamic.Core;
 using Microsoft.AspNetCore.Authorization;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Application.Services;
+using Volo.Abp.Data;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Uow;
 using Volo.Abp.Validation;
@@ -291,6 +293,80 @@ public class DoctorAvailabilitiesAppService : CaseEvaluationAppService, IDoctorA
 
         var doctorAvailability = await _doctorAvailabilityManager.UpdateAsync(id, input.LocationId, input.AppointmentTypeIds, input.AvailableDate, input.FromTime, input.ToTime, input.BookingStatusId, input.Capacity, input.ConcurrencyStamp);
         return ObjectMapper.Map<DoctorAvailability, DoctorAvailabilityDto>(doctorAvailability);
+    }
+
+    /// <summary>
+    /// 2026-10-30 -- sets one capacity on one or more existing slots, all or nothing. 0 closes the
+    /// slots to new requests (the booking gate refuses them as closed and the picker hides them);
+    /// appointments already on them are untouched. Every refusal happens before any slot is
+    /// written: a slot that is gone or at another location, a slot someone changed since the
+    /// screen loaded it (409), or a capacity below a slot's active appointments.
+    /// </summary>
+    [Authorize(CaseEvaluationPermissions.DoctorAvailabilities.Edit)]
+    public virtual async Task<DoctorAvailabilitySetCapacityResultDto> SetCapacityAsync(DoctorAvailabilitySetCapacityInputDto input)
+    {
+        // The slot count (1..MaxSlotsPerCapacityChange) and the capacity range (0..MaxCapacity) are
+        // enforced by the input's validation attributes before this runs. A slot listed twice counts once.
+        var stamps = input.Slots
+            .GroupBy(s => s.Id)
+            .ToDictionary(g => g.Key, g => g.First().ConcurrencyStamp);
+        var ids = stamps.Keys.ToList();
+        var slots = await _doctorAvailabilityRepository.GetListAsync(x => ids.Contains(x.Id));
+        var missingCount = ids.Count - slots.Count(s => input.LocationId == null || s.LocationId == input.LocationId);
+        if (missingCount > 0)
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.DoctorAvailabilitySetCapacitySlotsNotFound)
+                .WithData("missingCount", missingCount);
+        }
+
+        if (slots.Any(s => stamps[s.Id] != null && stamps[s.Id] != s.ConcurrencyStamp))
+        {
+            throw new AbpDbConcurrencyException(
+                "One or more slots were changed after the schedule was loaded. Reload it and try again.");
+        }
+
+        await EnsureCapacityKeepsActiveAppointmentsAdmittedAsync(slots, input.Capacity);
+
+        foreach (var slot in slots)
+        {
+            slot.Capacity = input.Capacity;
+        }
+
+        await _doctorAvailabilityRepository.UpdateManyAsync(slots, autoSave: true);
+        return new DoctorAvailabilitySetCapacityResultDto { UpdatedCount = slots.Count, Capacity = input.Capacity };
+    }
+
+    /// <summary>
+    /// The bulk form of the below-booked guard in <see cref="EnsureEditKeepsActiveAppointmentsAdmittedAsync"/>:
+    /// a slot whose capacity is LOWERED must still admit its active appointments. Raising capacity,
+    /// or leaving it unchanged, is never refused. The message names the earliest blocked slot.
+    /// </summary>
+    protected virtual async Task EnsureCapacityKeepsActiveAppointmentsAdmittedAsync(
+        List<DoctorAvailability> slots, int capacity)
+    {
+        var lowered = slots.Where(s => capacity < s.Capacity).ToList();
+        if (lowered.Count == 0)
+        {
+            return;
+        }
+
+        var activeCounts = await _appointmentRepository.GetActiveCountsForSlotsAsync(lowered.Select(s => s.Id).ToList());
+        var blocked = lowered
+            .Where(s => activeCounts.TryGetValue(s.Id, out var active) && active > capacity)
+            .OrderBy(s => s.AvailableDate).ThenBy(s => s.FromTime)
+            .ToList();
+        if (blocked.Count == 0)
+        {
+            return;
+        }
+
+        var first = blocked[0];
+        throw new BusinessException(CaseEvaluationDomainErrorCodes.DoctorAvailabilityCannotSetCapacityBelowActive)
+            .WithData("capacity", capacity)
+            .WithData("slotDate", first.AvailableDate.ToString("MM/dd/yyyy", CultureInfo.InvariantCulture))
+            .WithData("slotTime", first.FromTime.ToString("h:mm tt", CultureInfo.InvariantCulture))
+            .WithData("activeCount", activeCounts[first.Id])
+            .WithData("blockedCount", blocked.Count);
     }
 
     // 2026-05-15 (slot rework plan 4) -- cap on slots-per-call. Wraps the

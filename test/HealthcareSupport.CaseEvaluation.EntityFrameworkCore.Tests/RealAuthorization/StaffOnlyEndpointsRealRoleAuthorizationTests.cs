@@ -11,6 +11,7 @@ using HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails;
 using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
 using HealthcareSupport.CaseEvaluation.AppointmentPrimaryInsurances;
 using HealthcareSupport.CaseEvaluation.Appointments;
+using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 using HealthcareSupport.CaseEvaluation.Permissions;
 using HealthcareSupport.CaseEvaluation.Security;
 using Microsoft.Extensions.DependencyInjection;
@@ -139,6 +140,25 @@ public class StaffOnlyEndpointsRealRoleAuthorizationTests : CaseEvaluationRealAu
         permissions.ShouldContain(CaseEvaluationPermissions.AppointmentChangeRequests.Reject);
         permissions.ShouldContain(CaseEvaluationPermissions.AppointmentInjuryDetails.Delete);
         permissions.ShouldContain(CaseEvaluationPermissions.AppointmentDefenseAttorneys.Delete);
+        permissions.ShouldContain(CaseEvaluationPermissions.DoctorAvailabilities.Edit);
+    }
+
+    /// <summary>
+    /// 2026-10-30 -- Intake Staff close and reopen slots too (they run the schedule day to day), so
+    /// the capacity change must get past the interceptor for the real Intake Staff role as well as
+    /// for the Staff Supervisor control above.
+    /// </summary>
+    [Fact]
+    public async Task SetCapacity_IsNotRefusedByTheAttribute_ForTheRealIntakeStaff()
+    {
+        var fixture = await GetFixtureAsync();
+
+        var outcome = await InvokeAsync(fixture, "Intake Staff", Cases["DoctorAvailabilities.SetCapacity"].Call);
+
+        IsInterceptorRefusal(outcome).ShouldBeFalse(
+            $"Intake Staff must get past the interceptor on SetCapacity. Got: {Describe(outcome)}.");
+        outcome.ShouldBeOfType<Volo.Abp.BusinessException>().Code
+            .ShouldBe(CaseEvaluationDomainErrorCodes.DoctorAvailabilitySetCapacitySlotsNotFound);
     }
 
     private static bool IsInterceptorRefusal(Exception? outcome) =>
@@ -204,6 +224,15 @@ public class StaffOnlyEndpointsRealRoleAuthorizationTests : CaseEvaluationRealAu
             sp => sp.GetRequiredService<IAppointmentApplicantAttorneysAppService>().DeleteAsync(UnknownId));
         yield return new("AppointmentDefenseAttorneys.Delete", CaseEvaluationPermissions.AppointmentDefenseAttorneys.Delete,
             sp => sp.GetRequiredService<IAppointmentDefenseAttorneysAppService>().DeleteAsync(UnknownId));
+
+        // Slot capacity (2026-10-30): closing a slot stops outside parties requesting that time, so an
+        // outside party must never be able to do it. The unknown slot id means nothing is written.
+        yield return new("DoctorAvailabilities.SetCapacity", CaseEvaluationPermissions.DoctorAvailabilities.Edit,
+            sp => sp.GetRequiredService<IDoctorAvailabilitiesAppService>().SetCapacityAsync(new DoctorAvailabilitySetCapacityInputDto
+            {
+                Slots = [new DoctorAvailabilitySlotStampDto { Id = UnknownId }],
+                Capacity = 0,
+            }));
     }
 
     private static IAppointmentChangeRequestsApprovalAppService Approval(IServiceProvider sp) =>

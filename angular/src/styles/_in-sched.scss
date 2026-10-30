@@ -231,6 +231,12 @@
   color: var(--st-pending-fg);
   border-color: #f3d9be;
 }
+/* 2026-10-30: capacity 0, set by staff. Still Available in the data, closed to new requests. */
+.av-slot.closed {
+  background: var(--n-100);
+  color: var(--n-500);
+  border-color: var(--n-200);
+}
 .av-slot .x {
   position: absolute;
   top: 5px;
@@ -250,6 +256,10 @@
 .av-slot .x:hover {
   opacity: 1;
   background: rgba(0, 0, 0, 0.08);
+}
+/* 2026-10-30: the capacity edit button sits left of the delete x and shares its hover reveal. */
+.av-slot .x.cap {
+  right: 26px;
 }
 .av-day__empty {
   font-size: 11.5px;
