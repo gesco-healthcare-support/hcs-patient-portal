@@ -121,9 +121,11 @@ public class DoctorAvailabilityManager : DomainService
         Check.NotNull(locationId, nameof(locationId));
         Check.NotNull(availableDate, nameof(availableDate));
         Check.NotNull(bookingStatusId, nameof(bookingStatusId));
-        if (capacity < 1)
+        // 2026-10-30: an edit may set 0, which closes the slot to new requests (the booking gate
+        // refuses it as closed and the picker hides it). Creating a slot still needs at least 1.
+        if (capacity < 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(capacity), capacity, "Capacity must be at least 1.");
+            throw new ArgumentOutOfRangeException(nameof(capacity), capacity, "Capacity cannot be negative.");
         }
 
         // Eager-load the M2M collection so the sync (RemoveAllExceptGivenIds +

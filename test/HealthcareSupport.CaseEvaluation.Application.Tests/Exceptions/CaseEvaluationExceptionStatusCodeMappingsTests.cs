@@ -119,6 +119,17 @@ public class CaseEvaluationExceptionStatusCodeMappingsTests
         options.ErrorCodeToHttpStatusCodeMappings[
             CaseEvaluationDomainErrorCodes.IntakeAssignmentOperatorInactive
         ].ShouldBe(HttpStatusCode.BadRequest);
+
+        // Slot capacity edits (3 codes): the dialog shows the server's message, so none may be the default 403.
+        options.ErrorCodeToHttpStatusCodeMappings[
+            CaseEvaluationDomainErrorCodes.DoctorAvailabilityCannotReduceCapacityBelowBooked
+        ].ShouldBe(HttpStatusCode.BadRequest);
+        options.ErrorCodeToHttpStatusCodeMappings[
+            CaseEvaluationDomainErrorCodes.DoctorAvailabilityCannotSetCapacityBelowActive
+        ].ShouldBe(HttpStatusCode.BadRequest);
+        options.ErrorCodeToHttpStatusCodeMappings[
+            CaseEvaluationDomainErrorCodes.DoctorAvailabilitySetCapacitySlotsNotFound
+        ].ShouldBe(HttpStatusCode.BadRequest);
     }
 
     [Fact]
@@ -135,8 +146,8 @@ public class CaseEvaluationExceptionStatusCodeMappingsTests
         options.ErrorCodeToHttpStatusCodeMappings[
             CaseEvaluationDomainErrorCodes.RegistrationFirmNameRequired
         ].ShouldBe(HttpStatusCode.BadRequest);
-        // Still exactly 24 mappings; no duplicate-key blow up.
-        options.ErrorCodeToHttpStatusCodeMappings.Count.ShouldBe(24);
+        // Still exactly 27 mappings; no duplicate-key blow up.
+        options.ErrorCodeToHttpStatusCodeMappings.Count.ShouldBe(27);
     }
 
     /// <summary>

@@ -9,12 +9,20 @@ import { BookingStatus } from '../../proxy/enums/booking-status.enum';
  * here; the deferred date/time plan adds the clinic-timezone label later.
  */
 
-export type SlotStatusKey = 'available' | 'booked' | 'reserved';
+/**
+ * 'closed' (2026-10-30) is a slot staff set to capacity 0: it stays Available in the database
+ * but takes no new requests. Like booked and reserved it counts as unavailable.
+ */
+export type SlotStatusKey = 'available' | 'booked' | 'reserved' | 'closed';
 
 export interface GridSlot {
   id: string;
   statusKey: SlotStatusKey;
   capacity: number;
+  /** Active appointments on the slot; null until occupancy is known. */
+  booked: number | null;
+  locationId: string;
+  concurrencyStamp: string;
   fromTime: string;
   toTime: string;
   timeLabel: string;
@@ -64,14 +72,19 @@ export function bookingStatusLabel(status: BookingStatus | undefined | null): st
  * from GetListAsync, so a slot is booked when nothing is left on it.
  *
  * `Reserved` still wins: it is the manual close, and staff closing a slot must
- * not be overridden by it happening to have room.
+ * not be overridden by it happening to have room. Capacity 0 (2026-10-30) is
+ * the close staff set from the capacity editor, and reads 'closed'.
  */
 export function slotStatusKey(
   status: BookingStatus | undefined | null,
   remainingCapacity: number | undefined | null,
+  capacity?: number | null,
 ): SlotStatusKey {
   if (status === BookingStatus.Reserved) {
     return 'reserved';
+  }
+  if (capacity === 0) {
+    return 'closed';
   }
   // Null means this read did not compute occupancy; fall back to the stored
   // status rather than asserting the slot is free.
@@ -79,6 +92,32 @@ export function slotStatusKey(
     return bookingStatusToKey(status);
   }
   return remainingCapacity <= 0 ? 'booked' : 'available';
+}
+
+/**
+ * Active appointments on a slot (2026-10-30). The server clamps remaining capacity at 0, so a
+ * slot holding more than its capacity would read low from it; the patient-name list, when it has
+ * arrived, counts every active appointment, so the larger of the two is used.
+ */
+export function bookedCount(
+  capacity: number | undefined | null,
+  remainingCapacity: number | undefined | null,
+  namesCount: number,
+): number | null {
+  if (remainingCapacity == null) {
+    return namesCount > 0 ? namesCount : null;
+  }
+  return Math.max((capacity ?? 0) - remainingCapacity, namesCount);
+}
+
+/** The per-slot capacity line: "Booked 2 of 3", or "Closed" when capacity is 0. */
+export function capacityLabel(slot: Pick<GridSlot, 'capacity' | 'booked'>): string {
+  if (slot.capacity === 0) {
+    return slot.booked ? `Closed (${slot.booked} booked)` : 'Closed';
+  }
+  return slot.booked == null
+    ? `Capacity ${slot.capacity}`
+    : `Booked ${slot.booked} of ${slot.capacity}`;
 }
 
 interface ParsedTime {
@@ -188,14 +227,18 @@ export function buildWeekColumns(
       .filter((it) => (it.doctorAvailability?.availableDate ?? '').slice(0, 10) === iso)
       .map((it) => {
         const da = it.doctorAvailability!;
+        const names = patientNames[da.id ?? ''] ?? [];
         return {
           id: da.id ?? '',
-          statusKey: slotStatusKey(da.bookingStatusId, da.remainingCapacity),
+          statusKey: slotStatusKey(da.bookingStatusId, da.remainingCapacity, da.capacity),
           capacity: da.capacity ?? 0,
+          booked: bookedCount(da.capacity, da.remainingCapacity, names.length),
+          locationId: da.locationId ?? '',
+          concurrencyStamp: da.concurrencyStamp ?? '',
           fromTime: da.fromTime ?? '',
           toTime: da.toTime ?? '',
           timeLabel: formatTimeRange(da.fromTime, da.toTime),
-          patientNames: patientNames[da.id ?? ''] ?? [],
+          patientNames: names,
         };
       })
       .sort((a, b) => a.fromTime.localeCompare(b.fromTime));

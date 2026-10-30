@@ -61,6 +61,15 @@ limit (`GENERATION_SLOT_LIMIT`, mirroring `GenerationSlotLimit`).
 Default capacity is 3 (`capacity = signal(3)`). This was a locked decision on 2026-05-27; do not
 change it without explicit approval.
 
+### Changing capacity on existing slots (2026-10-30)
+
+The slot grid and table show each slot as "Booked X of Y" ("Closed" at capacity 0, grey) with an
+edit button, and each day has "Set capacity for this day". Both open one dialog (0 to 50) and call
+`setCapacity` with each slot's concurrency stamp; a refusal shows the server's message in the
+dialog, a 409 asks for a reload. The per-day change sends only the SELECTED location's slots and
+the location id itself, and is hidden in the All-locations view. The controls need
+`CaseEvaluation.DoctorAvailabilities.Edit`, read through `PermissionService`.
+
 ## Gotchas
 
 - `removeRange()` refuses to drop the last time range: at least one range is enforced in code, not

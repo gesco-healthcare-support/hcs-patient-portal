@@ -277,7 +277,7 @@ public class AppointmentChangeRequestManager : DomainService
                 throw new EntityNotFoundException(typeof(DoctorAvailability), newDoctorAvailabilityId.Value);
             }
 
-            if (!RescheduleRequestValidators.IsSlotAvailable(newSlot.BookingStatusId))
+            if (!RescheduleRequestValidators.IsSlotAvailable(newSlot.BookingStatusId, newSlot.Capacity))
             {
                 throw new BusinessException(CaseEvaluationDomainErrorCodes.ChangeRequestNewSlotNotAvailable)
                     .WithData("newSlotId", newDoctorAvailabilityId.Value)

@@ -63,6 +63,26 @@ public class ChangeRequestConfirmDateRefusalTests : CaseEvaluationTestBase<CaseE
     }
 
     [Fact]
+    public async Task ConfirmDate_OnASlotStaffClosedBySettingCapacityToZero_IsRefused_AndOpensNoRound()
+    {
+        // 2026-10-30: the slot reads Available, so the status check alone would accept it and ask the
+        // parties to agree to a time staff have closed.
+        var day = PacificTime.TodayFrom(DateTime.UtcNow).AddDays(30);
+        var heldByRequest = await InsertSlotAsync(day, 9, BookingStatus.Reserved);
+        var closed = await InsertSlotAsync(day, 13, BookingStatus.Available, capacity: 0);
+        var appointmentId = await InsertAppointmentWithOfficeTypeAsync();
+        var requestId = await InOfficeAAsync(async () => (await _requests.InsertAsync(new AppointmentChangeRequest(
+            Guid.NewGuid(), TenantsTestData.TenantARef, appointmentId, ChangeRequestType.Reschedule,
+            cancellationReason: null, reScheduleReason: "TEST-reschedule reason", newDoctorAvailabilityId: heldByRequest), autoSave: true)).Id);
+
+        var ex = await Should.ThrowAsync<BusinessException>(() => InOfficeAAsync(() => _decisions.ConfirmRescheduleDateAsync(
+            requestId, new ConfirmRescheduleDateInput { RescheduleOutcome = AppointmentStatusType.RescheduledNoBill, DoctorAvailabilityId = closed })));
+
+        ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.ChangeRequestNewSlotNotAvailable);
+        (await InOfficeAAsync(() => _rounds.CountAsync(r => r.AppointmentChangeRequestId == requestId))).ShouldBe(0);
+    }
+
+    [Fact]
     public async Task ConfirmDate_OnTheAppointmentsOwnSlot_IsRefused_AndOpensNoRound()
     {
         // Found 2026-10-15 on the test server: "Set date" accepted the appointment's own slot, so
@@ -107,14 +127,22 @@ public class ChangeRequestConfirmDateRefusalTests : CaseEvaluationTestBase<CaseE
             return appointment.Id;
         });
 
-    private Task<Guid> InsertSlotAsync(DateTime day, int fromHour, BookingStatus status) =>
+    private Task<Guid> InsertSlotAsync(DateTime day, int fromHour, BookingStatus status, int? capacity = null) =>
         InOfficeAAsync(async () =>
         {
             var slot = new DoctorAvailability(Guid.NewGuid(), LocationsTestData.Location1Id, day,
                 new TimeOnly(fromHour, 0), new TimeOnly(fromHour + 1, 0), status);
             slot.TenantId = TenantsTestData.TenantARef;
             slot.AddAppointmentType(LocationsTestData.AppointmentType1Id);
-            return (await _slots.InsertAsync(slot, autoSave: true)).Id;
+            await _slots.InsertAsync(slot, autoSave: true);
+            // A capacity of 0 can only be reached by an EDIT, as in production: the constructor
+            // refuses it, and on insert EF would replace a 0 with the column's database default (3).
+            if (capacity.HasValue)
+            {
+                slot.Capacity = capacity.Value;
+                await _slots.UpdateAsync(slot, autoSave: true);
+            }
+            return slot.Id;
         });
 
     private Task<T> InOfficeAAsync<T>(Func<Task<T>> action) =>

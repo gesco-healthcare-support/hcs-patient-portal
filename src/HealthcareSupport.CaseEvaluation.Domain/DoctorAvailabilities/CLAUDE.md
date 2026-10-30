@@ -30,6 +30,18 @@ after booking; fullness is `active-appointment-count >= Capacity`. Terminal stat
 do not count toward active-appointment-count. `BookingStatus.Booked` is a legacy value;
 the new model ignores it for capacity purposes.
 
+**Capacity 0 = closed to new requests (2026-10-30).** Staff set it on existing slots through
+`DoctorAvailabilitiesAppService.SetCapacityAsync` (`PUT api/app/doctor-availabilities/capacity`,
+`DoctorAvailabilities.Edit`, 1..500 slots, capacity 0..`DoctorAvailabilityConsts.MaxCapacity`,
+all or nothing) or a single-slot `UpdateAsync`. The constructor and generation still require 1 or
+more. A 0 slot stays `Available`: the booking gate refuses it as `AppointmentBookingSlotClosed`, the
+booking picker hides it (remaining capacity 0), and both reschedule paths refuse it through
+`RescheduleRequestValidators.IsSlotAvailable(status, capacity)`. Lowering below the active count is
+refused (`CannotSetCapacityBelowActive`); raising never is. The column has a database default of
+3, so EF writes a 0 only on UPDATE; an inserted 0 silently becomes 3 (tests must insert, then edit).
+Known gap: neither booking nor the capacity change takes a per-slot lock, so a booking can race a
+capacity cut (as two bookings can race the last seat).
+
 ## BookingStatus write paths
 
 - `Available -> Booked`: nothing sets it any more (measured 2026-10-01: `BookingStatus.Booked`

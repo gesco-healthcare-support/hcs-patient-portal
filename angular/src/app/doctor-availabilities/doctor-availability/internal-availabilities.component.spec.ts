@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
+import { PermissionService } from '@abp/ng.core';
 import { ToasterService } from '@abp/ng.theme.shared';
 import { of, throwError } from 'rxjs';
 import { DoctorAvailabilityService } from '../../proxy/doctor-availabilities/doctor-availability.service';
@@ -39,6 +40,7 @@ describe('InternalAvailabilitiesComponent -- all-locations view', () => {
         { provide: DoctorAvailabilityService, useValue: serviceMock },
         { provide: ToasterService, useValue: { success: () => undefined, error: () => undefined } },
         { provide: Router, useValue: { navigateByUrl: () => Promise.resolve(true) } },
+        { provide: PermissionService, useValue: { getGrantedPolicy: () => true } },
       ],
     });
   });
@@ -107,6 +109,7 @@ describe('InternalAvailabilitiesComponent Escape handling (sweep #641)', () => {
         },
         { provide: ToasterService, useValue: { success: () => undefined, error: () => undefined } },
         { provide: Router, useValue: { navigateByUrl: () => Promise.resolve(true) } },
+        { provide: PermissionService, useValue: { getGrantedPolicy: () => true } },
       ],
     });
   });
@@ -247,6 +250,7 @@ describe('InternalAvailabilitiesComponent CRUD and presentation', () => {
         },
         { provide: ToasterService, useValue: { success, error: () => undefined } },
         { provide: Router, useValue: { navigateByUrl } },
+        { provide: PermissionService, useValue: { getGrantedPolicy: () => true } },
       ],
     });
   });
@@ -567,6 +571,7 @@ describe('InternalAvailabilitiesComponent status filter and location lookup', ()
         },
         { provide: ToasterService, useValue: { success: () => undefined, error: () => undefined } },
         { provide: Router, useValue: { navigateByUrl: () => Promise.resolve(true) } },
+        { provide: PermissionService, useValue: { getGrantedPolicy: () => true } },
       ],
     });
   });
@@ -652,5 +657,221 @@ describe('InternalAvailabilitiesComponent status filter and location lookup', ()
 
     expect(c.loading()).toBeFalse();
     expect(getList).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * 2026-10-30 -- capacity on existing slots, down to 0 (closed to new requests).
+ *
+ * The per-day change is the assertion worth naming: it must reach only the SELECTED location's
+ * slots that day, even when the loaded week holds another location's slot on the same day, and
+ * the location travels with the request so the server can refuse anything else. A refusal shows
+ * the server's own message in the dialog (which slot, how many booked), and the controls are not
+ * rendered without the Edit permission.
+ */
+describe('InternalAvailabilitiesComponent capacity editing', () => {
+  let getList: jasmine.Spy;
+  let setCapacity: jasmine.Spy;
+  let success: jasmine.Spy;
+  let granted: boolean;
+
+  interface Probe {
+    [key: string]: any;
+  }
+
+  function configure(): void {
+    TestBed.configureTestingModule({
+      imports: [InternalAvailabilitiesComponent],
+      providers: [
+        {
+          provide: DoctorAvailabilityService,
+          useValue: {
+            getLocationLookup: () => of({ items: [{ id: 'loc-1', displayName: 'Downtown' }] }),
+            getList,
+            getSlotPatientNames: () => of([]),
+            delete: () => of(undefined),
+            deleteByDate: () => of({ deletedCount: 0, skippedSlotIds: [] }),
+            setCapacity,
+          },
+        },
+        { provide: ToasterService, useValue: { success, error: () => undefined } },
+        { provide: Router, useValue: { navigateByUrl: () => Promise.resolve(true) } },
+        {
+          provide: PermissionService,
+          useValue: {
+            getGrantedPolicy: (p: string) =>
+              granted && p === 'CaseEvaluation.DoctorAvailabilities.Edit',
+          },
+        },
+      ],
+    });
+  }
+
+  beforeEach(() => {
+    granted = true;
+    getList = jasmine.createSpy('getList').and.returnValue(of({ items: [] }));
+    setCapacity = jasmine
+      .createSpy('setCapacity')
+      .and.returnValue(of({ updatedCount: 1, capacity: 0 }));
+    success = jasmine.createSpy('success');
+  });
+
+  function isoOf(d: Date): string {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }
+
+  function row(id: string, locationId: string, iso: string, fromTime: string, extra: object = {}) {
+    return {
+      doctorAvailability: {
+        id,
+        locationId,
+        availableDate: `${iso}T00:00:00`,
+        fromTime,
+        toTime: fromTime.replace(':00', ':30'),
+        capacity: 3,
+        remainingCapacity: 3,
+        concurrencyStamp: `stamp-${id}`,
+        ...extra,
+      },
+    };
+  }
+
+  /** Renders the week for loc-1 with the given rows on its first day. */
+  function rendered(rows: (iso: string) => unknown[]) {
+    configure();
+    const fixture = TestBed.createComponent(InternalAvailabilitiesComponent);
+    const cmp = fixture.componentInstance as unknown as Probe;
+    const iso = isoOf(cmp.weekDates()[0]);
+    getList.and.returnValue(of({ items: rows(iso) }));
+    fixture.detectChanges();
+    cmp.onLocationChange('loc-1');
+    fixture.detectChanges();
+    return { fixture, cmp, iso, root: fixture.nativeElement as HTMLElement };
+  }
+
+  it('labels a slot by what is booked against its capacity, and a 0 slot as Closed', () => {
+    const { root } = rendered((iso) => [
+      row('a', 'loc-1', iso, '09:00', { remainingCapacity: 1 }),
+      row('b', 'loc-1', iso, '10:00', { capacity: 0, remainingCapacity: 0 }),
+    ]);
+
+    const labels = Array.from(root.querySelectorAll('.av-slot .c')).map((e) =>
+      e.textContent?.trim(),
+    );
+    expect(labels).toEqual(['Booked 2 of 3', 'Closed']);
+    expect(root.querySelectorAll('.av-slot.closed')).toHaveSize(1);
+  });
+
+  it('changes one slot to 0 with its concurrency stamp, then reloads the week', () => {
+    const { fixture, cmp, root } = rendered((iso) => [row('a', 'loc-1', iso, '09:00')]);
+
+    (root.querySelector('.av-slot .x.cap') as HTMLElement).click();
+    fixture.detectChanges();
+    expect(cmp.capacityValue()).toBe(3);
+    cmp.capacityValue.set(0);
+    getList.calls.reset();
+    cmp.saveCapacity();
+
+    expect(setCapacity).toHaveBeenCalledTimes(1);
+    const [input, config] = setCapacity.calls.mostRecent().args;
+    expect(input).toEqual({
+      slots: [{ id: 'a', concurrencyStamp: 'stamp-a' }],
+      capacity: 0,
+      locationId: 'loc-1',
+    });
+    expect(config).toEqual({ skipHandleError: true });
+    expect(success).toHaveBeenCalledWith('1 slot(s) closed to new requests.');
+    expect(cmp.capacityEdit()).toBeNull();
+    expect(getList).toHaveBeenCalled();
+  });
+
+  it('sets a whole day only for the selected location, and names that location in the request', () => {
+    // The week holds a slot of ANOTHER location on the same day (a stale row); it must not be sent.
+    const { cmp, iso } = rendered((d) => [
+      row('a', 'loc-1', d, '09:00'),
+      row('b', 'loc-1', d, '10:00'),
+      row('other', 'loc-2', d, '09:00'),
+    ]);
+    setCapacity.and.returnValue(of({ updatedCount: 2, capacity: 1 }));
+
+    const col = cmp.columns().find((c: { iso: string }) => c.iso === iso);
+    cmp.openDayCapacity(col);
+    cmp.capacityValue.set(1);
+    cmp.saveCapacity();
+
+    const [input] = setCapacity.calls.mostRecent().args;
+    expect(input.locationId).toBe('loc-1');
+    expect(input.slots.map((s: { id: string }) => s.id)).toEqual(['a', 'b']);
+    expect(input.capacity).toBe(1);
+    expect(success).toHaveBeenCalledWith('Capacity set to 1 for 2 slot(s).');
+  });
+
+  it('does not open the per-day change in the All-locations view', () => {
+    const { cmp, iso } = rendered((d) => [row('a', 'loc-1', d, '09:00')]);
+    cmp.locationId.set('');
+
+    cmp.openDayCapacity(cmp.columns().find((c: { iso: string }) => c.iso === iso));
+
+    expect(cmp.capacityEdit()).toBeNull();
+  });
+
+  it('shows the server refusal in the dialog and keeps it open', () => {
+    const message =
+      'Capacity cannot be set to 0: the 9:00 AM slot on 12/04/2026 already has 2 active appointments.';
+    setCapacity.and.returnValue(throwError(() => ({ status: 400, error: { error: { message } } })));
+    const { fixture, cmp, root } = rendered((iso) => [row('a', 'loc-1', iso, '09:00')]);
+
+    (root.querySelector('.av-slot .x.cap') as HTMLElement).click();
+    cmp.capacityValue.set(0);
+    cmp.saveCapacity();
+    fixture.detectChanges();
+
+    expect(cmp.capacityEdit()).not.toBeNull();
+    expect(root.querySelector('.ia-capacity-error')?.textContent?.trim()).toBe(message);
+    expect(cmp.isBusy()).toBeFalse();
+  });
+
+  it('explains a conflict when the slots changed after the week loaded', () => {
+    setCapacity.and.returnValue(
+      throwError(() => ({ status: 409, error: { error: { message: 'x' } } })),
+    );
+    const { cmp, iso } = rendered((d) => [row('a', 'loc-1', d, '09:00')]);
+
+    cmp.openDayCapacity(cmp.columns().find((c: { iso: string }) => c.iso === iso));
+    cmp.saveCapacity();
+
+    expect(cmp.capacityError()).toContain('reload the week');
+  });
+
+  it('refuses a value outside 0 to 50 without calling the server', () => {
+    const { cmp, iso } = rendered((d) => [row('a', 'loc-1', d, '09:00')]);
+    cmp.openDayCapacity(cmp.columns().find((c: { iso: string }) => c.iso === iso));
+
+    for (const bad of [-1, 51, 1.5, null]) {
+      cmp.capacityValue.set(bad);
+      cmp.saveCapacity();
+    }
+
+    expect(setCapacity).not.toHaveBeenCalled();
+  });
+
+  it('renders no capacity controls without the Edit permission', () => {
+    granted = false;
+    const { root } = rendered((iso) => [row('a', 'loc-1', iso, '09:00')]);
+
+    expect(root.querySelector('.av-slot .x.cap')).toBeNull();
+    expect(root.querySelector('.ia-daycap')).toBeNull();
+    // The delete controls are unchanged by this permission.
+    expect(root.querySelector('.av-slot .x:not(.cap)')).not.toBeNull();
+  });
+
+  it('closes the dialog on Escape', () => {
+    const { cmp, iso } = rendered((d) => [row('a', 'loc-1', d, '09:00')]);
+    cmp.openDayCapacity(cmp.columns().find((c: { iso: string }) => c.iso === iso));
+
+    cmp.onEscapeKey();
+
+    expect(cmp.capacityEdit()).toBeNull();
   });
 });

@@ -61,6 +61,16 @@ public class RescheduleRequestValidatorsUnitTests
         RescheduleRequestValidators.IsSlotAvailable(status).ShouldBe(expected);
     }
 
+    [Theory]
+    [InlineData(BookingStatus.Available, 1, true)]
+    [InlineData(BookingStatus.Available, 0, false)]
+    [InlineData(BookingStatus.Reserved, 3, false)]
+    [InlineData(BookingStatus.Booked, 3, false)]
+    public void IsSlotAvailable_WithCapacity_RefusesASlotClosedByCapacityZero(BookingStatus status, int capacity, bool expected)
+    {
+        RescheduleRequestValidators.IsSlotAvailable(status, capacity).ShouldBe(expected);
+    }
+
     [Fact]
     public void EnsureNotCurrentSlot_RefusesTheAppointmentsOwnSlot_AndAllowsAnyOther()
     {
