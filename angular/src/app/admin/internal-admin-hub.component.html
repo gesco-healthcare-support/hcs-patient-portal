@@ -155,15 +155,23 @@
                     </div>
                   }
                   <div class="ra-field col-12">
-                    <label>Email body</label>
-                    <quill-editor
-                      class="nt-editor"
+                    <label for="iah-template-body">
+                      Email body
+                      <span class="opt">(HTML)</span>
+                    </label>
+                    <textarea
+                      #bodySource
+                      id="iah-template-body"
+                      class="ra-input nt-source"
+                      rows="14"
+                      spellcheck="false"
                       [ngModel]="d.bodyEmail"
                       (ngModelChange)="patchDraft({ bodyEmail: $event })"
-                      [modules]="quillModules"
-                      (onEditorCreated)="onEditorCreated($event)"
-                      placeholder="Compose the email body..."
-                    ></quill-editor>
+                    ></textarea>
+                    <div class="ra-hint">
+                      Change the words between the tags and leave the tags as they are. The email
+                      preview below shows the result; Send test emails you the saved version.
+                    </div>
                   </div>
                   <div class="ra-field col-12">
                     <label for="iah-template-sms">
@@ -194,6 +202,18 @@
                         }
                       </div>
                     </div>
+                  </div>
+                  <div class="ra-field col-12">
+                    <label>
+                      Email preview
+                      <span class="opt">(sample values)</span>
+                    </label>
+                    <iframe
+                      #bodyPreview
+                      class="nt-body-frame"
+                      sandbox=""
+                      title="Email body preview"
+                    ></iframe>
                   </div>
                 </div>
                 <div class="mp-editfoot">
