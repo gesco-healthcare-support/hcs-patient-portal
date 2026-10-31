@@ -238,6 +238,18 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
     }
 
     /// <summary>
+    /// The fee ticket's evaluation prefix: <c>"NEW"</c> for a first evaluation, <c>"RE"</c> for a
+    /// re-evaluation. An unmapped value prints nothing rather than a wrong label, and does not fail
+    /// the packet: a missing prefix on one header line is not worth losing the whole packet over.
+    /// </summary>
+    internal static string EvaluationKindLabel(EvaluationKind kind) => kind switch
+    {
+        EvaluationKind.Evaluation => "NEW",
+        EvaluationKind.ReEvaluation => "RE",
+        _ => string.Empty,
+    };
+
+    /// <summary>
     /// Resolves the patient's spoken language for the interpreter tokens: the free-text
     /// <c>OthersLanguageName</c> (set when "Other" is picked) wins; otherwise the
     /// <c>AppointmentLanguage</c> lookup name for <c>AppointmentLanguageId</c>. Returns null when
@@ -263,6 +275,7 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
     {
         ctx.RequestConfirmationNumber = Upper(appointment.RequestConfirmationNumber);
         ctx.PanelNumber = Upper(appointment.PanelNumber);
+        ctx.EvaluationKindLabel = EvaluationKindLabel(appointment.EvaluationKind);
         // 2026-08-27: CreationTime is a stored UTC INSTANT, so it must be converted before it is
         // read as a date -- an appointment booked at 6pm Pacific has a CreationTime on the NEXT
         // UTC day and was printed with that date. Contrast the calendar dates just below

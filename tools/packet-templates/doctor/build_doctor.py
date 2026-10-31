@@ -979,7 +979,9 @@ FEE_LEFT = [
     ("i", "08", "20552", "Trigger Point 1-2 areas"),
     ("i", "709", "20553", "Trigger Point Multiple Areas"),
     ("i", "710", "20610", "Injection of Large Joint"),
-    ("i", "711", "20605", "Injection of Small Joints"),
+    # "11", not the earlier "711": the office's 10-2026 fee ticket prints 11 here. Kept verbatim like
+    # every other code on this grid; it also renames this row's fee box to packet.doctor.fee.c1.11.
+    ("i", "11", "20605", "Injection of Small Joints"),
 ]
 
 FEE_MIDDLE = [
@@ -1110,7 +1112,10 @@ def _fee_header():
         f'<td></td></tr>'
         f'<tr><td colspan="2"><span class="lbl">Name:</span> '
         f'{tok("##Patients.FirstName##")} {tok("##Patients.LastName##")}</td>'
-        f'<td><span class="lbl">Type:</span> {tok("##Appointments.AppointmentType##")}</td>'
+        # "NEW-PQME" / "RE-PQME", as the office's 10-2026 fee ticket prints it: NEW for a first
+        # evaluation, RE for a re-evaluation (##Appointments.EvaluationKind##), then the type.
+        f'<td><span class="lbl">Type:</span> '
+        f'{tok("##Appointments.EvaluationKind##-##Appointments.AppointmentType##")}</td>'
         f'<td></td></tr></table>')
 
 
