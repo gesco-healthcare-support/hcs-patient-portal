@@ -75,6 +75,8 @@ public static class PacketTokenMap
             ["##Appointments.PrimaryResponsibleUserName##"] = c.PrimaryResponsibleUserName,
             ["##Appointments.AppointmentCreatedDate##"] = c.AppointmentCreatedDate,
             ["##Appointments.PanelNumber##"] = c.PanelNumber,
+            // NEW (no OLD token): "NEW" / "RE", the fee ticket's prefix before the type.
+            ["##Appointments.EvaluationKind##"] = c.EvaluationKindLabel,
 
             // EmployerDetails group
             ["##EmployerDetails.EmployerName##"] = c.EmployerName,

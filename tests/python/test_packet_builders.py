@@ -176,6 +176,23 @@ class DoctorPageTest(unittest.TestCase):
             with self.subTest(table=builder.__name__):
                 self.assertIn("<table", builder())
 
+    def test_the_fee_ticket_type_reads_new_or_re_before_the_appointment_type(self):
+        """The office's 10-2026 fee ticket prints "NEW-PQME": the evaluation kind, a hyphen,
+        then the type, in one span so it reads as one value."""
+        header = self.mod._fee_header()
+        self.assertIn(
+            '<span class="lbl">Type:</span> '
+            '<span class="tok">##Appointments.EvaluationKind##-##Appointments.AppointmentType##</span>',
+            header)
+
+    def test_small_joint_injection_carries_the_office_code_11(self):
+        """Office code as the 10-2026 fee ticket prints it (it was 711). The code also names the
+        row's fee box, so the field is packet.doctor.fee.c1.11."""
+        rows = [row for row in self.mod.FEE_LEFT if row[0] == "i" and row[3] == "Injection of Small Joints"]
+        self.assertEqual(rows, [("i", "11", "20605", "Injection of Small Joints")])
+        self.assertIn('name="packet.doctor.fee.c1.11"', self.mod.page5())
+        self.assertNotIn("packet.doctor.fee.c1.711", self.mod.page5())
+
 
 class DoctorInlineImagesTest(unittest.TestCase):
     """`_inline_images` decides what travels to the renderer service.
@@ -380,6 +397,25 @@ class AttorneyBuilderTest(unittest.TestCase):
         self.assertIn('<div data-if="##Office.MailingAddress##">##Office.MailingAddress##</div>', footer)
         self.assertIn('<div data-if="##Office.Phone##">Phone: ##Office.Phone##</div>', footer)
         self.assertIn('<div data-if="##Office.Fax##">FAX: ##Office.Fax##</div>', footer)
+
+    def test_the_attorney_notice_follows_the_offices_10_2026_template(self):
+        html = self.mod.attorney_notice()
+        self.assertIn("received no later than 20 days before the applicant", html)
+        self.assertIn(
+            "If the medical records are not received within the above timeline given, it may become "
+            "necessary to issue a supplemental report and/or the applicant may have to return for a "
+            "second appointment.", html)
+        for gone in ("15 days", "one week before", "may to have return", "preferred vendor",
+                     "APPOINTMENT DEPARTMENT", "Thank you,", 'class="lfoot"'):
+            with self.subTest(gone=gone):
+                self.assertNotIn(gone, html)
+
+    def test_the_patient_notice_keeps_its_sign_off_and_footer(self):
+        """The 10-2026 update covers the attorney notice only. The patient notice keeps both, and
+        it is what puts the phone/fax footer on its page."""
+        html = self.mod.patient_notice()
+        self.assertIn("APPOINTMENT DEPARTMENT", html)
+        self.assertIn(self.mod._lfoot(), html)
 
     def test_the_three_notice_pages_render(self):
         for builder in (self.mod.attorney_notice, self.mod.patient_notice, self.mod.qme_form):

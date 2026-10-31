@@ -4,8 +4,8 @@
 # Regenerate with:
 #   python tools/packet-templates/tests/test_golden_output.py --update
 # A change here must ship with the template edit that caused it.
-f1544f2355f7bdf6430c34ca88c973ae3a2875cec74dd1182ae3fbf0ea6b00ea  ame_ime.html
-eceb9f63b3ca9f465bd695218249735a977e3b8e19f63a1707840477f9f36b06  doctor.html
-d75ca911b5decc261fb2760cbdc1da45c43117187002aecfaf0ec19d53e29c1d  doctor_landscape.html
+7e03ec9c1deb42268b391f80c2dae5c8289805216b088c4f3eadbab2c545ad8f  ame_ime.html
+025835c787bf5f79d6ee378327dd93dd1d87c6508599d841c0e61ec6a008b1a2  doctor.html
+1e9862579882ba8170c2baa639de06082659f84f203e2f841161bbcbfc6a98cf  doctor_landscape.html
 c588fed10a3bf0fb2650aefbfe3e55254faa65b6f1f7976bb59fc21ddb7f9166  patient.html
-718a89a498447593f7047239a13f4e6f89e178f488a47e2b8ef668d54d17b62b  pqme.html
+7c3317ca675ee75177ac7c05eaa9e7ae46d9e214ea89094a994dd61590140405  pqme.html
