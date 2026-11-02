@@ -24,9 +24,8 @@ internal static class AppointmentApprovalValidator
 {
     /// <summary>
     /// Validates the approve-appointment input + current entity state.
-    /// Throws <c>BusinessException(AppointmentApprovalRequiresResponsibleUser)</c>
-    /// when the responsible-user GUID is empty (mirrors OLD's UI-side
-    /// disabled-Approve-button gate). Throws
+    /// No responsible user is required: that requirement (OLD's
+    /// disabled-Approve-button gate) was retired on 2026-11-02. Throws
     /// <c>BusinessException(AppointmentNotPendingForApproval)</c>
     /// when the appointment is already Approved -- localizes to OLD's
     /// "Appointment Already Approved" verbatim string. Returns silently
@@ -37,11 +36,6 @@ internal static class AppointmentApprovalValidator
     {
         ArgumentNullException.ThrowIfNull(appointment);
         ArgumentNullException.ThrowIfNull(input);
-        if (input.PrimaryResponsibleUserId == Guid.Empty)
-        {
-            throw new BusinessException(
-                CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresResponsibleUser);
-        }
         if (appointment.AppointmentStatus == AppointmentStatusType.Approved)
         {
             throw new BusinessException(

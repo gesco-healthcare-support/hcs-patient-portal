@@ -2409,12 +2409,11 @@ describe('AppointmentAddComponent booking engine', () => {
       expect(approveAppointment).not.toHaveBeenCalled();
     });
 
-    it('approves an internal booking', async () => {
+    it('approves an internal booking, naming no responsible user', async () => {
+      // The responsible user was retired on 2026-11-02: the approval body carries nothing else.
       const c = create({ roles: ['Staff Supervisor'] });
       await c.autoApproveIfInternalBooker('appt-1');
-      expect(approveAppointment).toHaveBeenCalledWith('appt-1', {
-        primaryResponsibleUserId: 'user-1',
-      });
+      expect(approveAppointment).toHaveBeenCalledWith('appt-1', {});
     });
 
     it('retries once for an unclassified failure', async () => {
@@ -2476,9 +2475,9 @@ describe('AppointmentAddComponent booking engine', () => {
       expect(toaster.warn).toHaveBeenCalledWith('A panel strike list is required before approval.');
     });
 
-    it('warns when the booker has no resolvable responsible user', async () => {
-      // Was a silent return. An internal booking that can never be auto-approved must not
-      // be left Pending with no explanation.
+    it('still approves when the booker has no resolvable user id', async () => {
+      // Until 2026-11-02 the booker's own id was sent as the responsible user, so a booking
+      // without one was left Pending with a warning. Nothing is needed from it any more.
       const c = create({ roles: ['Staff Supervisor'] });
       // Shadow the prototype getter on the instance. `spyOnProperty` cannot reach a
       // private accessor declared on the class prototype.
@@ -2489,8 +2488,8 @@ describe('AppointmentAddComponent booking engine', () => {
 
       await c.autoApproveIfInternalBooker('appt-1');
 
-      expect(approveAppointment).not.toHaveBeenCalled();
-      expect(toaster.warn).toHaveBeenCalled();
+      expect(approveAppointment).toHaveBeenCalledOnceWith('appt-1', {});
+      expect(toaster.warn).not.toHaveBeenCalled();
     });
   });
 
