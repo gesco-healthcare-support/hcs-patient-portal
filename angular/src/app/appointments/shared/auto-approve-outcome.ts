@@ -26,7 +26,6 @@ const GATE_CODES: ReadonlySet<string> = new Set([
   'CaseEvaluation:Appointment.ApprovalRequiresInjuryDetail',
   'CaseEvaluation:Appointment.ApprovalRequiresClaimExaminer',
   'CaseEvaluation:Appointment.ApprovalRequiresPanelStrikeList',
-  'CaseEvaluation:Appointment.ApprovalRequiresResponsibleUser',
 ]);
 
 export type AutoApproveOutcome =

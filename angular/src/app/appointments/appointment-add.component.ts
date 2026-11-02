@@ -26,10 +26,7 @@ import { BookingMode, resolveBookingModeFromType } from './shared/booking-mode';
 import { isReBookEligibleStatus } from './shared/rebook-eligibility';
 import { buildRevalPrefill } from './shared/reval-prefill.mapper';
 import { unitForForm } from './shared/patient-unit.mapper';
-import {
-  AUTO_APPROVE_FALLBACK_MESSAGE,
-  classifyAutoApproveFailure,
-} from './shared/auto-approve-outcome';
+import { classifyAutoApproveFailure } from './shared/auto-approve-outcome';
 import {
   ADDRESS_CHECK_SKIPPED_MESSAGE,
   NO_SOURCE_FOUND_MESSAGE,
@@ -2421,23 +2418,13 @@ export class AppointmentAddComponent {
       return;
     }
 
-    const responsibleUserId = this.currentUser?.id;
-    if (!responsibleUserId) {
-      // Was a silent return. An internal booking with no resolvable responsible user can never be
-      // auto-approved, so it must not be left Pending with no explanation.
-      this.toaster.warn(AUTO_APPROVE_FALLBACK_MESSAGE);
-      return;
-    }
-
+    // No responsible user any more (retired 2026-11-02): the approval carries nothing but the
+    // (absent) comment, so it no longer depends on resolving the booker's own user id.
     // At most one retry, and only for an unclassified failure: a refused gate cannot succeed on a
     // second identical attempt, so retrying it would just delay the message the booker needs.
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
-        await firstValueFrom(
-          this.appointmentApprovalService.approveAppointment(appointmentId, {
-            primaryResponsibleUserId: responsibleUserId,
-          }),
-        );
+        await firstValueFrom(this.appointmentApprovalService.approveAppointment(appointmentId, {}));
         return;
       } catch (err: unknown) {
         const outcome = classifyAutoApproveFailure(err);

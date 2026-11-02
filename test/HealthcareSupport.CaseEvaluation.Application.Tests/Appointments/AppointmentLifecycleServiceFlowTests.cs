@@ -260,37 +260,46 @@ public abstract class AppointmentLifecycleServiceFlowTests<TStartupModule>
     // ------------------------------------------------------------------ booking approval
 
     [Fact]
-    public async Task Approving_records_the_responsible_user_and_comments_and_announces_it()
+    public async Task Approving_records_the_comments_announces_it_and_leaves_a_stored_responsible_user_alone()
     {
+        // 2026-11-02: the responsible user is retired. A value stored on an older appointment stays as
+        // history -- approval neither overwrites nor clears it.
+        var legacyResponsibleUserId = new Guid("9f5b3c4d-0000-4000-9000-0000000000aa");
+        await InTenantA(async () =>
+        {
+            var appointment = await _appointmentRepository.GetAsync(AppointmentA);
+            appointment.PrimaryResponsibleUserId = legacyResponsibleUserId;
+            return await _appointmentRepository.UpdateAsync(appointment, autoSave: true);
+        });
         await AddActiveClaimExaminerAsync();
         await AddStaffUserToOfficeAAsync();
         AppointmentDto result = null!;
         await AsStaff(async () => result = await _approval.ApproveAppointmentAsync(AppointmentA,
-            new ApproveAppointmentInput { PrimaryResponsibleUserId = StaffUserId, InternalUserComments = "Synthetic note" }));
+            new ApproveAppointmentInput { InternalUserComments = "Synthetic note" }));
 
         result.AppointmentStatus.ShouldBe(AppointmentStatusType.Approved);
         var stored = await InTenantA(() => _appointmentRepository.GetAsync(AppointmentA));
-        stored.PrimaryResponsibleUserId.ShouldBe(StaffUserId);
+        stored.PrimaryResponsibleUserId.ShouldBe(legacyResponsibleUserId);
         stored.InternalUserComments.ShouldBe("Synthetic note");
-        var approved = Published<AppointmentApprovedEto>().ShouldHaveSingleItem();
-        approved.ApprovedByUserId.ShouldBe(StaffUserId);
-        approved.PrimaryResponsibleUserId.ShouldBe(StaffUserId);
+        Published<AppointmentApprovedEto>().ShouldHaveSingleItem().ApprovedByUserId.ShouldBe(StaffUserId);
     }
 
     [Fact]
-    public async Task Approval_needs_a_responsible_user_and_a_booking_not_already_approved()
+    public async Task Approval_needs_no_responsible_user_but_refuses_a_booking_already_approved()
     {
-        await AsStaff(async () =>
-            (await Should.ThrowAsync<BusinessException>(() => _approval.ApproveAppointmentAsync(
-                    AppointmentA, new ApproveAppointmentInput { PrimaryResponsibleUserId = Guid.Empty })))
-                .Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresResponsibleUser));
+        await AddActiveClaimExaminerAsync();
+        AppointmentDto result = null!;
+        await AsStaff(async () => result = await _approval.ApproveAppointmentAsync(AppointmentA, new ApproveAppointmentInput()));
+
+        result.AppointmentStatus.ShouldBe(AppointmentStatusType.Approved);
+        (await InTenantA(() => _appointmentRepository.GetAsync(AppointmentA))).PrimaryResponsibleUserId.ShouldBeNull();
 
         await InOffice(TenantsTestData.TenantBRef, StaffUserId, "Staff Supervisor", async () =>
             (await Should.ThrowAsync<BusinessException>(() => _approval.ApproveAppointmentAsync(
-                    AppointmentsTestData.Appointment2Id, new ApproveAppointmentInput { PrimaryResponsibleUserId = StaffUserId })))
+                    AppointmentsTestData.Appointment2Id, new ApproveAppointmentInput())))
                 .Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentNotPendingForApproval));
 
-        Published<AppointmentApprovedEto>().ShouldBeEmpty();
+        Published<AppointmentApprovedEto>().ShouldHaveSingleItem();
     }
 
     [Fact]
@@ -310,21 +319,6 @@ public abstract class AppointmentLifecycleServiceFlowTests<TStartupModule>
         stored.RejectionNotes.ShouldBe("Synthetic rejection");
         stored.RejectedById.ShouldBe(StaffUserId);
         Published<AppointmentRejectedEto>().ShouldHaveSingleItem().RejectedByUserId.ShouldBe(StaffUserId);
-    }
-
-    [Fact]
-    public async Task The_responsible_user_list_pages_and_filters_the_internal_users()
-    {
-        PagedResultDto<LookupDto<Guid>> all = null!, none = null!;
-        await AsStaff(async () =>
-        {
-            all = await _approval.GetInternalUserLookupAsync(new LookupRequestDto { MaxResultCount = 5 });
-            none = await _approval.GetInternalUserLookupAsync(new LookupRequestDto { Filter = "zz-no-such-person", MaxResultCount = 5 });
-        });
-
-        all.Items.Count.ShouldBe((int)Math.Min(all.TotalCount, 5));
-        none.TotalCount.ShouldBe(0);
-        none.Items.ShouldBeEmpty();
     }
 
     // ------------------------------------------------------------------ the appointments service
