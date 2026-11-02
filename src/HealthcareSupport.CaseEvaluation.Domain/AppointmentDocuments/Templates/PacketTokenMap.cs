@@ -77,6 +77,8 @@ public static class PacketTokenMap
             ["##Appointments.PanelNumber##"] = c.PanelNumber,
             // NEW (no OLD token): "NEW" / "RE", the fee ticket's prefix before the type.
             ["##Appointments.EvaluationKind##"] = c.EvaluationKindLabel,
+            // NEW (no OLD token): the type's short code ("PQME"), printed after the prefix.
+            ["##Appointments.AppointmentTypeCode##"] = c.AppointmentTypeCode,
 
             // EmployerDetails group
             ["##EmployerDetails.EmployerName##"] = c.EmployerName,
