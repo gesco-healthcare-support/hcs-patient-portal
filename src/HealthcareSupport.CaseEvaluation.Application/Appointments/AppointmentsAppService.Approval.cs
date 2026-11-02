@@ -1,18 +1,13 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments.Events;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Permissions;
-using HealthcareSupport.CaseEvaluation.Shared;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
 using Volo.Abp;
-using Volo.Abp.Application.Dtos;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.EventBus.Local;
-using Volo.Abp.Identity;
 
 namespace HealthcareSupport.CaseEvaluation.Appointments;
 
@@ -46,8 +41,9 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 ///     verbatim "Appointment Already Approved" / "Appointment Already
 ///     Rejected" strings before the state machine fires (cleaner UX
 ///     than the generic <c>InvalidTransition</c> error).</item>
-///   <item>Persists <see cref="Appointment.PrimaryResponsibleUserId"/>
-///     from the input DTO (audit B-row gap).</item>
+///   <item>Persists the optional approver comment. (It also wrote
+///     <see cref="Appointment.PrimaryResponsibleUserId"/> until 2026-11-02, when the office
+///     retired the responsible user; stored values are left as history.)</item>
 ///   <item>Persists <see cref="Appointment.RejectionNotes"/> +
 ///     <see cref="Appointment.RejectedById"/> on rejection.</item>
 ///   <item>Records the patient-match-override decision on
@@ -68,9 +64,6 @@ public class AppointmentApprovalAppService : CaseEvaluationAppService, IAppointm
     private readonly AppointmentManager _appointmentManager;
     private readonly ILocalEventBus _localEventBus;
     private readonly ILogger<AppointmentApprovalAppService> _logger;
-    // A1 (2026-05-05) -- internal-user dropdown source for the Approve modal; since 2026-10-26 also the
-    // check that the chosen Responsible User is one of them.
-    private readonly ResponsibleUserCandidates _responsibleUsers;
     // 2026-05-28 -- centralised BusinessException -> UserFriendlyException
     // translator so the SPA toast shows the localized message instead of
     // ABP's generic "internal error" fallback.
@@ -79,14 +72,12 @@ public class AppointmentApprovalAppService : CaseEvaluationAppService, IAppointm
         IAppointmentRepository appointmentRepository,
         AppointmentManager appointmentManager,
         ILocalEventBus localEventBus,
-        ILogger<AppointmentApprovalAppService> logger,
-        ResponsibleUserCandidates responsibleUsers)
+        ILogger<AppointmentApprovalAppService> logger)
     {
         _appointmentRepository = appointmentRepository;
         _appointmentManager = appointmentManager;
         _localEventBus = localEventBus;
         _logger = logger;
-        _responsibleUsers = responsibleUsers;
     }
 
     [Authorize(CaseEvaluationPermissions.Appointments.Approve)]
@@ -96,13 +87,11 @@ public class AppointmentApprovalAppService : CaseEvaluationAppService, IAppointm
 
         var appointment = await _appointmentRepository.GetAsync(id);
         AppointmentApprovalValidator.EnsureApprovable(appointment, input);
-        // 2026-10-26: only someone the Approve dialog would offer -- a switched-on staff account of this
-        // office -- can be made responsible, since they receive the appointment's mail.
-        await _responsibleUsers.EnsureEligibleAsync(input.PrimaryResponsibleUserId);
+        // 2026-11-02: no responsible user any more. Approval neither asks for one nor touches
+        // PrimaryResponsibleUserId, so a value stored before the retirement stays as history.
 
-        appointment.PrimaryResponsibleUserId = input.PrimaryResponsibleUserId;
         // A1 (2026-05-05) -- OLD-parity: persist optional approver comments
-        // alongside the responsible-user write so the same UoW commits both.
+        // before the status transition so subscribers see them.
         // OLD batched this in a single PATCH (`view/appointment-view.component
         // .html`:141-144 + `updateAppointmentRequest`); NEW splits the
         // status transition out via the manager but keeps the supplemental
@@ -117,8 +106,8 @@ public class AppointmentApprovalAppService : CaseEvaluationAppService, IAppointm
         // This stamps AppointmentApproveDate, validates the transition,
         // persists the new status, and publishes
         // AppointmentStatusChangedEto for the slot cascade + email
-        // subscribers. The supplemental write above (PrimaryResponsibleUserId)
-        // is committed first so subscribers see the resolved entity.
+        // subscribers. The supplemental write above (the comment) is
+        // committed first so subscribers see the resolved entity.
         // 2026-05-28 -- Manager throws BusinessException on invalid
         // transitions / missing injury details; translate to a localized
         // UserFriendlyException so the SPA shows the actionable message.
@@ -130,16 +119,14 @@ public class AppointmentApprovalAppService : CaseEvaluationAppService, IAppointm
             AppointmentId = approved.Id,
             TenantId = approved.TenantId,
             AppointmentTypeId = approved.AppointmentTypeId,
-            PrimaryResponsibleUserId = input.PrimaryResponsibleUserId,
             ApprovedByUserId = CurrentUser.Id ?? Guid.Empty,
             OccurredAt = DateTime.UtcNow,
         });
 
         _logger.LogInformation(
-            "AppointmentApprovalAppService.ApproveAppointmentAsync: appointment {AppointmentId} approved by {UserId} with responsible {ResponsibleUserId}.",
+            "AppointmentApprovalAppService.ApproveAppointmentAsync: appointment {AppointmentId} approved by {UserId}.",
             approved.Id,
-            CurrentUser.Id,
-            input.PrimaryResponsibleUserId);
+            CurrentUser.Id);
 
         return ObjectMapper.Map<Appointment, AppointmentDto>(approved);
     }
@@ -174,44 +161,5 @@ public class AppointmentApprovalAppService : CaseEvaluationAppService, IAppointm
             CurrentUser.Id);
 
         return ObjectMapper.Map<Appointment, AppointmentDto>(rejected);
-    }
-
-    /// <summary>
-    /// A1 (2026-05-05) -- backs the Responsible-User dropdown on the Approve
-    /// modal. Returns identity users in the current tenant whose role is one
-    /// of <see cref="BookingFlowRoles.InternalUserRoles"/>. Mirrors OLD's
-    /// <c>internalUserNameLookUps</c> source. Tenant scoping is enforced
-    /// transparently by ABP's IMultiTenant filter on IdentityUser; no manual
-    /// where-clause needed.
-    /// </summary>
-    [Authorize(CaseEvaluationPermissions.Appointments.Default)]
-    public virtual async Task<PagedResultDto<LookupDto<Guid>>> GetInternalUserLookupAsync(
-        LookupRequestDto input)
-    {
-        // The same rule ApproveAppointmentAsync enforces (2026-10-26): switched-on
-        // holders of the internal roles in this office, once each.
-        IEnumerable<IdentityUser> filtered = await _responsibleUsers.GetAsync();
-        if (!string.IsNullOrWhiteSpace(input.Filter))
-        {
-            var needle = input.Filter.Trim();
-            filtered = filtered.Where(u =>
-                (u.Email != null && u.Email.Contains(needle, StringComparison.OrdinalIgnoreCase))
-                || (u.UserName != null && u.UserName.Contains(needle, StringComparison.OrdinalIgnoreCase))
-                || (u.Name != null && u.Name.Contains(needle, StringComparison.OrdinalIgnoreCase))
-                || (u.Surname != null && u.Surname.Contains(needle, StringComparison.OrdinalIgnoreCase)));
-        }
-
-        var ordered = filtered
-            .OrderBy(u => u.Surname ?? string.Empty)
-            .ThenBy(u => u.Name ?? string.Empty)
-            .ThenBy(u => u.Email ?? string.Empty)
-            .ToList();
-
-        var page = ordered.Skip(input.SkipCount).Take(input.MaxResultCount).ToList();
-        return new PagedResultDto<LookupDto<Guid>>
-        {
-            TotalCount = ordered.Count,
-            Items = ObjectMapper.Map<List<IdentityUser>, List<LookupDto<Guid>>>(page),
-        };
     }
 }

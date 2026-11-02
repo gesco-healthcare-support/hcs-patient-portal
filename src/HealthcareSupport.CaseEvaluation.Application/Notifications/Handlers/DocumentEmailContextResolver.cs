@@ -143,7 +143,6 @@ public class DocumentEmailContextResolver : ITransientDependency
             DueDate = appointment.DueDate,
             BookerEmail = bookerUser?.Email,
             BookerFullName = JoinName(bookerUser?.Name, bookerUser?.Surname),
-            ResponsibleUserId = appointment.PrimaryResponsibleUserId,
             PatientFirstName = patient?.FirstName,
             PatientLastName = patient?.LastName,
             PatientEmail = patient?.Email ?? appointment.PatientEmail,
@@ -295,7 +294,6 @@ public class DocumentEmailContext
     public DateTime? DueDate { get; set; }
     public string? BookerEmail { get; set; }
     public string BookerFullName { get; set; } = string.Empty;
-    public Guid? ResponsibleUserId { get; set; }
     public string? PatientFirstName { get; set; }
     public string? PatientLastName { get; set; }
     public string? PatientEmail { get; set; }

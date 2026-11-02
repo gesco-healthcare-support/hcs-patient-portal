@@ -9,32 +9,6 @@
   <ng-template #abpBody>
     <form [formGroup]="form">
       <div class="form-group mb-3">
-        <label for="approve-responsible-user" class="form-label">
-          Responsible User
-          <span class="text-danger">*</span>
-        </label>
-        <ng-container *ngIf="isLoadingUsers">
-          <div class="form-text text-muted">Loading...</div>
-        </ng-container>
-        <ng-container *ngIf="!isLoadingUsers && !loadError">
-          <select
-            id="approve-responsible-user"
-            class="form-select"
-            formControlName="primaryResponsibleUserId"
-          >
-            <option [ngValue]="null" disabled>Select</option>
-            <option *ngFor="let u of responsibleUsers" [ngValue]="u.id">{{ u.displayName }}</option>
-          </select>
-        </ng-container>
-        <ng-container *ngIf="loadError">
-          <div class="alert alert-danger py-2 mb-1 small">{{ loadError }}</div>
-          <button type="button" class="btn btn-sm btn-outline-secondary" (click)="retryLoad()">
-            Retry
-          </button>
-        </ng-container>
-      </div>
-
-      <div class="form-group mb-3">
         <label for="approve-comments" class="form-label">Any comments?</label>
         <textarea
           id="approve-comments"
@@ -57,7 +31,7 @@
     <abp-button
       iconClass="fa fa-check"
       buttonType="button"
-      [disabled]="form.invalid || isBusy || isLoadingUsers || !!loadError"
+      [disabled]="approveDisabled"
       (click)="confirm()"
     >
       Approve

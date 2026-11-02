@@ -19,7 +19,9 @@ screenshots: pending
 The approval surface lets Intake Staff (and Staff Supervisor / IT Admin) act on
 appointment requests submitted by external users:
 
-- **Approve** -- assign a responsible user + optional comment; moves status to Approved.
+- **Approve** -- optional comment; moves status to Approved. (As built 2026-11-02: the office retired
+  the responsible user, so the Approve dialog no longer asks for one and approval does not require one.
+  Values stored on older appointments are kept as history; nothing reads them.)
 - **Reject** -- provide a rejection reason; moves status to Rejected.
 - **Send Back** (NEW only) -- flag specific fields for the external user to correct; moves
   status to AwaitingMoreInfo, unlocks flagged fields for external user.
@@ -198,7 +200,8 @@ Simple confirmation dialog -- no fields. Clicking "Approve":
 5. Closes modal.
 
 **Parity gap:** OLD required "Responsible User" selection before approving. NEW approval
-modal has no Responsible User field. See Exception 1.
+modal has no Responsible User field. See Exception 1. (Resolved 2026-11-02 by retiring the
+responsible user altogether.)
 
 NEW source: `approve-confirmation-modal.component.html:1-20`,
 `approve-confirmation-modal.component.ts:1-68`

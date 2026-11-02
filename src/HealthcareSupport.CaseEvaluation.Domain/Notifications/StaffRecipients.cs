@@ -11,9 +11,8 @@ namespace HealthcareSupport.CaseEvaluation.Notifications;
 /// switched ON. A switched-off account keeps its role -- an Intake operator's office shadow login is locked,
 /// not stripped, when they are unassigned or moved to Staff Supervisor -- so a lookup by role alone still
 /// finds it, and would keep sending that office's mail to someone who no longer works it. Every email,
-/// digest, alert and in-app notice addressed to an office's staff (or to the IT Admins), and the
-/// Responsible User list on the Approve dialog (whoever is picked gets that appointment's mail), reads
-/// its users through here, so the rule is in one place.
+/// digest, alert and in-app notice addressed to an office's staff (or to the IT Admins) reads its users
+/// through here, so the rule is in one place.
 /// </summary>
 public static class StaffRecipients
 {

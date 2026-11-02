@@ -41,7 +41,6 @@ describe('classifyAutoApproveFailure', () => {
     const gates = [
       'CaseEvaluation:Appointment.ApprovalRequiresInjuryDetail',
       'CaseEvaluation:Appointment.ApprovalRequiresClaimExaminer',
-      'CaseEvaluation:Appointment.ApprovalRequiresResponsibleUser',
     ];
 
     gates.forEach((code) => {
