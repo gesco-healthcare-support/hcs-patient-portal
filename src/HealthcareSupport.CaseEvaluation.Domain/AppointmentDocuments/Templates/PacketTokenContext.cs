@@ -111,6 +111,13 @@ public class PacketTokenContext
     /// </summary>
     public string EvaluationKindLabel { get; set; } = string.Empty;
 
+    /// <summary>
+    /// NEW (2026-11-02, no OLD token): <c>##Appointments.AppointmentTypeCode##</c>, the short code in
+    /// the type name's last parentheses ("PQME"), else the whole name; upper-cased. The fee ticket
+    /// prints it after the evaluation prefix. <see cref="AppointmentType"/> keeps the full name.
+    /// </summary>
+    public string AppointmentTypeCode { get; set; } = string.Empty;
+
     /// <summary>OLD: <c>##Appointments.Location##</c> (Location.Name)</summary>
     public string LocationName { get; set; } = string.Empty;
 

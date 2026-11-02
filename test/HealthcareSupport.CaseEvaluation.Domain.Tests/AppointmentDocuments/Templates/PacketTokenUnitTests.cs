@@ -49,6 +49,36 @@ public class PacketTokenUnitTests
     }
 
     [Fact]
+    public void TokenMap_CarriesTheAppointmentTypeCode_AndKeepsTheFullTypeName()
+    {
+        var map = PacketTokenMap.Build(new PacketTokenContext
+        {
+            AppointmentType = "PANEL QUALIFIED MEDICAL EXAMINATION (PQME)",
+            AppointmentTypeCode = "PQME",
+        });
+
+        map["##Appointments.AppointmentTypeCode##"].ShouldBe("PQME");
+        map["##Appointments.AppointmentType##"].ShouldBe("PANEL QUALIFIED MEDICAL EXAMINATION (PQME)");
+    }
+
+    [Theory]
+    // The fee ticket prints "NEW-PQME": the code inside the type name's parentheses, upper-cased.
+    [InlineData("Panel Qualified Medical Examination (PQME)", "PQME")]
+    [InlineData("Agreed Medical Examination ( ame )", "AME")]
+    // The LAST parentheses win.
+    [InlineData("Exam (old) (IME)", "IME")]
+    // No usable parentheses -> the whole name, so a type never prints a bare "NEW-".
+    [InlineData("TEST-Qme", "TEST-QME")]
+    [InlineData("Exam ()", "EXAM ()")]
+    [InlineData("Exam (unclosed", "EXAM (UNCLOSED")]
+    [InlineData("", "")]
+    [InlineData(null, "")]
+    public void AppointmentTypeCode_ParsesTheParenthesisedCode_OrFallsBackToTheName(string? typeName, string expected)
+    {
+        PacketTokenResolver.AppointmentTypeCode(typeName).ShouldBe(expected);
+    }
+
+    [Fact]
     public void TokenMap_OmitsSignaturePlaceholder()
     {
         // The signature token is handled by the DOCX image stamping, never substituted from the map.

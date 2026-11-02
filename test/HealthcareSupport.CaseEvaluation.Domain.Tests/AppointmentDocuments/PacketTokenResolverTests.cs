@@ -182,6 +182,7 @@ public class PacketTokenResolverTests
         ctx.LocationState.ShouldBe("TEST-NEVADA");
         ctx.AppointmentType.ShouldBe("TEST-QME");
         ctx.EvaluationKindLabel.ShouldBe("NEW", "an appointment is a first evaluation unless marked otherwise");
+        ctx.AppointmentTypeCode.ShouldBe("TEST-QME", "a type name with no parentheses falls back to the whole name");
         ctx.EmployerName.ShouldBe("TEST EMPLOYER");
         ctx.EmployerState.ShouldBe("TEST-CALIFORNIA");
         ctx.PatientAttorneyName.ShouldBe("TEST-ADA TEST-LAW");
@@ -225,13 +226,17 @@ public class PacketTokenResolverTests
     public async Task A_re_evaluation_is_labelled_RE_for_the_fee_ticket()
     {
         var w = new World();
-        var appointment = NewAppointment(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        var type = new AppointmentType(Guid.NewGuid(), "TEST Agreed Exam (ame)");
+        w.Types.Add(type);
+        var appointment = NewAppointment(Guid.NewGuid(), type.Id, Guid.NewGuid(), Guid.NewGuid());
         appointment.EvaluationKind = EvaluationKind.ReEvaluation;
         w.Appointments.Add(appointment);
 
         var ctx = await w.Resolver().ResolveAsync(appointment.Id);
 
         ctx.EvaluationKindLabel.ShouldBe("RE");
+        ctx.AppointmentTypeCode.ShouldBe("AME", "the fee ticket prints RE-AME");
+        ctx.AppointmentType.ShouldBe("TEST AGREED EXAM (AME)", "the attorney notice keeps the full type name");
     }
 
     [Fact]
