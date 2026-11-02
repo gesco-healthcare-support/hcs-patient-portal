@@ -11,7 +11,7 @@ delete rows.
 | `NotificationTemplateType.cs` | Lookup: Email (seeded) + SMS (seeded); host-scoped |
 | `EmailBodyResources.cs` | Loads embedded HTML from `EmailBodies/*.html`; returns `null` on a missing file |
 | `EmailSubjects.cs` | `ByCode` dict of OLD-verbatim subjects keyed by template code |
-| `NotificationTemplateDataSeedContributor.cs` | Seeds 2 type rows (host pass) then one template row per code per tenant (tenant pass) |
+| `NotificationTemplateDataSeedContributor.cs` | Seeds 2 type rows (host pass) then one template row per code per tenant (tenant pass); refreshes a shipped HTML body unless staff edited the row (`NotificationTemplate.IsEditedByStaff`, 2026-11-02) |
 | `EmailBodies/` | Embedded `.html` body files; some codes are stub-only (no HTML file yet) |
 | `INotificationTemplateRepository.cs` | Repository for the template aggregate |
 | `INotificationTemplateTypeRepository.cs` | Repository for the type lookup. EMPTY interface -- it adds no members and exists only so the type has a named repository alongside the others; do not go looking for custom queries in it |

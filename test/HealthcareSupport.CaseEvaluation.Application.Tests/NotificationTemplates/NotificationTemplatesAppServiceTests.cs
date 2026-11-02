@@ -192,6 +192,41 @@ public abstract class NotificationTemplatesAppServiceTests<TStartupModule>
     }
 
     [Fact]
+    public async Task UpdateAsync_MarksAChangedTemplateAsEditedByStaff_AndSavingTheShippedTextClearsIt()
+    {
+        // 2026-11-02: the mark is what keeps the seeder, which runs on every deploy, from overwriting
+        // the office's edit. Saving the shipped text back clears it, so later shipped changes arrive.
+        await EnsureSeededAsync(TenantsTestData.TenantARef);
+        var code = NotificationTemplateConsts.Codes.AppointmentApproved;
+        var shipped = NotificationTemplateSeedDefaults.GetSeedDefaults(code);
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var current = await _appService.GetByCodeAsync(code);
+            var id = current.NotificationTemplate.Id;
+            var edited = await _appService.UpdateAsync(id, new NotificationTemplateUpdateDto
+            {
+                Subject = "TEST- the office's own subject",
+                BodyEmail = shipped.BodyEmail,
+                BodySms = shipped.BodySms,
+                IsActive = true,
+                ConcurrencyStamp = current.NotificationTemplate.ConcurrencyStamp,
+            });
+            (await ReadAsync(id)).IsEditedByStaff().ShouldBeTrue();
+
+            await _appService.UpdateAsync(id, new NotificationTemplateUpdateDto
+            {
+                Subject = shipped.Subject,
+                BodyEmail = shipped.BodyEmail,
+                BodySms = shipped.BodySms,
+                IsActive = true,
+                ConcurrencyStamp = edited.ConcurrencyStamp,
+            });
+            (await ReadAsync(id)).IsEditedByStaff().ShouldBeFalse();
+        }
+    }
+
+    [Fact]
     public async Task UpdateAsync_SanitizesScriptFromBodyEmail()
     {
         // #6 (2026-06-19): UpdateAsync sanitizes the HTML email body on write.
@@ -304,6 +339,14 @@ public abstract class NotificationTemplatesAppServiceTests<TStartupModule>
     /// does not do directly. Seeding inline keeps the test class
     /// self-contained.
     /// </summary>
+    private async Task<NotificationTemplate> ReadAsync(Guid id)
+    {
+        using var uow = _unitOfWorkManager.Begin(requiresNew: true, isTransactional: false);
+        var row = await _templateRepository.GetAsync(id);
+        await uow.CompleteAsync();
+        return row;
+    }
+
     private async Task EnsureSeededAsync(Guid? tenantId)
     {
         using var uow = _unitOfWorkManager.Begin(requiresNew: true, isTransactional: false);

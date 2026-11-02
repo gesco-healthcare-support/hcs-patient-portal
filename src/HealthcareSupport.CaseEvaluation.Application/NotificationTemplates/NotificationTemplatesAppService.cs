@@ -140,6 +140,10 @@ public class NotificationTemplatesAppService : ApplicationService, INotification
         }
 
         ApplyUpdate(input, entity);
+        // 2026-11-02: a row the editor leaves different from the shipped default is the office's own
+        // wording; the seeder (run on every deploy) no longer overwrites it.
+        entity.MarkEditedByStaff(NotificationTemplateVariableCatalog.IsCustomized(
+            entity.TemplateCode, entity.Subject, entity.BodyEmail, entity.BodySms));
 
         await _templateRepository.UpdateAsync(entity, autoSave: true);
         return MapToDto(entity);
