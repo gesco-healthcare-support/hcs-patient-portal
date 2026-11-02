@@ -103,6 +103,14 @@ public class PacketTokenContext
     /// <summary>OLD: <c>##Appointments.AppointmentType##</c> (Doctor Packet only, AppointmentType.Name)</summary>
     public string AppointmentType { get; set; } = string.Empty;
 
+    /// <summary>
+    /// NEW (2026-10-30, no OLD token): <c>##Appointments.EvaluationKind##</c>, <c>"NEW"</c> for a
+    /// first evaluation and <c>"RE"</c> for a re-evaluation, from <c>Appointment.EvaluationKind</c>.
+    /// The doctor packet's fee ticket prints it before the type ("NEW-PQME"), as the office's
+    /// 10-2026 fee ticket does.
+    /// </summary>
+    public string EvaluationKindLabel { get; set; } = string.Empty;
+
     /// <summary>OLD: <c>##Appointments.Location##</c> (Location.Name)</summary>
     public string LocationName { get; set; } = string.Empty;
 
