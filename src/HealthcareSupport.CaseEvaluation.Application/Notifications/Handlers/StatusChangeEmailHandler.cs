@@ -33,10 +33,9 @@ namespace HealthcareSupport.CaseEvaluation.Notifications.Handlers;
 ///     <c>InternalUserComments</c> wrapped in OLD's "Please note:" prefix
 ///     (mirrors OLD :970-980, the <c>internalUserUpdateStatus = false</c>
 ///     branch -- which in NEW Phase 12 always corresponds to the
-///     stakeholder-side fan-out). Second to <c>PrimaryResponsibleUserId</c>
-///     only, using <c>PatientAppointmentApprovedInternal</c> with the
-///     comments wrapped in OLD's "Staff comments for an appointment:"
-///     prefix (mirrors OLD :957-966, the responsible-user leg).</item>
+///     stakeholder-side fan-out). OLD's second email, to the responsible
+///     user (<c>PatientAppointmentApprovedInternal</c>, OLD :957-966), was
+///     retired with the responsible user on 2026-11-02.</item>
 ///   <item><b>Rejected</b> -- fires ONE templated email to every
 ///     stakeholder using <c>PatientAppointmentRejected</c> with
 ///     <c>RejectionNotes</c> populated (mirrors OLD :984-991; OLD does
@@ -67,8 +66,6 @@ public class StatusChangeEmailHandler :
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly IRepository<AppointmentInfoRequest, Guid> _infoRequestRepository;
     private readonly IRepository<DoctorAvailability, Guid> _doctorAvailabilityRepository;
-    private readonly ResponsibleUserRecipientResolver _responsibleUsers;
-    private readonly CcRecipientAppender _ccAppender;
     private readonly BookerCcDispatcher _bookerCcDispatcher;
     private readonly IdentityUserManager _userManager;
     private readonly ICurrentTenant _currentTenant;
@@ -94,8 +91,6 @@ public class StatusChangeEmailHandler :
         IRepository<Appointment, Guid> appointmentRepository,
         IRepository<AppointmentInfoRequest, Guid> infoRequestRepository,
         IRepository<DoctorAvailability, Guid> doctorAvailabilityRepository,
-        ResponsibleUserRecipientResolver responsibleUsers,
-        CcRecipientAppender ccAppender,
         BookerCcDispatcher bookerCcDispatcher,
         IdentityUserManager userManager,
         ICurrentTenant currentTenant,
@@ -107,8 +102,6 @@ public class StatusChangeEmailHandler :
         _appointmentRepository = appointmentRepository;
         _infoRequestRepository = infoRequestRepository;
         _doctorAvailabilityRepository = doctorAvailabilityRepository;
-        _responsibleUsers = responsibleUsers;
-        _ccAppender = ccAppender;
         _bookerCcDispatcher = bookerCcDispatcher;
         _userManager = userManager;
         _currentTenant = currentTenant;
@@ -292,67 +285,9 @@ public class StatusChangeEmailHandler :
                 eventData.AppointmentId);
         }
 
-        // OLD :953-967 (the internalUserUpdateStatus branch -- the
-        // PrimaryResponsibleUserId leg). Comment prefix is
-        // "Staff comments for an appointment:".
-        if (!appointment.PrimaryResponsibleUserId.HasValue
-            || appointment.PrimaryResponsibleUserId.Value == Guid.Empty)
-        {
-            return;
-        }
-
-        // 2026-10-26: a switched-off Responsible User is never mailed; the office inbox stands in for them
-        // when the office has one (ResponsibleUserRecipientResolver).
-        var responsible = await _responsibleUsers.ResolveAsync(appointment.PrimaryResponsibleUserId);
-        if (responsible == null)
-        {
-            _logger.LogWarning(
-                "StatusChangeEmailHandler: PrimaryResponsibleUserId {UserId} for appointment {AppointmentId} has no resolvable email; skipping internal send.",
-                appointment.PrimaryResponsibleUserId, eventData.AppointmentId);
-            return;
-        }
-
-        var internalRecipients = new List<NotificationRecipient>
-        {
-            new(
-                email: responsible.Email,
-                role: RecipientRole.OfficeAdmin,
-                isRegistered: true),
-        };
-
-        // Phase 2.B: per-tenant CC list also applies to the responsible-user
-        // leg (OLD :954 sets emailCC once and reuses it across both internal
-        // and ext branches at :966 and :980).
-        await _ccAppender.AppendAsync(
-            internalRecipients,
-            contextTagForLogging: $"Approved/Responsible/{eventData.AppointmentId}");
-
-        // The office inbox standing in for a switched-off user has no name, so it is greeted by address.
-        var responsibleName = responsible.User == null
-            ? string.Empty
-            : JoinName(responsible.User.Name, responsible.User.Surname);
-        var internalVars = new Dictionary<string, object?>(
-            BuildVariables(
-                ctx,
-                appointment,
-                appointmentDate,
-                appointmentFromTime,
-                wrapInternalComments: WrapStaffComments(appointment.InternalUserComments),
-                rejectionNotes: null),
-            StringComparer.Ordinal)
-        {
-            // C2 (2026-06-09): this leg goes only to the responsible user, so
-            // greet them by name (falls back to their email when unnamed).
-            ["ResponsibleUserName"] = string.IsNullOrWhiteSpace(responsibleName)
-                ? responsible.Email
-                : responsibleName,
-        };
-
-        await _dispatcher.DispatchAsync(
-            templateCode: NotificationTemplateConsts.Codes.PatientAppointmentApprovedInternal,
-            recipients: internalRecipients,
-            variables: internalVars,
-            contextTag: $"StatusChange/Approved/Responsible/{eventData.AppointmentId}");
+        // OLD :953-967 sent a second email, PatientAppointmentApprovedInternal, to the appointment's
+        // responsible user. The office retired the responsible user on 2026-11-02, so only the
+        // stakeholder email above is sent; stored PrimaryResponsibleUserId values are ignored.
     }
 
     private async Task DispatchRejectedAsync(
@@ -761,16 +696,5 @@ public class StatusChangeEmailHandler :
         return string.IsNullOrWhiteSpace(raw)
             ? string.Empty
             : $"<b> Please note: </b>{raw}";
-    }
-
-    /// <summary>
-    /// OLD :962-963 -- "Staff comments for an appointment:" prefix on the
-    /// responsible-user template.
-    /// </summary>
-    private static string WrapStaffComments(string? raw)
-    {
-        return string.IsNullOrWhiteSpace(raw)
-            ? string.Empty
-            : $"<b> Staff comments for an appointment: </b>{raw}";
     }
 }

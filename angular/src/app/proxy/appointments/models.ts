@@ -199,7 +199,6 @@ export interface AppointmentWithNavigationPropertiesDto {
 }
 
 export interface ApproveAppointmentInput {
-  primaryResponsibleUserId: string;
   internalUserComments?: string | null;
 }
 

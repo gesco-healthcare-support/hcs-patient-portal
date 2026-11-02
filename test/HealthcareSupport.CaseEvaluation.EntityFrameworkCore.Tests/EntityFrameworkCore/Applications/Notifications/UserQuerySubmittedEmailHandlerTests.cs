@@ -21,9 +21,9 @@ using Xunit;
 namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Notifications;
 
 /// <summary>
-/// <see cref="UserQuerySubmittedEmailHandler"/> on the real rig. A query that names an APPROVED
-/// appointment goes to that appointment's responsible user; anything else goes to the office's
-/// notification inbox, and only an office without one falls back to every host IT Admin. The
+/// <see cref="UserQuerySubmittedEmailHandler"/> on the real rig. Every query goes to the office's
+/// notification inbox, and only an office without one falls back to every host IT Admin. (Until
+/// 2026-11-02 a query naming an APPROVED appointment went to its responsible user; that user is retired.) The
 /// IT-Admin Facts seed a host user in ANOTHER role as a decoy, so "only IT Admins" is shown against
 /// someone who could have been wrongly included; the inbox Facts seed IT Admins too, so "the inbox
 /// and not the IT Admins" is shown against the pool that used to get everything.
@@ -41,53 +41,40 @@ public class UserQuerySubmittedEmailHandlerTests : CaseEvaluationEntityFramework
         services.Replace(ServiceDescriptor.Singleton<INotificationDispatcher>(_dispatcher));
     }
 
+    // 2026-11-02: the responsible user is retired. A question about an Approved appointment no longer goes
+    // to the user an older appointment still stores; it goes to the office's inbox like any other question.
+
     [Fact]
-    public async Task ApprovedAppointmentWithAResponsibleUser_EmailsThatUserOnly()
+    public async Task ApprovedAppointmentWithAStoredResponsibleUser_GoesToTheOfficeInbox_WithTheCaseInTheSubject()
     {
-        // Appointment2 is seeded Approved in office B; Patient2 is an office-B user with an email.
+        // Appointment2 is seeded Approved in office B; Patient2 is a switched-on office-B user with an email,
+        // the exact user OLD's routing (and this handler until 2026-11-02) would have mailed.
         await ChangeAppointment2Async(a => a.PrimaryResponsibleUserId = IdentityUsersTestData.Patient2UserId);
-        var admins = await SeedItAdminsAsync();
-
-        await RaiseAsync(AppointmentsTestData.Appointment2RequestConfirmationNumber, TenantsTestData.TenantBRef);
-
-        var sent = _dispatcher.Dispatches.ShouldHaveSingleItem();
-        sent.TemplateCode.ShouldBe(NotificationTemplateConsts.Codes.UserQuery);
-        sent.Recipients.ShouldBe(new[] { IdentityUsersTestData.Patient2Email });
-        sent.Recipients.ShouldNotContain(admins.Admin);
-        sent.Variables["UserQueryMessage"].ShouldBe(Message);
-        sent.Variables["UserQuerySubjectIdentity"].ShouldBeOfType<string>().ShouldStartWith(" - ");
-    }
-
-    // 2026-10-26: a switched-off Responsible User (an operator who was unassigned or left) is never mailed.
-
-    [Fact]
-    public async Task ASwitchedOffResponsibleUser_TheQueryGoesToTheOfficeInbox()
-    {
-        var switchedOff = await SeedSwitchedOffStaffInOfficeBAsync("query-left");
-        await ChangeAppointment2Async(a => a.PrimaryResponsibleUserId = switchedOff.Id);
         await SetOfficeBInboxAsync(OfficeInbox);
         var admins = await SeedItAdminsAsync();
 
         await RaiseAsync(AppointmentsTestData.Appointment2RequestConfirmationNumber, TenantsTestData.TenantBRef);
 
         var sent = _dispatcher.Dispatches.ShouldHaveSingleItem();
+        sent.TemplateCode.ShouldBe(NotificationTemplateConsts.Codes.UserQuery);
         sent.Recipients.ShouldBe(new[] { OfficeInbox });
-        sent.Recipients.ShouldNotContain(switchedOff.Email);
+        sent.Recipients.ShouldNotContain(IdentityUsersTestData.Patient2Email);
         sent.Recipients.ShouldNotContain(admins.Admin);
+        sent.Variables["UserQueryMessage"].ShouldBe(Message);
+        sent.Variables["UserQuerySubjectIdentity"].ShouldBeOfType<string>().ShouldStartWith(" - ");
     }
 
     [Fact]
-    public async Task ASwitchedOffResponsibleUser_InAnOfficeWithoutAnInbox_FallsBackToTheItAdmins()
+    public async Task ApprovedAppointmentWithAStoredResponsibleUser_InAnOfficeWithoutAnInbox_GoesToTheItAdmins_NotThatUser()
     {
-        var switchedOff = await SeedSwitchedOffStaffInOfficeBAsync("query-left-noinbox");
-        await ChangeAppointment2Async(a => a.PrimaryResponsibleUserId = switchedOff.Id);
+        await ChangeAppointment2Async(a => a.PrimaryResponsibleUserId = IdentityUsersTestData.Patient2UserId);
         var admins = await SeedItAdminsAsync();
 
         await RaiseAsync(AppointmentsTestData.Appointment2RequestConfirmationNumber, TenantsTestData.TenantBRef);
 
         var sent = _dispatcher.Dispatches.ShouldHaveSingleItem();
         sent.Recipients.ShouldContain(admins.Admin);
-        sent.Recipients.ShouldNotContain(switchedOff.Email);
+        sent.Recipients.ShouldNotContain(IdentityUsersTestData.Patient2Email);
     }
 
     [Fact]
@@ -106,8 +93,8 @@ public class UserQuerySubmittedEmailHandlerTests : CaseEvaluationEntityFramework
     [Fact]
     public async Task ConfirmationNumberOfAnotherOfficesApprovedAppointment_FallsBackToTheItAdmins()
     {
-        // The OFFICE decoy. Appointment2 is Approved in office B with Patient2 responsible -- the exact
-        // setup the first Fact routes to Patient2. Raised from office A, the number must not resolve
+        // The OFFICE decoy. Appointment2 is Approved in office B with Patient2 stored as responsible.
+        // Raised from office A, the number must not resolve
         // across offices, or a query would reach another office's user with that appointment's
         // identity suffix in the subject.
         await ChangeAppointment2Async(a => a.PrimaryResponsibleUserId = IdentityUsersTestData.Patient2UserId);
@@ -296,23 +283,6 @@ public class UserQuerySubmittedEmailHandlerTests : CaseEvaluationEntityFramework
             }
         });
         return (admin, decoy);
-    }
-
-    /// <summary>A switched-off Intake Staff account in office B: its role stays, its login is off.</summary>
-    private async Task<(Guid Id, string Email)> SeedSwitchedOffStaffInOfficeBAsync(string label)
-    {
-        (Guid Id, string Email) seeded = default;
-        await WithUnitOfWorkAsync(async () =>
-        {
-            using (GetRequiredService<ICurrentTenant>().Change(TenantsTestData.TenantBRef))
-            {
-                var users = GetRequiredService<IdentityUserManager>();
-                var email = await RoleUserSeeder.CreateInactiveUserInRoleAsync(
-                    users, GetRequiredService<IdentityRoleManager>(), TenantsTestData.TenantBRef, "Intake Staff", label);
-                seeded = ((await users.FindByEmailAsync(email))!.Id, email);
-            }
-        });
-        return seeded;
     }
 
     private Task SetOfficeBInboxAsync(string inbox) => SetOfficeInboxAsync(TenantsTestData.TenantBRef, inbox);

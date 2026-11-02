@@ -103,18 +103,10 @@ public class CaseEvaluationExceptionStatusCodeMappingsTests
             CaseEvaluationDomainErrorCodes.StaffRoleChangeUseStaffManagement
         ].ShouldBe(HttpStatusCode.BadRequest);
 
-        // A Responsible User who is not a switched-on staff account: the Approve dialog shows the message.
-        options.ErrorCodeToHttpStatusCodeMappings[
-            CaseEvaluationDomainErrorCodes.AppointmentResponsibleUserNotEligible
-        ].ShouldBe(HttpStatusCode.BadRequest);
-
-        // 2026-10-27: approving an appointment that is no longer Pending, or with no Responsible User,
-        // shows the message instead of the full-screen 403 page.
+        // 2026-10-27: approving an appointment that is no longer Pending shows the message instead of the
+        // full-screen 403 page. (The two Responsible User codes were retired with it on 2026-11-02.)
         options.ErrorCodeToHttpStatusCodeMappings[
             CaseEvaluationDomainErrorCodes.AppointmentNotPendingForApproval
-        ].ShouldBe(HttpStatusCode.BadRequest);
-        options.ErrorCodeToHttpStatusCodeMappings[
-            CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresResponsibleUser
         ].ShouldBe(HttpStatusCode.BadRequest);
         options.ErrorCodeToHttpStatusCodeMappings[
             CaseEvaluationDomainErrorCodes.IntakeAssignmentOperatorInactive
@@ -146,8 +138,9 @@ public class CaseEvaluationExceptionStatusCodeMappingsTests
         options.ErrorCodeToHttpStatusCodeMappings[
             CaseEvaluationDomainErrorCodes.RegistrationFirmNameRequired
         ].ShouldBe(HttpStatusCode.BadRequest);
-        // Still exactly 27 mappings; no duplicate-key blow up.
-        options.ErrorCodeToHttpStatusCodeMappings.Count.ShouldBe(27);
+        // Still exactly 25 mappings (27 until the two Responsible User codes were retired on
+        // 2026-11-02); no duplicate-key blow up.
+        options.ErrorCodeToHttpStatusCodeMappings.Count.ShouldBe(25);
     }
 
     /// <summary>

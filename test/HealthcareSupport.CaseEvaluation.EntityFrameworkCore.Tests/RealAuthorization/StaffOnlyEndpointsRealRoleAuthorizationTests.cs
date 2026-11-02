@@ -187,7 +187,7 @@ public class StaffOnlyEndpointsRealRoleAuthorizationTests : CaseEvaluationRealAu
                 .RejectAsync(UnknownId, new RejectAppointmentInput { Reason = "TEST-probe reason" }));
         yield return new("AppointmentApproval.Approve", CaseEvaluationPermissions.Appointments.Approve,
             sp => sp.GetRequiredService<IAppointmentApprovalAppService>().ApproveAppointmentAsync(
-                UnknownId, new ApproveAppointmentInput { PrimaryResponsibleUserId = Guid.NewGuid() }));
+                UnknownId, new ApproveAppointmentInput()));
         yield return new("AppointmentApproval.Reject", CaseEvaluationPermissions.Appointments.Reject,
             sp => sp.GetRequiredService<IAppointmentApprovalAppService>()
                 .RejectAppointmentAsync(UnknownId, new RejectAppointmentInput { Reason = "TEST-probe reason" }));
