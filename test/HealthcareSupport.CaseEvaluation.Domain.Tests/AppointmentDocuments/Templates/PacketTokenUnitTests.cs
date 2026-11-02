@@ -1,4 +1,5 @@
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments.Templates;
+using HealthcareSupport.CaseEvaluation.Appointments;
 using Shouldly;
 using Xunit;
 
@@ -26,6 +27,25 @@ public class PacketTokenUnitTests
         map["##Patients.FirstName##"].ShouldBe("JANE");
         map["##Patients.InterpreterRequired##"].ShouldBe("Yes");
         map["##Patients.InterpreterLanguage##"].ShouldBe("SPANISH");
+    }
+
+    [Fact]
+    public void TokenMap_CarriesTheEvaluationKindLabel()
+    {
+        var map = PacketTokenMap.Build(new PacketTokenContext { EvaluationKindLabel = "RE" });
+
+        map["##Appointments.EvaluationKind##"].ShouldBe("RE");
+    }
+
+    [Theory]
+    // The fee ticket's prefix, as the office's 10-2026 fee ticket prints it: NEW-PQME / RE-PQME.
+    [InlineData(EvaluationKind.Evaluation, "NEW")]
+    [InlineData(EvaluationKind.ReEvaluation, "RE")]
+    // A value with no label prints nothing rather than a wrong one.
+    [InlineData((EvaluationKind)99, "")]
+    public void EvaluationKindLabel_NamesFirstAndRepeatEvaluations(EvaluationKind kind, string expected)
+    {
+        PacketTokenResolver.EvaluationKindLabel(kind).ShouldBe(expected);
     }
 
     [Fact]

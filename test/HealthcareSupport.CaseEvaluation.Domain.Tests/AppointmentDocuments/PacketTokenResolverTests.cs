@@ -181,6 +181,7 @@ public class PacketTokenResolverTests
         ctx.LocationParkingFee.ShouldBe("12.5");
         ctx.LocationState.ShouldBe("TEST-NEVADA");
         ctx.AppointmentType.ShouldBe("TEST-QME");
+        ctx.EvaluationKindLabel.ShouldBe("NEW", "an appointment is a first evaluation unless marked otherwise");
         ctx.EmployerName.ShouldBe("TEST EMPLOYER");
         ctx.EmployerState.ShouldBe("TEST-CALIFORNIA");
         ctx.PatientAttorneyName.ShouldBe("TEST-ADA TEST-LAW");
@@ -218,6 +219,19 @@ public class PacketTokenResolverTests
         ctx.DefenseAttorneyName.ShouldBeEmpty();
         ctx.InjuryClaimNumber.ShouldBeEmpty();
         ctx.DateNow.ShouldBe(PacketDateStamp.GeneratedOn(FixedNow));
+    }
+
+    [Fact]
+    public async Task A_re_evaluation_is_labelled_RE_for_the_fee_ticket()
+    {
+        var w = new World();
+        var appointment = NewAppointment(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        appointment.EvaluationKind = EvaluationKind.ReEvaluation;
+        w.Appointments.Add(appointment);
+
+        var ctx = await w.Resolver().ResolveAsync(appointment.Id);
+
+        ctx.EvaluationKindLabel.ShouldBe("RE");
     }
 
     [Fact]
