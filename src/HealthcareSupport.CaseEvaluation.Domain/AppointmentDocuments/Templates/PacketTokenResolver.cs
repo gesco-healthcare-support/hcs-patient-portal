@@ -250,6 +250,25 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
     };
 
     /// <summary>
+    /// The fee ticket's short type code: the text inside the LAST "(...)" of the type name, trimmed and
+    /// upper-cased ("Panel Qualified Medical Examination (PQME)" -> "PQME"). A name with no non-empty
+    /// parentheses falls back to the whole name, so a new type never prints a bare "NEW-".
+    /// </summary>
+    internal static string AppointmentTypeCode(string? typeName)
+    {
+        if (string.IsNullOrWhiteSpace(typeName)) return string.Empty;
+        var name = typeName.Trim();
+        var open = name.LastIndexOf('(');
+        var close = name.LastIndexOf(')');
+        if (open >= 0 && close > open)
+        {
+            var code = name.Substring(open + 1, close - open - 1).Trim();
+            if (code.Length > 0) return Upper(code);
+        }
+        return Upper(name);
+    }
+
+    /// <summary>
     /// Resolves the patient's spoken language for the interpreter tokens: the free-text
     /// <c>OthersLanguageName</c> (set when "Other" is picked) wins; otherwise the
     /// <c>AppointmentLanguage</c> lookup name for <c>AppointmentLanguageId</c>. Returns null when
@@ -306,6 +325,7 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
         if (appointmentType != null)
         {
             ctx.AppointmentType = Upper(appointmentType.Name);
+            ctx.AppointmentTypeCode = AppointmentTypeCode(appointmentType.Name);
         }
 
         // Responsible user name + signature image bytes.

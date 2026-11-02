@@ -18,10 +18,6 @@ and missed-appointment charge are ##Office.*## tokens filled per office by the .
 under that practice's name. They print plain (not in a .tok span): they are the office's own
 identity, not pre-filled case data. A line whose value the office left empty is omitted via
 data-if (see the CSS rule) instead of printing a dangling label.
-
-OFFICE WORDING UPDATE (10-2026): page 1, the attorney notice, follows the notice template the
-office adopted in October 2026 -- 20-day records deadline, new second bullet, no preferred-vendor
-bullet, no sign-off and no footer. Page 2, the patient notice, was not part of that update.
 """
 
 # Repeated column heading across the three address blocks (python:S1192).
@@ -132,17 +128,17 @@ def attorney_notice():
         + '<p>In order to assist you in a timely manner and comply with Labor Code section 4060 we are '
         + 'requesting the following:</p>'
         + '<ul>'
-        # OFFICE WORDING, 10-2026 UPDATE: the first two bullets are copied from the notice template
-        # the office adopted in October 2026 ("KP UPDATED NOTICE TEMPLATE 10-2026"). It moved the
-        # records deadline from 15 to 20 days, rewrote the second bullet (replacing the earlier
-        # "may to have return" phrasing) and dropped the preferred-vendor bullet. Match that
-        # template rather than editing the wording here.
         + '<li>A Fully executed Joint/Advocacy Letter and all medical records <u>MUST</u> be received no '
         + 'later than 20 days before the applicant\'s scheduled appointment with the accompanied Declaration '
         + 'and Attestation.</li>'
+        # OFFICE WORDING, 10-2026 UPDATE: the 20-day deadline above and this bullet are the two sentences
+        # the office changed in its October 2026 notice template; everything else on this page is as before.
         + '<li>If the medical records are not received within the above timeline given, it may become '
         + 'necessary to issue a supplemental report and/or the applicant may have to return for a second '
         + 'appointment.</li>'
+        + '<li><u>IMPORTANT:</u> Please provide the authorized preferred vendor\'s information for any '
+        + 'recommended diagnostic studies as soon as possible, as this would help expedite scheduling of '
+        + 'the studies at the time of the appointment.</li>'
         + '<li data-if="##Office.RecordsDeliveryAddress##">Physical Delivery of Medical Records must be sent '
         + 'to the following address: ##Office.RecordsDeliveryAddress##.</li>'
         + '<li data-if="##Office.MailingAddress##">All other correspondence must be sent to the following '
@@ -155,9 +151,8 @@ def attorney_notice():
         + 'is cancelled within six (6) business days there will be a charge of $##Office.MissedAppointmentFee## '
         + 'plus the cost of reviewing the medical records per the fee schedule.</li>'
         + '</ul>'
-        # No "Thank you, / APPOINTMENT DEPARTMENT" sign-off and no phone/fax footer on this page:
-        # the 10-2026 template has neither. The patient notice keeps both, so the footer still
-        # prints on page 2 (a page with no running footer of its own prints none).
+        + '<div class="signoff"><p>Thank you,</p><p>APPOINTMENT DEPARTMENT</p></div>'
+        + _lfoot()
         + '</div>')
 
 

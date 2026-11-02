@@ -1112,10 +1112,11 @@ def _fee_header():
         f'<td></td></tr>'
         f'<tr><td colspan="2"><span class="lbl">Name:</span> '
         f'{tok("##Patients.FirstName##")} {tok("##Patients.LastName##")}</td>'
-        # "NEW-PQME" / "RE-PQME", as the office's 10-2026 fee ticket prints it: NEW for a first
-        # evaluation, RE for a re-evaluation (##Appointments.EvaluationKind##), then the type.
+        # "NEW-PQME" / "RE-AME", as the office's 10-2026 fee ticket prints it: NEW for a first
+        # evaluation, RE for a re-evaluation (##Appointments.EvaluationKind##), then the type's short
+        # code (##Appointments.AppointmentTypeCode##, the "(PQME)" part of the type name).
         f'<td><span class="lbl">Type:</span> '
-        f'{tok("##Appointments.EvaluationKind##-##Appointments.AppointmentType##")}</td>'
+        f'{tok("##Appointments.EvaluationKind##-##Appointments.AppointmentTypeCode##")}</td>'
         f'<td></td></tr></table>')
 
 
