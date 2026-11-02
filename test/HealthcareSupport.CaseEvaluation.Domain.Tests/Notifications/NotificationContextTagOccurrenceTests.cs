@@ -37,7 +37,6 @@ public class NotificationContextTagOccurrenceTests
     private static readonly Dictionary<string, string> OncePerSubject = new(StringComparer.Ordinal)
     {
         ["StatusChange/Approved/Stakeholders/"] = "an appointment is approved once",
-        ["StatusChange/Approved/Responsible/"] = "an appointment is approved once",
         ["StatusChange/Rejected/Stakeholders/"] = "rejection is terminal",
         ["StatusChange/NoShow/InternalStaff/"] = "no-show is terminal",
         ["StatusChange/CancelledNoBill/Stakeholders/"] = "cancellation is terminal",

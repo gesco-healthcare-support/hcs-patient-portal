@@ -103,6 +103,10 @@ OLD source: `user-queries/add/user-query-add.component.html:1-34`
    - **NEW, as built (2026-10-29):** whenever no responsible user's address resolves, the query goes to the
      office's notification inbox, and the IT Admin blast is only the fallback for an office without one.
      Live has no IT Admin user, so the blast alone delivered every free-form question to nobody.
+   - **NEW, as built (2026-11-02):** the responsible user is retired, so a question about an Approved
+     appointment no longer goes to that user either: every query goes to the office's notification inbox
+     (IT Admins only when the office has none). The confirmation number still adds the
+     patient/claim/ADJ identity to the subject.
 4. Email subject: `Patient Appointment Portal - (Patient: {FirstName} {LastName} - Claim: {claimNumber} - ADJ: {adjNumber}) - User query`
 5. Email body: `EmailTemplate.UserQuery` HTML template.
 6. Success toast: query submitted confirmation.

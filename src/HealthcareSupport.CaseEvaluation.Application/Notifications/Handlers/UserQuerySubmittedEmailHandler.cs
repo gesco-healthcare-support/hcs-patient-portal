@@ -23,16 +23,14 @@ namespace HealthcareSupport.CaseEvaluation.Notifications.Handlers;
 /// <c>UserQueryDomain.Add</c> (PatientAppointment.Domain\UserQueryModule):
 ///
 /// <list type="bullet">
+///   <item>The office's notification inbox gets it (2026-10-29). Only an
+///     office with no inbox falls back to every <c>IT Admin</c> user.</item>
 ///   <item>When the submitter supplied a confirmation number that resolves
-///     to an <b>Approved</b> appointment, email that appointment's
-///     <c>PrimaryResponsibleUserId</c> (the owning internal staffer) with a
-///     patient/claim/ADJ subject. When that account is switched off
-///     (2026-10-26) the office's notification inbox gets it instead, if the
-///     office has one (<see cref="ResponsibleUserRecipientResolver"/>).</item>
-///   <item>Otherwise (no confirmation number, no matching Approved
-///     appointment, OR no responsible address resolved) the office's
-///     notification inbox gets it (2026-10-29). Only an office with no inbox
-///     falls back to every <c>IT Admin</c> user.</item>
+///     to an <b>Approved</b> appointment, the subject carries the
+///     patient/claim/ADJ identity. Until 2026-11-02 such a question went to
+///     that appointment's responsible user (OLD's routing); the office
+///     retired the responsible user, so it now goes to the inbox like any
+///     other question.</item>
 /// </list>
 ///
 /// <para>Why the inbox comes before the IT Admins: the IT Admin pool is host
@@ -51,7 +49,6 @@ public class UserQuerySubmittedEmailHandler :
 {
     private readonly INotificationDispatcher _dispatcher;
     private readonly DocumentEmailContextResolver _contextResolver;
-    private readonly ResponsibleUserRecipientResolver _responsibleUsers;
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly IdentityUserManager _userManager;
     private readonly ISettingProvider _settingProvider;
@@ -61,7 +58,6 @@ public class UserQuerySubmittedEmailHandler :
     public UserQuerySubmittedEmailHandler(
         INotificationDispatcher dispatcher,
         DocumentEmailContextResolver contextResolver,
-        ResponsibleUserRecipientResolver responsibleUsers,
         IRepository<Appointment, Guid> appointmentRepository,
         IdentityUserManager userManager,
         ISettingProvider settingProvider,
@@ -70,7 +66,6 @@ public class UserQuerySubmittedEmailHandler :
     {
         _dispatcher = dispatcher;
         _contextResolver = contextResolver;
-        _responsibleUsers = responsibleUsers;
         _appointmentRepository = appointmentRepository;
         _userManager = userManager;
         _settingProvider = settingProvider;
@@ -92,7 +87,6 @@ public class UserQuerySubmittedEmailHandler :
             // confirmation number AND Approved status). Empty when no number
             // was supplied or it does not resolve to an Approved appointment.
             var subjectIdentity = string.Empty;
-            string? responsibleEmail = null;
 
             var confirmationNumber = eventData.RequestConfirmationNumber?.Trim();
             if (!string.IsNullOrWhiteSpace(confirmationNumber))
@@ -105,28 +99,15 @@ public class UserQuerySubmittedEmailHandler :
                     var ctx = await _contextResolver.ResolveAsync(appointment.Id, appointmentDocumentId: null);
                     subjectIdentity = EmailSubjectBuilder.BuildIdentitySuffix(
                         ctx?.PatientFirstName, ctx?.PatientLastName, ctx?.ClaimNumber, ctx?.WcabAdj);
-                    responsibleEmail = (await _responsibleUsers.ResolveAsync(ctx?.ResponsibleUserId))?.Email;
                 }
             }
 
-            List<NotificationRecipient> recipients;
-            if (!string.IsNullOrWhiteSpace(responsibleEmail))
+            // The office's inbox, read in the office's own scope. OLD's branch-2 fan-out to every
+            // IT Admin (+ the B-09-02 null guard) is only the fallback for an office that has no inbox.
+            var recipients = await ResolveOfficeInboxRecipientsAsync();
+            if (recipients.Count == 0)
             {
-                recipients = new List<NotificationRecipient>
-                {
-                    new(email: responsibleEmail, role: RecipientRole.OfficeAdmin, isRegistered: true),
-                };
-            }
-            else
-            {
-                // No responsible address: the office's inbox, read in the office's own scope. OLD's
-                // branch-2 fan-out to every IT Admin (+ the B-09-02 null guard) is now only the
-                // fallback for an office that has no inbox.
-                recipients = await ResolveOfficeInboxRecipientsAsync();
-                if (recipients.Count == 0)
-                {
-                    recipients = await ResolveItAdminRecipientsAsync();
-                }
+                recipients = await ResolveItAdminRecipientsAsync();
             }
 
             if (recipients.Count == 0)

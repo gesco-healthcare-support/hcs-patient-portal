@@ -11,8 +11,8 @@ namespace HealthcareSupport.CaseEvaluation.Notifications.Handlers;
 
 /// <summary>
 /// Unit coverage for the uploader email lookup on <see cref="DocumentEmailContextResolver"/>: the
-/// uploader's email with its fallback. (The responsible staff user's address moved to
-/// <see cref="ResponsibleUserRecipientResolver"/> on 2026-10-26 and is pinned in its own tests.)
+/// uploader's email with its fallback. (The responsible staff user's address was resolved here until
+/// 2026-10-26; the responsible user was retired on 2026-11-02.)
 ///
 /// <para><b>WHAT IS PINNED.</b> No user id (or an empty one) resolves to the fallback without the user
 /// table being read. A found user's email wins; a user that is gone, or has a blank email, falls

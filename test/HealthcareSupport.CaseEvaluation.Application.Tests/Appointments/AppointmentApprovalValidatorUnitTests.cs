@@ -38,45 +38,27 @@ public class AppointmentApprovalValidatorUnitTests
 {
     // ------------------------------------------------------------------
     // EnsureApprovable
-    // OLD parity: AppointmentDomain.cs:312-344 (idempotency)
-    //          + AppointmentDomain.cs:560-562 (responsible user required)
+    // OLD parity: AppointmentDomain.cs:312-344 (idempotency). OLD's
+    // responsible-user requirement (AppointmentDomain.cs:560-562) was
+    // retired on 2026-11-02.
     // ------------------------------------------------------------------
 
     [Fact]
-    public void EnsureApprovable_PendingWithResponsibleUser_DoesNotThrow()
+    public void EnsureApprovable_PendingWithNoResponsibleUser_DoesNotThrow()
     {
+        // The office retired the responsible user: a Pending appointment that has none, approved with
+        // nothing but (optionally) a comment, is approvable.
         var appointment = NewAppointment(AppointmentStatusType.Pending);
-        var input = new ApproveAppointmentInput
-        {
-            PrimaryResponsibleUserId = Guid.NewGuid(),
-        };
+        appointment.PrimaryResponsibleUserId.ShouldBeNull();
 
-        Should.NotThrow(() => AppointmentApprovalValidator.EnsureApprovable(appointment, input));
-    }
-
-    [Fact]
-    public void EnsureApprovable_EmptyResponsibleUserGuid_Throws()
-    {
-        var appointment = NewAppointment(AppointmentStatusType.Pending);
-        var input = new ApproveAppointmentInput
-        {
-            PrimaryResponsibleUserId = Guid.Empty,
-        };
-
-        var ex = Should.Throw<BusinessException>(
-            () => AppointmentApprovalValidator.EnsureApprovable(appointment, input));
-
-        ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentApprovalRequiresResponsibleUser);
+        Should.NotThrow(() => AppointmentApprovalValidator.EnsureApprovable(appointment, new ApproveAppointmentInput()));
     }
 
     [Fact]
     public void EnsureApprovable_AlreadyApproved_ThrowsIdempotent()
     {
         var appointment = NewAppointment(AppointmentStatusType.Approved);
-        var input = new ApproveAppointmentInput
-        {
-            PrimaryResponsibleUserId = Guid.NewGuid(),
-        };
+        var input = new ApproveAppointmentInput();
 
         var ex = Should.Throw<BusinessException>(
             () => AppointmentApprovalValidator.EnsureApprovable(appointment, input));
@@ -93,10 +75,7 @@ public class AppointmentApprovalValidatorUnitTests
         // duplicating the error here would diverge from Session A's
         // wording.
         var appointment = NewAppointment(AppointmentStatusType.Rejected);
-        var input = new ApproveAppointmentInput
-        {
-            PrimaryResponsibleUserId = Guid.NewGuid(),
-        };
+        var input = new ApproveAppointmentInput();
 
         Should.NotThrow(() => AppointmentApprovalValidator.EnsureApprovable(appointment, input));
     }

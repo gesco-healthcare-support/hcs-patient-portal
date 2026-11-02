@@ -1,15 +1,13 @@
 using System;
 using System.Threading.Tasks;
-using HealthcareSupport.CaseEvaluation.Shared;
-using Volo.Abp.Application.Dtos;
 using Volo.Abp.Application.Services;
 
 namespace HealthcareSupport.CaseEvaluation.Appointments;
 
 /// <summary>
 /// Phase 12 (2026-05-04) -- richer Approve / Reject surface that captures
-/// the full audit-required approval context (responsible user,
-/// patient-match decision, required rejection notes) and publishes
+/// the audit-required approval context (approver comment, patient-match
+/// decision, required rejection notes) and publishes
 /// Phase-12-specific events
 /// (<see cref="Events.AppointmentApprovedEto"/>,
 /// <see cref="Events.AppointmentRejectedEto"/>) for the
@@ -29,13 +27,11 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 public interface IAppointmentApprovalAppService : IApplicationService
 {
     /// <summary>
-    /// Pending -> Approved. Sets <c>PrimaryResponsibleUserId</c>,
-    /// records the patient-match decision, fires the state-machine
-    /// transition (Session A's <c>AppointmentManager.ApproveAsync</c>),
-    /// and publishes <see cref="Events.AppointmentApprovedEto"/>.
-    /// Throws <c>BusinessException(AppointmentApprovalRequiresResponsibleUser)</c>
-    /// when <see cref="ApproveAppointmentInput.PrimaryResponsibleUserId"/>
-    /// is the default Guid. Throws
+    /// Pending -> Approved. Records the optional approver comment, fires
+    /// the state-machine transition (Session A's
+    /// <c>AppointmentManager.ApproveAsync</c>), and publishes
+    /// <see cref="Events.AppointmentApprovedEto"/>. No responsible user is
+    /// asked for (retired 2026-11-02). Throws
     /// <c>BusinessException(AppointmentNotPendingForApproval)</c> when
     /// the appointment's current status is not <c>Pending</c> -- with
     /// OLD's verbatim "Appointment Already Approved" / "Appointment
@@ -56,16 +52,4 @@ public interface IAppointmentApprovalAppService : IApplicationService
     /// when the appointment is not in <c>Pending</c> status.
     /// </summary>
     Task<AppointmentDto> RejectAppointmentAsync(Guid id, RejectAppointmentInput input);
-
-    /// <summary>
-    /// A1 (2026-05-05) -- lookup feeding the Approve modal's "Responsible
-    /// User" dropdown. Returns identity users in the current tenant whose
-    /// role is one of the canonical internal roles (admin / Intake Staff
-    /// / Staff Supervisor / IT Admin / Doctor per
-    /// <c>BookingFlowRoles.InternalUserRoles</c>). Mirrors OLD's
-    /// <c>internalUserNameLookUps</c> source on the approval popup
-    /// (<c>P:\PatientPortalOld\patientappointment-portal\src\app\components\
-    /// appointment-request\appointments\view\appointment-view.component.html</c>:128).
-    /// </summary>
-    Task<PagedResultDto<LookupDto<Guid>>> GetInternalUserLookupAsync(LookupRequestDto input);
 }

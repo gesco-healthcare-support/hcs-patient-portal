@@ -48,69 +48,29 @@ public class StatusChangeEmailHandlerTests : CaseEvaluationEntityFrameworkCoreTe
         services.Replace(ServiceDescriptor.Singleton<IAppointmentRecipientResolver>(_recipients));
     }
 
-    // ---- Approved: the stakeholder email To the booker, and the responsible user's own email ----
+    // ---- Approved: ONE email, To the booker with the stakeholders CC'd ----
+    // 2026-11-02: the responsible user is retired. OLD's second email to them (PatientAppointmentApprovedInternal)
+    // is no longer sent, whatever PrimaryResponsibleUserId an older appointment still stores.
 
     [Fact]
-    public async Task Approved_EmailsTheBookerWithTheStakeholderCcd_AndTheResponsibleUserByName()
+    public async Task Approved_EmailsTheBookerWithTheStakeholderCcd_AndNotAStoredResponsibleUser()
     {
         WithStakeholder();
-        await SetResponsibleUserNameAsync("TEST-First", "TEST-Last");
         await ChangeAppointmentAsync(a =>
         {
-            a.PrimaryResponsibleUserId = IdentityUsersTestData.TenantAdmin1UserId;
+            a.PrimaryResponsibleUserId = IdentityUsersTestData.TenantAdmin1UserId; // a switched-on staff account
             a.InternalUserComments = StaffNote;
         });
 
         await RaiseAsync(AppointmentStatusType.Approved);
 
-        _dispatcher.Dispatches.Count.ShouldBe(2);
-        var ext = _dispatcher.Dispatches.Single(d => d.TemplateCode == NotificationTemplateConsts.Codes.PatientAppointmentApprovedExt);
+        var ext = _dispatcher.Dispatches.ShouldHaveSingleItem();
+        ext.TemplateCode.ShouldBe(NotificationTemplateConsts.Codes.PatientAppointmentApprovedExt);
         ext.To.ShouldNotBeNullOrWhiteSpace();
         ext.Recipients.ShouldContain(StakeholderEmail);
         ext.Recipients.ShouldAllBe(r => !string.IsNullOrWhiteSpace(r)); // the blank-address decoy was dropped
+        ext.Recipients.ShouldNotContain(IdentityUsersTestData.TenantAdmin1Email);
         ext.Variables["InternalUserComments"].ShouldBe("<b> Please note: </b>" + StaffNote);
-
-        var internalLeg = _dispatcher.Dispatches.Single(d => d.TemplateCode == NotificationTemplateConsts.Codes.PatientAppointmentApprovedInternal);
-        internalLeg.To.ShouldBeNull();
-        internalLeg.Recipients.ShouldBe(new[] { IdentityUsersTestData.TenantAdmin1Email });
-        internalLeg.Variables["ResponsibleUserName"].ShouldBe("TEST-First TEST-Last");
-        internalLeg.Variables["InternalUserComments"].ShouldBe("<b> Staff comments for an appointment: </b>" + StaffNote);
-    }
-
-    [Fact]
-    public async Task Approved_GreetsTheResponsibleUserByFirstName_WhenThereIsNoSurname()
-    {
-        WithStakeholder();
-        await SetResponsibleUserNameAsync("TEST-First", null);
-        await ChangeAppointmentAsync(a => a.PrimaryResponsibleUserId = IdentityUsersTestData.TenantAdmin1UserId);
-
-        await RaiseAsync(AppointmentStatusType.Approved);
-
-        InternalLeg().Variables["ResponsibleUserName"].ShouldBe("TEST-First");
-    }
-
-    [Fact]
-    public async Task Approved_GreetsTheResponsibleUserBySurname_WhenThereIsNoFirstName()
-    {
-        WithStakeholder();
-        await SetResponsibleUserNameAsync(null, "TEST-Last");
-        await ChangeAppointmentAsync(a => a.PrimaryResponsibleUserId = IdentityUsersTestData.TenantAdmin1UserId);
-
-        await RaiseAsync(AppointmentStatusType.Approved);
-
-        InternalLeg().Variables["ResponsibleUserName"].ShouldBe("TEST-Last");
-    }
-
-    [Fact]
-    public async Task Approved_GreetsTheResponsibleUserByEmail_WhenTheyHaveNoName()
-    {
-        WithStakeholder();
-        await SetResponsibleUserNameAsync(null, null);
-        await ChangeAppointmentAsync(a => a.PrimaryResponsibleUserId = IdentityUsersTestData.TenantAdmin1UserId);
-
-        await RaiseAsync(AppointmentStatusType.Approved);
-
-        InternalLeg().Variables["ResponsibleUserName"].ShouldBe(IdentityUsersTestData.TenantAdmin1Email);
     }
 
     [Fact]
@@ -125,11 +85,10 @@ public class StatusChangeEmailHandlerTests : CaseEvaluationEntityFrameworkCoreTe
             .ShouldBe(new[] { NotificationTemplateConsts.Codes.PatientAppointmentApprovedExt });
     }
 
-    // 2026-10-26: a switched-off Responsible User (an operator who was unassigned or left) is never mailed.
-
     [Fact]
-    public async Task Approved_ASwitchedOffResponsibleUser_IsReplacedByTheOfficeInbox()
+    public async Task Approved_AStoredSwitchedOffResponsibleUser_NoLongerSendsTheOfficeInboxASecondEmail()
     {
+        // Until 2026-11-02 the office inbox stood in for a switched-off responsible user with its own email.
         WithStakeholder();
         var (switchedOffId, switchedOffEmail) = await SeedSwitchedOffStaffAsync("approved-left");
         await SetOfficeInboxAsync(OfficeInbox);
@@ -137,35 +96,9 @@ public class StatusChangeEmailHandlerTests : CaseEvaluationEntityFrameworkCoreTe
 
         await RaiseAsync(AppointmentStatusType.Approved);
 
-        var internalLeg = InternalLeg();
-        internalLeg.Recipients.ShouldBe(new[] { OfficeInbox });
-        internalLeg.Recipients.ShouldNotContain(switchedOffEmail);
-        internalLeg.Variables["ResponsibleUserName"].ShouldBe(OfficeInbox);
-    }
-
-    [Fact]
-    public async Task Approved_ASwitchedOffResponsibleUser_InAnOfficeWithoutAnInbox_GetsNoInternalEmail()
-    {
-        WithStakeholder();
-        var (switchedOffId, _) = await SeedSwitchedOffStaffAsync("approved-left-noinbox");
-        await ChangeAppointmentAsync(a => a.PrimaryResponsibleUserId = switchedOffId);
-
-        await RaiseAsync(AppointmentStatusType.Approved);
-
-        _dispatcher.Dispatches.Select(d => d.TemplateCode)
-            .ShouldBe(new[] { NotificationTemplateConsts.Codes.PatientAppointmentApprovedExt });
-    }
-
-    [Fact]
-    public async Task Approved_SkipsTheInternalEmail_WhenTheResponsibleUserCannotBeFound()
-    {
-        WithStakeholder();
-        await ChangeAppointmentAsync(a => a.PrimaryResponsibleUserId = Guid.NewGuid());
-
-        await RaiseAsync(AppointmentStatusType.Approved);
-
-        _dispatcher.Dispatches.Select(d => d.TemplateCode)
-            .ShouldBe(new[] { NotificationTemplateConsts.Codes.PatientAppointmentApprovedExt });
+        var ext = _dispatcher.Dispatches.ShouldHaveSingleItem();
+        ext.TemplateCode.ShouldBe(NotificationTemplateConsts.Codes.PatientAppointmentApprovedExt);
+        ext.Recipients.ShouldNotContain(switchedOffEmail);
     }
 
     // ---- Rejected ----
@@ -329,9 +262,6 @@ public class StatusChangeEmailHandlerTests : CaseEvaluationEntityFrameworkCoreTe
 
     private StatusChangeEmailHandler Handler() => GetRequiredService<StatusChangeEmailHandler>();
 
-    private RecordedDispatch InternalLeg() => _dispatcher.Dispatches
-        .Single(d => d.TemplateCode == NotificationTemplateConsts.Codes.PatientAppointmentApprovedInternal);
-
     /// <summary>One real stakeholder plus a blank-address decoy the handler must drop.</summary>
     private void WithStakeholder()
     {
@@ -360,18 +290,6 @@ public class StatusChangeEmailHandlerTests : CaseEvaluationEntityFrameworkCoreTe
             var appointment = await repository.GetAsync(AppointmentsTestData.Appointment1Id);
             change(appointment);
             await repository.UpdateAsync(appointment, autoSave: true);
-        }
-    });
-
-    private Task SetResponsibleUserNameAsync(string? name, string? surname) => WithUnitOfWorkAsync(async () =>
-    {
-        using (GetRequiredService<ICurrentTenant>().Change(TenantsTestData.TenantARef))
-        {
-            var repository = GetRequiredService<IRepository<IdentityUser, Guid>>();
-            var user = await repository.GetAsync(IdentityUsersTestData.TenantAdmin1UserId);
-            user.Name = name;
-            user.Surname = surname;
-            await repository.UpdateAsync(user, autoSave: true);
         }
     });
 

@@ -37,8 +37,8 @@ namespace HealthcareSupport.CaseEvaluation.Notifications.Handlers;
 ///   <item>(*, true) -> <c>JointAgreementLetterUploaded</c></item>
 /// </list>
 ///
-/// <para>There is no separate responsible-user
-/// (<c>PrimaryResponsibleUserId</c>) recipient.</para>
+/// <para>There is no responsible-user recipient (the office retired the
+/// responsible user on 2026-11-02).</para>
 /// </summary>
 public class DocumentUploadedEmailHandler :
     ILocalEventHandler<AppointmentDocumentUploadedEto>,

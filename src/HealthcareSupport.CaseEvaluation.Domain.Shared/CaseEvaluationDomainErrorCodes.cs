@@ -478,27 +478,6 @@ public static class CaseEvaluationDomainErrorCodes
     /// <summary>
     /// Phase 12 (2026-05-04) -- raised by
     /// <c>AppointmentApprovalAppService.ApproveAppointmentAsync</c>
-    /// when <c>ApproveAppointmentInput.PrimaryResponsibleUserId</c>
-    /// is <see cref="System.Guid.Empty"/>. Mirrors OLD's UI gate that
-    /// disabled the Approve button until a responsible user was
-    /// selected (no equivalent inline error message in OLD source --
-    /// the gate was UI-only). Localization key
-    /// <c>CaseEvaluation:Appointment.ApprovalRequiresResponsibleUser</c>.
-    /// </summary>
-    public const string AppointmentApprovalRequiresResponsibleUser =
-        "CaseEvaluation:Appointment.ApprovalRequiresResponsibleUser";
-
-    /// <summary>
-    /// 2026-10-26 -- raised by <c>AppointmentApprovalAppService.ApproveAppointmentAsync</c> when the
-    /// chosen Responsible User is not someone the Approve dialog would offer: a switched-on account of
-    /// this office holding an internal role. Mapped to HTTP 400.
-    /// </summary>
-    public const string AppointmentResponsibleUserNotEligible =
-        "CaseEvaluation:Appointment.ResponsibleUserNotEligible";
-
-    /// <summary>
-    /// Phase 12 (2026-05-04) -- raised by
-    /// <c>AppointmentApprovalAppService.ApproveAppointmentAsync</c>
     /// when the appointment is not in status <c>Pending</c>. Mirrors
     /// OLD's idempotency string at
     /// <c>P:\PatientPortalOld\PatientAppointment.Domain\AppointmentRequestModule\AppointmentDomain.cs</c>:319-325

@@ -1,4 +1,3 @@
-using System;
 using System.ComponentModel.DataAnnotations;
 
 namespace HealthcareSupport.CaseEvaluation.Appointments;
@@ -7,9 +6,11 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 /// Phase 12 (2026-05-04) -- input DTO for
 /// <c>IAppointmentApprovalAppService.ApproveAppointmentAsync</c>.
 ///
-/// <para>Captures OLD's approval surface: the responsible team member
-/// (<c>P:\PatientPortalOld\PatientAppointment.Domain\AppointmentRequestModule\AppointmentDomain.cs</c>:560-566)
-/// plus the optional approver comment. NEW exposes this on the approval
+/// <para>Captures the optional approver comment. OLD also required a responsible team member
+/// (<c>P:\PatientPortalOld\PatientAppointment.Domain\AppointmentRequestModule\AppointmentDomain.cs</c>:560-566);
+/// that was retired on 2026-11-02 (the office's email-routing decision): approval no longer
+/// asks for one, and the existing <c>Appointment.PrimaryResponsibleUserId</c> values are kept
+/// as history only. NEW exposes this on the approval
 /// AppService while leaving the existing thin
 /// <c>AppointmentsAppService.ApproveAsync(id)</c> intact for legacy callers.
 /// The patient-match override (G-02-08, dropped 2026-06-01) is gone: OLD
@@ -18,17 +19,6 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 /// </summary>
 public class ApproveAppointmentInput
 {
-    /// <summary>
-    /// Internal staff user (Intake Staff / Staff Supervisor / IT Admin) chosen
-    /// as the primary responsible user for this appointment. Required -- the
-    /// validator throws <c>BusinessException(AppointmentApprovalRequiresResponsibleUser)</c>
-    /// when the default <see cref="Guid.Empty"/> is supplied, which mirrors
-    /// OLD's behavior (the OLD edit page disabled the Approve button until
-    /// the dropdown was populated).
-    /// </summary>
-    [Required]
-    public Guid PrimaryResponsibleUserId { get; set; }
-
     /// <summary>
     /// A1 (2026-05-05) -- optional free-text comment captured on approve.
     /// Mirrors OLD's "Any comments?" textarea on the approve modal
