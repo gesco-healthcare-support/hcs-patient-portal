@@ -1,10 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
-using HealthcareSupport.CaseEvaluation.SystemParameters;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
@@ -21,8 +19,7 @@ namespace HealthcareSupport.CaseEvaluation.Notifications;
 /// there is no To, no CC, and nothing is sent.</para>
 ///
 /// <para><b>The results asserted are the partition returned and the send made.</b> The dispatcher is a
-/// substitute, so no mail can leave; the CC appender is real over a substituted repository that
-/// returns no office CC list. The first Fact is the positive control for the "sends nothing" Fact.
+/// substitute, so no mail can leave. The first Fact is the positive control for the "sends nothing" Fact.
 /// Synthetic data only (HIPAA).</para>
 /// </summary>
 public class BookerCcDispatcherFallbackTests
@@ -32,11 +29,8 @@ public class BookerCcDispatcherFallbackTests
 
     private static BookerCcDispatcher Build(INotificationDispatcher dispatcher)
     {
-        var systemParameters = Substitute.For<ISystemParameterRepository>();
-        systemParameters.GetCurrentTenantAsync(Arg.Any<CancellationToken>()).Returns((SystemParameter?)null);
         return new BookerCcDispatcher(
             dispatcher,
-            new CcRecipientAppender(systemParameters, NullLogger<CcRecipientAppender>.Instance),
             NullLogger<BookerCcDispatcher>.Instance);
     }
 

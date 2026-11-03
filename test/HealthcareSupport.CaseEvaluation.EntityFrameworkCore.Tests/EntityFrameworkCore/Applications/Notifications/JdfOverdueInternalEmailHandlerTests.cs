@@ -1,23 +1,26 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Notifications;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using HealthcareSupport.CaseEvaluation.Notifications.Handlers;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
+using HealthcareSupport.CaseEvaluation.Settings;
 using HealthcareSupport.CaseEvaluation.TestData;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Shouldly;
 using Volo.Abp.Identity;
 using Volo.Abp.MultiTenancy;
+using Volo.Abp.SettingManagement;
 using Xunit;
 
 namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Notifications;
 
 /// <summary>
 /// <see cref="JdfOverdueInternalEmailHandler"/> on the real rig: an overdue joint declaration is an
-/// internal problem, so it goes to the office's Staff Supervisor and Intake Staff users only, once
-/// each. A user in another role is seeded as a decoy, because "internal only" is the guarantee --
+/// internal problem, so since 2026-11-02 it goes to the office inbox and the office's switched-on Intake
+/// Staff only, once each (Staff Supervisors get no per-event mail). A user in another role is seeded as a decoy, because "internal only" is the guarantee --
 /// telling a patient's attorney that a form is late would leak an internal workflow problem. The same
 /// two roles are also seeded in office B, because "the office's staff" is the other half of it.
 /// </summary>
@@ -31,16 +34,21 @@ public class JdfOverdueInternalEmailHandlerTests : CaseEvaluationEntityFramework
     }
 
     [Fact]
-    public async Task EmailsEachInternalStaffUserOnce_WithTheDocumentName_AndNoOtherRole()
+    public async Task EmailsTheOfficeInboxAndEachIntakeUserOnce_WithTheDocumentName_AndNoSupervisorOrOtherRole()
     {
         var staff = await SeedStaffAsync();
+        await SetOfficeInboxAsync(OfficeInbox);
 
         await RaiseAsync(AppointmentsTestData.Appointment1Id);
 
         var sent = _dispatcher.Dispatches.ShouldHaveSingleItem();
         sent.TemplateCode.ShouldBe(NotificationTemplateConsts.Codes.AppointmentJointDeclarationOverdueInternal);
         sent.To.ShouldBeNull();
-        sent.Recipients.ShouldBe(new[] { staff.Supervisor, staff.Intake }, ignoreOrder: true);
+        sent.Recipients.ShouldBe(new[] { OfficeInbox, staff.Intake }, ignoreOrder: true);
+        sent.Recipients.ShouldContain(OfficeInbox);
+        sent.Recipients.ShouldContain(staff.Intake);
+        sent.Recipients.Select(r => r.ToLowerInvariant()).Distinct().Count().ShouldBe(sent.Recipients.Count, "no address twice");
+        sent.Recipients.ShouldNotContain(staff.Supervisor);
         sent.Recipients.ShouldNotContain(staff.Decoy);
         sent.Recipients.ShouldNotContain(staff.OtherOfficeSupervisor);
         sent.Recipients.ShouldNotContain(staff.OtherOfficeIntake);
@@ -66,6 +74,30 @@ public class JdfOverdueInternalEmailHandlerTests : CaseEvaluationEntityFramework
         _dispatcher.Dispatches.ShouldHaveSingleItem().Variables["PortalUrl"].ShouldBe(staffSite);
     }
 
+    /// <summary>The inbox counts as a person: when it is an Intake user's address (any case) it gets one email.</summary>
+    [Fact]
+    public async Task AnInboxThatIsAlsoAnIntakeAddress_IsEmailedOnce_IgnoringCase()
+    {
+        var staff = await SeedStaffAsync();
+        await SetOfficeInboxAsync(staff.Intake.ToUpperInvariant());
+
+        await RaiseAsync(AppointmentsTestData.Appointment1Id);
+
+        var sent = _dispatcher.Dispatches.ShouldHaveSingleItem();
+        sent.Recipients.Count.ShouldBe(1);
+        sent.Recipients[0].ShouldBe(staff.Intake, StringCompareShould.IgnoreCase);
+    }
+
+    [Fact]
+    public async Task WithNoOfficeInboxSet_OnlyTheIntakeStaffAreEmailed()
+    {
+        var staff = await SeedStaffAsync();
+
+        await RaiseAsync(AppointmentsTestData.Appointment1Id);
+
+        _dispatcher.Dispatches.ShouldHaveSingleItem().Recipients.ShouldBe(new[] { staff.Intake });
+    }
+
     [Fact]
     public async Task ASwitchedOffStaffUser_IsNotEmailed()
     {
@@ -76,9 +108,20 @@ public class JdfOverdueInternalEmailHandlerTests : CaseEvaluationEntityFramework
         await RaiseAsync(AppointmentsTestData.Appointment1Id);
 
         var sent = _dispatcher.Dispatches.ShouldHaveSingleItem();
-        sent.Recipients.ShouldBe(new[] { staff.Supervisor, staff.Intake }, ignoreOrder: true);
+        sent.Recipients.ShouldBe(new[] { staff.Intake });
         sent.Recipients.ShouldNotContain(switchedOff);
     }
+
+    private const string OfficeInbox = "TEST-jdf-office-inbox@test.local";
+
+    private Task SetOfficeInboxAsync(string inbox) => WithUnitOfWorkAsync(async () =>
+    {
+        using (GetRequiredService<ICurrentTenant>().Change(TenantsTestData.TenantARef))
+        {
+            await GetRequiredService<ISettingManager>().SetForCurrentTenantAsync(
+                CaseEvaluationSettings.NotificationsPolicy.OfficeEmail, inbox);
+        }
+    });
 
     private Task<string> InOfficeAAsync(Func<IdentityUserManager, IdentityRoleManager, Task<string>> seed) =>
         WithUnitOfWorkAsync(async () =>
@@ -135,7 +178,7 @@ public class JdfOverdueInternalEmailHandlerTests : CaseEvaluationEntityFramework
     }
 
     /// <summary>
-    /// A Staff Supervisor who ALSO holds Intake Staff (so the dedup is exercised), an Intake Staff
+    /// A Staff Supervisor (who must get nothing), an Intake Staff
     /// user, and a decoy in another role, all in office A. Plus the OFFICE decoys: a Staff Supervisor
     /// and an Intake Staff user in office B, the right roles in the wrong office, which must never
     /// hear about office A's appointment.
@@ -153,7 +196,6 @@ public class JdfOverdueInternalEmailHandlerTests : CaseEvaluationEntityFramework
                 supervisor = await RoleUserSeeder.CreateUserInRoleAsync(users, roles, office, "Staff Supervisor", "jdf-supervisor");
                 intake = await RoleUserSeeder.CreateUserInRoleAsync(users, roles, office, "Intake Staff", "jdf-intake");
                 decoy = await RoleUserSeeder.CreateUserInRoleAsync(users, roles, office, "TEST-other-role", "jdf-decoy");
-                (await users.AddToRoleAsync((await users.FindByEmailAsync(supervisor))!, "Intake Staff")).Succeeded.ShouldBeTrue();
             }
         });
 

@@ -1,13 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using HealthcareSupport.CaseEvaluation.Logging;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
-using HealthcareSupport.CaseEvaluation.Settings;
-using HealthcareSupport.CaseEvaluation.SystemParameters;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Shouldly;
 using Volo.Abp.MultiTenancy;
 using Volo.Abp.Settings;
 using Xunit;
@@ -37,96 +33,35 @@ public class StaffEmailHostRoutingTests
     private static string? PortalUrlOf(IReadOnlyDictionary<string, object?> v)
         => v.TryGetValue("PortalUrl", out var u) ? u as string : null;
 
-    [Fact]
-    public async Task InternalStaffQueueDigest_LinksStaffToHostPortal()
+    private static OfficeNotificationRecipients Recipients(string address)
     {
-        var dispatcher = Substitute.For<INotificationDispatcher>();
-        var handler = new InternalStaffQueueDigestEmailHandler(
-            dispatcher,
-            Substitute.For<ICurrentTenant>(),
-            NullLogger<InternalStaffQueueDigestEmailHandler>.Instance,
-            HostVsTenantUrlBuilder());
-
-        await handler.HandleEventAsync(new InternalStaffQueueDigestEto
+        // The methods are virtual, so the constructor arguments are never used by the substitute.
+        var recipients = Substitute.For<OfficeNotificationRecipients>(
+            Substitute.For<ISettingProvider>(), null!, Substitute.For<ICurrentTenant>(),
+            NullLogger<OfficeNotificationRecipients>.Instance);
+        recipients.GetOfficeInboxAndIntakeAsync(Arg.Any<string>()).Returns(new List<NotificationRecipient>
         {
-            TenantId = Guid.NewGuid(),
-            StaffUserId = Guid.NewGuid(),
-            StaffEmail = "staff@example.test",
-            StaffFirstName = "Denise",
-            PendingAppointmentCount = 3,
-            ApprovedAppointmentCount = 1,
+            new(email: address, role: Appointments.Notifications.RecipientRole.OfficeAdmin, isRegistered: false),
         });
-
-        await dispatcher.Received(1).DispatchAsync(
-            Arg.Any<string>(),
-            Arg.Any<IReadOnlyCollection<NotificationRecipient>>(),
-            Arg.Is<IReadOnlyDictionary<string, object?>>(v => PortalUrlOf(v) == HostUrl),
-            Arg.Any<string>());
-    }
-
-    /// <summary>
-    /// The dispatch log line names the staff user by id, never by address. The id is the one the
-    /// dispatch's context tag carries, so the line still correlates with the email that went out.
-    /// </summary>
-    [Fact]
-    public async Task InternalStaffQueueDigest_LogsTheStaffUserId_NotTheAddress()
-    {
-        var staffUserId = Guid.NewGuid();
-        var logger = new RecordingLogger<InternalStaffQueueDigestEmailHandler>();
-        var handler = new InternalStaffQueueDigestEmailHandler(
-            Substitute.For<INotificationDispatcher>(),
-            Substitute.For<ICurrentTenant>(),
-            logger,
-            HostVsTenantUrlBuilder());
-
-        await handler.HandleEventAsync(new InternalStaffQueueDigestEto
-        {
-            TenantId = Guid.NewGuid(),
-            StaffUserId = staffUserId,
-            StaffEmail = "TEST-staff@test.local",
-            StaffFirstName = "TEST-Staffer",
-            PendingAppointmentCount = 3,
-            ApprovedAppointmentCount = 1,
-        });
-
-        var line = logger.Entries.ShouldHaveSingleItem().Message;
-        line.ShouldNotContain("TEST-staff@test.local");
-        line.ShouldNotContain("@");
-        line.ShouldContain(staffUserId.ToString());
+        return recipients;
     }
 
     [Fact]
-    public async Task PendingDailyDigest_LinksStaffToHostPortal()
+    public async Task OfficeSummary_LinksStaffToHostPortal()
     {
         var dispatcher = Substitute.For<INotificationDispatcher>();
-        var settings = Substitute.For<ISettingProvider>();
-        settings.GetOrNullAsync(CaseEvaluationSettings.NotificationsPolicy.OfficeEmail)
-            .Returns("office@example.test");
-        var sysParams = Substitute.For<ISystemParameterRepository>();
-        sysParams.GetCurrentTenantAsync().Returns((SystemParameter?)null);
-
-        var handler = new PendingDailyDigestEmailHandler(
+        var handler = new OfficeSummaryEmailHandler(
             dispatcher,
-            settings,
-            sysParams,
+            Recipients("TEST-inbox@test.local"),
             Substitute.For<ICurrentTenant>(),
-            NullLogger<PendingDailyDigestEmailHandler>.Instance,
-            HostVsTenantUrlBuilder());
+            HostVsTenantUrlBuilder(),
+            NullLogger<OfficeSummaryEmailHandler>.Instance);
 
-        await handler.HandleEventAsync(new PendingDailyDigestEto
+        await handler.HandleEventAsync(new OfficeSummaryEto
         {
             TenantId = Guid.NewGuid(),
-            OccurredAt = new DateTime(2026, 7, 23),
-            Rows = new List<PendingDailyDigestRow>
-            {
-                new()
-                {
-                    RequestConfirmationNumber = "A0001",
-                    PatientName = "Pat Example",
-                    AppointmentDate = new DateTime(2026, 8, 1),
-                    RequestedAt = new DateTime(2026, 7, 20),
-                },
-            },
+            OccurredAt = new DateTime(2026, 7, 23, 15, 0, 0, DateTimeKind.Utc),
+            Counts = new StaffSummaryCounts { Pending = 1 },
         });
 
         await dispatcher.Received(1).DispatchAsync(

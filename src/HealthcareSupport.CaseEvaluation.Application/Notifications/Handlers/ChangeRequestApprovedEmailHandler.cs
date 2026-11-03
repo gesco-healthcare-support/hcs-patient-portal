@@ -45,9 +45,9 @@ public class ChangeRequestApprovedEmailHandler :
     private readonly IAppointmentRecipientResolver _recipientResolver;
     private readonly IRepository<AppointmentChangeRequest, Guid> _changeRequestRepository;
     private readonly IRepository<DoctorAvailability, Guid> _doctorAvailabilityRepository;
+    private readonly OfficeNotificationRecipients _officeRecipients;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<ChangeRequestApprovedEmailHandler> _logger;
-    private readonly IRepository<IdentityUser, Guid> _identityUserRepository;
 
     public ChangeRequestApprovedEmailHandler(
         INotificationDispatcher dispatcher,
@@ -55,18 +55,18 @@ public class ChangeRequestApprovedEmailHandler :
         IAppointmentRecipientResolver recipientResolver,
         IRepository<AppointmentChangeRequest, Guid> changeRequestRepository,
         IRepository<DoctorAvailability, Guid> doctorAvailabilityRepository,
+        OfficeNotificationRecipients officeRecipients,
         ICurrentTenant currentTenant,
-        ILogger<ChangeRequestApprovedEmailHandler> logger,
-        IRepository<IdentityUser, Guid> identityUserRepository)
+        ILogger<ChangeRequestApprovedEmailHandler> logger)
     {
         _dispatcher = dispatcher;
         _contextResolver = contextResolver;
         _recipientResolver = recipientResolver;
         _changeRequestRepository = changeRequestRepository;
         _doctorAvailabilityRepository = doctorAvailabilityRepository;
+        _officeRecipients = officeRecipients;
         _currentTenant = currentTenant;
         _logger = logger;
-        _identityUserRepository = identityUserRepository;
     }
 
     [UnitOfWork]
@@ -109,7 +109,10 @@ public class ChangeRequestApprovedEmailHandler :
                     isRegistered: r.IsRegistered))
                 .ToList();
 
-            await AddCompletedOnConsentStaffRecipientAsync(recipients, eventData);
+            // 2026-11-02: the office's Intake Staff are copied on the decision. 2026-11-03: that is the only
+            // staff copy -- the staff member who set the date or filed the cancellation is no longer added by
+            // name (a switched-on Intake user is already in this list, once).
+            await _officeRecipients.AppendIntakeAsync(recipients);
 
             if (recipients.Count == 0)
             {
@@ -154,41 +157,6 @@ public class ChangeRequestApprovedEmailHandler :
                 variables: variables,
                 contextTag: $"ChangeRequestApproved/{eventData.ChangeRequestType}/{(eventData.IsAdminOverride ? "AdminOverride" : "UserRequested")}/{eventData.ChangeRequestId}");
         }
-    }
-
-    /// <summary>
-    /// 2026-10-09: when the request completed on its own once every side agreed, the staff member
-    /// who set the date / filed the cancellation never clicked Approve, so they are told too, with
-    /// the same template. Skipped quietly (with a log line) when the user or their email is gone;
-    /// never duplicates a recipient already in the list.
-    /// </summary>
-    private async Task AddCompletedOnConsentStaffRecipientAsync(
-        List<NotificationRecipient> recipients,
-        AppointmentChangeRequestApprovedEto eventData)
-    {
-        if (!eventData.CompletedOnConsentNotifyUserId.HasValue)
-        {
-            return;
-        }
-
-        var staff = await _identityUserRepository.FindAsync(eventData.CompletedOnConsentNotifyUserId.Value);
-        if (staff == null || string.IsNullOrWhiteSpace(staff.Email))
-        {
-            _logger.LogInformation(
-                "ChangeRequestApprovedEmailHandler: staff user {UserId} not found or has no email; completion email skipped for them.",
-                eventData.CompletedOnConsentNotifyUserId.Value);
-            return;
-        }
-
-        if (recipients.Any(r => string.Equals(r.Email, staff.Email, StringComparison.OrdinalIgnoreCase)))
-        {
-            return;
-        }
-
-        recipients.Add(new NotificationRecipient(
-            email: staff.Email,
-            role: RecipientRole.OfficeAdmin,
-            isRegistered: true));
     }
 
     private async Task AddRescheduleVariablesAsync(

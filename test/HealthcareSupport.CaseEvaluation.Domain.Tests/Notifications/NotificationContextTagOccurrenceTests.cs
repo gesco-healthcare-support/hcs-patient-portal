@@ -39,18 +39,22 @@ public class NotificationContextTagOccurrenceTests
         ["StatusChange/Approved/Stakeholders/"] = "an appointment is approved once",
         ["StatusChange/Rejected/Stakeholders/"] = "rejection is terminal",
         ["StatusChange/NoShow/InternalStaff/"] = "no-show is terminal",
+        ["StatusChange/NotSeen/InternalStaff/"] = "not-seen is terminal",
         ["StatusChange/CancelledNoBill/Stakeholders/"] = "cancellation is terminal",
         ["PatientPacket/"] = "one packet email per appointment and recipient; a re-render mails only new addresses",
+        ["OfficePacketCopy/"] = "one copy per appointment and packet version; a re-render that replaces a file adds a version part",
         ["AttyCEPacket/"] = "one packet email per appointment and recipient; a re-render mails only new addresses",
         ["JdfOverdue/"] = "the daily job re-raises an overdue appointment; the collapse keeps it to one email",
         ["AppointmentReminder/T-"] = "one reminder per offset per appointment",
+        ["AppointmentDayReminder/T-"] = "one appointment reminder per offset (7 days, 1 day) per appointment",
         ["AppointmentRequested/"] = "a booking is submitted once (resubmitting after Send Back raises no new booking event)",
         ["AppointmentRequested/Office/"] = "a booking is submitted once",
         ["BookingSubmitted/ApproveReject/"] = "a booking is submitted once",
         ["ChangeRequestSubmitted/"] = "per change request",
+        ["ChangeRequestConsentInfo/"] = "per consent round of a change request",
+        ["ChangeRequestConsentDeclined/"] = "a side answers once per round; a second answer is refused",
         ["ChangeRequestRejected/"] = "per change request",
         ["ChangeRequestApproved/"] = "per change request",
-        ["ClinicalStaffCancellation/"] = "per change request",
         ["UserQuery/Submitted/"] = "per query",
         ["Invite/"] = "per invitation; resending is a separate, per-request tag",
         ["AccessorInvited/"] = "per new account, created once",
@@ -96,7 +100,7 @@ public class NotificationContextTagOccurrenceTests
     [InlineData("$\"StatusChange/Approved/Stakeholders/{eventData.AppointmentId}\"", true)]
     [InlineData("contextTag", true)]
     [InlineData("$\"PasswordReset/RequestLink/{user.Id}\"", false)]
-    [InlineData("$\"PendingDailyDigest/{eventData.TenantId}\"", false)]
+    [InlineData("$\"OfficeDailySummary/{eventData.TenantId}\"", false)]
     [InlineData("$\"{templateCode}/{eventData.TenantId}\"", false)]
     [InlineData("SomeNewHelper(eventData)", false)]
     public void The_classifier_accepts_and_refuses_what_it_should(string expression, bool accepted)
@@ -110,7 +114,8 @@ public class NotificationContextTagOccurrenceTests
         // Known positives, so a scan that silently matched nothing could not pass the main fact.
         var expressions = TagSites().Select(s => s.Expression).ToList();
         expressions.ShouldContain(e => e.Contains("PasswordReset/RequestLink/", StringComparison.Ordinal));
-        expressions.ShouldContain(e => e.Contains("PendingDailyDigest/", StringComparison.Ordinal));
+        expressions.ShouldContain(e => e.Contains("OfficeDailySummary/", StringComparison.Ordinal));
+        expressions.ShouldContain(e => e.Contains("SupervisorDailySummary", StringComparison.Ordinal));
         expressions.ShouldContain(e => e.Contains("AccountActivation/", StringComparison.Ordinal));
         expressions.ShouldContain(e => e.Contains("CaseTrackerFeedAlert", StringComparison.Ordinal));
     }

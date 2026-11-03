@@ -48,7 +48,8 @@ source of truth for field names and semantics.
   shows as a stall alert, which names it as a possible cause.
 - **Retry for a day, and tell a human early.** Since #917 a retryable failure keeps retrying for 24
   hours from its FIRST failure, on waits of 5, 10, 20, then 30 minutes; `MaxAttempts` (100) is only
-  a backstop, and rows queued before #917 keep their stored 3. Internal staff get a one-off early
+  a backstop, and rows queued before #917 keep their stored 3. The technical list
+  (`CaseTracker:FeedAlertRecipients`, once per alert -- not office staff) gets a one-off early
   warning once a push has failed twice and is still retrying (`EarlyWarnedAt` throttles it), and
   the dead-letter email when it gives up. Fatal responses still dead-letter at once.
 - **An appointment's status does not say whether its intake has gone.** Since 2026-07-30 the

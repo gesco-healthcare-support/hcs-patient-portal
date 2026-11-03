@@ -142,6 +142,13 @@ public static class CaseEvaluationSettings
         public const string AppointmentDayCron = Notifications + ".Reminders.AppointmentDayCron";
         public const string ReminderTimezoneId = Notifications + ".Reminders.TimezoneId";
         public const string RemindersEnabled = Notifications + ".Reminders.Enabled";
+
+        /// <summary>
+        /// 2026-11-03 -- its own switch for the appointment-day reminder (7 and 1 days before). The global
+        /// <see cref="RemindersEnabled"/> stays off for the due-date, scheduling and cancellation/reschedule
+        /// follow-up reminders; this one is on by default.
+        /// </summary>
+        public const string AppointmentDayReminderEnabled = Notifications + ".Reminders.AppointmentDayEnabled";
         public const string ReminderCcEmail = Notifications + ".Reminders.CcEmail";
         public const string ReminderSignoff = Notifications + ".Reminders.Signoff";
     }

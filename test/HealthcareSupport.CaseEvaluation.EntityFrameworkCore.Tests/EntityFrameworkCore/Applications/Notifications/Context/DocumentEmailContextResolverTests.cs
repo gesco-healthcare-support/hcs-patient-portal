@@ -102,6 +102,66 @@ public class DocumentEmailContextResolverTests : CaseEvaluationEntityFrameworkCo
         context.GreetingName.ShouldBeNull();
     }
 
+    // ---- 2026-11-03: the booker is the SUBMITTER (creator, else BookedByUserId), not the patient login ----
+
+    [Fact]
+    public async Task TheBooker_IsTheAccountThatSubmittedTheRequest_NotThePatientLoginInIdentityUserId()
+    {
+        // Appointment 1's IdentityUserId is the patient's login; the submitter here is an attorney.
+        await SetSubmitterAsync(creator: IdentityUsersTestData.ApplicantAttorney1UserId);
+
+        var context = await ResolveAsync(documentId: null);
+
+        context.BookerEmail.ShouldBe(IdentityUsersTestData.ApplicantAttorney1Email);
+        context.CreatorIsStaff.ShouldBeFalse();
+        context.PatientIsSubmitter.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task WithNoSubmitterRecorded_ThereIsNoBooker_EvenThoughThePatientHasALogin()
+    {
+        // Control for the Fact above: the patient login (IdentityUserId) alone no longer makes a booker.
+        var context = await ResolveAsync(documentId: null);
+
+        context.BookerEmail.ShouldBeNull();
+        context.CreatorIsStaff.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task TheStampedBookedByUser_StandsInWhenNoCreatorWasRecorded()
+    {
+        await SetSubmitterAsync(booked: IdentityUsersTestData.ApplicantAttorney1UserId);
+
+        (await ResolveAsync(documentId: null)).BookerEmail.ShouldBe(IdentityUsersTestData.ApplicantAttorney1Email);
+    }
+
+    [Theory]
+    [InlineData("Intake Staff")]
+    [InlineData("Staff Supervisor")]
+    public async Task AStaffSubmitter_IsFlagged_AndIsNotTheBooker(string staffRole)
+    {
+        var staffId = await CreateStaffAsync(staffRole);
+        await SetSubmitterAsync(creator: staffId);
+
+        var context = await ResolveAsync(documentId: null);
+
+        context.CreatorIsStaff.ShouldBeTrue();
+        context.BookerEmail.ShouldBeNull();
+        context.BookerFullName.ShouldBeEmpty();
+        context.PatientIsSubmitter.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task ThePatientWhoSubmittedTheirOwnRequest_IsRecognisedAsTheSubmitter()
+    {
+        await SetSubmitterAsync(creator: IdentityUsersTestData.Patient1UserId);
+
+        var context = await ResolveAsync(documentId: null);
+
+        context.PatientIsSubmitter.ShouldBeTrue();
+        context.PatientAddresses.ShouldNotBeEmpty();
+    }
+
     // ------------------------------------------------------------------------
 
     private async Task<DocumentEmailContext> ResolveAsync(Guid? documentId)
@@ -168,6 +228,28 @@ public class DocumentEmailContextResolverTests : CaseEvaluationEntityFrameworkCo
         ObjectHelper.TrySetProperty(appointment, a => a.CreatorId, () => (Guid?)creatorId);
         await repository.UpdateAsync(appointment, autoSave: true);
     });
+
+    private Task SetSubmitterAsync(Guid? creator = null, Guid? booked = null) => InOfficeAAsync(async () =>
+    {
+        var repository = GetRequiredService<IRepository<Appointment, Guid>>();
+        var appointment = await repository.GetAsync(AppointmentsTestData.Appointment1Id);
+        ObjectHelper.TrySetProperty(appointment, a => a.CreatorId, () => creator);
+        appointment.BookedByUserId = booked;
+        await repository.UpdateAsync(appointment, autoSave: true);
+    });
+
+    private async Task<Guid> CreateStaffAsync(string role)
+    {
+        var id = Guid.Empty;
+        await InOfficeAAsync(async () =>
+        {
+            var users = GetRequiredService<IdentityUserManager>();
+            var email = await RoleUserSeeder.CreateUserInRoleAsync(
+                users, GetRequiredService<IdentityRoleManager>(), TenantsTestData.TenantARef, role, "context-staff");
+            id = (await users.FindByEmailAsync(email))!.Id;
+        });
+        return id;
+    }
 
     private Task NameTenantAdminAsync(string? name, string? surname) => InOfficeAAsync(async () =>
     {

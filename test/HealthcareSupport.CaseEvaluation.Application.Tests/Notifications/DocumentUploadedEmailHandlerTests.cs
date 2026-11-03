@@ -78,10 +78,13 @@ public class DocumentUploadedEmailHandlerTests
             UrlBuilder.BuildAuthServerRootUrlAsync(Arg.Any<Guid?>()).Returns(AuthRoot);
         }
 
+        public FakeOfficeRecipients Office { get; } = new();
+
         public DocumentUploadedEmailHandler Build() => new(
             Dispatcher,
             ContextResolver,
             RecipientResolver,
+            Office,
             CurrentTenant,
             NullLogger<DocumentUploadedEmailHandler>.Instance,
             UrlBuilder);
@@ -261,9 +264,11 @@ public class DocumentUploadedEmailHandlerTests
     /// opposite of the accept and reject emails. A party with no role is copied as Patient.
     /// </summary>
     [Fact]
-    public async Task HandleEventAsync_CcKeepsTheOfficeMailboxAndEveryOtherParty()
+    public async Task HandleEventAsync_CcKeepsTheOfficeMailboxAddsIntakeAndRepeatsNoAddress()
     {
         var rig = new Rig();
+        rig.Office.Intake.Add("TEST-intake-1@test.local");
+        rig.Office.Intake.Add("TEST-OFFICE@test.local");
         rig.Parties.Clear();
         rig.Parties.Add(Party("TEST-office@test.local", RecipientRole.OfficeAdmin));
         rig.Parties.Add(Party("TEST-applicant-attorney@test.local", RecipientRole.ApplicantAttorney));
@@ -274,8 +279,13 @@ public class DocumentUploadedEmailHandlerTests
 
         var cc = SingleSend(rig.Dispatcher).Cc;
         cc.Select(r => r.Email).ShouldBe(
-            new[] { "TEST-office@test.local", "TEST-applicant-attorney@test.local", "TEST-no-role@test.local" },
+            new[]
+            {
+                "TEST-office@test.local", "TEST-applicant-attorney@test.local",
+                "TEST-no-role@test.local", "TEST-intake-1@test.local",
+            },
             ignoreOrder: true);
+        cc.Select(r => r.Email.ToLowerInvariant()).Distinct().Count().ShouldBe(cc.Count, "no address twice");
         cc.Single(r => r.Email == "TEST-office@test.local").Role.ShouldBe(RecipientRole.OfficeAdmin);
         cc.Single(r => r.Email == "TEST-no-role@test.local").Role.ShouldBe(RecipientRole.Patient);
         await rig.RecipientResolver.Received(1).ResolveAsync(evt.AppointmentId, NotificationKind.DocumentUploaded);

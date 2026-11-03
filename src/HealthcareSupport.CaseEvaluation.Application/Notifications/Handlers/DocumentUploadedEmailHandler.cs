@@ -50,6 +50,7 @@ public class DocumentUploadedEmailHandler :
         INotificationDispatcher dispatcher,
         DocumentEmailContextResolver contextResolver,
         IAppointmentRecipientResolver recipientResolver,
+        OfficeNotificationRecipients officeRecipients,
         ICurrentTenant currentTenant,
         ILogger<DocumentUploadedEmailHandler> logger,
         IAccountUrlBuilder accountUrlBuilder)
@@ -59,6 +60,7 @@ public class DocumentUploadedEmailHandler :
             contextResolver,
             recipientResolver,
             null,
+            officeRecipients,
             currentTenant,
             logger,
             accountUrlBuilder);
@@ -82,7 +84,6 @@ public class DocumentUploadedEmailHandler :
             OccurredAt = eventData.OccurredAt,
             Kind = NotificationKind.DocumentUploaded,
             EmailKind = DocumentEmailKind.Uploaded,
-            ExcludeOfficeFromCc = false,
             Uploader = ctx => (eventData.UploadedByUserId ?? ctx.DocumentUploadedByUserId, eventData.UploadedByUserId.HasValue),
         });
     }

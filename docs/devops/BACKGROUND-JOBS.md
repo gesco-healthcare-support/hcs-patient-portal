@@ -47,8 +47,7 @@ Ordered by how often they run, because that is how you read this page during an 
 | `appt-cancellation-reschedule-reminder` | `0 8 * * *` | CancellationRescheduleReminderJob | Chases open change requests |
 | `appt-request-scheduling-reminder` | `0 8 * * *` | RequestSchedulingReminderJob | Chases unscheduled requests |
 | `appt-duedate-approaching` | `15 8 * * *` | AppointmentReminderJob | Consolidated due-date + outstanding-documents email |
-| `appt-pending-daily-digest` | `0 9 * * *` | PendingDailyDigestJob | Digest to the intake-staff inbox |
-| `appt-internal-staff-queue-digest` | `15 9 * * *` | InternalStaffQueueDigestJob | Per-staff queue counts |
+| `appt-staff-summary` | `0 8,16 * * *` | StaffSummaryJob | Office summary to the inbox + active Intake Staff, and one all-offices summary to each host Staff Supervisor (replaced the 09:00 and 09:15 digests, 2026-11-03) |
 | `case-tracker-missing-intake-report` | `0 8 * * 1` | CaseTrackerMissingIntakeReportJob | Weekly, Mondays |
 
 The ordering of the morning jobs is deliberate: the JDF overdue sweep runs at 06:00, ahead of

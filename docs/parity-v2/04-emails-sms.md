@@ -110,7 +110,7 @@ status. NEW code names are `NotificationTemplateConsts.Codes.*`.
 | Joint-Agreement-Letter-Uploaded.html | AppointmentChangeRequestDomain:989 (JDF uploaded) | WIRED -- `DocumentNotificationContext:114` -> `JointAgreementLetterUploaded` |
 | Joint-Agreement-Letter-Rejected.html | AppointmentChangeRequestDomain:996 (JDF rejected) | WIRED -- `DocumentNotificationContext:116` -> `JointAgreementLetterRejected` |
 | Appointment-Document-Add-With-Attachment.html | AppointmentDocumentDomain:457/491+ (approved packet w/ attachment) | WIRED -- `PatientPacketEmailHandler:121` + `AttyCEPacketEmailHandler:150` -> `AppointmentDocumentAddWithAttachment` |
-| Clinical-Staff-Cancellation.html | AppointmentChangeRequestDomain:656 (clinic-staff cancel) | WIRED -- `ClinicalStaffCancellationEmailHandler:126` -> `ClinicalStaffCancellation` |
+| Clinical-Staff-Cancellation.html | AppointmentChangeRequestDomain:656 (clinic-staff cancel) | RETIRED 2026-11-03 -- the office inbox gets `AppointmentCancelledRequest` instead (one email per person per event); template still seeded |
 | Patient-Appointment-Reschedule-Request-Admin.html | AppointmentChangeRequestDomain:717 (reschedule req submitted) | WIRED -- `ChangeRequestSubmittedEmailHandler:116` -> `AppointmentRescheduleRequest` |
 | Patient-Appointment-Reschedule-Request-Approved.html | AppointmentChangeRequestDomain:730 (reschedule approved) | WIRED -- `ChangeRequestApprovedEmailHandler:119` -> `AppointmentRescheduleRequestApproved` |
 | Patient-Appointment-Reschedule-Request-Rejected.html | AppointmentChangeRequestDomain:740 (reschedule rejected) | WIRED -- `ChangeRequestRejectedEmailHandler:95` -> `AppointmentRescheduleRequestRejected` |

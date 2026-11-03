@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
+using HealthcareSupport.CaseEvaluation.Appointments;
 using Volo.Abp;
 using Volo.Abp.Domain.Entities.Auditing;
 using Volo.Abp.MultiTenancy;
@@ -34,6 +35,7 @@ namespace HealthcareSupport.CaseEvaluation.Notifications.Outbox;
 /// </summary>
 public class NotificationOutboxItem : FullAuditedAggregateRoot<Guid>, IMultiTenant
 {
+    private const string ExtraPacketRefsKey = "ExtraPacketRefs";
     private const string CcSeparator = "\n";
 
     public virtual Guid? TenantId { get; set; }
@@ -105,7 +107,8 @@ public class NotificationOutboxItem : FullAuditedAggregateRoot<Guid>, IMultiTena
         Guid? packetAppointmentId = null,
         Guid? packetId = null,
         PacketKind? packetKind = null,
-        int maxAttempts = NotificationOutboxConsts.DefaultMaxAttempts)
+        int maxAttempts = NotificationOutboxConsts.DefaultMaxAttempts,
+        IEnumerable<PacketAttachmentRef>? extraPacketRefs = null)
         : base(id)
     {
         TenantId = tenantId;
@@ -122,6 +125,40 @@ public class NotificationOutboxItem : FullAuditedAggregateRoot<Guid>, IMultiTena
         MaxAttempts = maxAttempts < 1 ? 1 : maxAttempts;
         Status = NotificationOutboxStatus.Pending;
         AttemptCount = 0;
+        SetExtraPacketRefs(extraPacketRefs);
+    }
+
+    /// <summary>
+    /// Further packets attached to the same email after the one in <see cref="PacketId"/> (2026-11-03: the
+    /// office inbox's packet copy). Kept in <c>ExtraProperties</c> as a JSON array -- the column every
+    /// aggregate already has -- so no schema change and no migration in either set; a row written before
+    /// this existed simply has none.
+    /// </summary>
+    public virtual IReadOnlyList<PacketAttachmentRef> GetExtraPacketRefs()
+    {
+        if (!ExtraProperties.TryGetValue(ExtraPacketRefsKey, out var raw) || raw == null)
+        {
+            return Array.Empty<PacketAttachmentRef>();
+        }
+        var json = raw is System.Text.Json.JsonElement element
+            ? (element.ValueKind == System.Text.Json.JsonValueKind.String ? element.GetString() : element.GetRawText())
+            : raw.ToString();
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return Array.Empty<PacketAttachmentRef>();
+        }
+        return System.Text.Json.JsonSerializer.Deserialize<List<PacketAttachmentRef>>(json)
+            ?? new List<PacketAttachmentRef>();
+    }
+
+    private void SetExtraPacketRefs(IEnumerable<PacketAttachmentRef>? refs)
+    {
+        var list = refs?.Where(r => r != null).ToList();
+        if (list == null || list.Count == 0)
+        {
+            return;
+        }
+        ExtraProperties[ExtraPacketRefsKey] = System.Text.Json.JsonSerializer.Serialize(list);
     }
 
     /// <summary>Reads <see cref="Cc"/> back as a list (empty when none).</summary>
