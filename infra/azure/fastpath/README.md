@@ -291,6 +291,16 @@ not, until step 1 moves it). The rest is the go-live runbook:
    - So the first visit is the office's own sign-in page, `https://<office>.auth.<base>/Account/ResendVerification`,
      to confirm the address. Only then use "Forgot password".
    - Forgot password on an unconfirmed address shows the usual success message but sends nothing.
+8. **Add the doctor's signature for the office (PQME packets only).** The QME Form 110 page of the PQME packet
+   prints the doctor's signature image when the office has one stored; with none it prints the blank line.
+   There is no upload screen. On the VM, from the repository root, with the office id from
+   `SELECT Id, Name FROM SaasTenants` and a PNG of at most 200 KB:
+   - `scripts/hosting/office-signature.sh <office id> <png file>` stores it and prints the key, the stored size
+     and the sha256 (never the image);
+   - `scripts/hosting/office-signature.sh --remove <office id>` takes it off again;
+   - the image is kept in the documents bucket under `host/office-signatures/`, so the nightly document backup
+     carries it, and it is outside the prefix the Case Tracker's read-only key covers;
+   - keep the original file off the repository and off any shared channel: it is the doctor's signature.
 
 ## If the names are A records at the registrar (no Azure DNS zone)
 

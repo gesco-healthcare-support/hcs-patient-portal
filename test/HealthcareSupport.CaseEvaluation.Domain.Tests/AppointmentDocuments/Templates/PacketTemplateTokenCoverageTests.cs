@@ -59,6 +59,13 @@ public class PacketTemplateTokenCoverageTests
         map["##Office.PhoneFax##"].ShouldBe("Phone: 555-0100");
         map["##Office.Fax##"].ShouldBeEmpty();
         map["##Office.MissedAppointmentFee##"].ShouldBe("10.00");
+        map["##Office.SignatureImage##"].ShouldBeEmpty();
+
+        var withSignature = PacketTokenMap.Build(new PacketTokenContext
+        {
+            Office = new OfficeLetterhead { SignatureImage = "data:image/png;base64,AAAA" },
+        });
+        withSignature["##Office.SignatureImage##"].ShouldBe("data:image/png;base64,AAAA");
     }
 
     private static HashSet<string> TemplateTokens()

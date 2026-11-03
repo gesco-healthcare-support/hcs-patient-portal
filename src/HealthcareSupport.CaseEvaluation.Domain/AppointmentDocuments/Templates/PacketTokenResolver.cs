@@ -87,6 +87,7 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
     private readonly IBlobContainer<UserSignaturesContainer> _userSignaturesContainer;
     private readonly IClock _clock;
     private readonly OfficeLetterheadResolver _officeLetterheadResolver;
+    private readonly OfficeSignatureReader _officeSignatureReader;
 
     public PacketTokenResolver(
         IRepository<Appointment, Guid> appointmentRepository,
@@ -110,7 +111,8 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
         IdentityUserManager userManager,
         IBlobContainer<UserSignaturesContainer> userSignaturesContainer,
         IClock clock,
-        OfficeLetterheadResolver officeLetterheadResolver)
+        OfficeLetterheadResolver officeLetterheadResolver,
+        OfficeSignatureReader officeSignatureReader)
     {
         _appointmentRepository = appointmentRepository;
         _patientRepository = patientRepository;
@@ -134,6 +136,7 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
         _userSignaturesContainer = userSignaturesContainer;
         _clock = clock;
         _officeLetterheadResolver = officeLetterheadResolver;
+        _officeSignatureReader = officeSignatureReader;
     }
 
     public virtual async Task<PacketTokenContext> ResolveAsync(Guid appointmentId, CancellationToken cancellationToken = default)
@@ -158,6 +161,10 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
         // letterhead, physician, address and phone, so every office's packets carried that
         // practice's identity to attorneys and the WCAB.
         ctx.Office = await _officeLetterheadResolver.ResolveAsync(cancellationToken);
+
+        // 2026-11-03: the doctor's signature image for the PQME QME Form 110 page, "" when the
+        // office has none stored (the template then prints the blank line).
+        ctx.Office = ctx.Office with { SignatureImage = await _officeSignatureReader.ReadDataUriAsync(cancellationToken) };
 
         return ctx;
     }

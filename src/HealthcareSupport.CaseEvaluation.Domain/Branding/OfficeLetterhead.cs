@@ -47,6 +47,14 @@ public sealed record OfficeLetterhead
     public string MissedAppointmentFee { get; init; } = string.Empty;
 
     /// <summary>
+    /// The doctor's signature as a <c>data:image/png;base64,...</c> URI for the QME Form 110 page,
+    /// or empty when the office has none stored. Not part of <see cref="Compose"/>: the packet
+    /// resolver sets it from <see cref="OfficeSignatureReader"/>, so the letterhead editor never
+    /// loads an image.
+    /// </summary>
+    public string SignatureImage { get; init; } = string.Empty;
+
+    /// <summary>
     /// Fills the gaps in the stored <paramref name="values"/> (null when the office has no
     /// branding row: one created before branding existed) from the office display name and
     /// its doctor. Pass empty values to get the pure defaults the editor shows.
