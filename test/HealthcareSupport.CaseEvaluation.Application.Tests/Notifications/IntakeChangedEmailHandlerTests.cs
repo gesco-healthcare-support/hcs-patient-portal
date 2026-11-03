@@ -340,6 +340,45 @@ public class IntakeChangedEmailHandlerTests
         sent.Variables.ShouldNotContainKey("AppointmentChangeLogs");
     }
 
+    /// <summary>A date move with nobody to tell (no party, no inbox, no Intake) dispatches nothing at all.</summary>
+    [Fact]
+    public async Task HandleEventAsync_DateMoveWithNoRecipients_DispatchesNothing()
+    {
+        var rig = new Rig();
+        rig.Office.Inbox = null;
+        rig.Parties.ResolveAsync(Arg.Any<Guid>(), Arg.Any<NotificationKind>()).Returns(new List<SendAppointmentEmailArgs>());
+
+        await rig.Build().HandleEventAsync(ChangedEvent(true, Field("AppointmentDate", "TEST-a", "TEST-b")));
+
+        Sends(rig.Dispatcher).ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// The handler runs inside the staff member's save: a missing or switched-off date-move template is
+    /// logged and skipped, never thrown back into that save. The dispatch IS attempted (not a vacuous pass).
+    /// </summary>
+    [Fact]
+    public async Task HandleEventAsync_DateMoveWithAMissingTemplate_DoesNotFailTheSave()
+    {
+        var rig = new Rig();
+        rig.Parties.ResolveAsync(Arg.Any<Guid>(), Arg.Any<NotificationKind>()).Returns(
+            new List<SendAppointmentEmailArgs>
+            {
+                new() { To = "TEST-inbox@test.local", Role = RecipientRole.OfficeAdmin },
+            });
+        rig.Dispatcher
+            .DispatchAsync(
+                Arg.Any<string>(), Arg.Any<IReadOnlyCollection<NotificationRecipient>>(),
+                Arg.Any<IReadOnlyDictionary<string, object?>>(), Arg.Any<string>(),
+                Arg.Any<PacketAttachmentRef?>(), Arg.Any<System.Threading.CancellationToken>())
+            .Returns(Task.FromException(new Volo.Abp.BusinessException(CaseEvaluationDomainErrorCodes.NotificationTemplateNotFound)));
+
+        await Should.NotThrowAsync(() => rig.Build().HandleEventAsync(
+            ChangedEvent(true, Field("AppointmentDate", "TEST-a", "TEST-b"))));
+
+        Sends(rig.Dispatcher).Count.ShouldBe(1);
+    }
+
     [Fact]
     public async Task HandleEventAsync_DateAndTimeUnchanged_SendsOnlyTheChangeTable()
     {
