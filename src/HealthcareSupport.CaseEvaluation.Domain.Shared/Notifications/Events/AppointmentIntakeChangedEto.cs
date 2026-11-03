@@ -13,9 +13,17 @@ public class AppointmentIntakeChangedEto
 
     public Guid? TenantId { get; set; }
 
-    /// <summary>True when the appointment date/time changed -- triggers the
-    /// one-shot "rescheduled by our team" email in addition to the diff email.</summary>
+    /// <summary>True when the appointment date/time changed. A date move is one "date and time changed"
+    /// email to the parties, the office inbox and the Intake Staff; any other edit is the change log to
+    /// the office inbox only.</summary>
     public bool DateOrTimeChanged { get; set; }
+
+    /// <summary>The slot the appointment sits on after the save. Part of the date-move email's context tag.</summary>
+    public Guid? NewDoctorAvailabilityId { get; set; }
+
+    /// <summary>The appointment date and time after the save, shown in the date-move email. Null on an
+    /// event published without it (the handler then reads the appointment).</summary>
+    public DateTime? NewAppointmentDate { get; set; }
 
     public List<IntakeChangedField> ChangedFields { get; set; } = new();
 
