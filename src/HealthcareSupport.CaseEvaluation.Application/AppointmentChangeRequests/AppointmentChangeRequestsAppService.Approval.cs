@@ -278,6 +278,23 @@ public class AppointmentChangeRequestsApprovalAppService :
             await PublishConsentRequestedAsync(changeRequest, round, email, role, token);
         }
 
+        if (toNotify.Count > 0)
+        {
+            // 2026-11-03 (row 8): everyone NOT asked to agree (claim examiner, office inbox, Intake Staff)
+            // gets the no-link information notice. The patient is not told unless they are a side's rep.
+            await _localEventBus.PublishAsync(new NotificationsEvents.ChangeRequestConsentOpenedEto
+            {
+                AppointmentId = changeRequest.AppointmentId,
+                ChangeRequestId = changeRequest.Id,
+                TenantId = changeRequest.TenantId,
+                ChangeRequestType = changeRequest.ChangeRequestType,
+                RoundNumber = round.RoundNumber,
+                ProposedDoctorAvailabilityId = round.ProposedDoctorAvailabilityId,
+                ConsentLinkEmails = toNotify.Select(n => n.Email).ToList(),
+                OccurredAt = DateTime.UtcNow,
+            });
+        }
+
         if (toNotify.Count == 0)
         {
             // Nobody to ask: both sides stay NotRequired, so the round is immediately grantable

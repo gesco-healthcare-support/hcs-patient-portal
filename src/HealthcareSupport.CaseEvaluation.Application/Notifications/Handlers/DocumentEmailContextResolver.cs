@@ -157,6 +157,7 @@ public class DocumentEmailContextResolver : ITransientDependency
             BookerEmail = bookerUser?.Email,
             CreatorIsStaff = creatorIsStaff,
             PatientAddresses = patientAddresses,
+            PatientIdentityUserId = patient?.IdentityUserId,
             PatientIsSubmitter = patientIsSubmitter,
             BookerFullName = JoinName(bookerUser?.Name, bookerUser?.Surname),
             PatientFirstName = patient?.FirstName,
@@ -317,6 +318,10 @@ public class DocumentEmailContext
 
     /// <summary>2026-11-03: the patient's addresses (patient row + the appointment's patient email column).</summary>
     public IReadOnlyList<string> PatientAddresses { get; set; } = Array.Empty<string>();
+
+    /// <summary>2026-11-03: the patient's own login, when they have one. Lets a handler ask whether a
+    /// given account (for example a change request's submitter) is the patient.</summary>
+    public Guid? PatientIdentityUserId { get; set; }
 
     /// <summary>2026-11-03: the patient submitted the request themselves. When false, the patient hears
     /// nothing about it until it is approved.</summary>

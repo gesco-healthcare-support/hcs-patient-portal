@@ -2,8 +2,10 @@ using System;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using Volo.Abp;
 using Volo.Abp.Domain.Services;
+using Volo.Abp.EventBus.Local;
 using Volo.Abp.Timing;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
@@ -20,15 +22,18 @@ public class ChangeRequestConsentManager : DomainService
     private readonly IAppointmentChangeRequestRepository _repository;
     private readonly IChangeRequestConsentRoundRepository _roundRepository;
     private readonly IClock _clock;
+    private readonly ILocalEventBus _localEventBus;
 
     public ChangeRequestConsentManager(
         IAppointmentChangeRequestRepository repository,
         IChangeRequestConsentRoundRepository roundRepository,
-        IClock clock)
+        IClock clock,
+        ILocalEventBus localEventBus)
     {
         _repository = repository;
         _roundRepository = roundRepository;
         _clock = clock;
+        _localEventBus = localEventBus;
     }
 
     /// <summary>
@@ -168,6 +173,7 @@ public class ChangeRequestConsentManager : DomainService
 
             match.Round.RecordSideDecision(match.Side, approved, respondedByEmail, nowUtc);
             await _roundRepository.UpdateAsync(match.Round, autoSave: true);
+            await PublishDeclinedAsync(match, approved, match.Round.RoundNumber, nowUtc);
             return;
         }
 
@@ -180,6 +186,32 @@ public class ChangeRequestConsentManager : DomainService
 
         match.Request.RecordSideDecision(match.Side, approved, respondedByEmail, nowUtc);
         await _repository.UpdateAsync(match.Request, autoSave: true);
+        await PublishDeclinedAsync(match, approved, roundNumber: 0, nowUtc);
+    }
+
+    /// <summary>
+    /// 2026-11-03 (email routing, row 9d): a decline tells the office inbox and the Intake Staff at once.
+    /// Both ways a side answers (the public consent link and the in-portal Agree/Decline) end here, so
+    /// publishing from this one place covers both. An approval, an expiry and a refused second answer
+    /// publish nothing.
+    /// </summary>
+    private Task PublishDeclinedAsync(ChangeRequestConsentMatch match, bool approved, int roundNumber, DateTime nowUtc)
+    {
+        if (approved)
+        {
+            return Task.CompletedTask;
+        }
+
+        return _localEventBus.PublishAsync(new ChangeRequestConsentDeclinedEto
+        {
+            AppointmentId = match.Request.AppointmentId,
+            ChangeRequestId = match.Request.Id,
+            TenantId = match.Request.TenantId,
+            ChangeRequestType = match.Request.ChangeRequestType,
+            RoundNumber = roundNumber,
+            Side = match.Side,
+            OccurredAt = nowUtc,
+        });
     }
 
     private DateTime BuildExpiry() =>

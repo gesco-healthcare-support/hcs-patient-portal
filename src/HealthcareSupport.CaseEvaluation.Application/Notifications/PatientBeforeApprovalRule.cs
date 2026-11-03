@@ -38,6 +38,27 @@ public static class PatientBeforeApprovalRule
             : recipients.Where(r => !IsPatientAddress(r.Email, ctx)).ToList();
     }
 
+    /// <summary>
+    /// The recipients without the patient, unless <paramref name="patientIsRequester"/>. Same rule as
+    /// <see cref="Apply(IEnumerable{NotificationRecipient}, DocumentEmailContext)"/>, keyed on who asked
+    /// for a CHANGE (a reschedule request) rather than on who booked the appointment.
+    /// </summary>
+    public static List<NotificationRecipient> ApplyForRequester(
+        IEnumerable<NotificationRecipient> recipients, DocumentEmailContext ctx, bool patientIsRequester)
+    {
+        return patientIsRequester
+            ? recipients.ToList()
+            : recipients.Where(r => !IsPatientAddress(r.Email, ctx)).ToList();
+    }
+
+    /// <summary>
+    /// True when the account is the patient: their own login, or a CONFIRMED email equal to one of the
+    /// patient's addresses (an unconfirmed address proves nothing about who holds it).
+    /// </summary>
+    public static bool IsPatientAccount(DocumentEmailContext ctx, Guid userId, string? confirmedEmail) =>
+        (ctx.PatientIdentityUserId is { } login && login == userId)
+        || IsPatientAddress(confirmedEmail, ctx);
+
     private static bool IsPatientAddress(string? email, DocumentEmailContext ctx) =>
         !string.IsNullOrWhiteSpace(email)
         && ctx.PatientAddresses.Any(a => string.Equals(a, email.Trim(), StringComparison.OrdinalIgnoreCase));

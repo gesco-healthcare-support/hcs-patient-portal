@@ -304,16 +304,29 @@ public class StatusChangeEmailHandlerTests : CaseEvaluationEntityFrameworkCoreTe
         sent.Recipients[0].ShouldBe(intake, StringCompareShould.IgnoreCase);
     }
 
+    /// <summary>
+    /// Row 16 (2026-11-03): NotSeen is told to the office inbox and the active Intake Staff like a no-show, but
+    /// with its OWN template -- the no-show body reads "marked as a No-Show", which is false for a not-seen exam.
+    /// Not the parties, not a Supervisor, not a switched-off Intake user, not the CC list.
+    /// </summary>
     [Fact]
-    public async Task NotSeen_StillSendsNothing_BecauseTheNoShowTemplateSaysNoShow()
+    public async Task NotSeen_EmailsTheOfficeInboxAndActiveIntakeWithItsOwnTemplate_AndNobodyElse()
     {
-        // The PatientAppointmentNoShow body reads "marked as a No-Show", which is false for a not-seen exam.
-        await SeedOfficeStaffAsync("notseen");
-        WithStakeholder();
+        WithStakeholder(); // present on purpose: NotSeen must NOT use the stakeholder set
+        await SetOfficeInboxAsync(OfficeInbox);
+        await SetCcListAsync(CcListAddress);
+        var (intake, supervisor, switchedOff) = await SeedOfficeStaffAsync("notseen");
 
         await RaiseAsync(AppointmentStatusType.NotSeen);
 
-        _dispatcher.Dispatches.ShouldBeEmpty();
+        var sent = _dispatcher.Dispatches.ShouldHaveSingleItem();
+        sent.TemplateCode.ShouldBe(NotificationTemplateConsts.Codes.PatientAppointmentNotSeen);
+        sent.Recipients.ShouldBe(new[] { OfficeInbox, intake }, ignoreOrder: true);
+        sent.Recipients.ShouldNotContain(StakeholderEmail);
+        sent.Recipients.ShouldNotContain(supervisor);
+        sent.Recipients.ShouldNotContain(switchedOff);
+        sent.Recipients.ShouldNotContain(CcListAddress);
+        sent.ContextTag.ShouldStartWith("StatusChange/NotSeen/InternalStaff/");
     }
 
     // ---- 2026-11-03: duplicate suppressions (one email per person per event) ----
