@@ -62,7 +62,7 @@ public class AppointmentReminderEmailHandlerTests
             Substitute.For<MissingRequiredDocumentsResolver>(null, null, null, null, null);
 
         /// <summary>Three nulls, same reason: <c>DispatchToBookerWithCcAsync</c> is virtual.</summary>
-        public BookerCcDispatcher BookerCc { get; } = Substitute.For<BookerCcDispatcher>(null, null, null);
+        public BookerCcDispatcher BookerCc { get; } = Substitute.For<BookerCcDispatcher>(null, null);
 
         public IRepository<Appointment, Guid> Appointments { get; } = Substitute.For<IRepository<Appointment, Guid>>();
         public IRepository<AppointmentDocument, Guid> Documents { get; } = Substitute.For<IRepository<AppointmentDocument, Guid>>();

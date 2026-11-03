@@ -98,6 +98,9 @@ public class CaseEvaluationSettingDefinitionProvider : SettingDefinitionProvider
         // Adrian flips this in /setting-management (matches the Phase-1
         // email-minimization stance). Per-tenant overridable.
         Define(context, CaseEvaluationSettings.RemindersPolicy.RemindersEnabled, defaultValue: "false");
+        // 2026-11-03: the appointment-day reminder is the one reminder the office wants ON, so it has its
+        // own switch (default on) and the three jobs above keep honoring only RemindersEnabled (off).
+        Define(context, CaseEvaluationSettings.RemindersPolicy.AppointmentDayReminderEnabled, defaultValue: "true");
         Define(context, CaseEvaluationSettings.RemindersPolicy.ReminderCcEmail, defaultValue: "");
         Define(context, CaseEvaluationSettings.RemindersPolicy.ReminderSignoff, defaultValue: "");
 

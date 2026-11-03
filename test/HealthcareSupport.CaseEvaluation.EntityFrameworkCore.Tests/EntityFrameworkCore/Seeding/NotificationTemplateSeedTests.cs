@@ -14,7 +14,8 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Seeding;
 /// The OFFICE pass of <see cref="NotificationTemplateDataSeedContributor"/>: a new practice gets
 /// both template types and every template code; a second run adds nothing; a template whose body
 /// ships from a resource file is refreshed when its stored copy drifts, while a plain template an
-/// admin edited is left alone.
+/// admin edited is left alone -- and so, since 2026-11-02, is a resource-backed one a staff member
+/// edited in the template editor (it carries the edited-by-staff mark).
 ///
 /// <para>Harness note: in production each office has its own database, so the office pass never
 /// sees the host's rows. This rig keeps host and offices in ONE database, and the template types
@@ -80,6 +81,29 @@ public class NotificationTemplateSeedTests : SeedContributorTestBase
         templates.Single(t => t.TemplateCode == plain).Subject.ShouldBe("TEST-admin subject");
     }
 
+    [Fact]
+    public async Task ASecondRun_KeepsAStaffEditToAResourceBackedTemplate()
+    {
+        // Every deploy runs the DbMigrator. Before 2026-11-02 that put the shipped subject and body back
+        // over an office's edit; the edited-by-staff mark now keeps the edit, while an unmarked drifted
+        // row in the same office is still refreshed (the positive control).
+        await RemoveHostCatalogAsync();
+        var practiceId = await CreatePracticeAsync();
+        await SeedAsync(_seeder, new DataSeedContext(practiceId));
+        var resourceBacked = NotificationTemplateConsts.Codes.All.Where(NotificationTemplateSeedDefaults.HasResourceBackedBody).ToList();
+        var editedCode = resourceBacked[0];
+        var driftedCode = resourceBacked[1];
+        await EditSubjectAsync(practiceId, editedCode, "TEST-office wording", editedByStaff: true);
+        await EditSubjectAsync(practiceId, driftedCode, "TEST-drifted subject");
+
+        await SeedAsync(_seeder, new DataSeedContext(practiceId));
+
+        var templates = await InScopeAsync(practiceId, () => _templateRows.GetListAsync());
+        templates.Single(t => t.TemplateCode == editedCode).Subject.ShouldBe("TEST-office wording");
+        templates.Single(t => t.TemplateCode == driftedCode).Subject
+            .ShouldBe(NotificationTemplateSeedDefaults.GetSeedDefaults(driftedCode).Subject);
+    }
+
     /// <summary>Hard-deletes the host's templates, then its template types (templates reference types).</summary>
     private Task RemoveHostCatalogAsync() =>
         InScopeAsync(null, async () =>
@@ -99,11 +123,12 @@ public class NotificationTemplateSeedTests : SeedContributorTestBase
             return true;
         });
 
-    private Task EditSubjectAsync(Guid practiceId, string code, string subject) =>
+    private Task EditSubjectAsync(Guid practiceId, string code, string subject, bool editedByStaff = false) =>
         InScopeAsync(practiceId, async () =>
         {
             var template = await _templateRows.GetAsync(t => t.TemplateCode == code);
             template.Subject = subject;
+            template.MarkEditedByStaff(editedByStaff);
             await _templates.UpdateAsync(template, autoSave: true);
             return true;
         });

@@ -42,6 +42,7 @@ public class DocumentAcceptedEmailHandler :
         DocumentEmailContextResolver contextResolver,
         IAppointmentRecipientResolver recipientResolver,
         MissingRequiredDocumentsResolver missingRequiredDocumentsResolver,
+        OfficeNotificationRecipients officeRecipients,
         ICurrentTenant currentTenant,
         ILogger<DocumentAcceptedEmailHandler> logger,
         IAccountUrlBuilder accountUrlBuilder)
@@ -51,6 +52,7 @@ public class DocumentAcceptedEmailHandler :
             contextResolver,
             recipientResolver,
             missingRequiredDocumentsResolver,
+            officeRecipients,
             currentTenant,
             logger,
             accountUrlBuilder);
@@ -74,7 +76,6 @@ public class DocumentAcceptedEmailHandler :
             OccurredAt = eventData.OccurredAt,
             Kind = NotificationKind.DocumentAccepted,
             EmailKind = DocumentEmailKind.Accepted,
-            ExcludeOfficeFromCc = true,
             Uploader = ctx => (ctx.DocumentUploadedByUserId, ctx.DocumentUploadedByUserId.HasValue),
             RemainingDocsTemplateCode = NotificationTemplateConsts.Codes.PatientDocumentAcceptedRemainingDocs,
         });

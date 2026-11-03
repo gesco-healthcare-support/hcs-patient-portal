@@ -251,6 +251,74 @@ public class SendAppointmentEmailJobPathTests
         world.Messages(LogLevel.Warning).ShouldContain(m => m.Contains("NotifySendCompletedAsync threw"));
     }
 
+    // ------------------------------------------------------------------ several packets on one email
+
+    private static readonly Guid AttyCePacketId = new("7e57c000-0000-4000-9000-000000000004");
+
+    private static PacketAttachmentRef AttyCePacket() => new()
+    {
+        AppointmentId = AppointmentId,
+        PacketId = AttyCePacketId,
+        Kind = PacketKind.AttorneyClaimExaminer,
+    };
+
+    [Fact]
+    public async Task A_send_with_extra_packets_attaches_every_packet_in_order_on_one_message()
+    {
+        var world = new World();
+        world.Packets.GetAttachmentAsync(AppointmentId, PacketKind.AttorneyClaimExaminer, Arg.Any<CancellationToken>())
+            .Returns(new PacketAttachment(new byte[] { 1, 1 }, "TEST-00042_Attorney Packet.pdf", "application/pdf"));
+        world.Packets.GetAttachmentAsync(AppointmentId, PacketKind.Patient, Arg.Any<CancellationToken>())
+            .Returns(new PacketAttachment(new byte[] { 2, 2, 2 }, "TEST-00042_Patient Packet.pdf", "application/pdf"));
+        var args = Args(AttyCePacket());
+        args.ExtraPacketRefs.Add(PatientPacket());
+
+        await world.Job.ExecuteAsync(args);
+
+        var sent = world.Sender.Sent.ShouldHaveSingleItem();
+        sent.Attachments.Select(a => a.Name).ShouldBe(new[] { "TEST-00042_Attorney Packet.pdf", "TEST-00042_Patient Packet.pdf" });
+        sent.Attachments[0].Bytes.ShouldBe(new byte[] { 1, 1 });
+        sent.Attachments[1].Bytes.ShouldBe(new byte[] { 2, 2, 2 });
+        await world.Packets.Received(1).NotifySendCompletedAsync(AttyCePacketId, true, Arg.Any<CancellationToken>());
+        await world.Packets.Received(1).NotifySendCompletedAsync(PacketId, true, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task A_send_whose_extra_packet_is_not_generated_sends_nothing_rather_than_half_a_copy()
+    {
+        var world = new World();
+        world.Packets.GetAttachmentAsync(AppointmentId, PacketKind.AttorneyClaimExaminer, Arg.Any<CancellationToken>())
+            .Returns(new PacketAttachment(new byte[] { 1 }, "TEST-attorney.pdf", "application/pdf"));
+        world.Packets.GetAttachmentAsync(AppointmentId, PacketKind.Patient, Arg.Any<CancellationToken>())
+            .Returns((PacketAttachment?)null);
+        var args = Args(AttyCePacket());
+        args.ExtraPacketRefs.Add(PatientPacket());
+
+        await world.Job.ExecuteAsync(args);
+
+        world.Sender.Sent.ShouldBeEmpty();
+        world.Messages(LogLevel.Warning).ShouldContain(m => m.Contains("is not Generated; skipping"));
+    }
+
+    [Fact]
+    public async Task Job_arguments_serialized_before_extra_packets_existed_still_send_their_one_attachment()
+    {
+        // The Hangfire payload an in-flight job carries from before this field was added.
+        var oldJson = "{\"To\":\"TEST-patient@test.local\",\"Subject\":\"s\",\"Body\":\"b\",\"Context\":\"TEST/Old\","
+            + "\"PacketRef\":{\"AppointmentId\":\"" + AppointmentId + "\",\"PacketId\":\"" + PacketId + "\",\"Kind\":" + (int)PacketKind.Patient + "}}";
+        var args = System.Text.Json.JsonSerializer.Deserialize<SendAppointmentEmailArgs>(oldJson)!;
+        args.ExtraPacketRefs.ShouldNotBeNull();
+        args.ExtraPacketRefs.ShouldBeEmpty();
+
+        var world = new World();
+        world.Packets.GetAttachmentAsync(AppointmentId, PacketKind.Patient, Arg.Any<CancellationToken>())
+            .Returns(new PacketAttachment(new byte[] { 5 }, "TEST-patient.pdf", "application/pdf"));
+
+        await world.Job.ExecuteAsync(args);
+
+        world.Sender.Sent.ShouldHaveSingleItem().Attachments.ShouldHaveSingleItem().Name.ShouldBe("TEST-patient.pdf");
+    }
+
     // ------------------------------------------------------------------ no addresses in logs
 
     [Fact]

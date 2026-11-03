@@ -2,6 +2,7 @@ using System;
 using JetBrains.Annotations;
 using Volo.Abp;
 using Volo.Abp.Auditing;
+using Volo.Abp.Data;
 using Volo.Abp.Domain.Entities.Auditing;
 using Volo.Abp.MultiTenancy;
 
@@ -21,6 +22,14 @@ namespace HealthcareSupport.CaseEvaluation.NotificationTemplates;
 [Audited]
 public class NotificationTemplate : FullAuditedAggregateRoot<Guid>, IMultiTenant
 {
+    /// <summary>
+    /// 2026-11-02: the extra-property key that marks a row whose subject or body a staff member saved,
+    /// in the template editor, as something other than the shipped default. The seeder leaves a marked
+    /// row alone; before this, every DbMigrator run (which every deploy performs) put the shipped
+    /// subject and body back, silently discarding the staff member's edit.
+    /// </summary>
+    public const string EditedByStaffPropertyName = "EditedByStaff";
+
     public virtual Guid? TenantId { get; set; }
 
     [NotNull]
@@ -72,5 +81,24 @@ public class NotificationTemplate : FullAuditedAggregateRoot<Guid>, IMultiTenant
         BodySms = bodySms;
         Description = description;
         IsActive = isActive;
+    }
+
+    /// <summary>True when a staff member's saved subject or body differs from the shipped default.</summary>
+    public bool IsEditedByStaff() => this.GetProperty<bool>(EditedByStaffPropertyName);
+
+    /// <summary>
+    /// Records whether the editor's last save left the row different from the shipped default. Saving the
+    /// shipped content back clears the mark, so later shipped improvements reach the row again.
+    /// </summary>
+    public void MarkEditedByStaff(bool differsFromShippedDefault)
+    {
+        if (differsFromShippedDefault)
+        {
+            this.SetProperty(EditedByStaffPropertyName, true);
+        }
+        else
+        {
+            this.RemoveProperty(EditedByStaffPropertyName);
+        }
     }
 }

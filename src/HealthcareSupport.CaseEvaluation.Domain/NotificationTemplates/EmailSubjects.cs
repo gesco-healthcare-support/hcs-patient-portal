@@ -274,9 +274,12 @@ internal static class EmailSubjects
     public const string AppointmentCancelledRequestRejected =
         "Appointment Portal - ##EmailSubjectIdentity## - Cancellation request has been rejected";
 
-    /// <summary>OLD <c>AppointmentChangeRequestDomain.cs</c>:760. Typo "Your have" fixed.</summary>
+    /// <summary>
+    /// OLD <c>AppointmentChangeRequestDomain.cs</c>:760. Reworded neutral 2026-11-03: the email now
+    /// goes to every party, the office inbox and the Intake Staff, not only the requester.
+    /// </summary>
     public const string AppointmentRescheduleRequest =
-        "Appointment Portal - ##EmailSubjectIdentity## - You have successfully requested a reschedule";
+        "Appointment Portal - ##EmailSubjectIdentity## - Reschedule request received";
 
     /// <summary>OLD <c>AppointmentChangeRequestDomain.cs</c>:709 or :723 selected by ##ApprovedSubjectQualifier## (Cat 3 Adrian Decision: single template, variable-driven copy).</summary>
     public const string AppointmentRescheduleRequestApproved =
@@ -328,6 +331,18 @@ internal static class EmailSubjects
     public const string AccountEmailChanged =
         "Your Appointment Portal sign-in email was changed";
 
+    /// <summary>2026-11-03. ##SummaryLabel## is "Morning" or "Afternoon", the run the summary belongs to.</summary>
+    public const string OfficeDailySummary =
+        "Appointment Portal - ##ClinicName## - ##SummaryLabel## summary";
+
+    /// <summary>2026-11-03. The office inbox's copy of the attorney and patient packets (both attached).</summary>
+    public const string OfficePacketCopy =
+        "Appointment Portal - ##EmailSubjectIdentity## - Packet copies for the office";
+
+    /// <summary>2026-11-03. Names the label like <see cref="OfficeDailySummary"/>; covers every office.</summary>
+    public const string SupervisorDailySummary =
+        "Appointment Portal - ##SummaryLabel## summary, all offices";
+
     /// <summary>
     /// Item F (2026-08-22) -- sent to someone staff tried to invite who already has an account.
     /// Deliberately not phrased as an invitation: there is nothing to accept and no account to
@@ -335,6 +350,22 @@ internal static class EmailSubjects
     /// </summary>
     public const string ExternalUserPortalLink =
         "Appointment Portal - You already have an account at ##TenantName##";
+
+    /// <summary>2026-11-03 -- no-link notice to those not asked to agree to a reschedule.</summary>
+    public const string ChangeRequestConsentInfo =
+        "Appointment Portal - Appointment ##AppointmentRequestConfirmationNumber## - change waiting for agreement";
+
+    /// <summary>2026-11-03 -- a side declined a change request (office inbox + Intake Staff).</summary>
+    public const string ChangeRequestConsentDeclined =
+        "Appointment Portal - Appointment ##AppointmentRequestConfirmationNumber## - a party declined the change";
+
+    /// <summary>2026-11-03 -- appointment marked Not Seen (office inbox + Intake Staff).</summary>
+    public const string PatientAppointmentNotSeen =
+        "Appointment Portal - Appointment ##AppointmentRequestConfirmationNumber## marked Not Seen";
+
+    /// <summary>2026-11-03 -- appointment reminder, 7 days and 1 day before.</summary>
+    public const string AppointmentDayReminder =
+        "Appointment Portal - Reminder: appointment ##AppointmentRequestConfirmationNumber## on ##AppointmentDate##";
 
     /// <summary>Group D (2026-06-09) -- opposing-side consent request subject.</summary>
     public const string ChangeRequestConsentRequest =
@@ -439,6 +470,13 @@ internal static class EmailSubjects
             [NotificationTemplateConsts.Codes.InternalUserCreated] = InternalUserCreated,
             [NotificationTemplateConsts.Codes.AccountActivation] = AccountActivation,
             [NotificationTemplateConsts.Codes.AccountEmailChanged] = AccountEmailChanged,
+            [NotificationTemplateConsts.Codes.OfficeDailySummary] = OfficeDailySummary,
+            [NotificationTemplateConsts.Codes.OfficePacketCopy] = OfficePacketCopy,
+            [NotificationTemplateConsts.Codes.SupervisorDailySummary] = SupervisorDailySummary,
+            [NotificationTemplateConsts.Codes.ChangeRequestConsentInfo] = ChangeRequestConsentInfo,
+            [NotificationTemplateConsts.Codes.ChangeRequestConsentDeclined] = ChangeRequestConsentDeclined,
+            [NotificationTemplateConsts.Codes.PatientAppointmentNotSeen] = PatientAppointmentNotSeen,
+            [NotificationTemplateConsts.Codes.AppointmentDayReminder] = AppointmentDayReminder,
             [NotificationTemplateConsts.Codes.ChangeRequestConsentRequest] = ChangeRequestConsentRequest,
 
             // QA item M (2026-06-29): two wired codes that were shipping stub

@@ -31,6 +31,7 @@ public class ChangeRequestRejectedEmailHandler :
     private readonly INotificationDispatcher _dispatcher;
     private readonly DocumentEmailContextResolver _contextResolver;
     private readonly IAppointmentRecipientResolver _recipientResolver;
+    private readonly OfficeNotificationRecipients _officeRecipients;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<ChangeRequestRejectedEmailHandler> _logger;
 
@@ -38,12 +39,14 @@ public class ChangeRequestRejectedEmailHandler :
         INotificationDispatcher dispatcher,
         DocumentEmailContextResolver contextResolver,
         IAppointmentRecipientResolver recipientResolver,
+        OfficeNotificationRecipients officeRecipients,
         ICurrentTenant currentTenant,
         ILogger<ChangeRequestRejectedEmailHandler> logger)
     {
         _dispatcher = dispatcher;
         _contextResolver = contextResolver;
         _recipientResolver = recipientResolver;
+        _officeRecipients = officeRecipients;
         _currentTenant = currentTenant;
         _logger = logger;
     }
@@ -78,6 +81,9 @@ public class ChangeRequestRejectedEmailHandler :
                     role: r.Role,
                     isRegistered: r.IsRegistered))
                 .ToList();
+
+            // 2026-11-02: the office's Intake Staff are copied on the decision.
+            await _officeRecipients.AppendIntakeAsync(recipients);
 
             if (recipients.Count == 0)
             {

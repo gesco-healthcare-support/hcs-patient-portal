@@ -90,7 +90,7 @@ public class CaseTrackerFailureAlertJobTests
             TenantId = OfficeId,
         };
 
-    private static Harness Build(List<IntegrationOutboxItem> rows, bool withStaff = true, List<IdentityUser>? staff = null)
+    private static Harness Build(List<IntegrationOutboxItem> rows)
     {
         var runner = Substitute.For<ITenantWorkRunner>();
         runner.ForEachOfficeAsync(Arg.Any<Func<Guid, Task>>())
@@ -112,12 +112,6 @@ public class CaseTrackerFailureAlertJobTests
                 Arg.Any<Expression<Func<Appointment, bool>>>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new List<Appointment> { NewAppointment() }));
 
-        var users = Substitute.For<IIdentityUserRepository>();
-        users.GetListByNormalizedRoleNameAsync(Arg.Any<string>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(staff ?? (withStaff
-                ? new List<IdentityUser> { new(Guid.NewGuid(), "intake", "intake@example.test") }
-                : new List<IdentityUser>())));
-
         var clock = Substitute.For<IClock>();
         clock.Now.Returns(Now);
 
@@ -136,7 +130,7 @@ public class CaseTrackerFailureAlertJobTests
             Job = new CaseTrackerFailureAlertJob(
                 runner, outboxRepo,
                 new IntegrationOutboxManager(outboxRepo, SimpleGuidGenerator.Instance),
-                appointmentRepo, users, bus, tenantStore, clock,
+                appointmentRepo, bus, tenantStore, clock,
                 NullLogger<CaseTrackerFailureAlertJob>.Instance),
             Bus = bus,
             Rows = rows,
@@ -185,45 +179,20 @@ public class CaseTrackerFailureAlertJobTests
         await h.Bus.Received(1).PublishAsync(Arg.Any<CaseTrackerPushFailedEto>());
     }
 
+    /// <summary>
+    /// 2026-11-03: the alert goes to the technical list, not to office staff, so the job no longer looks
+    /// staff up. This fixture has no user repository at all, which is the proof: an office with no
+    /// Staff Supervisor or Intake Staff is alerted, and its rows are stamped.
+    /// </summary>
     [Fact]
-    public async Task WithNoInternalStaff_RowsAreLeftUnstampedSoALaterRunStillAlerts()
+    public async Task TheAlertDoesNotDependOnOfficeStaff_ItIsPublishedOnceAndStamped()
     {
-        // Stamping here would permanently swallow the batch for an office that simply had no staff yet.
-        var h = Build(new List<IntegrationOutboxItem> { NewFailed(alreadyAlerted: false) }, withStaff: false);
+        var h = Build(new List<IntegrationOutboxItem> { NewFailed(alreadyAlerted: false) });
 
         await h.Job.ExecuteAsync();
 
-        h.Rows[0].AlertedAt.ShouldBeNull();
-        await h.Bus.DidNotReceiveWithAnyArgs().PublishAsync(Arg.Any<CaseTrackerPushFailedEto>());
-    }
-
-    [Fact]
-    public async Task WithOnlySwitchedOffStaff_NothingIsSentAndRowsStayUnstamped()
-    {
-        // 2026-10-26: a switched-off account keeps its role (an unassigned operator's shadow login) but must
-        // get no alert -- and an office whose only staff are switched off is an office with no staff yet.
-        var switchedOff = new IdentityUser(Guid.NewGuid(), "intake-off", "intake-off@example.test");
-        switchedOff.SetIsActive(false);
-        var h = Build(new List<IntegrationOutboxItem> { NewFailed(alreadyAlerted: false) }, staff: new List<IdentityUser> { switchedOff });
-
-        await h.Job.ExecuteAsync();
-
-        h.Rows[0].AlertedAt.ShouldBeNull();
-        await h.Bus.DidNotReceiveWithAnyArgs().PublishAsync(Arg.Any<CaseTrackerPushFailedEto>());
-    }
-
-    [Fact]
-    public async Task ASwitchedOffStaffUser_GetsNoAlert_WhileAnActiveOneDoes()
-    {
-        var active = new IdentityUser(Guid.NewGuid(), "intake-on", "intake-on@example.test");
-        var switchedOff = new IdentityUser(Guid.NewGuid(), "intake-off", "intake-off@example.test");
-        switchedOff.SetIsActive(false);
-        var h = Build(new List<IntegrationOutboxItem> { NewFailed(alreadyAlerted: false) }, staff: new List<IdentityUser> { active, switchedOff });
-
-        await h.Job.ExecuteAsync();
-
-        await h.Bus.Received(1).PublishAsync(Arg.Is<CaseTrackerPushFailedEto>(e => e.StaffEmail == "intake-on@example.test"));
-        await h.Bus.DidNotReceive().PublishAsync(Arg.Is<CaseTrackerPushFailedEto>(e => e.StaffEmail == "intake-off@example.test"));
+        await h.Bus.Received(1).PublishAsync(Arg.Any<CaseTrackerPushFailedEto>());
+        h.Rows[0].AlertedAt.ShouldBe(Now);
     }
 
     [Fact]
@@ -283,16 +252,6 @@ public class CaseTrackerFailureAlertJobTests
             e.Kind == CaseTrackerPushAlertKind.DeadLettered && e.FailureCount == 1));
         await h.Bus.Received(1).PublishAsync(Arg.Is<CaseTrackerPushFailedEto>(e =>
             e.Kind == CaseTrackerPushAlertKind.StillRetrying && e.FailureCount == 1));
-    }
-
-    [Fact]
-    public async Task WithNoInternalStaff_RetryingPushesAreLeftUnstamped()
-    {
-        var h = Build(new List<IntegrationOutboxItem> { NewRetrying(2) }, withStaff: false);
-
-        await h.Job.ExecuteAsync();
-
-        await h.Repository.DidNotReceiveWithAnyArgs().StampEarlyWarnedAsync(default!, default, default);
     }
 
     [Fact]

@@ -20,7 +20,8 @@ public sealed record RecordedDispatch(
     string TemplateCode,
     string? To,
     IReadOnlyList<string> Recipients,
-    IReadOnlyDictionary<string, object?> Variables);
+    IReadOnlyDictionary<string, object?> Variables,
+    string ContextTag = "");
 
 /// <summary>
 /// Stands in for <see cref="INotificationDispatcher"/> so a handler test can assert exactly what
@@ -52,7 +53,7 @@ public sealed class RecordingNotificationDispatcher : INotificationDispatcher
     {
         ThrowIfConfigured(templateCode);
         _dispatches.Add(new RecordedDispatch(
-            templateCode, To: null, recipients.Select(r => r.Email).ToList(), variables));
+            templateCode, To: null, recipients.Select(r => r.Email).ToList(), variables, contextTag));
         return Task.CompletedTask;
     }
 
@@ -68,7 +69,7 @@ public sealed class RecordingNotificationDispatcher : INotificationDispatcher
         ThrowIfConfigured(templateCode);
         var all = new List<string> { to.Email };
         all.AddRange(cc.Select(r => r.Email));
-        _dispatches.Add(new RecordedDispatch(templateCode, to.Email, all, variables));
+        _dispatches.Add(new RecordedDispatch(templateCode, to.Email, all, variables, contextTag));
         return Task.CompletedTask;
     }
 

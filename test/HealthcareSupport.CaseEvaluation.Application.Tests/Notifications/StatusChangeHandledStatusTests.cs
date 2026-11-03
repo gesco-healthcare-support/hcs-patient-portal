@@ -18,6 +18,7 @@ public class StatusChangeHandledStatusTests
     [InlineData(AppointmentStatusType.Approved)]
     [InlineData(AppointmentStatusType.Rejected)]
     [InlineData(AppointmentStatusType.CancelledNoBill)]
+    [InlineData(AppointmentStatusType.NotSeen)]
     public void Handles_send_back_and_existing_status_emails(AppointmentStatusType status)
     {
         StatusChangeEmailHandler.IsHandledStatus(status).ShouldBeTrue();
