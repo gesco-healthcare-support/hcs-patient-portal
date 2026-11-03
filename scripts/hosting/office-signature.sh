@@ -14,6 +14,11 @@
 # The office id is the tenant's Id in the host database: SELECT Id, Name FROM SaasTenants.
 # The file must be a PNG (checked by its first eight bytes, not its name), not empty, and at most 200 KB; the
 # application applies the same two checks on every read, so a file that passes here is one it will print.
+# It must also have a TRANSPARENT background (an alpha channel or a tRNS chunk): the image is laid over the
+# signature line and slightly overlaps the line above, so a white background would hide that text. Make the
+# white around a scanned signature transparent first, e.g. with any image editor, or with Pillow:
+#   im = Image.open(src).convert('RGBA'); im.putdata([(r, g, b, 0) if min(r, g, b) > 235 else (r, g, b, a)
+#       for r, g, b, a in im.getdata()]); im.save(dst)
 #
 # It uses the application's own MinIO credential (MINIO_APP_ACCESS_KEY / MINIO_APP_SECRET_KEY, policy
 # portal-app-rw: object read/write on the documents bucket, no admin), not the root login. Credentials travel on
@@ -95,6 +100,11 @@ size="$(wc -c < "$file" | tr -d ' ')"
 [[ "$size" -le "$MAX_BYTES" ]] || fail "the file is ${size} bytes; the limit is ${MAX_BYTES} (200 KB)"
 magic="$(head -c 8 "$file" | od -An -tx1 | tr -d ' \n')"
 [[ "$magic" == "$PNG_MAGIC" ]] || fail "the file is not a PNG (its first eight bytes are not the PNG signature)"
+# The IHDR colour type (byte 25): 4 and 6 carry an alpha channel; any other type needs a tRNS chunk.
+color_type="$(od -An -tu1 -j25 -N1 "$file" | tr -d ' \n')"
+if [[ "$color_type" != 4 && "$color_type" != 6 ]] && ! grep -qa tRNS "$file"; then
+  fail "the PNG has no transparent background; make the white around the signature transparent first (see the header)"
+fi
 sha="$(sha256sum "$file" | cut -d' ' -f1)"
 
 # Absolute, so the bind mount source is never read as a volume name.

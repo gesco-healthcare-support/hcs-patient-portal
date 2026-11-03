@@ -37,6 +37,16 @@ OFFICE = "0f8fad5b-d9cb-469f-a165-70867728950e"
 OFFICE_KEY = "host/office-signatures/0f8fad5bd9cb469fa16570867728950e.png"
 PNG_MAGIC = bytes([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
 
+
+def synthetic_png(color_type=6, total=None, trns=False):
+    """SYNTHETIC bytes: the PNG signature, an IHDR naming the colour type, then filler (never a real image)."""
+    head = PNG_MAGIC + b"\x00\x00\x00\x0dIHDR" + (16).to_bytes(4, "big") + (8).to_bytes(4, "big") \
+        + bytes([8, color_type, 0, 0, 0]) + b"\x00\x00\x00\x00"
+    if trns:
+        head += b"\x00\x00\x00\x01tRNS\x00\x00\x00\x00\x00"
+    filler = bytes(range(1, 200)) if total is None else b"\x00" * (total - len(head))
+    return head + filler
+
 # Logs its arguments, remembers the one -v mount, then runs the piped script with the fake mc first on PATH.
 FAKE_DOCKER = r"""#!/usr/bin/env bash
 { printf '%s\x1f' "$@"; printf '\n'; } >> "$FAKE_DIR/docker.log"
@@ -92,7 +102,7 @@ class OfficeSignature(unittest.TestCase):
             f"MINIO_APP_ACCESS_KEY={self.app_key}\nMINIO_APP_SECRET_KEY={self.app_secret}\n"
             "MINIO_BUCKET_NAME=case-evaluation-documents\n", encoding="utf-8", newline="\n")
         self.png = self.dir / "synthetic.png"
-        self.png_bytes = PNG_MAGIC + bytes(range(1, 200))
+        self.png_bytes = synthetic_png()
         self.png.write_bytes(self.png_bytes)
 
     def tearDown(self):
@@ -158,6 +168,24 @@ class OfficeSignature(unittest.TestCase):
         self.assertNotEqual(code, 0)
         self.assertEqual(self.docker_calls(), [])
 
+    def test_a_png_without_transparency_is_refused(self):
+        opaque = self.dir / "opaque.png"
+        opaque.write_bytes(synthetic_png(color_type=2))
+        code, output = self.run_script(OFFICE, shell_path(opaque))
+        self.assertNotEqual(code, 0)
+        self.assertIn("transparent", output)
+        self.assertEqual(self.docker_calls(), [], "an opaque image must not reach MinIO")
+
+    def test_a_png_with_alpha_or_a_trns_chunk_is_accepted(self):
+        for name, data in (("ga.png", synthetic_png(color_type=4)),
+                           ("palette.png", synthetic_png(color_type=3, trns=True))):
+            with self.subTest(name):
+                path = self.dir / name
+                path.write_bytes(data)
+                code, output = self.run_script(OFFICE, shell_path(path))
+                self.assertEqual(code, 0, output)
+                self.assertEqual(self.stored(), data)
+
     def test_an_empty_file_is_refused(self):
         empty = self.dir / "empty.png"
         empty.write_bytes(b"")
@@ -168,13 +196,13 @@ class OfficeSignature(unittest.TestCase):
 
     def test_a_file_over_200_kb_is_refused_and_one_at_the_limit_is_accepted(self):
         big = self.dir / "big.png"
-        big.write_bytes(PNG_MAGIC + b"\x00" * (204800 - 8 + 1))
+        big.write_bytes(synthetic_png(total=204800 + 1))
         code, output = self.run_script(OFFICE, shell_path(big))
         self.assertNotEqual(code, 0)
         self.assertIn("204800", output)
         self.assertEqual(self.docker_calls(), [])
         exact = self.dir / "exact.png"
-        exact.write_bytes(PNG_MAGIC + b"\x00" * (204800 - 8))
+        exact.write_bytes(synthetic_png(total=204800))
         code, output = self.run_script(OFFICE, shell_path(exact))
         self.assertEqual(code, 0, output)
 

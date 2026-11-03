@@ -264,7 +264,7 @@ def qme_form():
         # variant, which shares the stylesheet, is unchanged. data-if hides it when the token is "".
         + '<span class="sig" style="position:relative">'
         + '<img data-if="##Office.SignatureImage##" src="##Office.SignatureImage##" alt="" '
-        + 'style="position:absolute;left:0.3in;bottom:-5px;width:1.28in;height:0.55in;object-fit:contain">'
+        + 'style="position:absolute;left:0.3in;bottom:-16px;width:1.28in;height:0.40in;object-fit:contain">'
         + '</span></div>'
         + '<div class="note">Note to Claims Administrator: The Administrative Director\'s regulation 10160 requires '
         + 'you to forward a completed, DWC-AD form 101(DEU) (Request for Summary Rating Determination of Qualified '
