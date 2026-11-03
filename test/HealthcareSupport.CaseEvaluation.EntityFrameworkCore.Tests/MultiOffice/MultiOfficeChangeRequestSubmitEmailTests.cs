@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
+using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using HealthcareSupport.CaseEvaluation.Notifications.Outbox;
@@ -13,13 +14,10 @@ using Xunit;
 namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.MultiOffice;
 
 /// <summary>
-/// Pins which change-request SUBMITS send a stakeholder email (Adrian, 2026-08-05).
-///
-/// <para>A RESCHEDULE submit sends none: the consent email dispatched when staff confirm a date
-/// already tells both sides a reschedule was requested AND names the date, which the submit
-/// email could not -- since 4b the external path leaves <c>NewDoctorAvailabilityId</c> null, so
-/// its date variables rendered empty. A CANCELLATION submit keeps its email, because
-/// cancellation consent is issued at submit and there is no later message to fold it into.</para>
+/// Pins that change-request SUBMITS send a stakeholder email. A RESCHEDULE submit was silent from
+/// 2026-08-05 (its date variables rendered empty on the external path, which leaves
+/// <c>NewDoctorAvailabilityId</c> null); 2026-11-03 (email routing, row 7) sends it again with a details
+/// block that omits the date line when no date was proposed. A CANCELLATION submit always sent one.
 /// </summary>
 [Collection(MultiOfficeCollection.Name)]
 public class MultiOfficeChangeRequestSubmitEmailTests : ConsentRoundTestBase
@@ -42,7 +40,7 @@ public class MultiOfficeChangeRequestSubmitEmailTests : ConsentRoundTestBase
     }
 
     [Fact]
-    public async Task A_reschedule_submit_queues_no_stakeholder_email()
+    public async Task A_reschedule_submit_queues_the_reschedule_request_email()
     {
         var (office, _) = await GetSeededOfficesAsync();
         var changeRequestId = Guid.NewGuid();
@@ -51,13 +49,20 @@ public class MultiOfficeChangeRequestSubmitEmailTests : ConsentRoundTestBase
         {
             await SeedTemplatesAsync(office.OfficeId);
             await SeedRescheduleRequestAsync(office, changeRequestId);
+
+            // Nobody told the patient asked, so the patient is left off: the notice needs another party
+            // (an attorney named on the appointment) to have anyone to go to.
+            var appointments = GetRequiredService<IRepository<Appointment, Guid>>();
+            var appointment = await appointments.GetAsync(office.AppointmentId);
+            appointment.ApplicantAttorneyEmail = "TEST-reschedule-aa@test.local";
+            await appointments.UpdateAsync(appointment, autoSave: true);
         });
 
         await InOfficeAsync(office, () => PublishSubmittedAsync(
             office, changeRequestId, ChangeRequestType.Reschedule));
 
         await InOfficeAsync(office, async () =>
-            (await CountSubmitRowsAsync(changeRequestId)).ShouldBe(0));
+            (await CountSubmitRowsAsync(changeRequestId)).ShouldBeGreaterThan(0));
     }
 
     [Fact]

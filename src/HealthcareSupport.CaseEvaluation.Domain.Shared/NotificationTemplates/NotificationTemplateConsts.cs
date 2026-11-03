@@ -283,7 +283,50 @@ public static class NotificationTemplateConsts
         public const string AccountEmailChanged = "AccountEmailChanged";
 
         /// <summary>
-        /// All 72 codes in seed order (count asserted by
+        /// 2026-11-03 -- the 08:00 / 16:00 Pacific summary for one office, to its notification inbox and its
+        /// Intake Staff. Replaces the daily pending digest and the per-staff queue-counts email.
+        /// </summary>
+        public const string OfficeDailySummary = "OfficeDailySummary";
+
+        /// <summary>
+        /// 2026-11-03 -- the 08:00 / 16:00 Pacific all-offices summary, to each host Staff Supervisor. Sent from
+        /// host scope by a host recurring job.
+        /// </summary>
+        public const string SupervisorDailySummary = "SupervisorDailySummary";
+
+        /// <summary>
+        /// 2026-11-03 -- the office inbox's copy of an appointment's packets: ONE email carrying the attorney /
+        /// claim examiner packet and the patient packet (never the doctor packet). Sent once both are generated.
+        /// </summary>
+        public const string OfficePacketCopy = "OfficePacketCopy";
+
+        /// <summary>
+        /// 2026-11-03 (email routing, row 8) -- no-link notice that a reschedule is waiting for the two
+        /// sides to agree. Sent to everyone NOT asked to consent: the claim examiner when not a link
+        /// holder, the office inbox and the Intake Staff. Never to the patient.
+        /// </summary>
+        public const string ChangeRequestConsentInfo = "ChangeRequestConsentInfo";
+
+        /// <summary>
+        /// 2026-11-03 (row 9d) -- a side declined a change request. Sent at once to the office inbox and
+        /// the Intake Staff only; the parties hear when staff close the request.
+        /// </summary>
+        public const string ChangeRequestConsentDeclined = "ChangeRequestConsentDeclined";
+
+        /// <summary>
+        /// 2026-11-03 (row 16) -- an appointment was marked Not Seen (inbound from the Case Tracker).
+        /// Office inbox + Intake Staff, with wording of its own (the no-show body says "No-Show").
+        /// </summary>
+        public const string PatientAppointmentNotSeen = "PatientAppointmentNotSeen";
+
+        /// <summary>
+        /// 2026-11-03 (row 15) -- the appointment reminder, 7 days and 1 day before. Patient, office
+        /// inbox and Intake Staff. Variables: ##ReminderWhen## ("in 7 days" / "tomorrow").
+        /// </summary>
+        public const string AppointmentDayReminder = "AppointmentDayReminder";
+
+        /// <summary>
+        /// All 79 codes in seed order (count asserted by
         /// <c>NotificationTemplatesValidatorUnitTests.Codes_All_Has64Codes</c> -- keep both in step;
         /// this comment had drifted by one before 2026-07-28). Used by
         /// <c>NotificationTemplateDataSeedContributor</c> to ensure each
@@ -352,6 +395,17 @@ public static class NotificationTemplateConsts
 
             // 2026-10-27 -- "your sign-in email was changed", to the previous address.
             AccountEmailChanged,
+
+            // 2026-11-03 -- twice-daily office and supervisor summaries.
+            OfficeDailySummary,
+            SupervisorDailySummary,
+
+            // 2026-11-03 -- the office inbox's copy of the attorney and patient packets.
+            OfficePacketCopy,
+
+            // 2026-11-03 -- email routing v2 notices (B2a).
+            ChangeRequestConsentInfo, ChangeRequestConsentDeclined,
+            PatientAppointmentNotSeen, AppointmentDayReminder,
         };
 
         /// <summary>
@@ -373,6 +427,8 @@ public static class NotificationTemplateConsts
         ///         screen, or one asking for a new activation link, is sent it from host scope.</item>
         ///   <item><c>AccountEmailChanged</c> (2026-10-27) -- an administrator changes a host user's
         ///         sign-in email from host scope.</item>
+        ///   <item><c>SupervisorDailySummary</c> (2026-11-03) -- the all-offices summary a host recurring job
+        ///         sends to each host Staff Supervisor twice a day.</item>
         ///   <item><c>CaseTrackerMissingIntakes</c> (#944, 2026-09-24) -- the weekly cross-office
         ///         missing-intake report, sent by a host recurring job. The one entry that is not
         ///         account lifecycle: it reports on every office at once, so no office scope fits.</item>
@@ -390,6 +446,7 @@ public static class NotificationTemplateConsts
             CaseTrackerMissingIntakes,
             AccountActivation,
             AccountEmailChanged,
+            SupervisorDailySummary,
         };
     }
 }

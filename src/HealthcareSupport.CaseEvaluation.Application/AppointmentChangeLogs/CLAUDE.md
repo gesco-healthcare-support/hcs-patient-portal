@@ -26,8 +26,8 @@ Shared engines under `Appointments/Auditing/`: `AuditFieldPolicy` (PHI allowlist
   primary insurance FK to `AppointmentInjuryDetailId`. The AppService resolves those ids and
   queries `EntityChange` per id (+ per type for the global list).
 - **Email:** `AppointmentIntakeChangedEto` (carries already-redacted fields) ->
-  `IntakeChangedEmailHandler` -> `AppointmentChangeLogs` template (diff table) to all
-  stakeholders, plus `AppointmentRescheduleRequestByAdmin` one-shot when date/time changed.
+  `IntakeChangedEmailHandler` -> `AppointmentChangeLogs` template (diff table) to the office
+  inbox ONLY (2026-11-03; no parties, and no second `AppointmentRescheduleRequestByAdmin` mail).
 - **Angular:** the per-appointment viewer (`appointments/appointment-change-logs/`) GETs
   `by-appointment/{id}`; the global list page (`appointment-change-logs/`) uses `getList`.
 

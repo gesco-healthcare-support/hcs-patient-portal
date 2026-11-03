@@ -37,6 +37,7 @@ public class AppointmentRecipientResolver : IAppointmentRecipientResolver, ITran
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly IRepository<Patient, Guid> _patientRepository;
     private readonly IRepository<IdentityUser, Guid> _identityUserRepository;
+    private readonly IIdentityUserRepository _identityUserQueries;
     private readonly IAppointmentApplicantAttorneyRepository _appointmentApplicantAttorneyRepository;
     private readonly IRepository<ApplicantAttorney, Guid> _applicantAttorneyRepository;
     private readonly IAppointmentDefenseAttorneyRepository _appointmentDefenseAttorneyRepository;
@@ -51,6 +52,7 @@ public class AppointmentRecipientResolver : IAppointmentRecipientResolver, ITran
         IRepository<Appointment, Guid> appointmentRepository,
         IRepository<Patient, Guid> patientRepository,
         IRepository<IdentityUser, Guid> identityUserRepository,
+        IIdentityUserRepository identityUserQueries,
         IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository,
         IRepository<ApplicantAttorney, Guid> applicantAttorneyRepository,
         IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository,
@@ -64,6 +66,7 @@ public class AppointmentRecipientResolver : IAppointmentRecipientResolver, ITran
         _appointmentRepository = appointmentRepository;
         _patientRepository = patientRepository;
         _identityUserRepository = identityUserRepository;
+        _identityUserQueries = identityUserQueries;
         _appointmentApplicantAttorneyRepository = appointmentApplicantAttorneyRepository;
         _applicantAttorneyRepository = applicantAttorneyRepository;
         _appointmentDefenseAttorneyRepository = appointmentDefenseAttorneyRepository;
@@ -231,14 +234,25 @@ public class AppointmentRecipientResolver : IAppointmentRecipientResolver, ITran
         // IP6 (2026-06-05): IdentityUserId is nullable -- an unclaimed patient
         // record has no login. Skip the booker-identity pass when absent; the
         // patient-row pass below still contributes the patient's email.
-        if (appointment.IdentityUserId.HasValue)
-        {
-            var bookerUser = await _identityUserRepository.FindAsync(appointment.IdentityUserId.Value);
-            AddIfPresent(bookerUser?.Email, RecipientRole.Patient, "booker");
-        }
-
+        // The patient row claims its address first, so the actual patient keeps the Patient tag the
+        // change-request side resolver relies on (side A falls back to the first Patient-tagged
+        // recipient); a submitter who is not a named party is added after it.
         var patient = await _patientRepository.FindAsync(appointment.PatientId);
         AddIfPresent(patient?.Email, RecipientRole.Patient, "patient");
+
+        // 2026-11-03: the booker is the account that SUBMITTED the request (creator, else the stamped
+        // BookedByUserId), not the patient's login in IdentityUserId. A staff submitter is not a
+        // recipient: the office hears through the inbox and the Intake Staff, so staff are never mailed
+        // as the booker. The patient is reached through the patient email column / patient row below.
+        if (AppointmentSubmitter.IdOf(appointment) is { } submitterId)
+        {
+            var submitter = await _identityUserRepository.FindAsync(submitterId);
+            if (submitter != null
+                && !AppointmentSubmitter.HoldsStaffRole(await _identityUserQueries.GetRoleNamesAsync(submitterId)))
+            {
+                AddIfPresent(submitter.Email, RecipientRole.Patient, "booker");
+            }
+        }
 
         // 2026-05-07 follow-on (#5): office mailbox last so any party that
         // shares that email keeps its party role. Office only lands when

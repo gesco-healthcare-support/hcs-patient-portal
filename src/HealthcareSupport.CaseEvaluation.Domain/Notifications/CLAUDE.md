@@ -14,10 +14,10 @@ deferred until Twilio creds land (Phase 18 open item).
 | `AppNotificationManager.cs` | Raises those rows for a whole office's Staff Supervisors + Intake Staff. Runs inside the office's tenant scope |
 | `StaffRecipients.cs` | Who a role-based notice goes to: the role's holders who are switched ON (2026-10-26). Every staff email, digest, alert and in-app notice reads its users through it, so a switched-off account (an unassigned operator's office login keeps its role) gets nothing |
 | `ReminderCadence.cs` | Value object turning a comma-separated anchor list (`"14,7,3"`) into a firing predicate. No DI, no IO. Parsing is defensive because the list is admin-editable |
-| `Outbox/` | Store-and-forward email: `NotificationOutboxItem`, `NotificationOutboxManager`, `OutboxDrainJob`, `OutboxDrainService`, `OutboxEmailSender` |
-| `Jobs/PendingDailyDigestJob.cs` | 09:00 PT -- digest of Pending appointments to intake-staff inbox |
-| `Jobs/InternalStaffQueueDigestJob.cs` | 09:15 PT -- per-staff queue counts (Staff Supervisor + Intake Staff only) |
+| `Outbox/` | Store-and-forward email: `NotificationOutboxItem`, `NotificationOutboxManager`, `OutboxDrainJob`, `OutboxDrainService`, `OutboxEmailSender`. One email can carry several packets (the office inbox's packet copy, 2026-11-03): the first rides the existing `Packet*` columns, the rest are a JSON array in the row's `ExtraProperties` (no schema change), mapped to `SendAppointmentEmailArgs.ExtraPacketRefs` by the drain |
+| `Jobs/RetiredRecurringJobs.cs` | Hangfire ids of retired jobs; the host module purges each with `RemoveIfExists`. Holds the two daily digests' ids, replaced 2026-11-03 by `StaffSummaryJob` (in `Application/Notifications/Jobs/`, 08:00 and 16:00 PT: one summary per office to the inbox + active Intake Staff, one all-offices summary to each active host Staff Supervisor) |
 | `Jobs/AppointmentReminderJob.cs` | 08:15 PT -- the CONSOLIDATED due-date reminder. Anchors come from `RemindersPolicy.DueDateApproachingAnchors`; due-date nudge and outstanding documents go out as ONE email |
+| `../Appointments/Notifications/Jobs/AppointmentDayReminderJob.cs` | 07:00 PT -- raises `AppointmentDayReminderEto` for Approved appointments 7 and 1 days out; `AppointmentDayReminderEmailHandler` mails the patient + office inbox + Intake Staff from the `AppointmentDayReminder` template. Gated by its OWN switch `RemindersPolicy.AppointmentDayReminderEnabled` (default ON). The global `RemindersEnabled` (default OFF) still gates the other three reminder jobs |
 | `Jobs/JointDeclarationOverdueJob.cs` | 06:00 PT -- FLAGS joint-declaration-overdue appointments. It does NOT cancel |
 | `Jobs/ApprovalReconciliationJob.cs` | Approval reconciliation |
 | `Jobs/PacketReconciliation.cs` | Packet reconciliation |
@@ -59,8 +59,9 @@ a backlog that used to be silently absorbed.
 | `../Appointments/Handlers/SlotCascadeHandler.cs` | Log-only stub; subscribes to AppointmentStatusChangedEto |
 
 Application layer counterparts (Application/Notifications/):
-NotificationDispatcher, NotificationTemplateRenderer, CcRecipientAppender, EmailSubjectBuilder,
-TenantUrlComposer, AccountUrlBuilder, and 18+ event handlers.
+NotificationDispatcher, NotificationTemplateRenderer, OfficeNotificationRecipients, PatientBeforeApprovalRule
+(the patient is left off request/rejected/sent-back mail unless they submitted the request),
+EmailSubjectBuilder, TenantUrlComposer, AccountUrlBuilder, and 18+ event handlers.
 
 ## Conventions
 
@@ -92,7 +93,9 @@ placeholders are left in place, not blanked.
 4. Four appointment-level email columns (PatientEmail / AA / DA / CE) -- classified via
    `IRecipientRoleResolver.ClassifyAsync` against the EXPECTED role, not a bare email existence
    check (bare check caused off-role dashboard routing bug B13)
-5. Booker (IdentityUser) and Patient row
+5. Patient row, then the booker -- the account that SUBMITTED the request (`AppointmentSubmitter.IdOf`:
+   creator, else `BookedByUserId`; not the patient login in `IdentityUserId`). A submitter holding an
+   office-side role (`AppointmentSubmitter.StaffRoleNames`) is skipped: staff are never mailed as the booker.
 6. OfficeEmail setting (last, so a shared address keeps its party role)
 
 `NotificationKind` is passed to `ResolveAsync` but the current resolver applies the same logic
@@ -141,9 +144,10 @@ This is the correct pattern; do not add cross-tenant queries without the scope c
   packet-attachment path silently skips ("is not Generated").
 - `TemplateVariableSubstitutor` lives in Domain (not Application) so the AuthServer's
   `IAccountEmailer` override can use it without a cross-layer reference.
-- `CcRecipientAppender` (Application layer) appends the per-tenant `SystemParameter.CcEmailIds`
-  (semicolon-separated) list to a recipient collection. It is NOT called on the
-  AppointmentRequested fan-out (Decision 2.1, 2026-05-08) -- only on the ApproveReject blast.
+- `OfficeNotificationRecipients` (Application layer, 2026-11-02) is the office's own copy of an
+  email: the office notification inbox plus the active Intake Staff, one row per address. Staff
+  Supervisors get no per-event mail and the per-tenant `SystemParameter.CcEmailIds` list is no longer
+  appended anywhere (the column and its screen field remain).
 
 ## Related
 

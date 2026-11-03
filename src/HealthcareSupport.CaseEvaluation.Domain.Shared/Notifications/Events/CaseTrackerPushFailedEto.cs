@@ -4,8 +4,9 @@ using System.Collections.Generic;
 namespace HealthcareSupport.CaseEvaluation.Notifications.Events;
 
 /// <summary>
-/// Part 5 (2026-07-28) -- raised once per internal staff member when Case Tracker pushes have
-/// dead-lettered in their office and nobody has been told yet. Since #917 (2026-09-23) it is also
+/// Part 5 (2026-07-28) -- raised once per alert when Case Tracker pushes have dead-lettered in an
+/// office and nobody has been told yet. Since 2026-11-03 it carries no staff member: the email goes to
+/// the technical list only, and the office's Staff Supervisors and Intake Staff are not alerted. Since #917 (2026-09-23) it is also
 /// raised, with <see cref="Kind"/> = <see cref="CaseTrackerPushAlertKind.StillRetrying"/>, for pushes
 /// that have failed repeatedly but are still inside the 24-hour retry window -- an early warning, so
 /// staff do not first hear of an outage a day after it began.
@@ -28,12 +29,6 @@ public class CaseTrackerPushFailedEto
     public Guid? TenantId { get; set; }
 
     public string OfficeName { get; set; } = string.Empty;
-
-    public Guid StaffUserId { get; set; }
-
-    public string StaffEmail { get; set; } = string.Empty;
-
-    public string? StaffFirstName { get; set; }
 
     /// <summary>Total rows in this batch, which may exceed <see cref="Failures"/>' length.</summary>
     public int FailureCount { get; set; }

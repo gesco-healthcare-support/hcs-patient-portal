@@ -144,6 +144,15 @@ names from the parity audit (e.g., "Rejected Joint Declaration Document" not
 - **As built (2026-10-29):** a raw HTML textarea with a sandboxed rendered
   preview. A Quill WYSIWYG was tried and removed: it dropped the bodies'
   tables and inline styles on load, so saving any edit stripped the template.
+- **As built (2026-11-02):** a saved edit now survives deploys. Every deploy
+  runs the DbMigrator, whose template seeder used to put the shipped subject
+  and body back on every template with a shipped HTML body. Saving a subject or
+  body that differs from the shipped default now marks the row
+  (`EditedByStaff`), and the seeder leaves marked rows alone; saving the
+  shipped text back clears the mark. The shipped body itself is stored byte
+  for byte (it skips the sanitizer), so a subject-only edit keeps it intact; a
+  body staff really edit is still sanitized and stored as the sanitizer's
+  fragment, without the DOCTYPE/head wrapper (pre-existing behaviour).
 
 **Buttons:** Save (`btn btn-primary`) / Cancel (`btn btn-secondary`)
 

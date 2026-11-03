@@ -1701,8 +1701,6 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         // is kept at "appt-duedate-approaching", so this updates that existing
         // entry in place; the two retired jobs' recurring entries are purged
         // below so they stop invoking their now-deleted job types.
-        //   09:00 -- PendingDailyDigestJob       (digest to intake-staff inbox)
-        //   09:15 -- InternalStaffQueueDigestJob (per-staff queue counts)
         global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.Notifications.Jobs.AppointmentReminderJob>(
             HealthcareSupport.CaseEvaluation.Notifications.Jobs.AppointmentReminderJob.RecurringJobId,
             j => j.ExecuteAsync(),
@@ -1714,16 +1712,17 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
         global::Hangfire.RecurringJob.RemoveIfExists("appt-duedate-document-incomplete");
         global::Hangfire.RecurringJob.RemoveIfExists("appt-package-doc-reminder");
 
-        global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.Notifications.Jobs.PendingDailyDigestJob>(
-            HealthcareSupport.CaseEvaluation.Notifications.Jobs.PendingDailyDigestJob.RecurringJobId,
-            j => j.ExecuteAsync(),
-            HealthcareSupport.CaseEvaluation.Notifications.Jobs.PendingDailyDigestJob.CronExpression,
-            options);
+        // 2026-11-03: the two daily digests are replaced by ONE twice-daily summary job (08:00 and
+        // 16:00 PT, the Pacific options above); their recurring entries are purged.
+        foreach (var retiredId in HealthcareSupport.CaseEvaluation.Notifications.Jobs.RetiredRecurringJobs.Ids)
+        {
+            global::Hangfire.RecurringJob.RemoveIfExists(retiredId);
+        }
 
-        global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.Notifications.Jobs.InternalStaffQueueDigestJob>(
-            HealthcareSupport.CaseEvaluation.Notifications.Jobs.InternalStaffQueueDigestJob.RecurringJobId,
+        global::Hangfire.RecurringJob.AddOrUpdate<HealthcareSupport.CaseEvaluation.Notifications.Jobs.StaffSummaryJob>(
+            HealthcareSupport.CaseEvaluation.Notifications.Jobs.StaffSummaryJob.RecurringJobId,
             j => j.ExecuteAsync(),
-            HealthcareSupport.CaseEvaluation.Notifications.Jobs.InternalStaffQueueDigestJob.CronExpression,
+            HealthcareSupport.CaseEvaluation.Notifications.Jobs.StaffSummaryJob.CronExpression,
             options);
 
         // #15 (2026-06-22) -- daily 03:00 PT TTL purge of stale booking drafts

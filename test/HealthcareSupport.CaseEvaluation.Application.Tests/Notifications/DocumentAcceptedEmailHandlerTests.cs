@@ -94,11 +94,14 @@ public class DocumentAcceptedEmailHandlerTests
             UrlBuilder.BuildPortalRootUrlAsync(Arg.Any<Guid?>()).Returns(PortalRoot);
         }
 
+        public FakeOfficeRecipients Office { get; } = new();
+
         public DocumentAcceptedEmailHandler Build() => new(
             Dispatcher,
             ContextResolver,
             RecipientResolver,
             MissingResolver,
+            Office,
             CurrentTenant,
             NullLogger<DocumentAcceptedEmailHandler>.Instance,
             UrlBuilder);
@@ -269,27 +272,47 @@ public class DocumentAcceptedEmailHandlerTests
     }
 
     /// <summary>
-    /// The office performed the accept, so it is left OFF the CC (contrast the upload email, which
-    /// keeps it). A party with no role is still copied, as a Patient-role recipient.
+    /// 2026-11-02: the CC is every other party, the office inbox (it was dropped here before, on the
+    /// theory that the office performed the accept) and the Intake Staff; the To is the uploader. An Intake
+    /// address that is also a party is copied once, and a party with no role is copied as Patient.
     /// </summary>
     [Fact]
-    public async Task HandleEventAsync_CcDropsTheOfficeMailboxAndKeepsEveryOtherParty()
+    public async Task HandleEventAsync_CcKeepsTheOfficeMailboxAddsIntakeAndRepeatsNoAddress()
     {
         var rig = new Rig();
         rig.Parties.Clear();
         rig.Parties.Add(Party("TEST-office@test.local", RecipientRole.OfficeAdmin));
         rig.Parties.Add(Party("TEST-applicant-attorney@test.local", RecipientRole.ApplicantAttorney));
         rig.Parties.Add(Party("TEST-no-role@test.local", role: null));
+        rig.Office.Intake.Add("TEST-intake-1@test.local");
+        rig.Office.Intake.Add("TEST-APPLICANT-attorney@test.local");
         var evt = AcceptedEvent();
 
         await rig.Build().HandleEventAsync(evt);
 
         var cc = SingleSend(rig.Dispatcher).Cc;
         cc.Select(r => r.Email).ShouldBe(
-            new[] { "TEST-applicant-attorney@test.local", "TEST-no-role@test.local" },
+            new[]
+            {
+                "TEST-office@test.local", "TEST-applicant-attorney@test.local",
+                "TEST-no-role@test.local", "TEST-intake-1@test.local",
+            },
             ignoreOrder: true);
+        cc.Select(r => r.Email.ToLowerInvariant()).Distinct().Count().ShouldBe(cc.Count, "no address twice");
         cc.Single(r => r.Email == "TEST-no-role@test.local").Role.ShouldBe(RecipientRole.Patient);
         await rig.RecipientResolver.Received(1).ResolveAsync(evt.AppointmentId, NotificationKind.DocumentAccepted);
+    }
+
+    [Fact]
+    public async Task HandleEventAsync_NoIntakeStaff_CcIsTheResolvedPartiesOnly()
+    {
+        var rig = new Rig();
+
+        await rig.Build().HandleEventAsync(AcceptedEvent());
+
+        SingleSend(rig.Dispatcher).Cc.Select(r => r.Email).ShouldBe(
+            new[] { "TEST-applicant-attorney@test.local", "TEST-defense-attorney@test.local" },
+            ignoreOrder: true);
     }
 
     [Theory]

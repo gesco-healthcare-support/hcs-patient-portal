@@ -60,6 +60,26 @@ public class NotificationOccurrenceTests
                 "a second run on the same Pacific day is the same digest");
     }
 
+    [Fact]
+    public void A_twice_daily_run_has_its_own_tag_for_the_morning_and_the_afternoon()
+    {
+        // 08:00 and 16:00 Pacific daylight time on Oct 23 = 15:00 and 23:00 UTC.
+        var morning = new DateTime(2026, 10, 23, 15, 0, 0, DateTimeKind.Utc);
+        var morningRetry = new DateTime(2026, 10, 23, 15, 40, 0, DateTimeKind.Utc);
+        var afternoon = new DateTime(2026, 10, 23, 23, 0, 0, DateTimeKind.Utc);
+        var nextMorning = new DateTime(2026, 10, 24, 15, 0, 0, DateTimeKind.Utc);
+
+        NotificationOccurrence.PerPacificRun("OfficeDailySummary/o1", morning)
+            .ShouldBe("OfficeDailySummary/o1/2026-10-23/AM");
+        NotificationOccurrence.PerPacificRun("OfficeDailySummary/o1", afternoon)
+            .ShouldBe("OfficeDailySummary/o1/2026-10-23/PM");
+        NotificationOccurrence.PerPacificRun("OfficeDailySummary/o1", nextMorning)
+            .ShouldBe("OfficeDailySummary/o1/2026-10-24/AM");
+        NotificationOccurrence.PerPacificRun("OfficeDailySummary/o1", morningRetry)
+            .ShouldBe(NotificationOccurrence.PerPacificRun("OfficeDailySummary/o1", morning),
+                "a retry of the same run is the same email");
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]

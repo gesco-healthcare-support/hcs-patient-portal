@@ -229,7 +229,12 @@ public class NotificationTemplatesValidatorUnitTests
         // receives: choose a password from its link, which also confirms the email (+1 -> 71).
         // 2026-10-27 added AccountEmailChanged, the notice to a previous address when an administrator
         // changes someone's sign-in email (+1 -> 72).
-        NotificationTemplateConsts.Codes.All.Length.ShouldBe(72);
+        // 2026-11-03 added OfficeDailySummary and SupervisorDailySummary, the twice-daily summaries that
+        // replace the two daily digests (+2 -> 74).
+        // 2026-11-03 added OfficePacketCopy, the office inbox's one email with both packets (+1 -> 75).
+        // 2026-11-03 email routing v2 added ChangeRequestConsentInfo, ChangeRequestConsentDeclined,
+        // PatientAppointmentNotSeen and AppointmentDayReminder (+4 -> 79).
+        NotificationTemplateConsts.Codes.All.Length.ShouldBe(79);
     }
 
     [Fact]

@@ -4,12 +4,15 @@ using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
+using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using Microsoft.Extensions.Logging;
+using Volo.Abp;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.EventBus;
+using Volo.Abp.Identity;
 using Volo.Abp.MultiTenancy;
 using Volo.Abp.Uow;
 
@@ -22,12 +25,11 @@ namespace HealthcareSupport.CaseEvaluation.Notifications.Handlers;
 /// <see cref="INotificationDispatcher"/>. Branches on
 /// <see cref="ChangeRequestType"/> to pick the OLD-verbatim template code.
 ///
-/// <para>Phase 4c (2026-08-05, Adrian): CANCELLATIONS ONLY. A reschedule submit sends no
-/// stakeholder email -- the consent email dispatched when staff confirm a date already tells
-/// both sides a reschedule was requested, and names the date. This one could not: since 4b the
-/// external path leaves <c>NewDoctorAvailabilityId</c> null, so its date variables rendered
-/// empty. Cancellation keeps the email because its consent is issued at submit, leaving no
-/// later message to fold the notice into.</para>
+/// <para>Phase 4c (2026-08-05) suppressed the reschedule email: its date variables rendered
+/// empty because the external path leaves <c>NewDoctorAvailabilityId</c> null. 2026-11-03 (email
+/// routing, row 7) sends it again, to the parties, the office inbox and the Intake Staff (the patient
+/// only when the patient asked), with the neutral <c>AppointmentRescheduleRequest</c> wording and a
+/// details block that simply omits the date line when no date was proposed.</para>
 /// </summary>
 public class ChangeRequestSubmittedEmailHandler :
     ILocalEventHandler<AppointmentChangeRequestSubmittedEto>,
@@ -37,6 +39,10 @@ public class ChangeRequestSubmittedEmailHandler :
     private readonly DocumentEmailContextResolver _contextResolver;
     private readonly IAppointmentRecipientResolver _recipientResolver;
     private readonly IRepository<AppointmentChangeRequest, Guid> _changeRequestRepository;
+    private readonly OfficeNotificationRecipients _officeRecipients;
+    private readonly ConsentLinkHolders _consentLinkHolders;
+    private readonly IRepository<IdentityUser, Guid> _identityUserRepository;
+    private readonly IRepository<DoctorAvailability, Guid> _slotRepository;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<ChangeRequestSubmittedEmailHandler> _logger;
 
@@ -45,6 +51,10 @@ public class ChangeRequestSubmittedEmailHandler :
         DocumentEmailContextResolver contextResolver,
         IAppointmentRecipientResolver recipientResolver,
         IRepository<AppointmentChangeRequest, Guid> changeRequestRepository,
+        OfficeNotificationRecipients officeRecipients,
+        ConsentLinkHolders consentLinkHolders,
+        IRepository<IdentityUser, Guid> identityUserRepository,
+        IRepository<DoctorAvailability, Guid> slotRepository,
         ICurrentTenant currentTenant,
         ILogger<ChangeRequestSubmittedEmailHandler> logger)
     {
@@ -52,6 +62,10 @@ public class ChangeRequestSubmittedEmailHandler :
         _contextResolver = contextResolver;
         _recipientResolver = recipientResolver;
         _changeRequestRepository = changeRequestRepository;
+        _officeRecipients = officeRecipients;
+        _consentLinkHolders = consentLinkHolders;
+        _identityUserRepository = identityUserRepository;
+        _slotRepository = slotRepository;
         _currentTenant = currentTenant;
         _logger = logger;
     }
@@ -61,26 +75,6 @@ public class ChangeRequestSubmittedEmailHandler :
     {
         if (eventData == null)
         {
-            return;
-        }
-
-        // Phase 4c (2026-08-05, Adrian): RESCHEDULE submits send no stakeholder email. The
-        // consent email that goes out when staff CONFIRM a date already tells both sides a
-        // reschedule was requested -- and says which date, which this one cannot: since 4b the
-        // external path leaves NewDoctorAvailabilityId null, so the NewAppointmentDate and
-        // NewAppointmentFromTime variables below render EMPTY. This was the third stale reader
-        // of the proposed slot, and the only one already reaching real inboxes.
-        //
-        // Deliberately scoped to the email only. The other two subscribers to this event are
-        // untouched: staff still get their in-app notification (InAppNotificationHandlers) so
-        // the request is visible in the queue, and the cancel-side clinical-staff email
-        // (ClinicalStaffCancellationEmailHandler) is unaffected. CANCELLATION keeps this email
-        // -- its consent is issued at submit, so there is no later message to fold it into.
-        if (eventData.ChangeRequestType == ChangeRequestType.Reschedule)
-        {
-            _logger.LogInformation(
-                "ChangeRequestSubmittedEmailHandler: reschedule {ChangeRequestId} -- submit email suppressed; the consent email sent at date-confirm carries this notice.",
-                eventData.ChangeRequestId);
             return;
         }
 
@@ -116,6 +110,33 @@ public class ChangeRequestSubmittedEmailHandler :
                     isRegistered: r.IsRegistered))
                 .ToList();
 
+            // 2026-11-02: the office's Intake Staff are copied on the cancel request.
+            await _officeRecipients.AppendIntakeAsync(recipients);
+
+            var isReschedule = eventData.ChangeRequestType == ChangeRequestType.Reschedule;
+            if (isReschedule)
+            {
+                // Row 7: a reschedule request asks nobody to agree yet (consent opens when staff set a
+                // date), so nobody holds a link. The patient hears of it only when the patient asked.
+                recipients = PatientBeforeApprovalRule.ApplyForRequester(
+                    recipients, ctx, await IsPatientRequesterAsync(ctx, eventData.SubmittedByUserId));
+            }
+            else
+            {
+                // 2026-11-03: one email per person per event. Whoever is asked to agree or decline holds a
+                // consent link, and that consent email is their email for this cancel request, so they do
+                // not also get this information notice. The office inbox and Intake Staff (who hold no
+                // link) get this one only: the separate clinical-staff cancellation email was retired.
+                var linkHolders = await _consentLinkHolders.ResolveEmailsAsync(
+                    eventData.AppointmentId, eventData.SubmittedByUserId);
+                if (linkHolders.Count > 0)
+                {
+                    recipients = recipients
+                        .Where(r => !linkHolders.Contains(r.Email, StringComparer.OrdinalIgnoreCase))
+                        .ToList();
+                }
+            }
+
             if (recipients.Count == 0)
             {
                 _logger.LogInformation(
@@ -124,9 +145,9 @@ public class ChangeRequestSubmittedEmailHandler :
                 return;
             }
 
-            // Only cancellations reach here (reschedules returned above), so the OLD-verbatim
-            // cancel template is the only one this handler still dispatches.
-            var templateCode = NotificationTemplateConsts.Codes.AppointmentCancelledRequest;
+            var templateCode = isReschedule
+                ? NotificationTemplateConsts.Codes.AppointmentRescheduleRequest
+                : NotificationTemplateConsts.Codes.AppointmentCancelledRequest;
 
             var baseVariables = DocumentNotificationContext.BuildVariables(
                 patientFirstName: ctx.PatientFirstName,
@@ -143,17 +164,59 @@ public class ChangeRequestSubmittedEmailHandler :
                 clinicName: null,
                 portalUrl: ctx.PortalBaseUrl);
 
-            var variables = new Dictionary<string, object?>(baseVariables, StringComparer.Ordinal)
+            var variables = new Dictionary<string, object?>(baseVariables, StringComparer.Ordinal);
+            if (isReschedule)
             {
-                ["CancellationReason"] = changeRequest.CancellationReason ?? string.Empty,
-            };
+                string? requestedDateTime = null;
+                if (changeRequest.NewDoctorAvailabilityId is { } slotId)
+                {
+                    var slot = await _slotRepository.FindAsync(slotId);
+                    requestedDateTime = slot == null ? null : ConsentSlotLabel.Format(slot);
+                }
+                variables["ConsentDetailsBlock"] = ChangeRequestConsentRequestEmailHandler.BuildDetailsBlock(
+                    requestedDateTime, changeRequest.ReScheduleReason);
+            }
+            else
+            {
+                variables["CancellationReason"] = changeRequest.CancellationReason ?? string.Empty;
+            }
 
-            await _dispatcher.DispatchAsync(
-                templateCode: templateCode,
-                recipients: recipients,
-                variables: variables,
-                contextTag: $"ChangeRequestSubmitted/{eventData.ChangeRequestType}/{eventData.ChangeRequestId}");
+            try
+            {
+                await _dispatcher.DispatchAsync(
+                    templateCode: templateCode,
+                    recipients: recipients,
+                    variables: variables,
+                    contextTag: $"ChangeRequestSubmitted/{eventData.ChangeRequestType}/{eventData.ChangeRequestId}");
+            }
+            catch (BusinessException ex)
+                when (ex.Code == CaseEvaluationDomainErrorCodes.NotificationTemplateNotFound)
+            {
+                // This handler runs inside the submit's unit of work, so a throw here would roll back the
+                // party's request. The renderer raises this one code for a missing template AND for one
+                // staff switched off on the template screen, which is a runtime state, not only a seed
+                // bug. So: this exception type only, logged at Error so it is seen.
+                _logger.LogError(
+                    ex,
+                    "ChangeRequestSubmittedEmailHandler: template {TemplateCode} missing/inactive; notice skipped for change request {ChangeRequestId} on appointment {AppointmentId}.",
+                    templateCode,
+                    eventData.ChangeRequestId,
+                    eventData.AppointmentId);
+            }
         }
+    }
+
+    /// <summary>Whether the account that filed the change request is the patient.</summary>
+    private async Task<bool> IsPatientRequesterAsync(DocumentEmailContext ctx, Guid submittedByUserId)
+    {
+        if (submittedByUserId == Guid.Empty)
+        {
+            return false;
+        }
+
+        var submitter = await _identityUserRepository.FindAsync(submittedByUserId);
+        return PatientBeforeApprovalRule.IsPatientAccount(
+            ctx, submittedByUserId, submitter is { EmailConfirmed: true } ? submitter.Email : null);
     }
 
 }
