@@ -16,8 +16,10 @@ namespace HealthcareSupport.CaseEvaluation.Notifications.Handlers;
 
 /// <summary>
 /// Unit coverage for <see cref="IntakeChangedEmailHandler"/>: the per-field "what changed" table
-/// emailed to the office inbox when staff edit an intake (2026-11-03: inbox only, and no second
-/// reschedule email when the date or time moved).
+/// emailed to the office inbox when staff edit the panel number or due date (2026-11-03: inbox only).
+/// A save that moves the date is a different email (the parties, the inbox and Intake Staff); its routing
+/// is pinned on the real rig in <c>IntakeDateMoveEmailTests</c>, and here only that it does not also send
+/// the change log.
 ///
 /// <para><b>THE TWO GUARANTEES THAT MATTER MOST.</b> A field marked <c>ValueRedacted</c> renders as
 /// "updated (value hidden)" and NEITHER its old nor its new value appears anywhere in what is
@@ -48,6 +50,9 @@ public class IntakeChangedEmailHandlerTests
         public DocumentEmailContextResolver ContextResolver { get; } =
             Substitute.For<DocumentEmailContextResolver>(null, null, null, null, null, null, null, null, null, null);
 
+        /// <summary>Only a date move reads the parties; it returns nobody beyond the office inbox here.</summary>
+        public IAppointmentRecipientResolver Parties { get; } = Substitute.For<IAppointmentRecipientResolver>();
+
         /// <summary>The office inbox is the only recipient (2026-11-03); Intake Staff are listed to prove they are not.</summary>
         public FakeOfficeRecipients Office { get; } = new() { Inbox = "TEST-inbox@test.local" };
 
@@ -74,6 +79,7 @@ public class IntakeChangedEmailHandlerTests
         public IntakeChangedEmailHandler Build() => new(
             Dispatcher,
             ContextResolver,
+            Parties,
             Office,
             CurrentTenant,
             NullLogger<IntakeChangedEmailHandler>.Instance);
@@ -313,21 +319,25 @@ public class IntakeChangedEmailHandlerTests
     }
 
     /// <summary>
-    /// 2026-11-03: a date or time change no longer sends the second, reschedule-by-admin notice -- the
-    /// change log to the office inbox is the only email.
+    /// 2026-11-03: a date move is the ONE date-moved email, so the office inbox does not also get the change
+    /// log for the same save (even when the panel number changed in that save).
     /// </summary>
     [Fact]
-    public async Task HandleEventAsync_DateOrTimeChanged_StillSendsOnlyTheChangeTable()
+    public async Task HandleEventAsync_DateOrTimeChanged_SendsTheDateMoveEmailAndNotTheChangeTable()
     {
         var rig = new Rig();
-        var evt = ChangedEvent(true, Field("AppointmentDate", "TEST-a", "TEST-b"));
+        rig.Parties.ResolveAsync(Arg.Any<Guid>(), Arg.Any<NotificationKind>()).Returns(
+            new List<SendAppointmentEmailArgs>
+            {
+                new() { To = "TEST-inbox@test.local", Role = RecipientRole.OfficeAdmin },
+            });
+        var evt = ChangedEvent(true, Field("AppointmentDate", "TEST-a", "TEST-b"), Field("PanelNumber", "TEST-p1", "TEST-p2"));
 
         await rig.Build().HandleEventAsync(evt);
 
         var sent = SingleSend(rig.Dispatcher);
-        sent.TemplateCode.ShouldBe(NotificationTemplateConsts.Codes.AppointmentChangeLogs);
-        Sends(rig.Dispatcher).ShouldNotContain(
-            e => e.TemplateCode == NotificationTemplateConsts.Codes.AppointmentRescheduleRequestByAdmin);
+        sent.TemplateCode.ShouldBe(NotificationTemplateConsts.Codes.AppointmentRescheduleRequestByAdmin);
+        sent.Variables.ShouldNotContainKey("AppointmentChangeLogs");
     }
 
     [Fact]
