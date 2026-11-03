@@ -192,14 +192,16 @@ public class ChangeRequestSubmittedEmailHandler :
             catch (BusinessException ex)
                 when (ex.Code == CaseEvaluationDomainErrorCodes.NotificationTemplateNotFound)
             {
-                // A missing or deactivated template must not fail the request that was just submitted:
-                // this email is a side effect of it. (A reschedule submit sends this email only since
-                // 2026-11-03, so a deployment without the template row used to be unaffected.)
-                _logger.LogWarning(
+                // This handler runs inside the submit's unit of work, so a throw here would roll back the
+                // party's request. The renderer raises this one code for a missing template AND for one
+                // staff switched off on the template screen, which is a runtime state, not only a seed
+                // bug. So: this exception type only, logged at Error so it is seen.
+                _logger.LogError(
                     ex,
-                    "ChangeRequestSubmittedEmailHandler: template {TemplateCode} missing/inactive; notice skipped for change request {ChangeRequestId}.",
+                    "ChangeRequestSubmittedEmailHandler: template {TemplateCode} missing/inactive; notice skipped for change request {ChangeRequestId} on appointment {AppointmentId}.",
                     templateCode,
-                    eventData.ChangeRequestId);
+                    eventData.ChangeRequestId,
+                    eventData.AppointmentId);
             }
         }
     }
