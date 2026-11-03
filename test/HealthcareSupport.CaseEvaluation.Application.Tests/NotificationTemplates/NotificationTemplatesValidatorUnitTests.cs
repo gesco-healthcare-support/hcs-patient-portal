@@ -231,7 +231,8 @@ public class NotificationTemplatesValidatorUnitTests
         // changes someone's sign-in email (+1 -> 72).
         // 2026-11-03 added OfficeDailySummary and SupervisorDailySummary, the twice-daily summaries that
         // replace the two daily digests (+2 -> 74).
-        NotificationTemplateConsts.Codes.All.Length.ShouldBe(74);
+        // 2026-11-03 added OfficePacketCopy, the office inbox's one email with both packets (+1 -> 75).
+        NotificationTemplateConsts.Codes.All.Length.ShouldBe(75);
     }
 
     [Fact]

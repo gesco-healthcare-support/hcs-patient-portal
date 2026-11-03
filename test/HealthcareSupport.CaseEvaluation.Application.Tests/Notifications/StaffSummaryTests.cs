@@ -95,7 +95,7 @@ public class StaffSummaryTests
         html.ShouldContain("TEST-&lt;Pat&gt;");
         html.ShouldNotContain("<Pat>");
         html.ShouldContain("11/28/2026");
-        html.ShouldContain("Approved appointments");
+        html.ShouldContain("Approved appointments (all time)");
         html.IndexOf("(OVERDUE)", StringComparison.Ordinal).ShouldBe(html.LastIndexOf("(OVERDUE)", StringComparison.Ordinal));
     }
 

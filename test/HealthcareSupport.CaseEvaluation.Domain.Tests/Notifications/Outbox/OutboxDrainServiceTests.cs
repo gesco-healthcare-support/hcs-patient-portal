@@ -146,4 +146,50 @@ public class OutboxDrainServiceTests
         await h.Sender.Received(1).SendAsync(Arg.Any<SendAppointmentEmailArgs>());
         h.Rows.Single().Status.ShouldBe(NotificationOutboxStatus.Sent);
     }
+
+    [Fact]
+    public async Task DrainDueAsync_PassesEveryPacketOfAnOutboxRowToTheSend()
+    {
+        var h = Build();
+        var appointmentId = Guid.NewGuid();
+        var attyCe = new HealthcareSupport.CaseEvaluation.Appointments.PacketAttachmentRef
+        {
+            AppointmentId = appointmentId,
+            PacketId = Guid.NewGuid(),
+            Kind = HealthcareSupport.CaseEvaluation.AppointmentDocuments.PacketKind.AttorneyClaimExaminer,
+        };
+        var patient = new HealthcareSupport.CaseEvaluation.Appointments.PacketAttachmentRef
+        {
+            AppointmentId = appointmentId,
+            PacketId = Guid.NewGuid(),
+            Kind = HealthcareSupport.CaseEvaluation.AppointmentDocuments.PacketKind.Patient,
+        };
+        await h.Manager.EnqueueAsync(
+            TenantId, "office@example.test", null, "Subject", "<p>body</p>", true, "OfficePacketCopy/x/v0", "key-copy",
+            attyCe.AppointmentId, attyCe.PacketId, attyCe.Kind, extraPacketRefs: new[] { patient });
+
+        await h.Service.DrainDueAsync();
+
+        await h.Sender.Received(1).SendAsync(Arg.Is<SendAppointmentEmailArgs>(a =>
+            a.PacketRef != null && a.PacketRef.PacketId == attyCe.PacketId
+            && a.ExtraPacketRefs.Count == 1
+            && a.ExtraPacketRefs[0].PacketId == patient.PacketId
+            && a.ExtraPacketRefs[0].Kind == patient.Kind));
+    }
+
+    [Fact]
+    public async Task DrainDueAsync_AnOutboxRowWrittenWithOneSinglePacketStillSendsOnlyThatPacket()
+    {
+        var h = Build();
+        var appointmentId = Guid.NewGuid();
+        var packetId = Guid.NewGuid();
+        await h.Manager.EnqueueAsync(
+            TenantId, "party@example.test", null, "Subject", "<p>body</p>", true, "PatientPacket/x", "key-single",
+            appointmentId, packetId, HealthcareSupport.CaseEvaluation.AppointmentDocuments.PacketKind.Patient);
+
+        await h.Service.DrainDueAsync();
+
+        await h.Sender.Received(1).SendAsync(Arg.Is<SendAppointmentEmailArgs>(a =>
+            a.PacketRef != null && a.PacketRef.PacketId == packetId && a.ExtraPacketRefs.Count == 0));
+    }
 }

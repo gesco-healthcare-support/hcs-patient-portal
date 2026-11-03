@@ -95,6 +95,15 @@ public class SendAppointmentEmailArgs
     public PacketAttachmentRef? PacketRef { get; set; }
 
     /// <summary>
+    /// 2026-11-03: further packets attached to the SAME email, after <see cref="PacketRef"/> (the office
+    /// inbox's packet copy carries the attorney / claim examiner packet and the patient packet in one
+    /// mail). Empty for every other send. Additive on purpose: a Hangfire job or outbox row serialized
+    /// before this field existed has no value for it and reads back as an empty list, so it still sends
+    /// its one <see cref="PacketRef"/> exactly as before.
+    /// </summary>
+    public System.Collections.Generic.List<PacketAttachmentRef> ExtraPacketRefs { get; set; } = new();
+
+    /// <summary>
     /// T3: deterministic key identifying this logical email (tenant + recipient +
     /// context + packet kind). Same logical send -> same key, so the Phase 2
     /// notification outbox can guarantee effectively-once delivery under Hangfire's

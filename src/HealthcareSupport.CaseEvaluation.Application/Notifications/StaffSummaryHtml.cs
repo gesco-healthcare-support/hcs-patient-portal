@@ -40,7 +40,7 @@ internal static class StaffSummaryHtml
         CountRow(sb, "Reschedule requests waiting", c.RescheduleRequested);
         CountRow(sb, "Cancellation requests waiting", c.CancellationRequested);
         CountRow(sb, "Waiting for more information", c.InfoRequested);
-        CountRow(sb, "Approved appointments", c.Approved);
+        CountRow(sb, "Approved appointments (all time)", c.Approved);
         sb.Append("</tbody></table>");
 
         if (summary.Rows.Count > 0)

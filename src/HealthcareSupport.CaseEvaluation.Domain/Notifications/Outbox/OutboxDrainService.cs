@@ -114,6 +114,7 @@ public class OutboxDrainService : ITransientDependency
                     Kind = row.PacketKind.Value,
                 }
                 : null,
+            ExtraPacketRefs = row.GetExtraPacketRefs().ToList(),
         };
     }
 }
