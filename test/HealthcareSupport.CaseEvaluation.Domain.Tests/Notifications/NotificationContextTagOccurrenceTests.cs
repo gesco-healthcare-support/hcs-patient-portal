@@ -41,6 +41,7 @@ public class NotificationContextTagOccurrenceTests
         ["StatusChange/NoShow/InternalStaff/"] = "no-show is terminal",
         ["StatusChange/CancelledNoBill/Stakeholders/"] = "cancellation is terminal",
         ["PatientPacket/"] = "one packet email per appointment and recipient; a re-render mails only new addresses",
+        ["OfficePacketCopy/"] = "one copy per appointment and packet version; a re-render that replaces a file adds a version part",
         ["AttyCEPacket/"] = "one packet email per appointment and recipient; a re-render mails only new addresses",
         ["JdfOverdue/"] = "the daily job re-raises an overdue appointment; the collapse keeps it to one email",
         ["AppointmentReminder/T-"] = "one reminder per offset per appointment",

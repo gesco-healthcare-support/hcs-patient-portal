@@ -295,7 +295,13 @@ public static class NotificationTemplateConsts
         public const string SupervisorDailySummary = "SupervisorDailySummary";
 
         /// <summary>
-        /// All 74 codes in seed order (count asserted by
+        /// 2026-11-03 -- the office inbox's copy of an appointment's packets: ONE email carrying the attorney /
+        /// claim examiner packet and the patient packet (never the doctor packet). Sent once both are generated.
+        /// </summary>
+        public const string OfficePacketCopy = "OfficePacketCopy";
+
+        /// <summary>
+        /// All 75 codes in seed order (count asserted by
         /// <c>NotificationTemplatesValidatorUnitTests.Codes_All_Has64Codes</c> -- keep both in step;
         /// this comment had drifted by one before 2026-07-28). Used by
         /// <c>NotificationTemplateDataSeedContributor</c> to ensure each
@@ -368,6 +374,9 @@ public static class NotificationTemplateConsts
             // 2026-11-03 -- twice-daily office and supervisor summaries.
             OfficeDailySummary,
             SupervisorDailySummary,
+
+            // 2026-11-03 -- the office inbox's copy of the attorney and patient packets.
+            OfficePacketCopy,
         };
 
         /// <summary>

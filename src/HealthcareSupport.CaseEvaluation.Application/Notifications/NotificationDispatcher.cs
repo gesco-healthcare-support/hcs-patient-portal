@@ -43,7 +43,8 @@ namespace HealthcareSupport.CaseEvaluation.Notifications;
 ///     <c>SendAppointmentEmailJob.ExecuteAsync</c>).</item>
 /// </list>
 /// </summary>
-public class NotificationDispatcher : INotificationDispatcher, ITransientDependency
+[ExposeServices(typeof(INotificationDispatcher), typeof(IPacketCopyDispatcher), IncludeDefaults = true, IncludeSelf = true)]
+public class NotificationDispatcher : INotificationDispatcher, IPacketCopyDispatcher, ITransientDependency
 {
     private readonly INotificationTemplateRenderer _renderer;
     private readonly IBackgroundJobManager _backgroundJobManager;
@@ -99,6 +100,61 @@ public class NotificationDispatcher : INotificationDispatcher, ITransientDepende
         if (wroteAny)
         {
             await ScheduleDrainAsync(_currentTenant.Id);
+        }
+    }
+
+    public virtual async Task DispatchWithPacketsAsync(
+        string templateCode,
+        IReadOnlyCollection<NotificationRecipient> recipients,
+        IReadOnlyDictionary<string, object?> variables,
+        string contextTag,
+        IReadOnlyList<PacketAttachmentRef> packetRefs,
+        CancellationToken cancellationToken = default)
+    {
+        Check.NotNullOrWhiteSpace(templateCode, nameof(templateCode));
+        Check.NotNull(recipients, nameof(recipients));
+        Check.NotNull(variables, nameof(variables));
+        Check.NotNull(packetRefs, nameof(packetRefs));
+
+        if (recipients.Count == 0 || packetRefs.Count == 0)
+        {
+            return;
+        }
+
+        var rendered = await _renderer.RenderAsync(templateCode, variables, cancellationToken);
+        var primary = packetRefs[0];
+        var extras = packetRefs.Skip(1).ToList();
+
+        var wroteAny = false;
+        var tenantId = _currentTenant.Id;
+        foreach (var recipient in recipients)
+        {
+            if (string.IsNullOrWhiteSpace(recipient.Email))
+            {
+                _logger.LogWarning(
+                    "NotificationDispatcher: skipping recipient with empty email for template {TemplateCode} ({Context}).",
+                    templateCode,
+                    contextTag);
+                continue;
+            }
+            await _outboxManager.EnqueueAsync(
+                tenantId,
+                recipient.Email,
+                cc: null,
+                rendered.Subject,
+                rendered.BodyEmail,
+                isBodyHtml: true,
+                contextTag,
+                SendAppointmentEmailArgs.BuildIdempotencyKey(tenantId, recipient.Email, contextTag, primary.Kind),
+                primary.AppointmentId,
+                primary.PacketId,
+                primary.Kind,
+                extraPacketRefs: extras);
+            wroteAny = true;
+        }
+        if (wroteAny)
+        {
+            await ScheduleDrainAsync(tenantId);
         }
     }
 

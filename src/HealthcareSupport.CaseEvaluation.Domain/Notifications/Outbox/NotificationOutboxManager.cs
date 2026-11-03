@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
+using HealthcareSupport.CaseEvaluation.Appointments;
 using Volo.Abp;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Domain.Services;
@@ -59,7 +60,8 @@ public class NotificationOutboxManager : DomainService
         Guid? packetAppointmentId = null,
         Guid? packetId = null,
         PacketKind? packetKind = null,
-        int maxAttempts = NotificationOutboxConsts.DefaultMaxAttempts)
+        int maxAttempts = NotificationOutboxConsts.DefaultMaxAttempts,
+        IEnumerable<PacketAttachmentRef>? extraPacketRefs = null)
     {
         Check.NotNullOrWhiteSpace(idempotencyKey, nameof(idempotencyKey));
 
@@ -72,7 +74,7 @@ public class NotificationOutboxManager : DomainService
 
         var item = new NotificationOutboxItem(
             _guidGenerator.Create(), tenantId, to, cc, subject, body, isBodyHtml, context,
-            idempotencyKey, packetAppointmentId, packetId, packetKind, maxAttempts);
+            idempotencyKey, packetAppointmentId, packetId, packetKind, maxAttempts, extraPacketRefs);
         return await _outboxRepository.InsertAsync(item, autoSave: true);
     }
 

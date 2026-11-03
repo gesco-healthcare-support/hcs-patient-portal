@@ -330,11 +330,15 @@ internal static class EmailSubjects
 
     /// <summary>2026-11-03. ##SummaryLabel## is "Morning" or "Afternoon", the run the summary belongs to.</summary>
     public const string OfficeDailySummary =
-        "##SummaryLabel## appointment summary";
+        "Appointment Portal - ##ClinicName## - ##SummaryLabel## summary";
+
+    /// <summary>2026-11-03. The office inbox's copy of the attorney and patient packets (both attached).</summary>
+    public const string OfficePacketCopy =
+        "Appointment Portal - ##EmailSubjectIdentity## - Packet copies for the office";
 
     /// <summary>2026-11-03. Names the label like <see cref="OfficeDailySummary"/>; covers every office.</summary>
     public const string SupervisorDailySummary =
-        "##SummaryLabel## summary, all offices";
+        "Appointment Portal - ##SummaryLabel## summary, all offices";
 
     /// <summary>
     /// Item F (2026-08-22) -- sent to someone staff tried to invite who already has an account.
@@ -448,6 +452,7 @@ internal static class EmailSubjects
             [NotificationTemplateConsts.Codes.AccountActivation] = AccountActivation,
             [NotificationTemplateConsts.Codes.AccountEmailChanged] = AccountEmailChanged,
             [NotificationTemplateConsts.Codes.OfficeDailySummary] = OfficeDailySummary,
+            [NotificationTemplateConsts.Codes.OfficePacketCopy] = OfficePacketCopy,
             [NotificationTemplateConsts.Codes.SupervisorDailySummary] = SupervisorDailySummary,
             [NotificationTemplateConsts.Codes.ChangeRequestConsentRequest] = ChangeRequestConsentRequest,
 

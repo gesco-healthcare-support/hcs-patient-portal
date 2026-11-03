@@ -101,7 +101,12 @@ public class SendAppointmentEmailJob :
                 await SendPlainAsync(args);
                 return;
             }
-            await SendWithAttachmentAsync(args, args.PacketRef);
+            var refs = new System.Collections.Generic.List<PacketAttachmentRef> { args.PacketRef };
+            if (args.ExtraPacketRefs != null)
+            {
+                refs.AddRange(args.ExtraPacketRefs.Where(r => r != null));
+            }
+            await SendWithAttachmentAsync(args, refs);
         }
     }
 
@@ -184,23 +189,33 @@ public class SendAppointmentEmailJob :
         }
     }
 
-    private async Task SendWithAttachmentAsync(SendAppointmentEmailArgs args, PacketAttachmentRef packetRef)
+    private async Task SendWithAttachmentAsync(
+        SendAppointmentEmailArgs args,
+        System.Collections.Generic.IReadOnlyList<PacketAttachmentRef> packetRefs)
     {
-        var attachment = await _packetAttachmentProvider.GetAttachmentAsync(
-            packetRef.AppointmentId, packetRef.Kind);
-
-        if (attachment == null)
+        // 2026-11-03: one or more packets on a single email. Fetch every one first; if ANY is not
+        // Generated the whole email is skipped (a half-attached packet copy would read as complete).
+        var attachments = new System.Collections.Generic.List<PacketAttachment>();
+        foreach (var packetRef in packetRefs)
         {
-            // Per Adrian Decision (2026-05-10): if the packet is not yet
-            // Generated (Failed or Generating), skip the email + log.
-            // Office can Regenerate; on success, the email fires.
-            Logger.LogWarning(
-                "SendAppointmentEmailJob: packet {PacketId} (kind={Kind}) is not Generated; skipping packet email ({Context}).",
-                packetRef.PacketId, packetRef.Kind, args.Context);
-            return;
+            var attachment = await _packetAttachmentProvider.GetAttachmentAsync(
+                packetRef.AppointmentId, packetRef.Kind);
+
+            if (attachment == null)
+            {
+                // Per Adrian Decision (2026-05-10): if the packet is not yet
+                // Generated (Failed or Generating), skip the email + log.
+                // Office can Regenerate; on success, the email fires.
+                Logger.LogWarning(
+                    "SendAppointmentEmailJob: packet {PacketId} (kind={Kind}) is not Generated; skipping packet email ({Context}).",
+                    packetRef.PacketId, packetRef.Kind, args.Context);
+                return;
+            }
+            attachments.Add(attachment);
         }
 
         var success = false;
+        var streams = new System.Collections.Generic.List<System.IO.MemoryStream>();
         try
         {
             using var mail = new MailMessage
@@ -216,39 +231,51 @@ public class SendAppointmentEmailJob :
                 mail.CC.Add(cc);
             }
 
-            using var ms = new System.IO.MemoryStream(attachment.Bytes);
-            var mailAttachment = new Attachment(ms, attachment.FileName, attachment.ContentType);
-            if (mailAttachment.ContentDisposition != null)
+            foreach (var attachment in attachments)
             {
-                mailAttachment.ContentDisposition.DispositionType = DispositionTypeNames.Attachment;
-                mailAttachment.ContentDisposition.FileName = attachment.FileName;
+                var ms = new System.IO.MemoryStream(attachment.Bytes);
+                streams.Add(ms);
+                var mailAttachment = new Attachment(ms, attachment.FileName, attachment.ContentType);
+                if (mailAttachment.ContentDisposition != null)
+                {
+                    mailAttachment.ContentDisposition.DispositionType = DispositionTypeNames.Attachment;
+                    mailAttachment.ContentDisposition.FileName = attachment.FileName;
+                }
+                mail.Attachments.Add(mailAttachment);
             }
-            mail.Attachments.Add(mailAttachment);
 
             await _emailSender.SendAsync(mail);
             success = true;
             Logger.LogInformation(
-                "SendAppointmentEmailJob: delivered ({Context}) with attachment {FileName} ({Bytes} bytes).",
-                args.Context, attachment.FileName, attachment.Bytes.Length);
+                "SendAppointmentEmailJob: delivered ({Context}) with attachment(s): {Count} file(s), {Bytes} bytes.",
+                args.Context, attachments.Count, attachments.Sum(a => a.Bytes.Length));
         }
         finally
         {
+            foreach (var ms in streams)
+            {
+                ms.Dispose();
+            }
+
             // G-04-10 (2026-06-02): no catch -- a send failure propagates after
             // this finally so Hangfire retries + dead-letters. The callback is
             // a no-op as of 2026-06-09 (all three packet kinds are retained; the
             // former AttyCE-on-success prune was removed so the packet stays
             // visible + downloadable in the appointment view). It is still
             // invoked so the call site stays valid for future per-send hooks.
-            try
+            foreach (var packetRef in packetRefs)
             {
-                await _packetAttachmentProvider.NotifySendCompletedAsync(packetRef.PacketId, success);
-            }
-            catch (Exception ex)
-            {
-                Logger.LogWarning(
-                    ex,
-                    "SendAppointmentEmailJob: NotifySendCompletedAsync threw for packet {PacketId} (kind={Kind}); attachment lifecycle may need manual cleanup.",
-                    packetRef.PacketId, packetRef.Kind);
+                try
+                {
+                    await _packetAttachmentProvider.NotifySendCompletedAsync(packetRef.PacketId, success);
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogWarning(
+                        ex,
+                        "SendAppointmentEmailJob: NotifySendCompletedAsync threw for packet {PacketId} (kind={Kind}); attachment lifecycle may need manual cleanup.",
+                        packetRef.PacketId, packetRef.Kind);
+                }
             }
         }
     }
