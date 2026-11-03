@@ -25,7 +25,9 @@ namespace HealthcareSupport.CaseEvaluation.NotificationTemplates;
 /// every template by code.
 ///
 /// Idempotent: skips rows that already exist; overwrites resource-backed rows
-/// when their shipped content changes.
+/// when their shipped content changes, unless a staff member edited the row in
+/// the template editor (<see cref="NotificationTemplate.IsEditedByStaff"/>,
+/// 2026-11-02): an edit is the office's own wording and survives every deploy.
 /// </summary>
 public class NotificationTemplateDataSeedContributor : IDataSeedContributor, ITransientDependency
 {
@@ -126,7 +128,7 @@ public class NotificationTemplateDataSeedContributor : IDataSeedContributor, ITr
 
             if (existing.TryGetValue(code, out var current))
             {
-                if (!hasResourceBackedBody)
+                if (!hasResourceBackedBody || current.IsEditedByStaff())
                 {
                     continue;
                 }
