@@ -148,7 +148,7 @@ public class OfficePacketCopyEmailHandlerTests : CaseEvaluationEntityFrameworkCo
     }
 
     [Fact]
-    public async Task AnAppointmentWithNoAttorneyPacket_SendsNoCopy_AndAnUnknownAppointmentSendsNothing()
+    public async Task AnAppointmentWithoutAGeneratedAttorneyPacket_SendsNoCopy_AndAnUnknownAppointmentSendsNothing()
     {
         await SetInboxAsync(TenantsTestData.TenantARef, InboxA);
         await SeedPacketsAsync(null, PacketGenerationStatus.Generated, PacketGenerationStatus.Generated);
@@ -185,8 +185,8 @@ public class OfficePacketCopyEmailHandlerTests : CaseEvaluationEntityFrameworkCo
     }
 
     /// <summary>
-    /// Writes the three packet rows of appointment 1 in office A; a null status leaves that kind out (an
-    /// appointment type that renders no attorney packet). Returns each kind's packet id.
+    /// Writes the three packet rows of appointment 1 in office A; a null status leaves that kind out (no
+    /// attorney packet row yet). Returns each kind's packet id.
     /// </summary>
     private async Task<Dictionary<PacketKind, Guid>> SeedPacketsAsync(
         PacketGenerationStatus? attyCe, PacketGenerationStatus patient, PacketGenerationStatus doctor)
