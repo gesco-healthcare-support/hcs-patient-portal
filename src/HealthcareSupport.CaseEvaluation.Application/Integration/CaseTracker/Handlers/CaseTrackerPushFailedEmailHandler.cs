@@ -24,7 +24,7 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Handlers;
 /// feed alerts use), ONCE per alert. Staff Supervisors and Intake Staff no longer receive it.</para>
 ///
 /// <para>Lives in Application because the notification dispatcher does; the job that decides WHEN to
-/// alert lives in Domain. Mirrors <c>InternalStaffQueueDigestEmailHandler</c>, including linking to the
+/// alert lives in Domain. Mirrors the retired <c>InternalStaffQueueDigestEmailHandler</c>, including linking to the
 /// HOST portal rather than an office subdomain, because internal staff work there.</para>
 ///
 /// <para>The body carries appointment ids, confirmation numbers and the receiver's own error text, and

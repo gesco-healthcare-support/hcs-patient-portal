@@ -51,6 +51,18 @@ public static class NotificationOccurrence
     public static string PerPacificDay(string kind, DateTime utcNow) =>
         Join(kind, PacificTime.TodayFrom(utcNow).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
 
+    /// <summary>
+    /// One half-day run of a twice-daily job (08:00 Pacific = "AM", 16:00 = "PM"). Each run is its own
+    /// occurrence, so the afternoon email is not swallowed as a repeat of the morning one, while a Hangfire
+    /// retry of the SAME run -- minutes later, but still in the same half of the Pacific day -- collapses
+    /// onto the first send instead of mailing twice.
+    /// </summary>
+    public static string PerPacificRun(string kind, DateTime utcNow) =>
+        Join(
+            kind,
+            PacificTime.TodayFrom(utcNow).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+            + (PacificTime.FromUtc(utcNow).Hour < 12 ? "/AM" : "/PM"));
+
     private static string Join(string kind, string occurrence)
     {
         if (string.IsNullOrWhiteSpace(kind))

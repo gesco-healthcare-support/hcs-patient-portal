@@ -95,7 +95,7 @@ public class NotificationContextTagOccurrenceTests
     [InlineData("$\"StatusChange/Approved/Stakeholders/{eventData.AppointmentId}\"", true)]
     [InlineData("contextTag", true)]
     [InlineData("$\"PasswordReset/RequestLink/{user.Id}\"", false)]
-    [InlineData("$\"PendingDailyDigest/{eventData.TenantId}\"", false)]
+    [InlineData("$\"OfficeDailySummary/{eventData.TenantId}\"", false)]
     [InlineData("$\"{templateCode}/{eventData.TenantId}\"", false)]
     [InlineData("SomeNewHelper(eventData)", false)]
     public void The_classifier_accepts_and_refuses_what_it_should(string expression, bool accepted)
@@ -109,7 +109,8 @@ public class NotificationContextTagOccurrenceTests
         // Known positives, so a scan that silently matched nothing could not pass the main fact.
         var expressions = TagSites().Select(s => s.Expression).ToList();
         expressions.ShouldContain(e => e.Contains("PasswordReset/RequestLink/", StringComparison.Ordinal));
-        expressions.ShouldContain(e => e.Contains("PendingDailyDigest/", StringComparison.Ordinal));
+        expressions.ShouldContain(e => e.Contains("OfficeDailySummary/", StringComparison.Ordinal));
+        expressions.ShouldContain(e => e.Contains("SupervisorDailySummary", StringComparison.Ordinal));
         expressions.ShouldContain(e => e.Contains("AccountActivation/", StringComparison.Ordinal));
         expressions.ShouldContain(e => e.Contains("CaseTrackerFeedAlert", StringComparison.Ordinal));
     }

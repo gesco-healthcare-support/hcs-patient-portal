@@ -328,6 +328,14 @@ internal static class EmailSubjects
     public const string AccountEmailChanged =
         "Your Appointment Portal sign-in email was changed";
 
+    /// <summary>2026-11-03. ##SummaryLabel## is "Morning" or "Afternoon", the run the summary belongs to.</summary>
+    public const string OfficeDailySummary =
+        "##SummaryLabel## appointment summary";
+
+    /// <summary>2026-11-03. Names the label like <see cref="OfficeDailySummary"/>; covers every office.</summary>
+    public const string SupervisorDailySummary =
+        "##SummaryLabel## summary, all offices";
+
     /// <summary>
     /// Item F (2026-08-22) -- sent to someone staff tried to invite who already has an account.
     /// Deliberately not phrased as an invitation: there is nothing to accept and no account to
@@ -439,6 +447,8 @@ internal static class EmailSubjects
             [NotificationTemplateConsts.Codes.InternalUserCreated] = InternalUserCreated,
             [NotificationTemplateConsts.Codes.AccountActivation] = AccountActivation,
             [NotificationTemplateConsts.Codes.AccountEmailChanged] = AccountEmailChanged,
+            [NotificationTemplateConsts.Codes.OfficeDailySummary] = OfficeDailySummary,
+            [NotificationTemplateConsts.Codes.SupervisorDailySummary] = SupervisorDailySummary,
             [NotificationTemplateConsts.Codes.ChangeRequestConsentRequest] = ChangeRequestConsentRequest,
 
             // QA item M (2026-06-29): two wired codes that were shipping stub
