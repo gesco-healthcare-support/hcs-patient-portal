@@ -1682,6 +1682,8 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
                 OccurredAt = Clock.Now,
                 DateOrTimeChanged = AppointmentIntakeDiff.IsDateOrTimeChanged(
                     oldAppointmentDate, appointment.AppointmentDate),
+                NewDoctorAvailabilityId = appointment.DoctorAvailabilityId,
+                NewAppointmentDate = appointment.AppointmentDate,
                 ChangedFields = intakeChanges.ConvertAll(r => new IntakeChangedField
                 {
                     Section = "Appointment",

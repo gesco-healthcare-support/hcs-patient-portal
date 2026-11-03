@@ -289,9 +289,9 @@ internal static class EmailSubjects
     public const string AppointmentRescheduleRequestRejected =
         "Appointment Portal - ##EmailSubjectIdentity## - Your reschedule request has been rejected";
 
-    /// <summary>Group K (G-02-03): admin-initiated reschedule one-shot (OLD AppointmentRescheduleRequestByAdmin).</summary>
+    /// <summary>Group K (G-02-03): staff moved the appointment date. 2026-11-03: goes to the parties, the office inbox and the Intake Staff, so the subject no longer says "Your".</summary>
     public const string AppointmentRescheduleRequestByAdmin =
-        "Appointment Portal - ##EmailSubjectIdentity## - Your appointment has been rescheduled by our team";
+        "Appointment Portal - ##EmailSubjectIdentity## - The appointment date and time has been changed by our team";
 
     /// <summary>Group K (G-02-03): intake-form-changed notification (OLD AppointmentChangeLogs).</summary>
     public const string AppointmentChangeLogs =
