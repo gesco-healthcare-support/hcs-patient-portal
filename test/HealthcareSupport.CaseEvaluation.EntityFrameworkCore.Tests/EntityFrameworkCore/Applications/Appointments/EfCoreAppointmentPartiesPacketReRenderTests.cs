@@ -13,6 +13,9 @@ using HealthcareSupport.CaseEvaluation.AppointmentDocuments.Templates;
 using HealthcareSupport.CaseEvaluation.BlobContainers;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.EntityFrameworkCore;
+using HealthcareSupport.CaseEvaluation.Notifications.Handlers;
+using HealthcareSupport.CaseEvaluation.Notifications.Events;
+using HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Notifications;
 using HealthcareSupport.CaseEvaluation.Notifications.Outbox;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
 using HealthcareSupport.CaseEvaluation.Patients;
@@ -26,6 +29,7 @@ using Volo.Abp;
 using Volo.Abp.BackgroundJobs;
 using Volo.Abp.BlobStoring;
 using Volo.Abp.Domain.Repositories;
+using Volo.Abp.Identity;
 using Volo.Abp.MultiTenancy;
 using Xunit;
 
@@ -51,7 +55,9 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 public class EfCoreAppointmentPartiesPacketReRenderTests
     : CaseEvaluationApplicationTestBase<CaseEvaluationEntityFrameworkCoreTestModule>
 {
-    private static readonly Guid BookerId = IdentityUsersTestData.ApplicantAttorney1UserId;
+    // An attorney firm's login: the booker in the booker-mail Fact. The other Facts book as office staff,
+    // who are never mailed as the booker, so their party-by-party counts are about the parties alone.
+    private static readonly Guid AttorneyBookerId = IdentityUsersTestData.ApplicantAttorney1UserId;
 
     private readonly MemoryPacketContainer _files = new();
     private readonly IHtmlPacketRenderer _renderer = Substitute.For<IHtmlPacketRenderer>();
@@ -183,7 +189,40 @@ public class EfCoreAppointmentPartiesPacketReRenderTests
         (await InOfficeAsync(() => _versions.GetListAsync(v => v.AppointmentPacketId == packetId))).ShouldBeEmpty();
     }
 
+    [Fact]
+    public async Task An_attorney_booker_mailed_at_approval_is_not_mailed_again_when_a_new_party_is_added()
+    {
+        var token = NewToken();
+        var defense = $"da-rrbook-{token}@example.test";
+        var id = await CreateApprovedAppointmentWithPacketsAsync(token, AttorneyBookerId);
+        var packetId = await AttorneyPacketIdAsync(id);
+
+        // Approval: the packet mail goes to the booker (no named attorney on the appointment yet).
+        await RaiseAttorneyPacketAsync(id, packetId);
+        (await AttorneyPacketMailAsync(id)).Select(m => m.To)
+            .ShouldBe(new[] { IdentityUsersTestData.ApplicantAttorney1Email }, "the booker is mailed once, at approval");
+
+        // Staff add a defense attorney and the packet is re-rendered: only the new address is mailed.
+        await AsStaffAsync(() => _parties.UpdateAsync(id, new AppointmentPartiesUpdateDto { DefenseAttorney = Attorney(defense) }));
+        await RunQueuedReRendersAsync(id, expected: 1);
+
+        var mail = await AttorneyPacketMailAsync(id);
+        mail.Count(m => m.To == IdentityUsersTestData.ApplicantAttorney1Email).ShouldBe(1, "the booker is not mailed the re-rendered copy again");
+        mail.Count(m => m.To == defense).ShouldBe(1);
+        mail.Count.ShouldBe(2);
+    }
+
     // ----------------------------------------------------------------- helpers
+
+    private Task RaiseAttorneyPacketAsync(Guid id, Guid packetId) =>
+        InOfficeAsync(() => GetRequiredService<AttyCEPacketEmailHandler>().HandleEventAsync(new PacketGeneratedEto
+        {
+            AppointmentId = id,
+            TenantId = TenantsTestData.TenantARef,
+            PacketId = packetId,
+            Kind = PacketKind.AttorneyClaimExaminer,
+            OccurredAt = new DateTime(2026, 9, 24, 12, 0, 0, DateTimeKind.Utc),
+        }));
 
     private static string NewToken() => Guid.NewGuid().ToString("N")[..8];
 
@@ -266,7 +305,7 @@ public class EfCoreAppointmentPartiesPacketReRenderTests
             return Encoding.ASCII.GetString(attachment!.Bytes);
         });
 
-    private async Task<Guid> CreateApprovedAppointmentWithPacketsAsync(string token)
+    private async Task<Guid> CreateApprovedAppointmentWithPacketsAsync(string token, Guid? givenBookerId = null)
     {
         var appointmentId = Guid.NewGuid();
         var patientId = Guid.NewGuid();
@@ -274,6 +313,7 @@ public class EfCoreAppointmentPartiesPacketReRenderTests
         await InOfficeAsync(async () =>
         {
             await SeedTemplatesAsync();
+            var bookerId = givenBookerId ?? await CreateStaffBookerAsync(token);
             await _patientRepository.InsertAsync(new Patient(
                 id: patientId,
                 stateId: null,
@@ -290,7 +330,7 @@ public class EfCoreAppointmentPartiesPacketReRenderTests
             var appointment = new Appointment(
                 id: appointmentId,
                 patientId: patientId,
-                identityUserId: BookerId,
+                identityUserId: bookerId,
                 appointmentTypeId: LocationsTestData.AppointmentType1Id,
                 locationId: LocationsTestData.Location1Id,
                 doctorAvailabilityId: DoctorAvailabilitiesTestData.Slot1Id,
@@ -301,7 +341,7 @@ public class EfCoreAppointmentPartiesPacketReRenderTests
                 TenantId = TenantsTestData.TenantARef,
                 PatientEmail = email,
             };
-            appointment.RecordBookedBy(BookerId);
+            appointment.RecordBookedBy(bookerId);
             await _appointmentRepository.InsertAsync(appointment, autoSave: true);
 
             // The three packets as approval left them, each with its file in storage.
@@ -316,6 +356,14 @@ public class EfCoreAppointmentPartiesPacketReRenderTests
             }
         });
         return appointmentId;
+    }
+
+    private async Task<Guid> CreateStaffBookerAsync(string token)
+    {
+        var email = await RoleUserSeeder.CreateUserInRoleAsync(
+            GetRequiredService<IdentityUserManager>(), GetRequiredService<IdentityRoleManager>(),
+            TenantsTestData.TenantARef, "Intake Staff", $"rr-staff-{token}");
+        return (await GetRequiredService<IdentityUserManager>().FindByEmailAsync(email))!.Id;
     }
 
     private async Task SeedTemplatesAsync()

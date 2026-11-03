@@ -129,5 +129,26 @@ class OfficeIdentityTest(unittest.TestCase):
         )
 
 
+    def test_the_signature_image_is_printed_only_on_the_pqme_qme_form(self) -> None:
+        token = "##Office.SignatureImage##"
+        for name, html in self.documents.items():
+            with self.subTest(document=name):
+                if name == "pqme.html":
+                    # Exactly one <img>: hidden by data-if when empty, source set when not.
+                    self.assertEqual(2, html.count(token))
+                    self.assertEqual(1, html.count('<img data-if="%s" src="%s"' % (token, token)))
+                    qme_page = html.split("QME Appointment Notification Form", 1)[1]
+                    self.assertTrue(token in qme_page, "the signature must sit on the QME Form 110 page")
+                else:
+                    self.assertEqual(0, html.count(token), name)
+
+    def test_the_signature_image_is_overlaid_so_it_takes_no_layout_space(self) -> None:
+        html = self.documents["pqme.html"]
+        img = re.search(r'<img data-if="##Office\.SignatureImage##"[^>]*>', html).group(0)
+        self.assertIn("position:absolute", img)
+        self.assertIn('alt=""', img)
+        self.assertTrue('<span class="sig" style="position:relative">' + img in html)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -232,6 +232,7 @@ public class CaseEvaluationDomainModule : AbpModule
             UseMinio<AppointmentPacketsContainer>(scan: false);
             UseMinio<UserSignaturesContainer>(scan: true);
             UseMinio<OfficeLogosContainer>(scan: true);
+            UseMinio<OfficeSignaturesContainer>(scan: true);
         });
     }
 

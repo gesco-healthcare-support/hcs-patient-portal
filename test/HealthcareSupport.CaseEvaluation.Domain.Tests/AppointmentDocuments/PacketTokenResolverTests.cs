@@ -113,7 +113,12 @@ public class PacketTokenResolverTests
                 new OfficeLetterheadResolver(
                     Substitute.For<IReadOnlyRepository<Doctor, Guid>>(),
                     Substitute.For<IReadOnlyRepository<OfficeBranding, Guid>>(),
-                    Substitute.For<ICurrentTenant>()));
+                    Substitute.For<ICurrentTenant>()),
+                // Host context again: no office, so no signature is read.
+                new OfficeSignatureReader(
+                    Substitute.For<IBlobContainer<OfficeSignaturesContainer>>(),
+                    Substitute.For<ICurrentTenant>(),
+                    Microsoft.Extensions.Logging.Abstractions.NullLogger<OfficeSignatureReader>.Instance));
         }
     }
 
