@@ -59,8 +59,9 @@ a backlog that used to be silently absorbed.
 | `../Appointments/Handlers/SlotCascadeHandler.cs` | Log-only stub; subscribes to AppointmentStatusChangedEto |
 
 Application layer counterparts (Application/Notifications/):
-NotificationDispatcher, NotificationTemplateRenderer, OfficeNotificationRecipients, EmailSubjectBuilder,
-TenantUrlComposer, AccountUrlBuilder, and 18+ event handlers.
+NotificationDispatcher, NotificationTemplateRenderer, OfficeNotificationRecipients, PatientBeforeApprovalRule
+(the patient is left off request/rejected/sent-back mail unless they submitted the request),
+EmailSubjectBuilder, TenantUrlComposer, AccountUrlBuilder, and 18+ event handlers.
 
 ## Conventions
 
@@ -92,7 +93,9 @@ placeholders are left in place, not blanked.
 4. Four appointment-level email columns (PatientEmail / AA / DA / CE) -- classified via
    `IRecipientRoleResolver.ClassifyAsync` against the EXPECTED role, not a bare email existence
    check (bare check caused off-role dashboard routing bug B13)
-5. Booker (IdentityUser) and Patient row
+5. Patient row, then the booker -- the account that SUBMITTED the request (`AppointmentSubmitter.IdOf`:
+   creator, else `BookedByUserId`; not the patient login in `IdentityUserId`). A submitter holding an
+   office-side role (`AppointmentSubmitter.StaffRoleNames`) is skipped: staff are never mailed as the booker.
 6. OfficeEmail setting (last, so a shared address keeps its party role)
 
 `NotificationKind` is passed to `ResolveAsync` but the current resolver applies the same logic

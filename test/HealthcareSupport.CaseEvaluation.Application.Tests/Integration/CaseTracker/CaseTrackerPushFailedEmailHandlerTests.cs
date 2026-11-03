@@ -8,6 +8,7 @@ using HealthcareSupport.CaseEvaluation.Logging;
 using HealthcareSupport.CaseEvaluation.Notifications;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -19,16 +20,16 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 
 /// <summary>
 /// Unit tests for <see cref="CaseTrackerPushFailedEmailHandler"/>, the email that tells a staff member
-/// Case Tracker pushes for their office have dead-lettered or are still retrying.
+/// Case Tracker pushes for an office have dead-lettered or are still retrying. 2026-11-03: it goes to the
+/// technical list in <c>CaseTracker:FeedAlertRecipients</c> ONCE per alert, not to office staff.
 ///
 /// <para><b>The template choice (#917).</b> The two emails ask staff for different things, so the
 /// mapping must be exact and must refuse an unknown kind rather than guess.</para>
 ///
-/// <para><b>The email.</b> It goes to that staff member only, links the HOST portal (where staff
-/// work), and lists each failure by confirmation number -- or by appointment id when there is none.
+/// <para><b>The email.</b> It goes to the configured technical list, links the HOST portal, and lists each failure by confirmation number -- or by appointment id when there is none.
 /// When only some failures are listed, the email SAYS there are more, so the list never reads as the
-/// whole story; only a dead-letter email points at the portal for the rest. With no staff address,
-/// nothing is sent.</para>
+/// whole story; only a dead-letter email points at the portal for the rest. With no configured
+/// address, nothing is sent (and an error is logged).</para>
 ///
 /// <para>The dispatched email is read back from a substituted <see cref="INotificationDispatcher"/>,
 /// so no mail can leave. Synthetic data only (HIPAA).</para>
@@ -58,8 +59,8 @@ public class CaseTrackerPushFailedEmailHandlerTests
     }
 
     /// <summary>
-    /// <b>POSITIVE CONTROL</b> for the "sends nothing" tests. The alert goes to the staff member alone,
-    /// on the push-failed template, linking the HOST portal.
+    /// <b>POSITIVE CONTROL</b> for the "sends nothing" tests. The alert goes to the technical list
+    /// only, on the push-failed template, linking the HOST portal.
     /// </summary>
     [Fact]
     public async Task HandleEventAsync_EmailsTheStaffMemberLinkingTheHostPortal_PositiveControl()
@@ -70,26 +71,47 @@ public class CaseTrackerPushFailedEmailHandlerTests
 
         var (template, recipients, variables) = SingleSend(dispatcher);
         template.ShouldBe(NotificationTemplateConsts.Codes.CaseTrackerPushFailed);
-        var recipient = recipients.ShouldHaveSingleItem();
-        recipient.Email.ShouldBe("TEST-staff@test.local");
-        recipient.Role.ShouldBe(RecipientRole.OfficeAdmin);
+        recipients.Select(r => r.Email).ShouldBe(new[] { "TEST-tech-1@test.local", "TEST-tech-2@test.local" });
+        recipients.ShouldAllBe(r => r.Role == RecipientRole.OfficeAdmin);
         variables["PortalUrl"].ShouldBe("https://admin.portal.test.local");
         variables["FailureCount"].ShouldBe(1);
         variables["OfficeName"].ShouldBe("TEST-Office");
     }
 
     [Theory]
+    [InlineData(null)]
     [InlineData("")]
-    [InlineData("   ")]
-    public async Task HandleEventAsync_NoStaffAddress_SendsNothing(string staffEmail)
+    [InlineData("  ; , ")]
+    public async Task HandleEventAsync_NoConfiguredRecipients_SendsNothing_AndLogsAnError(string? configured)
     {
         var dispatcher = Substitute.For<INotificationDispatcher>();
-        var alert = Alert(1, Failure("TEST-CT0002"));
-        alert.StaffEmail = staffEmail;
+        var logger = new RecordingLogger<CaseTrackerPushFailedEmailHandler>();
 
-        await Build(dispatcher).HandleEventAsync(alert);
+        await Build(dispatcher, logger, configured).HandleEventAsync(Alert(1, Failure("TEST-CT0002")));
 
         dispatcher.ReceivedCalls().ShouldBeEmpty();
+        logger.Entries.ShouldHaveSingleItem().Message.ShouldContain("was NOT sent");
+    }
+
+    /// <summary>
+    /// 2026-11-03: the alert no longer names a staff member. A repeated or differently-cased address is
+    /// sent once, and the context tag carries no per-person part, so one alert is one outbox row.
+    /// </summary>
+    [Fact]
+    public async Task HandleEventAsync_SendsOnePerAlertToTheTechnicalList_WithNoPerPersonContextTag()
+    {
+        var dispatcher = Substitute.For<INotificationDispatcher>();
+        var alert = Alert(1, Failure("TEST-CT0008"));
+
+        await Build(dispatcher, configured: "TEST-tech-1@test.local; test-TECH-1@test.local , TEST-tech-2@test.local")
+            .HandleEventAsync(alert);
+
+        var args = dispatcher.ReceivedCalls()
+            .Where(c => c.GetMethodInfo().Name == nameof(INotificationDispatcher.DispatchAsync))
+            .ShouldHaveSingleItem().GetArguments();
+        ((IReadOnlyCollection<NotificationRecipient>)args[1]!).Count.ShouldBe(2);
+        ((string)args[3]!).ShouldBe(
+            $"{NotificationTemplateConsts.Codes.CaseTrackerPushFailed}/{alert.TenantId}/t{alert.OccurredAt.Ticks}");
     }
 
     [Fact]
@@ -155,22 +177,17 @@ public class CaseTrackerPushFailedEmailHandlerTests
         list.ShouldNotContain("Open the portal");
     }
 
-    /// <summary>
-    /// The alert's log line names the staff user by id, never by address. The id is the one the
-    /// dispatch's context tag carries, so the line still correlates with the email that went out.
-    /// </summary>
+    /// <summary>The alert's log line never carries an address: it reports only how many recipients.</summary>
     [Fact]
-    public async Task HandleEventAsync_LogsTheStaffUserId_NotTheAddress()
+    public async Task HandleEventAsync_LogsTheRecipientCount_NotTheAddresses()
     {
         var logger = new RecordingLogger<CaseTrackerPushFailedEmailHandler>();
-        var alert = Alert(2, Failure("TEST-A00001"));
 
-        await Build(Substitute.For<INotificationDispatcher>(), logger).HandleEventAsync(alert);
+        await Build(Substitute.For<INotificationDispatcher>(), logger).HandleEventAsync(Alert(2, Failure("TEST-A00001")));
 
         var line = logger.Entries.ShouldHaveSingleItem().Message;
-        line.ShouldNotContain(alert.StaffEmail);
         line.ShouldNotContain("@");
-        line.ShouldContain(alert.StaffUserId.ToString());
+        line.ShouldContain("2 address(es)");
     }
 
     [Fact]
@@ -187,7 +204,8 @@ public class CaseTrackerPushFailedEmailHandlerTests
 
     private static CaseTrackerPushFailedEmailHandler Build(
         INotificationDispatcher dispatcher,
-        ILogger<CaseTrackerPushFailedEmailHandler>? logger = null)
+        ILogger<CaseTrackerPushFailedEmailHandler>? logger = null,
+        string? configured = "TEST-tech-1@test.local; TEST-tech-2@test.local")
     {
         var urls = Substitute.For<IAccountUrlBuilder>();
         urls.BuildPortalRootUrlAsync(Arg.Any<Guid?>()).Returns("https://tenant-root.portal.test.local");
@@ -196,6 +214,12 @@ public class CaseTrackerPushFailedEmailHandlerTests
             dispatcher,
             Substitute.For<ICurrentTenant>(),
             urls,
+            new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    [CaseTrackerFeedConsts.AlertRecipientsConfigurationKey] = configured,
+                })
+                .Build(),
             logger ?? NullLogger<CaseTrackerPushFailedEmailHandler>.Instance);
     }
 
@@ -212,9 +236,6 @@ public class CaseTrackerPushFailedEmailHandlerTests
     {
         TenantId = Guid.NewGuid(),
         OfficeName = "TEST-Office",
-        StaffUserId = Guid.NewGuid(),
-        StaffEmail = "TEST-staff@test.local",
-        StaffFirstName = "TEST-Staffer",
         FailureCount = failureCount,
         Failures = listed.ToList(),
         OccurredAt = new DateTime(2026, 9, 23, 17, 0, 0, DateTimeKind.Utc),

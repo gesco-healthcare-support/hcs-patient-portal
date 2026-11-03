@@ -22,13 +22,8 @@ internal static class BookingFlowRoles
     /// External callers (Patient, AA, DA, CE) always land at
     /// <c>Pending</c> so only the office side can self-approve.
     /// </summary>
-    internal static readonly System.Collections.Generic.IReadOnlyList<string> InternalUserRoles = new[]
-    {
-        "admin",
-        "Intake Staff",
-        "Staff Supervisor",
-        "IT Admin",
-    };
+    internal static readonly System.Collections.Generic.IReadOnlyList<string> InternalUserRoles =
+        HealthcareSupport.CaseEvaluation.Appointments.Notifications.AppointmentSubmitter.StaffRoleNames;
 
     /// <summary>
     /// Returns <c>true</c> when the calling user holds at least one

@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Notifications;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.EventBus;
@@ -16,8 +17,11 @@ using Volo.Abp.Uow;
 namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Handlers;
 
 /// <summary>
-/// Emails one internal staff member about a batch of failed Case Tracker pushes: dead letters, or since
+/// Emails the technical list about a batch of failed Case Tracker pushes: dead letters, or since
 /// #917 pushes still retrying (<see cref="CaseTrackerPushFailedEto.Kind"/> picks the template).
+///
+/// <para>2026-11-03: the recipients are the technical list in <c>CaseTracker:FeedAlertRecipients</c> (the same list the
+/// feed alerts use), ONCE per alert. Staff Supervisors and Intake Staff no longer receive it.</para>
 ///
 /// <para>Lives in Application because the notification dispatcher does; the job that decides WHEN to
 /// alert lives in Domain. Mirrors <c>InternalStaffQueueDigestEmailHandler</c>, including linking to the
@@ -34,25 +38,38 @@ public class CaseTrackerPushFailedEmailHandler :
     private readonly INotificationDispatcher _dispatcher;
     private readonly ICurrentTenant _currentTenant;
     private readonly IAccountUrlBuilder _accountUrlBuilder;
+    private readonly IConfiguration _configuration;
     private readonly ILogger<CaseTrackerPushFailedEmailHandler> _logger;
 
     public CaseTrackerPushFailedEmailHandler(
         INotificationDispatcher dispatcher,
         ICurrentTenant currentTenant,
         IAccountUrlBuilder accountUrlBuilder,
+        IConfiguration configuration,
         ILogger<CaseTrackerPushFailedEmailHandler> logger)
     {
         _dispatcher = dispatcher;
         _currentTenant = currentTenant;
         _accountUrlBuilder = accountUrlBuilder;
+        _configuration = configuration;
         _logger = logger;
     }
 
     [UnitOfWork]
     public virtual async Task HandleEventAsync(CaseTrackerPushFailedEto eventData)
     {
-        if (eventData == null || string.IsNullOrWhiteSpace(eventData.StaffEmail))
+        if (eventData == null)
         {
+            return;
+        }
+
+        var addresses = CaseTrackerFeedAlertEmailHandler.ParseRecipients(
+            _configuration[CaseTrackerFeedConsts.AlertRecipientsConfigurationKey]);
+        if (addresses.Count == 0)
+        {
+            _logger.LogError(
+                "CaseTrackerPushFailedEmailHandler: no recipients are configured under {Key}; the {Kind} alert for office {OfficeId} was NOT sent.",
+                CaseTrackerFeedConsts.AlertRecipientsConfigurationKey, eventData.Kind, eventData.TenantId);
             return;
         }
 
@@ -61,17 +78,17 @@ public class CaseTrackerPushFailedEmailHandler :
             // null = the HOST surface (admin.<base>), where internal staff work.
             var portalUrl = await _accountUrlBuilder.BuildPortalRootUrlAsync(null);
 
-            var recipients = new List<NotificationRecipient>
-            {
-                new NotificationRecipient(
-                    email: eventData.StaffEmail,
+            var recipients = addresses
+                .Select(address => new NotificationRecipient(
+                    email: address,
                     role: Appointments.Notifications.RecipientRole.OfficeAdmin,
-                    isRegistered: true),
-            };
+                    isRegistered: false))
+                .ToList();
 
             var variables = new Dictionary<string, object?>(StringComparer.Ordinal)
             {
-                ["StaffFirstName"] = eventData.StaffFirstName ?? string.Empty,
+                // The seeded bodies open "Hello ##StaffFirstName##,"; the list is a team, not a person.
+                ["StaffFirstName"] = "team",
                 ["OfficeName"] = eventData.OfficeName,
                 ["FailureCount"] = eventData.FailureCount,
                 ["FailureList"] = BuildFailureList(eventData),
@@ -84,13 +101,11 @@ public class CaseTrackerPushFailedEmailHandler :
                 templateCode: templateCode,
                 recipients: recipients,
                 variables: variables,
-                contextTag: NotificationOccurrence.At($"{templateCode}/{eventData.TenantId}/{eventData.StaffUserId}", eventData.OccurredAt));
+                contextTag: NotificationOccurrence.At($"{templateCode}/{eventData.TenantId}", eventData.OccurredAt));
 
-            // The staff user's id, not their address: the id is in the context tag above, so the
-            // line still correlates with the email that went out without writing PII to the log.
             _logger.LogInformation(
-                "CaseTrackerPushFailedEmailHandler: alerted staff user {StaffUserId} about {Count} push(es) ({Kind}) in office {TenantId}.",
-                eventData.StaffUserId, eventData.FailureCount, eventData.Kind, eventData.TenantId);
+                "CaseTrackerPushFailedEmailHandler: alerted the technical list ({Recipients} address(es)) about {Count} push(es) ({Kind}) in office {TenantId}.",
+                recipients.Count, eventData.FailureCount, eventData.Kind, eventData.TenantId);
         }
     }
 

@@ -8,6 +8,7 @@ using HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Patients;
 using HealthcareSupport.CaseEvaluation.Settings;
+using System.Threading;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Volo.Abp.Domain.Repositories;
@@ -63,6 +64,7 @@ public class AppointmentRecipientResolverTests
             appointmentStatus: AppointmentStatusType.Approved)
         {
             TenantId = OfficeTenantId,
+            BookedByUserId = bookerId,
         };
 
         var appointmentRepo = Substitute.For<IRepository<Appointment, Guid>>();
@@ -95,6 +97,7 @@ public class AppointmentRecipientResolverTests
             appointmentRepo,
             patientRepo,
             identityUserRepo,
+            Substitute.For<IIdentityUserRepository>(),
             applicantLinkRepo,
             Substitute.For<IRepository<ApplicantAttorney, Guid>>(),
             defenseLinkRepo,
@@ -134,6 +137,7 @@ public class AppointmentRecipientResolverTests
             appointmentStatus: AppointmentStatusType.Approved)
         {
             TenantId = OfficeTenantId,
+            BookedByUserId = bookerId,
         };
 
         var appointmentRepo = Substitute.For<IRepository<Appointment, Guid>>();
@@ -165,6 +169,7 @@ public class AppointmentRecipientResolverTests
             appointmentRepo,
             patientRepo,
             identityUserRepo,
+            Substitute.For<IIdentityUserRepository>(),
             applicantLinkRepo,
             Substitute.For<IRepository<ApplicantAttorney, Guid>>(),
             defenseLinkRepo,
@@ -244,6 +249,7 @@ public class AppointmentRecipientResolverTests
             appointmentRepo,
             Substitute.For<IRepository<Patient, Guid>>(),
             identityUserRepo,
+            Substitute.For<IIdentityUserRepository>(),
             applicantLinkRepo,
             applicantMasterRepo,
             defenseLinkRepo,
@@ -295,5 +301,125 @@ public class AppointmentRecipientResolverTests
         var recipients = await ResolveAttorneyLinkAsync(null, null, null, applicant: true);
 
         Assert.Empty(recipients);
+    }
+
+    // ---- 2026-11-03: the booker is the account that SUBMITTED the request ----
+
+    private static async Task<List<SendAppointmentEmailArgs>> ResolveSubmitterAsync(
+        Guid? loginUserId, Guid? submitterId, string? submitterEmail, string[] submitterRoles, string? patientEmail = null)
+    {
+        var appointmentId = Guid.NewGuid();
+        var patientId = Guid.NewGuid();
+        var appointment = new Appointment(
+            id: appointmentId,
+            patientId: patientId,
+            identityUserId: loginUserId,
+            appointmentTypeId: Guid.NewGuid(),
+            locationId: Guid.NewGuid(),
+            doctorAvailabilityId: Guid.NewGuid(),
+            appointmentDate: FutureAppointmentDate,
+            requestConfirmationNumber: "TEST-RESOLVER-SUBMITTER",
+            appointmentStatus: AppointmentStatusType.Approved)
+        {
+            TenantId = OfficeTenantId,
+            BookedByUserId = submitterId,
+        };
+        var appointmentRepo = Substitute.For<IRepository<Appointment, Guid>>();
+        appointmentRepo.FindAsync(appointmentId).Returns(appointment);
+
+        var patientRepo = Substitute.For<IRepository<Patient, Guid>>();
+        if (patientEmail != null)
+        {
+            patientRepo.FindAsync(patientId).Returns(new Patient(
+                patientId, null, null, null, OfficeTenantId, "TEST-First", "TEST-Last", patientEmail,
+                default(Gender), new DateTime(1990, 1, 1, 0, 0, 0, DateTimeKind.Utc), default(PhoneNumberType)));
+        }
+
+        var identityUserRepo = Substitute.For<IRepository<IdentityUser, Guid>>();
+        if (loginUserId.HasValue)
+        {
+            identityUserRepo.FindAsync(loginUserId.Value)
+                .Returns(new IdentityUser(loginUserId.Value, "login", "patient-login@falkinstein.test", OfficeTenantId));
+        }
+        var queries = Substitute.For<IIdentityUserRepository>();
+        if (submitterId.HasValue)
+        {
+            identityUserRepo.FindAsync(submitterId.Value)
+                .Returns(new IdentityUser(submitterId.Value, "submitter", submitterEmail!, OfficeTenantId));
+            queries.GetRoleNamesAsync(submitterId.Value, Arg.Any<CancellationToken>())
+                .Returns(submitterRoles.ToList());
+        }
+
+        var applicantLinkRepo = Substitute.For<IAppointmentApplicantAttorneyRepository>();
+        applicantLinkRepo.GetQueryableAsync().Returns(new List<AppointmentApplicantAttorney>().AsQueryable());
+        var defenseLinkRepo = Substitute.For<IAppointmentDefenseAttorneyRepository>();
+        defenseLinkRepo.GetQueryableAsync().Returns(new List<AppointmentDefenseAttorney>().AsQueryable());
+
+        var currentTenant = Substitute.For<ICurrentTenant>();
+        currentTenant.Id.Returns(OfficeTenantId);
+        currentTenant.Name.Returns(OfficeTenantName);
+
+        var resolver = new AppointmentRecipientResolver(
+            appointmentRepo,
+            patientRepo,
+            identityUserRepo,
+            queries,
+            applicantLinkRepo,
+            Substitute.For<IRepository<ApplicantAttorney, Guid>>(),
+            defenseLinkRepo,
+            Substitute.For<IRepository<DefenseAttorney, Guid>>(),
+            Substitute.For<IRepository<AppointmentEmployerDetail, Guid>>(),
+            Substitute.For<ISettingProvider>(),
+            currentTenant,
+            Substitute.For<IRecipientRoleResolver>(),
+            NullLogger<AppointmentRecipientResolver>.Instance);
+
+        return await resolver.ResolveAsync(appointmentId, NotificationKind.Submitted);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_TheBooker_IsTheSubmitter_NotThePatientLogin()
+    {
+        var submitterId = Guid.NewGuid();
+
+        var recipients = await ResolveSubmitterAsync(
+            Guid.NewGuid(), submitterId, "submitter@falkinstein.test", new[] { "Applicant Attorney" });
+
+        var r = Assert.Single(recipients);
+        Assert.Equal("submitter@falkinstein.test", r.To);
+        Assert.DoesNotContain(recipients, x => x.To == "patient-login@falkinstein.test");
+    }
+
+    [Theory]
+    [InlineData("Intake Staff")]
+    [InlineData("Staff Supervisor")]
+    [InlineData("admin")]
+    [InlineData("IT Admin")]
+    public async Task ResolveAsync_AStaffSubmitter_IsNotARecipient(string staffRole)
+    {
+        var recipients = await ResolveSubmitterAsync(
+            null, Guid.NewGuid(), "staff@falkinstein.test", new[] { staffRole });
+
+        Assert.Empty(recipients);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_ASubmitterWhoIsAlsoTheirOwnPatient_IsMailedOnce()
+    {
+        var recipients = await ResolveSubmitterAsync(
+            null, Guid.NewGuid(), "same@falkinstein.test", new[] { "Patient" }, patientEmail: "SAME@falkinstein.test");
+
+        Assert.Single(recipients);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_TheActualPatient_KeepsThePatientRole_WhenADifferentSubmitterBooked()
+    {
+        var recipients = await ResolveSubmitterAsync(
+            null, Guid.NewGuid(), "paralegal@falkinstein.test", new[] { "Applicant Attorney" },
+            patientEmail: "patient@falkinstein.test");
+
+        Assert.Equal(2, recipients.Count);
+        Assert.Equal(RecipientRole.Patient, recipients.Single(x => x.To == "patient@falkinstein.test").Role);
     }
 }

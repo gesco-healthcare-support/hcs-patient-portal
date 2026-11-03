@@ -16,8 +16,8 @@ namespace HealthcareSupport.CaseEvaluation.Notifications.Handlers;
 
 /// <summary>
 /// Unit coverage for <see cref="IntakeChangedEmailHandler"/>: the per-field "what changed" table
-/// emailed to the appointment's parties when staff edit an intake, plus the one-shot reschedule
-/// email when the date or time moved.
+/// emailed to the office inbox when staff edit an intake (2026-11-03: inbox only, and no second
+/// reschedule email when the date or time moved).
 ///
 /// <para><b>THE TWO GUARANTEES THAT MATTER MOST.</b> A field marked <c>ValueRedacted</c> renders as
 /// "updated (value hidden)" and NEITHER its old nor its new value appears anywhere in what is
@@ -48,7 +48,9 @@ public class IntakeChangedEmailHandlerTests
         public DocumentEmailContextResolver ContextResolver { get; } =
             Substitute.For<DocumentEmailContextResolver>(null, null, null, null, null, null, null, null, null, null);
 
-        public IAppointmentRecipientResolver RecipientResolver { get; } = Substitute.For<IAppointmentRecipientResolver>();
+        /// <summary>The office inbox is the only recipient (2026-11-03); Intake Staff are listed to prove they are not.</summary>
+        public FakeOfficeRecipients Office { get; } = new() { Inbox = "TEST-inbox@test.local" };
+
         public ICurrentTenant CurrentTenant { get; } = Substitute.For<ICurrentTenant>();
 
         public DocumentEmailContext Context { get; } = new()
@@ -61,16 +63,9 @@ public class IntakeChangedEmailHandlerTests
             PortalBaseUrl = "https://tenant.portal.test.local",
         };
 
-        public List<SendAppointmentEmailArgs> Parties { get; } = new()
-        {
-            Party("TEST-applicant-attorney@test.local", RecipientRole.ApplicantAttorney),
-        };
-
         public Rig()
         {
             ContextResolver.ResolveAsync(Arg.Any<Guid>(), Arg.Any<Guid?>()).Returns(_ => Context);
-            // List<T> is concrete, so an unconfigured resolver would hand back null and throw at .Where.
-            RecipientResolver.ResolveAsync(Arg.Any<Guid>(), Arg.Any<NotificationKind>()).Returns(_ => Parties);
             // DECOY, load-bearing (#1014): production's ambient name is null, so ClinicName
             // must never come from it.
             CurrentTenant.Name.Returns("TEST-clinic");
@@ -79,7 +74,7 @@ public class IntakeChangedEmailHandlerTests
         public IntakeChangedEmailHandler Build() => new(
             Dispatcher,
             ContextResolver,
-            RecipientResolver,
+            Office,
             CurrentTenant,
             NullLogger<IntakeChangedEmailHandler>.Instance);
     }
@@ -90,13 +85,6 @@ public class IntakeChangedEmailHandlerTests
         IReadOnlyCollection<NotificationRecipient> Recipients,
         IReadOnlyDictionary<string, object?> Variables,
         string ContextTag);
-
-    private static SendAppointmentEmailArgs Party(string email, RecipientRole? role) => new()
-    {
-        To = email,
-        Role = role,
-        IsRegistered = true,
-    };
 
     private static IntakeChangedField Field(string name, string? oldValue, string? newValue, bool redacted = false) => new()
     {
@@ -157,7 +145,7 @@ public class IntakeChangedEmailHandlerTests
 
         var sent = SingleSend(rig.Dispatcher);
         sent.TemplateCode.ShouldBe(NotificationTemplateConsts.Codes.AppointmentChangeLogs);
-        sent.Recipients.Select(r => r.Email).ShouldBe(new[] { "TEST-applicant-attorney@test.local" });
+        sent.Recipients.Select(r => r.Email).ShouldBe(new[] { "TEST-inbox@test.local" });
     }
 
     /// <summary>
@@ -200,7 +188,6 @@ public class IntakeChangedEmailHandlerTests
 
         rig.Dispatcher.ReceivedCalls().ShouldBeEmpty("an empty diff must not produce an empty change table email");
         await rig.ContextResolver.DidNotReceive().ResolveAsync(Arg.Any<Guid>(), Arg.Any<Guid?>());
-        await rig.RecipientResolver.DidNotReceive().ResolveAsync(Arg.Any<Guid>(), Arg.Any<NotificationKind>());
     }
 
     [Fact]
@@ -215,43 +202,34 @@ public class IntakeChangedEmailHandlerTests
             "with no appointment context the handler must skip, not throw");
     }
 
-    [Fact]
-    public async Task HandleEventAsync_EveryRecipientAddressBlank_DispatchesNothing()
-    {
-        var rig = new Rig();
-        rig.Parties.Clear();
-        rig.Parties.Add(Party("", RecipientRole.ApplicantAttorney));
-        rig.Parties.Add(Party("   ", RecipientRole.DefenseAttorney));
-
-        await rig.Build().HandleEventAsync(OneFieldChanged());
-
-        rig.Dispatcher.ReceivedCalls().ShouldBeEmpty(
-            "blank addresses are dropped, and with none left there is nobody to send to");
-    }
-
     /// <summary>
-    /// Blank addresses are dropped and the rest kept. The role passes through AS GIVEN -- a party
-    /// with no role stays role-less here, unlike the document emails, which default it to Patient.
+    /// 2026-11-03: the change log is the office's own housekeeping, so it goes to the office inbox ONLY:
+    /// neither the parties nor the Intake Staff are mailed.
     /// </summary>
     [Fact]
-    public async Task HandleEventAsync_DropsBlankAddressesAndPassesEachRoleThroughUnchanged()
+    public async Task HandleEventAsync_GoesToTheOfficeInboxOnly_NotToPartiesOrIntakeStaff()
     {
         var rig = new Rig();
-        rig.Parties.Clear();
-        rig.Parties.Add(Party("TEST-applicant-attorney@test.local", RecipientRole.ApplicantAttorney));
-        rig.Parties.Add(Party("", RecipientRole.OfficeAdmin));
-        rig.Parties.Add(Party("TEST-no-role@test.local", role: null));
+        rig.Office.Intake.Add("TEST-intake@test.local");
         var evt = OneFieldChanged();
 
         await rig.Build().HandleEventAsync(evt);
 
         var recipients = SingleSend(rig.Dispatcher).Recipients;
-        recipients.Select(r => r.Email).ShouldBe(
-            new[] { "TEST-applicant-attorney@test.local", "TEST-no-role@test.local" },
-            ignoreOrder: true);
-        recipients.Single(r => r.Email == "TEST-applicant-attorney@test.local").Role.ShouldBe(RecipientRole.ApplicantAttorney);
-        recipients.Single(r => r.Email == "TEST-no-role@test.local").Role.ShouldBeNull();
-        await rig.RecipientResolver.Received(1).ResolveAsync(evt.AppointmentId, NotificationKind.IntakeChanged);
+        recipients.Select(r => r.Email).ShouldBe(new[] { "TEST-inbox@test.local" });
+    }
+
+    [Fact]
+    public async Task HandleEventAsync_NoOfficeInbox_DispatchesNothing()
+    {
+        var rig = new Rig();
+        rig.Office.Inbox = null;
+        rig.Office.Intake.Add("TEST-intake@test.local");
+
+        await rig.Build().HandleEventAsync(OneFieldChanged());
+
+        rig.Dispatcher.ReceivedCalls().ShouldBeEmpty(
+            "with no office inbox there is nobody to send the change log to; Intake Staff do not receive it");
     }
 
     /// <summary>
@@ -335,25 +313,21 @@ public class IntakeChangedEmailHandlerTests
     }
 
     /// <summary>
-    /// When the date or time moved, a SECOND email -- the reschedule notice -- goes to the same
-    /// people, carrying the new date (the context is read after the update, so its date is the new one).
+    /// 2026-11-03: a date or time change no longer sends the second, reschedule-by-admin notice -- the
+    /// change log to the office inbox is the only email.
     /// </summary>
     [Fact]
-    public async Task HandleEventAsync_DateOrTimeChanged_AlsoSendsTheRescheduleNoticeToTheSameRecipients()
+    public async Task HandleEventAsync_DateOrTimeChanged_StillSendsOnlyTheChangeTable()
     {
         var rig = new Rig();
         var evt = ChangedEvent(true, Field("AppointmentDate", "TEST-a", "TEST-b"));
 
         await rig.Build().HandleEventAsync(evt);
 
-        var sends = Sends(rig.Dispatcher);
-        sends.Count.ShouldBe(2, "a date or time change sends the change table AND the reschedule notice");
-        sends[0].TemplateCode.ShouldBe(NotificationTemplateConsts.Codes.AppointmentChangeLogs);
-        sends[1].TemplateCode.ShouldBe(NotificationTemplateConsts.Codes.AppointmentRescheduleRequestByAdmin);
-        sends[1].Recipients.Select(r => r.Email).ShouldBe(sends[0].Recipients.Select(r => r.Email));
-        sends[1].Variables["NewAppointmentDate"].ShouldBe("10/05/2026");
-        sends[1].Variables["NewAppointmentDate"].ShouldBe(sends[1].Variables["AppointmentDate"]);
-        sends[1].ContextTag.ShouldBe($"IntakeChanged/Reschedule/{evt.AppointmentId}/t{evt.OccurredAt.Ticks}");
+        var sent = SingleSend(rig.Dispatcher);
+        sent.TemplateCode.ShouldBe(NotificationTemplateConsts.Codes.AppointmentChangeLogs);
+        Sends(rig.Dispatcher).ShouldNotContain(
+            e => e.TemplateCode == NotificationTemplateConsts.Codes.AppointmentRescheduleRequestByAdmin);
     }
 
     [Fact]
