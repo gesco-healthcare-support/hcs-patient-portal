@@ -258,7 +258,14 @@ def qme_form():
         + 'QME Street Address: <u class="caps">##Office.MailingStreet##</u>'
         + '&nbsp;&nbsp; QME City: <u>##Office.MailingCity##</u>&nbsp;&nbsp; Zip code: <u>##Office.MailingZip##</u></div>'
         + f'<div class="qline" style="margin-top:8px">Date Signed: {tok("##Others.DateNow##")}'
-        + '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Signature of the QME: <span class="sig"></span></div>'
+        + '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Signature of the QME: '
+        # The doctor's signature image, laid over the line (absolute: it takes no layout space, so an
+        # office with none stored renders exactly as before). Inline style, not CSS, so the AME/IME
+        # variant, which shares the stylesheet, is unchanged. data-if hides it when the token is "".
+        + '<span class="sig" style="position:relative">'
+        + '<img data-if="##Office.SignatureImage##" src="##Office.SignatureImage##" alt="" '
+        + 'style="position:absolute;left:0.3in;bottom:-5px;width:1.28in;height:0.55in;object-fit:contain">'
+        + '</span></div>'
         + '<div class="note">Note to Claims Administrator: The Administrative Director\'s regulation 10160 requires '
         + 'you to forward a completed, DWC-AD form 101(DEU) (Request for Summary Rating Determination of Qualified '
         + f'Medical Evaluator\'s Report) (see, 8 Cal. Code Regs. {_SECT}{_SECT} 10160 and 10161) together with all '
