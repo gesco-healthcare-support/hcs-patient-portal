@@ -25,8 +25,9 @@ namespace HealthcareSupport.CaseEvaluation.Notifications.Handlers;
 ///
 /// <para><b>Trigger.</b> Stateless, like <c>PacketsCompleteHandler</c>: every attorney / patient
 /// <see cref="PacketGeneratedEto"/> asks "are BOTH of those packets Generated now?", so whichever packet
-/// finishes second sends the copy and the first sends nothing. An appointment type that renders no
-/// attorney packet therefore never sends a copy.</para>
+/// finishes second sends the copy and the first sends nothing. Every appointment type renders all three
+/// kinds, so the only appointment without a copy is one whose attorney or patient packet is not Generated
+/// (for example a render that failed for good); a staff Regenerate then raises the event that sends it.</para>
 ///
 /// <para><b>Once per set.</b> The context tag carries the packet version -- the number of earlier files a
 /// re-render has replaced for this appointment (<see cref="AppointmentPacketVersion"/>) -- so a repeat

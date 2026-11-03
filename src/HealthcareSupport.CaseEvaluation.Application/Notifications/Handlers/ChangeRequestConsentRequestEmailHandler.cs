@@ -156,7 +156,7 @@ public class ChangeRequestConsentRequestEmailHandler :
         return $"{date} at {time}";
     }
 
-    private static string BuildDetailsBlock(string? newDateTime, string? reason)
+    internal static string BuildDetailsBlock(string? newDateTime, string? reason)
     {
         var sb = new System.Text.StringBuilder("<p>");
         if (!string.IsNullOrWhiteSpace(newDateTime))

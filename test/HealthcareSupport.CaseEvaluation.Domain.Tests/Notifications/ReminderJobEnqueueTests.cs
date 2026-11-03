@@ -14,7 +14,8 @@ using Xunit;
 namespace HealthcareSupport.CaseEvaluation.Notifications.Jobs;
 
 /// <summary>
-/// What the three reminder jobs actually SEND. Their own test classes resolve no recipients, so the
+/// What the two reminder jobs that still send directly actually SEND (the appointment-day reminder moved to
+/// the dispatcher in 2026-11-03; see AppointmentDayReminderJobTests). Their own test classes resolve no recipients, so the
 /// enqueue loop never runs there. Here each on-anchor appointment has two parties, and each must get
 /// exactly one queued email carrying the job's subject, an HTML body and a context naming the job,
 /// the party's role and the appointment. An off-anchor appointment sits in every fixture as the decoy
@@ -53,36 +54,6 @@ public class ReminderJobEnqueueTests
                 .Select(call => call.GetArguments()[0])
                 .OfType<SendAppointmentEmailArgs>()
                 .ToList();
-    }
-
-    [Fact]
-    public async Task AppointmentDayReminder_QueuesOneEmailPerParty_ForTheAnchorDayOnly()
-    {
-        var h = new Harness();
-        var today = ReminderJobTestHarness.PacificToday;
-        var onAnchor = ReminderJobTestHarness.Appt(OnAnchorId, AppointmentStatusType.Approved, today.AddDays(7));
-        var job = new AppointmentDayReminderJob(
-            ReminderJobTestHarness.AppointmentRepo(
-                onAnchor,
-                ReminderJobTestHarness.Appt(OffAnchorId, AppointmentStatusType.Approved, today.AddDays(5))),
-            ReminderJobTestHarness.TenantWorkRunner(),
-            h.Resolver,
-            h.Jobs,
-            ReminderJobTestHarness.Settings(true, CaseEvaluationSettings.RemindersPolicy.AppointmentDayTMinusAnchors, "7,1"),
-            NullLogger<AppointmentDayReminderJob>.Instance,
-            ReminderJobTestHarness.Clock());
-
-        await job.ExecuteAsync();
-
-        var queued = h.Queued();
-        queued.Select(q => q.To).ShouldBe(h.Parties.Select(p => p.To), ignoreOrder: true);
-        foreach (var email in queued)
-        {
-            email.Subject.ShouldBe($"Reminder: appointment {onAnchor.RequestConfirmationNumber} in 7 days");
-            email.Body.ShouldContain(onAnchor.RequestConfirmationNumber!);
-            email.IsBodyHtml.ShouldBeTrue();
-            email.Context.ShouldBe($"Reminder/AppointmentDay/T-7/{email.Role}/{OnAnchorId}");
-        }
     }
 
     [Fact]

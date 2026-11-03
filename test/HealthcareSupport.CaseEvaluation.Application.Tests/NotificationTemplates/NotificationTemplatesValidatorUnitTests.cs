@@ -232,7 +232,9 @@ public class NotificationTemplatesValidatorUnitTests
         // 2026-11-03 added OfficeDailySummary and SupervisorDailySummary, the twice-daily summaries that
         // replace the two daily digests (+2 -> 74).
         // 2026-11-03 added OfficePacketCopy, the office inbox's one email with both packets (+1 -> 75).
-        NotificationTemplateConsts.Codes.All.Length.ShouldBe(75);
+        // 2026-11-03 email routing v2 added ChangeRequestConsentInfo, ChangeRequestConsentDeclined,
+        // PatientAppointmentNotSeen and AppointmentDayReminder (+4 -> 79).
+        NotificationTemplateConsts.Codes.All.Length.ShouldBe(79);
     }
 
     [Fact]

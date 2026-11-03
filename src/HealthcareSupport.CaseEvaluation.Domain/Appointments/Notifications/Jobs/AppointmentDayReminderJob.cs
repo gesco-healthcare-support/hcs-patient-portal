@@ -4,11 +4,12 @@ using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.MultiTenancy;
 using HealthcareSupport.CaseEvaluation.Notifications;
+using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using HealthcareSupport.CaseEvaluation.Settings;
 using Microsoft.Extensions.Logging;
-using Volo.Abp.BackgroundJobs;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
+using Volo.Abp.EventBus.Local;
 using Volo.Abp.Settings;
 using Volo.Abp.Timing;
 using HealthcareSupport.CaseEvaluation.Timing;
@@ -20,8 +21,16 @@ namespace HealthcareSupport.CaseEvaluation.Appointments.Notifications.Jobs;
 /// W2-10: appointment-day reminder. Fires daily at 07:00 Pacific Time
 /// (earlier than the two CCR jobs so T-1-day reminders go out before the
 /// office opens). For each tenant, locates Approved appointments whose
-/// AppointmentDate falls T-7 days OR T-1 day from today, resolves all
-/// parties, enqueues per-recipient reminder emails.
+/// AppointmentDate falls T-7 days OR T-1 day from today and publishes one
+/// <see cref="AppointmentDayReminderEto"/> per appointment. Since 2026-11-03 the
+/// email itself is sent by <c>AppointmentDayReminderEmailHandler</c> through the
+/// notification dispatcher and the editable <c>AppointmentDayReminder</c> template
+/// (to the patient, the office inbox and the Intake Staff); the job used to build
+/// inline text and enqueue it straight to the mail job, bypassing the outbox.
+///
+/// <para>Gated by its OWN setting, <see cref="CaseEvaluationSettings.RemindersPolicy.AppointmentDayReminderEnabled"/>
+/// (default on), not the global <c>RemindersEnabled</c> (default off) the other three
+/// reminder jobs still honor: the office wants only this reminder switched on.</para>
 ///
 /// Holiday-aware skip on T-1 (skip the reminder if T-1 is a US federal
 /// or California state holiday) is post-MVP per the deferred ledger;
@@ -31,8 +40,7 @@ public class AppointmentDayReminderJob : ITransientDependency
 {
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly ITenantWorkRunner _tenantWorkRunner;
-    private readonly IAppointmentRecipientResolver _recipientResolver;
-    private readonly IBackgroundJobManager _backgroundJobManager;
+    private readonly ILocalEventBus _localEventBus;
     private readonly ISettingProvider _settingProvider;
     private readonly ILogger<AppointmentDayReminderJob> _logger;
     private readonly IClock _clock;
@@ -40,16 +48,14 @@ public class AppointmentDayReminderJob : ITransientDependency
     public AppointmentDayReminderJob(
         IRepository<Appointment, Guid> appointmentRepository,
         ITenantWorkRunner tenantWorkRunner,
-        IAppointmentRecipientResolver recipientResolver,
-        IBackgroundJobManager backgroundJobManager,
+        ILocalEventBus localEventBus,
         ISettingProvider settingProvider,
         ILogger<AppointmentDayReminderJob> logger,
         IClock clock)
     {
         _appointmentRepository = appointmentRepository;
         _tenantWorkRunner = tenantWorkRunner;
-        _recipientResolver = recipientResolver;
-        _backgroundJobManager = backgroundJobManager;
+        _localEventBus = localEventBus;
         _settingProvider = settingProvider;
         _logger = logger;
         _clock = clock;
@@ -64,20 +70,20 @@ public class AppointmentDayReminderJob : ITransientDependency
         _logger.LogInformation("AppointmentDayReminderJob: starting daily run.");
         var enqueuedTotal = 0;
         var officeCount = 0;
-        await _tenantWorkRunner.ForEachOfficeAsync(async _ =>
+        await _tenantWorkRunner.ForEachOfficeAsync(async officeId =>
         {
             officeCount++;
-            enqueuedTotal += await ProcessTenantAsync();
+            enqueuedTotal += await ProcessTenantAsync(officeId);
         });
         _logger.LogInformation(
-            "AppointmentDayReminderJob: enqueued {Total} reminder emails across {TenantCount} tenants.",
+            "AppointmentDayReminderJob: raised {Total} reminder events across {TenantCount} tenants.",
             enqueuedTotal,
             officeCount);
     }
 
-    private async Task<int> ProcessTenantAsync()
+    private async Task<int> ProcessTenantAsync(Guid? tenantId)
     {
-        if (!await _settingProvider.GetAsync<bool>(CaseEvaluationSettings.RemindersPolicy.RemindersEnabled))
+        if (!await _settingProvider.GetAsync<bool>(CaseEvaluationSettings.RemindersPolicy.AppointmentDayReminderEnabled))
         {
             return 0;
         }
@@ -99,26 +105,18 @@ public class AppointmentDayReminderJob : ITransientDependency
             .Where(a => cadence.ShouldFire((int)(a.AppointmentDate.Date - todayPacific).TotalDays))
             .ToList();
 
-        var enqueued = 0;
+        var raised = 0;
         foreach (var appointment in eligible)
         {
-            var recipients = await _recipientResolver.ResolveAsync(
-                appointment.Id,
-                NotificationKind.AppointmentDayReminder);
-            var daysUntil = (int)(appointment.AppointmentDate.Date - todayPacific).TotalDays;
-            var when = daysUntil == 1 ? "tomorrow" : $"in {daysUntil} days";
-            var subject = $"Reminder: appointment {appointment.RequestConfirmationNumber} {when}";
-            var body = $"<p>Appointment confirmation #{appointment.RequestConfirmationNumber} is scheduled for {appointment.AppointmentDate:MMM d, yyyy h:mm tt}.</p><p>Please make any arrangements needed and confirm attendance.</p>";
-            foreach (var args in recipients)
+            await _localEventBus.PublishAsync(new AppointmentDayReminderEto
             {
-                args.Subject = subject;
-                args.Body = body;
-                args.IsBodyHtml = true;
-                args.Context = $"Reminder/AppointmentDay/T-{daysUntil}/{args.Role}/{appointment.Id}";
-                await _backgroundJobManager.EnqueueAsync(args);
-                enqueued++;
-            }
+                AppointmentId = appointment.Id,
+                TenantId = tenantId,
+                DaysUntil = (int)(appointment.AppointmentDate.Date - todayPacific).TotalDays,
+                OccurredAt = _clock.Now.ToUniversalTime(),
+            });
+            raised++;
         }
-        return enqueued;
+        return raised;
     }
 }

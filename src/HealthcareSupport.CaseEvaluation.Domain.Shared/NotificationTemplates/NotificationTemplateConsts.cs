@@ -301,7 +301,32 @@ public static class NotificationTemplateConsts
         public const string OfficePacketCopy = "OfficePacketCopy";
 
         /// <summary>
-        /// All 75 codes in seed order (count asserted by
+        /// 2026-11-03 (email routing, row 8) -- no-link notice that a reschedule is waiting for the two
+        /// sides to agree. Sent to everyone NOT asked to consent: the claim examiner when not a link
+        /// holder, the office inbox and the Intake Staff. Never to the patient.
+        /// </summary>
+        public const string ChangeRequestConsentInfo = "ChangeRequestConsentInfo";
+
+        /// <summary>
+        /// 2026-11-03 (row 9d) -- a side declined a change request. Sent at once to the office inbox and
+        /// the Intake Staff only; the parties hear when staff close the request.
+        /// </summary>
+        public const string ChangeRequestConsentDeclined = "ChangeRequestConsentDeclined";
+
+        /// <summary>
+        /// 2026-11-03 (row 16) -- an appointment was marked Not Seen (inbound from the Case Tracker).
+        /// Office inbox + Intake Staff, with wording of its own (the no-show body says "No-Show").
+        /// </summary>
+        public const string PatientAppointmentNotSeen = "PatientAppointmentNotSeen";
+
+        /// <summary>
+        /// 2026-11-03 (row 15) -- the appointment reminder, 7 days and 1 day before. Patient, office
+        /// inbox and Intake Staff. Variables: ##ReminderWhen## ("in 7 days" / "tomorrow").
+        /// </summary>
+        public const string AppointmentDayReminder = "AppointmentDayReminder";
+
+        /// <summary>
+        /// All 79 codes in seed order (count asserted by
         /// <c>NotificationTemplatesValidatorUnitTests.Codes_All_Has64Codes</c> -- keep both in step;
         /// this comment had drifted by one before 2026-07-28). Used by
         /// <c>NotificationTemplateDataSeedContributor</c> to ensure each
@@ -377,6 +402,10 @@ public static class NotificationTemplateConsts
 
             // 2026-11-03 -- the office inbox's copy of the attorney and patient packets.
             OfficePacketCopy,
+
+            // 2026-11-03 -- email routing v2 notices (B2a).
+            ChangeRequestConsentInfo, ChangeRequestConsentDeclined,
+            PatientAppointmentNotSeen, AppointmentDayReminder,
         };
 
         /// <summary>

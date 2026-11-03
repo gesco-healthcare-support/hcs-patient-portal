@@ -167,12 +167,12 @@ public class StatusChangeEmailHandler :
             // track the post-condition.
             var status = eventData.ToStatus!.Value;
 
-            // NoShow goes to the office inbox + Intake Staff only (2026-11-02), so it
-            // computes its own recipient set inside the dispatch method rather than via
-            // the stakeholder resolver. The others (Approved, Rejected, CancelledNoBill,
-            // InfoRequested) use the standard stakeholder fan-out.
+            // NoShow and NotSeen (2026-11-03) go to the office inbox + Intake Staff only, so they
+            // compute their own recipient set inside the dispatch method rather than via the
+            // stakeholder resolver. The others (Approved, Rejected, CancelledNoBill, InfoRequested)
+            // use the standard stakeholder fan-out.
             List<NotificationRecipient> stakeholders;
-            if (status == AppointmentStatusType.NoShow)
+            if (status is AppointmentStatusType.NoShow or AppointmentStatusType.NotSeen)
             {
                 stakeholders = new List<NotificationRecipient>();
             }
@@ -209,8 +209,19 @@ public class StatusChangeEmailHandler :
                         break;
 
                     case AppointmentStatusType.NoShow:
-                        await DispatchNoShowAsync(
-                            eventData, ctx, appointment, appointmentDate, appointmentFromTime);
+                        await DispatchAttendanceOutcomeAsync(
+                            eventData, ctx, appointment, appointmentDate, appointmentFromTime,
+                            NotificationTemplateConsts.Codes.PatientAppointmentNoShow, "NoShow",
+                            contextTag: $"StatusChange/NoShow/InternalStaff/{eventData.AppointmentId}");
+                        break;
+
+                    case AppointmentStatusType.NotSeen:
+                        // Row 16: same recipients as a no-show, with wording of its own (the no-show
+                        // body says "No-Show", which is false for an exam that was not seen).
+                        await DispatchAttendanceOutcomeAsync(
+                            eventData, ctx, appointment, appointmentDate, appointmentFromTime,
+                            NotificationTemplateConsts.Codes.PatientAppointmentNotSeen, "NotSeen",
+                            contextTag: $"StatusChange/NotSeen/InternalStaff/{eventData.AppointmentId}");
                         break;
 
                     case AppointmentStatusType.CancelledNoBill:
@@ -276,6 +287,7 @@ public class StatusChangeEmailHandler :
         AppointmentStatusType.Approved => true,
         AppointmentStatusType.Rejected => true,
         AppointmentStatusType.NoShow => true,
+        AppointmentStatusType.NotSeen => true,
         AppointmentStatusType.CancelledNoBill => true,
         AppointmentStatusType.InfoRequested => true,
         _ => false,
@@ -377,22 +389,26 @@ public class StatusChangeEmailHandler :
     /// does NOT receive a no-show notification. OLD :1016-1026 mailed Staff
     /// Supervisor + Intake Staff; since 2026-11-02 the recipients are the office
     /// inbox + the switched-on Intake Staff (Supervisors get no per-event mail).
-    /// NO CC (OLD :1026 is the 3-arg overload).
+    /// NO CC (OLD :1026 is the 3-arg overload). 2026-11-03: NotSeen (also inbound from the Case Tracker)
+    /// takes the same path with its own template, <c>PatientAppointmentNotSeen</c>.
     /// </summary>
-    private async Task DispatchNoShowAsync(
+    private async Task DispatchAttendanceOutcomeAsync(
         AppointmentStatusChangedEto eventData,
         DocumentEmailContext ctx,
         Appointment appointment,
         string appointmentDate,
-        string appointmentFromTime)
+        string appointmentFromTime,
+        string templateCode,
+        string outcome,
+        string contextTag)
     {
         var staffRecipients = await _officeRecipients.GetOfficeInboxAndIntakeAsync(
-            $"NoShow/{eventData.AppointmentId}");
+            $"{outcome}/{eventData.AppointmentId}");
         if (staffRecipients.Count == 0)
         {
             _logger.LogInformation(
-                "StatusChangeEmailHandler: no office inbox or Intake Staff in tenant; skipping NoShow for appointment {AppointmentId}.",
-                eventData.AppointmentId);
+                "StatusChangeEmailHandler: no office inbox or Intake Staff in tenant; skipping {Outcome} for appointment {AppointmentId}.",
+                outcome, eventData.AppointmentId);
             return;
         }
 
@@ -405,10 +421,10 @@ public class StatusChangeEmailHandler :
             rejectionNotes: null);
 
         await _dispatcher.DispatchAsync(
-            templateCode: NotificationTemplateConsts.Codes.PatientAppointmentNoShow,
+            templateCode: templateCode,
             recipients: staffRecipients,
             variables: vars,
-            contextTag: $"StatusChange/NoShow/InternalStaff/{eventData.AppointmentId}");
+            contextTag: contextTag);
     }
 
     /// <summary>
