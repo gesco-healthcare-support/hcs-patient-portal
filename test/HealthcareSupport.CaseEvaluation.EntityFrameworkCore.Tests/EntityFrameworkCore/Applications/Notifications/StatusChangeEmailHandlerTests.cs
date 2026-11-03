@@ -8,10 +8,12 @@ using HealthcareSupport.CaseEvaluation.Notifications;
 using HealthcareSupport.CaseEvaluation.Notifications.Handlers;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
 using HealthcareSupport.CaseEvaluation.Settings;
+using HealthcareSupport.CaseEvaluation.SystemParameters;
 using HealthcareSupport.CaseEvaluation.TestData;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Shouldly;
+using Volo.Abp.Data;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Identity;
 using Volo.Abp.MultiTenancy;
@@ -37,6 +39,7 @@ public class StatusChangeEmailHandlerTests : CaseEvaluationEntityFrameworkCoreTe
     private const string StakeholderEmail = "TEST-status-stakeholder@test.local";
     private const string StaffNote = "TEST- staff note";
     private const string OfficeInbox = "TEST-office-inbox@test.local";
+    private const string CcListAddress = "TEST-status-cc-list@test.local";
 
     // Field initializers run before the base constructor, so both exist when AfterAddApplication runs.
     private readonly RecordingNotificationDispatcher _dispatcher = new();
@@ -101,7 +104,78 @@ public class StatusChangeEmailHandlerTests : CaseEvaluationEntityFrameworkCoreTe
         ext.Recipients.ShouldNotContain(switchedOffEmail);
     }
 
+    [Fact]
+    public async Task Approved_CcsTheActiveIntakeStaff_NotSupervisorsNotSwitchedOffNotTheCcList_AndNoAddressTwice()
+    {
+        WithStakeholder();
+        await SetCcListAsync(CcListAddress);
+        var (intake, supervisor, switchedOff) = await SeedOfficeStaffAsync("approved");
+        // The inbox is an Intake user's address in other case: it still counts once.
+        _recipients.Recipients.Add(new SendAppointmentEmailArgs { To = intake.ToUpperInvariant(), Role = RecipientRole.OfficeAdmin });
+
+        await RaiseAsync(AppointmentStatusType.Approved);
+
+        var ext = _dispatcher.Dispatches.ShouldHaveSingleItem();
+        ext.Recipients.Any(r => string.Equals(r, intake, StringComparison.OrdinalIgnoreCase)).ShouldBeTrue();
+        ext.Recipients.ShouldNotContain(supervisor);
+        ext.Recipients.ShouldNotContain(switchedOff);
+        ext.Recipients.ShouldNotContain(CcListAddress);
+        ext.Recipients.Select(r => r.ToLowerInvariant()).Distinct().Count().ShouldBe(ext.Recipients.Count);
+    }
+
     // ---- Rejected ----
+
+    [Fact]
+    public async Task Rejected_CcsTheActiveIntakeStaff_NotSupervisorsNotSwitchedOffNotTheCcList()
+    {
+        WithStakeholder();
+        await SetCcListAsync(CcListAddress);
+        var (intake, supervisor, switchedOff) = await SeedOfficeStaffAsync("rejected");
+
+        await RaiseAsync(AppointmentStatusType.Rejected);
+
+        var sent = _dispatcher.Dispatches.ShouldHaveSingleItem();
+        sent.Recipients.ShouldContain(intake);
+        sent.Recipients.ShouldNotContain(supervisor);
+        sent.Recipients.ShouldNotContain(switchedOff);
+        sent.Recipients.ShouldNotContain(CcListAddress);
+    }
+
+    [Fact]
+    public async Task CancelledNoBill_NoLongerAppendsTheCcList_AndDoesNotAddIntake()
+    {
+        WithStakeholder();
+        await SetCcListAsync(CcListAddress);
+        var (intake, _, _) = await SeedOfficeStaffAsync("cancelled");
+
+        await RaiseAsync(AppointmentStatusType.CancelledNoBill);
+
+        var sent = _dispatcher.Dispatches.ShouldHaveSingleItem();
+        sent.Recipients.ShouldNotContain(CcListAddress);
+        sent.Recipients.ShouldNotContain(intake);
+    }
+
+    // ---- InfoRequested (send back): To the requester, CC the other parties + the office inbox, NOT intake ----
+
+    [Fact]
+    public async Task InfoRequested_IsToTheRequester_WithTheOtherPartiesAndOfficeInboxCcd_ButNotIntake()
+    {
+        WithStakeholder();
+        _recipients.Recipients.Add(new SendAppointmentEmailArgs { To = OfficeInbox, Role = RecipientRole.OfficeAdmin });
+        await SetCcListAsync(CcListAddress);
+        var (intake, supervisor, _) = await SeedOfficeStaffAsync("inforequested");
+
+        await RaiseAsync(AppointmentStatusType.InfoRequested);
+
+        var sent = _dispatcher.Dispatches.ShouldHaveSingleItem();
+        sent.TemplateCode.ShouldBe(NotificationTemplateConsts.Codes.PatientAppointmentInfoRequested);
+        sent.To.ShouldNotBeNullOrWhiteSpace();
+        sent.Recipients.ShouldContain(StakeholderEmail);
+        sent.Recipients.ShouldContain(OfficeInbox);
+        sent.Recipients.ShouldNotContain(intake);
+        sent.Recipients.ShouldNotContain(supervisor);
+        sent.Recipients.ShouldNotContain(CcListAddress);
+    }
 
     [Fact]
     public async Task Rejected_CarriesTheAppointmentsRejectionNotes()
@@ -170,45 +244,25 @@ public class StatusChangeEmailHandlerTests : CaseEvaluationEntityFrameworkCoreTe
             .ShouldBe("TEST- cancelled for the test");
     }
 
-    // ---- NoShow: internal staff only, once each, nobody else ----
+    // ---- NoShow: the office inbox + the active Intake Staff, once each, nobody else ----
 
     [Fact]
-    public async Task NoShow_DoesNotEmailASwitchedOffStaffUser()
-    {
-        string intake = string.Empty, switchedOff = string.Empty;
-        await InTenantAAsync(async (users, roles) =>
-        {
-            intake = await RoleUserSeeder.CreateUserInRoleAsync(users, roles, TenantsTestData.TenantARef, "Intake Staff", "noshow-on");
-            switchedOff = await RoleUserSeeder.CreateInactiveUserInRoleAsync(users, roles, TenantsTestData.TenantARef, "Intake Staff", "noshow-off");
-        });
-
-        await RaiseAsync(AppointmentStatusType.NoShow);
-
-        var sent = _dispatcher.Dispatches.ShouldHaveSingleItem();
-        sent.Recipients.ShouldBe(new[] { intake });
-        sent.Recipients.ShouldNotContain(switchedOff);
-    }
-
-    [Fact]
-    public async Task NoShow_EmailsEachStaffSupervisorAndIntakeStaffUserOnce_AndNoOtherRole()
+    public async Task NoShow_EmailsTheOfficeInboxAndEachActiveIntakeUserOnce_AndNobodyElse()
     {
         WithStakeholder(); // present on purpose: NoShow must NOT use the stakeholder set
-        string supervisor = string.Empty, intake = string.Empty, decoy = string.Empty;
+        await SetOfficeInboxAsync(OfficeInbox);
+        await SetCcListAsync(CcListAddress);
+        var (intake, supervisor, switchedOff) = await SeedOfficeStaffAsync("noshow");
+        string decoy = string.Empty;
         await InTenantAAsync(async (users, roles) =>
         {
-            supervisor = await RoleUserSeeder.CreateUserInRoleAsync(users, roles, TenantsTestData.TenantARef, "Staff Supervisor", "noshow-supervisor");
-            intake = await RoleUserSeeder.CreateUserInRoleAsync(users, roles, TenantsTestData.TenantARef, "Intake Staff", "noshow-intake");
             decoy = await RoleUserSeeder.CreateUserInRoleAsync(users, roles, TenantsTestData.TenantARef, "TEST-other-role", "noshow-decoy");
-            // The supervisor also holds Intake Staff, so the dedup is what keeps them to one email.
-            (await users.AddToRoleAsync((await users.FindByEmailAsync(supervisor))!, "Intake Staff")).Succeeded.ShouldBeTrue();
         });
-        // The OFFICE decoys: the right two roles in the wrong office.
-        string otherOfficeSupervisor = string.Empty, otherOfficeIntake = string.Empty;
+        // The OFFICE decoy: the right role in the wrong office.
+        string otherOfficeIntake = string.Empty;
         await InOfficeAsync(TenantsTestData.TenantBRef, async (users, roles) =>
         {
-            await RoleUserSeeder.CreateRoleSortingFirstAsync(roles, TenantsTestData.TenantBRef, "Staff Supervisor", 1);
             await RoleUserSeeder.CreateRoleSortingFirstAsync(roles, TenantsTestData.TenantBRef, "Intake Staff", 2);
-            otherOfficeSupervisor = await RoleUserSeeder.CreateUserInRoleAsync(users, roles, TenantsTestData.TenantBRef, "Staff Supervisor", "noshow-officeb-supervisor");
             otherOfficeIntake = await RoleUserSeeder.CreateUserInRoleAsync(users, roles, TenantsTestData.TenantBRef, "Intake Staff", "noshow-officeb-intake");
         });
 
@@ -217,11 +271,48 @@ public class StatusChangeEmailHandlerTests : CaseEvaluationEntityFrameworkCoreTe
         var sent = _dispatcher.Dispatches.ShouldHaveSingleItem();
         sent.TemplateCode.ShouldBe(NotificationTemplateConsts.Codes.PatientAppointmentNoShow);
         sent.To.ShouldBeNull();
-        sent.Recipients.ShouldBe(new[] { supervisor, intake }, ignoreOrder: true);
+        sent.Recipients.ShouldBe(new[] { OfficeInbox, intake }, ignoreOrder: true);
+        sent.Recipients.ShouldNotContain(supervisor);
+        sent.Recipients.ShouldNotContain(switchedOff);
         sent.Recipients.ShouldNotContain(decoy);
         sent.Recipients.ShouldNotContain(StakeholderEmail);
-        sent.Recipients.ShouldNotContain(otherOfficeSupervisor);
+        sent.Recipients.ShouldNotContain(CcListAddress);
         sent.Recipients.ShouldNotContain(otherOfficeIntake);
+    }
+
+    [Fact]
+    public async Task NoShow_WithNoOfficeInbox_EmailsOnlyTheIntakeStaff()
+    {
+        var (intake, _, _) = await SeedOfficeStaffAsync("noshow-noinbox");
+
+        await RaiseAsync(AppointmentStatusType.NoShow);
+
+        _dispatcher.Dispatches.ShouldHaveSingleItem().Recipients.ShouldBe(new[] { intake });
+    }
+
+    [Fact]
+    public async Task NoShow_AnInboxThatIsAnIntakeAddress_IsEmailedOnce_IgnoringCase()
+    {
+        var (intake, _, _) = await SeedOfficeStaffAsync("noshow-dup");
+        await SetOfficeInboxAsync(intake.ToUpperInvariant());
+
+        await RaiseAsync(AppointmentStatusType.NoShow);
+
+        var sent = _dispatcher.Dispatches.ShouldHaveSingleItem();
+        sent.Recipients.Count.ShouldBe(1);
+        sent.Recipients[0].ShouldBe(intake, StringCompareShould.IgnoreCase);
+    }
+
+    [Fact]
+    public async Task NotSeen_StillSendsNothing_BecauseTheNoShowTemplateSaysNoShow()
+    {
+        // The PatientAppointmentNoShow body reads "marked as a No-Show", which is false for a not-seen exam.
+        await SeedOfficeStaffAsync("notseen");
+        WithStakeholder();
+
+        await RaiseAsync(AppointmentStatusType.NotSeen);
+
+        _dispatcher.Dispatches.ShouldBeEmpty();
     }
 
     // ---- Guards ----
@@ -312,6 +403,32 @@ public class StatusChangeEmailHandlerTests : CaseEvaluationEntityFrameworkCoreTe
         {
             await GetRequiredService<ISettingManager>().SetForCurrentTenantAsync(
                 CaseEvaluationSettings.NotificationsPolicy.OfficeEmail, inbox);
+        }
+    });
+
+    /// <summary>Office A: an active Intake user, a Staff Supervisor, and a switched-off Intake user.</summary>
+    private async Task<(string Intake, string Supervisor, string SwitchedOff)> SeedOfficeStaffAsync(string label)
+    {
+        string intake = string.Empty, supervisor = string.Empty, switchedOff = string.Empty;
+        await InTenantAAsync(async (users, roles) =>
+        {
+            intake = await RoleUserSeeder.CreateUserInRoleAsync(users, roles, TenantsTestData.TenantARef, "Intake Staff", label + "-intake");
+            supervisor = await RoleUserSeeder.CreateUserInRoleAsync(users, roles, TenantsTestData.TenantARef, "Staff Supervisor", label + "-supervisor");
+            switchedOff = await RoleUserSeeder.CreateInactiveUserInRoleAsync(users, roles, TenantsTestData.TenantARef, "Intake Staff", label + "-off");
+        });
+        return (intake, supervisor, switchedOff);
+    }
+
+    private Task SetCcListAsync(string ccEmailIds) => WithUnitOfWorkAsync(async () =>
+    {
+        using (GetRequiredService<ICurrentTenant>().Change(TenantsTestData.TenantARef))
+        {
+            await GetRequiredService<SystemParameterDataSeedContributor>()
+                .SeedAsync(new DataSeedContext(TenantsTestData.TenantARef));
+            var repository = GetRequiredService<ISystemParameterRepository>();
+            var row = (await repository.GetCurrentTenantAsync()).ShouldNotBeNull();
+            row.CcEmailIds = ccEmailIds;
+            await repository.UpdateAsync(row, autoSave: true);
         }
     });
 

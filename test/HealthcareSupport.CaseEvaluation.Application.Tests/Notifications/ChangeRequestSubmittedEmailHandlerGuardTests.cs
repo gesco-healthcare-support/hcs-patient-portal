@@ -54,6 +54,8 @@ public class ChangeRequestSubmittedEmailHandlerGuardTests
                     cancellationReason: "TEST-reason: moving away", reScheduleReason: null, newDoctorAvailabilityId: null));
         }
 
+        public FakeOfficeRecipients Office { get; } = new();
+
         public ChangeRequestSubmittedEmailHandler Build()
         {
             var recipients = Substitute.For<IAppointmentRecipientResolver>();
@@ -66,6 +68,7 @@ public class ChangeRequestSubmittedEmailHandlerGuardTests
                 ContextResolver,
                 recipients,
                 ChangeRequests,
+                Office,
                 Substitute.For<ICurrentTenant>(),
                 NullLogger<ChangeRequestSubmittedEmailHandler>.Instance);
         }
@@ -94,6 +97,22 @@ public class ChangeRequestSubmittedEmailHandlerGuardTests
             .ShouldHaveSingleItem().GetArguments();
         args[0].ShouldBe(NotificationTemplateConsts.Codes.AppointmentCancelledRequest);
         ((IReadOnlyDictionary<string, object?>)args[2]!)["CancellationReason"].ShouldBe("TEST-reason: moving away");
+    }
+
+    /// <summary>2026-11-02: the office's Intake Staff are copied on a cancel request, once per address.</summary>
+    [Fact]
+    public async Task HandleEventAsync_ASubmittedCancellation_AlsoGoesToTheIntakeStaff()
+    {
+        var rig = new Rig();
+        rig.Office.Intake.Add("TEST-intake-1@test.local");
+        rig.Office.Intake.Add("TEST-AA@test.local");
+
+        await rig.Build().HandleEventAsync(CancelSubmitted());
+
+        var recipients = (IReadOnlyCollection<NotificationRecipient>)rig.Dispatcher.ReceivedCalls()
+            .Where(c => c.GetMethodInfo().Name == nameof(INotificationDispatcher.DispatchAsync))
+            .ShouldHaveSingleItem().GetArguments()[1]!;
+        recipients.Select(r => r.Email).ShouldBe(new[] { "TEST-aa@test.local", "TEST-intake-1@test.local" });
     }
 
     [Fact]

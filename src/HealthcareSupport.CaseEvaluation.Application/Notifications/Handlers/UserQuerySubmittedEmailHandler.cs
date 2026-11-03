@@ -23,8 +23,9 @@ namespace HealthcareSupport.CaseEvaluation.Notifications.Handlers;
 /// <c>UserQueryDomain.Add</c> (PatientAppointment.Domain\UserQueryModule):
 ///
 /// <list type="bullet">
-///   <item>The office's notification inbox gets it (2026-10-29). Only an
-///     office with no inbox falls back to every <c>IT Admin</c> user.</item>
+///   <item>The office's notification inbox gets it (2026-10-29). Since 2026-11-02 a question
+///     about one of the office's appointments (confirmation number matches, any status) also
+///     goes to the Intake Staff; any other question also goes to every active <c>IT Admin</c>.</item>
 ///   <item>When the submitter supplied a confirmation number that resolves
 ///     to an <b>Approved</b> appointment, the subject carries the
 ///     patient/claim/ADJ identity. Until 2026-11-02 such a question went to
@@ -51,7 +52,7 @@ public class UserQuerySubmittedEmailHandler :
     private readonly DocumentEmailContextResolver _contextResolver;
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly IdentityUserManager _userManager;
-    private readonly ISettingProvider _settingProvider;
+    private readonly OfficeNotificationRecipients _officeRecipients;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<UserQuerySubmittedEmailHandler> _logger;
 
@@ -60,7 +61,7 @@ public class UserQuerySubmittedEmailHandler :
         DocumentEmailContextResolver contextResolver,
         IRepository<Appointment, Guid> appointmentRepository,
         IdentityUserManager userManager,
-        ISettingProvider settingProvider,
+        OfficeNotificationRecipients officeRecipients,
         ICurrentTenant currentTenant,
         ILogger<UserQuerySubmittedEmailHandler> logger)
     {
@@ -68,7 +69,7 @@ public class UserQuerySubmittedEmailHandler :
         _contextResolver = contextResolver;
         _appointmentRepository = appointmentRepository;
         _userManager = userManager;
-        _settingProvider = settingProvider;
+        _officeRecipients = officeRecipients;
         _currentTenant = currentTenant;
         _logger = logger;
     }
@@ -83,18 +84,19 @@ public class UserQuerySubmittedEmailHandler :
 
         using (_currentTenant.Change(eventData.TenantId))
         {
-            // Resolve the optional appointment context (OLD :62 -- match on
-            // confirmation number AND Approved status). Empty when no number
-            // was supplied or it does not resolve to an Approved appointment.
+            // Resolve the optional appointment context. A confirmation number that matches an
+            // appointment of THIS office (any status) routes the question to the office; the subject
+            // carries the patient/claim/ADJ identity only for an Approved match (OLD :62).
             var subjectIdentity = string.Empty;
+            var matchedAppointment = false;
 
             var confirmationNumber = eventData.RequestConfirmationNumber?.Trim();
             if (!string.IsNullOrWhiteSpace(confirmationNumber))
             {
                 var appointment = await _appointmentRepository.FirstOrDefaultAsync(
-                    a => a.RequestConfirmationNumber == confirmationNumber
-                        && a.AppointmentStatus == AppointmentStatusType.Approved);
-                if (appointment != null)
+                    a => a.RequestConfirmationNumber == confirmationNumber);
+                matchedAppointment = appointment != null;
+                if (appointment != null && appointment.AppointmentStatus == AppointmentStatusType.Approved)
                 {
                     var ctx = await _contextResolver.ResolveAsync(appointment.Id, appointmentDocumentId: null);
                     subjectIdentity = EmailSubjectBuilder.BuildIdentitySuffix(
@@ -102,18 +104,26 @@ public class UserQuerySubmittedEmailHandler :
                 }
             }
 
-            // The office's inbox, read in the office's own scope. OLD's branch-2 fan-out to every
-            // IT Admin (+ the B-09-02 null guard) is only the fallback for an office that has no inbox.
-            var recipients = await ResolveOfficeInboxRecipientsAsync();
-            if (recipients.Count == 0)
+            // 2026-11-02: a question about one of this office's appointments goes to the office inbox +
+            // the Intake Staff. A general question (no number, or one that matches nothing) goes to the
+            // inbox + every active host IT Admin (OLD's branch-2 fan-out, with the B-09-02 null guard).
+            var contextTag = $"UserQuery/{eventData.UserQueryId}";
+            List<NotificationRecipient> recipients;
+            if (matchedAppointment)
             {
-                recipients = await ResolveItAdminRecipientsAsync();
+                recipients = await _officeRecipients.GetOfficeInboxAndIntakeAsync(contextTag);
+            }
+            else
+            {
+                recipients = await _officeRecipients.GetOfficeInboxAsync(contextTag);
+                recipients.AddRange(await ResolveItAdminRecipientsAsync());
+                recipients = OfficeNotificationRecipients.Distinct(recipients);
             }
 
             if (recipients.Count == 0)
             {
                 _logger.LogWarning(
-                    "UserQuerySubmittedEmailHandler: no recipients for query {UserQueryId} (no office inbox and no IT-Admin users); email skipped.",
+                    "UserQuerySubmittedEmailHandler: no recipients for query {UserQueryId} (no office inbox and no IT-Admin / Intake users); email skipped.",
                     eventData.UserQueryId);
                 return;
             }
@@ -149,23 +159,6 @@ public class UserQuerySubmittedEmailHandler :
                     eventData.UserQueryId);
             }
         }
-    }
-
-    /// <summary>
-    /// The office's notification inbox as a single recipient, or none when the office has not set one.
-    /// Runs inside the caller's office scope, so it reads that office's setting and never another's.
-    /// </summary>
-    private async Task<List<NotificationRecipient>> ResolveOfficeInboxRecipientsAsync()
-    {
-        var officeInbox = (await _settingProvider.GetOrNullAsync(
-            CaseEvaluationSettings.NotificationsPolicy.OfficeEmail))?.Trim();
-
-        return string.IsNullOrWhiteSpace(officeInbox)
-            ? new List<NotificationRecipient>()
-            : new List<NotificationRecipient>
-            {
-                new(email: officeInbox, role: RecipientRole.OfficeAdmin, isRegistered: true),
-            };
     }
 
     /// <summary>

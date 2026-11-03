@@ -65,7 +65,7 @@ public class BookingSubmissionEmailHandler :
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly IRepository<DoctorAvailability, Guid> _doctorAvailabilityRepository;
     private readonly IRepository<Patient, Guid> _patientRepository;
-    private readonly CcRecipientAppender _ccAppender;
+    private readonly OfficeNotificationRecipients _officeRecipients;
     private readonly IdentityUserManager _userManager;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<BookingSubmissionEmailHandler> _logger;
@@ -76,18 +76,6 @@ public class BookingSubmissionEmailHandler :
     // fallbacks removed. IAccountUrlBuilder throws a clear error if
     // App__SelfUrl / App__AngularUrl env var is missing.
 
-    /// <summary>
-    /// OLD :945 -- internal-staff recipients for the
-    /// PatientAppointmentApproveReject email are limited to
-    /// <c>StaffSupervisor + IntakeStaff</c>. Other internal roles
-    /// (admin / IT Admin / Doctor) are intentionally excluded.
-    /// </summary>
-    private static readonly string[] StaffApprovalNotificationRoles =
-    {
-        "Staff Supervisor",
-        "Intake Staff",
-    };
-
     public BookingSubmissionEmailHandler(
         INotificationDispatcher dispatcher,
         DocumentEmailContextResolver contextResolver,
@@ -95,7 +83,7 @@ public class BookingSubmissionEmailHandler :
         IRepository<Appointment, Guid> appointmentRepository,
         IRepository<DoctorAvailability, Guid> doctorAvailabilityRepository,
         IRepository<Patient, Guid> patientRepository,
-        CcRecipientAppender ccAppender,
+        OfficeNotificationRecipients officeRecipients,
         IdentityUserManager userManager,
         ICurrentTenant currentTenant,
         ILogger<BookingSubmissionEmailHandler> logger,
@@ -107,7 +95,7 @@ public class BookingSubmissionEmailHandler :
         _appointmentRepository = appointmentRepository;
         _doctorAvailabilityRepository = doctorAvailabilityRepository;
         _patientRepository = patientRepository;
-        _ccAppender = ccAppender;
+        _officeRecipients = officeRecipients;
         _userManager = userManager;
         _currentTenant = currentTenant;
         _logger = logger;
@@ -571,9 +559,9 @@ public class BookingSubmissionEmailHandler :
 
     /// <summary>
     /// OLD :935-951 -- the conditional staff-blast that fires only when
-    /// the booker is an external user. Resolves Staff Supervisor +
-    /// Intake Staff users in the current tenant, dispatches
-    /// <c>PatientAppointmentApproveReject</c> to all of them.
+    /// the booker is an external user. Dispatches
+    /// <c>PatientAppointmentApproveReject</c> to the active Intake Staff
+    /// users in the current tenant (2026-11-02; was Supervisor + Intake).
     /// </summary>
     private async Task DispatchApproveRejectToStaffWhenBookerIsExternalAsync(
         AppointmentSubmittedEto eventData,
@@ -588,23 +576,14 @@ public class BookingSubmissionEmailHandler :
             return;
         }
 
-        var staffRecipients = await ResolveStaffApprovalRecipientsAsync(eventData.AppointmentId);
-
-        // Phase 2.B (Adrian Decision 2.2 2026-05-08): plus office mailbox CC'd
-        // on the staff blast. OLD's :950 SendSMTPMail overload at this leg
-        // takes only 3 args (no CC) -- this is an explicit override of OLD
-        // behavior to keep an off-staff office address in the loop.
-        // 2026-10-27: appended BEFORE the no-staff check. A new office has no Staff Supervisor or Intake
-        // login until someone is assigned or enters it, and the CC list used to be skipped with them, so
-        // nobody on the office side was asked to act on a law office's first request.
-        await _ccAppender.AppendAsync(
-            staffRecipients,
-            contextTagForLogging: $"ApproveReject/{eventData.AppointmentId}");
+        // 2026-11-02: the approve/reject request goes to the switched-on Intake Staff only. Staff
+        // Supervisors get no per-event email and the per-office CcEmailIds list is no longer appended.
+        var staffRecipients = await _officeRecipients.GetIntakeAsync();
 
         if (staffRecipients.Count == 0)
         {
             _logger.LogWarning(
-                "BookingSubmissionEmailHandler: no Staff Supervisor / Intake Staff users and no CC addresses in tenant; "
+                "BookingSubmissionEmailHandler: no active Intake Staff users in tenant; "
                 + "nobody on staff is asked to approve appointment {AppointmentId}.",
                 eventData.AppointmentId);
             return;
@@ -647,36 +626,6 @@ public class BookingSubmissionEmailHandler :
         }
         var roles = await _userManager.GetRolesAsync(booker);
         return !BookingFlowRoles.IsInternalUserCaller(roles);
-    }
-
-    /// <summary>
-    /// Loads every Staff Supervisor + Intake Staff user in the current
-    /// tenant and packages them into <see cref="NotificationRecipient"/>
-    /// rows. Dedupes on email (a user with both roles only gets one
-    /// email).
-    /// </summary>
-    private async Task<List<NotificationRecipient>> ResolveStaffApprovalRecipientsAsync(Guid appointmentId)
-    {
-        var byEmail = new Dictionary<string, NotificationRecipient>(StringComparer.OrdinalIgnoreCase);
-        foreach (var roleName in StaffApprovalNotificationRoles)
-        {
-            var users = await _userManager.GetActiveUsersInRoleAsync(roleName);
-            foreach (var user in users)
-            {
-                if (string.IsNullOrWhiteSpace(user.Email))
-                {
-                    _logger.LogDebug(
-                        "BookingSubmissionEmailHandler: skipping {Role} user {UserId} -- empty email; appointment {AppointmentId}.",
-                        roleName, user.Id, appointmentId);
-                    continue;
-                }
-                byEmail[user.Email] = new NotificationRecipient(
-                    email: user.Email,
-                    role: RecipientRole.OfficeAdmin,
-                    isRegistered: true);
-            }
-        }
-        return byEmail.Values.ToList();
     }
 
     /// <summary>

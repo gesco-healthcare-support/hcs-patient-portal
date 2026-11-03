@@ -45,6 +45,7 @@ public class ChangeRequestApprovedEmailHandler :
     private readonly IAppointmentRecipientResolver _recipientResolver;
     private readonly IRepository<AppointmentChangeRequest, Guid> _changeRequestRepository;
     private readonly IRepository<DoctorAvailability, Guid> _doctorAvailabilityRepository;
+    private readonly OfficeNotificationRecipients _officeRecipients;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<ChangeRequestApprovedEmailHandler> _logger;
     private readonly IRepository<IdentityUser, Guid> _identityUserRepository;
@@ -55,6 +56,7 @@ public class ChangeRequestApprovedEmailHandler :
         IAppointmentRecipientResolver recipientResolver,
         IRepository<AppointmentChangeRequest, Guid> changeRequestRepository,
         IRepository<DoctorAvailability, Guid> doctorAvailabilityRepository,
+        OfficeNotificationRecipients officeRecipients,
         ICurrentTenant currentTenant,
         ILogger<ChangeRequestApprovedEmailHandler> logger,
         IRepository<IdentityUser, Guid> identityUserRepository)
@@ -64,6 +66,7 @@ public class ChangeRequestApprovedEmailHandler :
         _recipientResolver = recipientResolver;
         _changeRequestRepository = changeRequestRepository;
         _doctorAvailabilityRepository = doctorAvailabilityRepository;
+        _officeRecipients = officeRecipients;
         _currentTenant = currentTenant;
         _logger = logger;
         _identityUserRepository = identityUserRepository;
@@ -110,6 +113,9 @@ public class ChangeRequestApprovedEmailHandler :
                 .ToList();
 
             await AddCompletedOnConsentStaffRecipientAsync(recipients, eventData);
+
+            // 2026-11-02: the office's Intake Staff are copied on the decision.
+            await _officeRecipients.AppendIntakeAsync(recipients);
 
             if (recipients.Count == 0)
             {

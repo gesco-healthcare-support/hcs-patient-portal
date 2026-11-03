@@ -69,6 +69,8 @@ public class ChangeRequestApprovedEmailHandlerTests
             Guid.NewGuid(), null, Guid.NewGuid(), ChangeRequestType.Reschedule,
             cancellationReason: null, reScheduleReason: "TEST-reason: travel", newDoctorAvailabilityId: null);
 
+        public FakeOfficeRecipients Office { get; } = new();
+
         public Rig()
         {
             ContextResolver.ResolveAsync(Arg.Any<Guid>(), Arg.Any<Guid?>()).Returns(_ => Context);
@@ -83,6 +85,7 @@ public class ChangeRequestApprovedEmailHandlerTests
             RecipientResolver,
             ChangeRequests,
             Slots,
+            Office,
             CurrentTenant,
             NullLogger<ChangeRequestApprovedEmailHandler>.Instance,
             Users);
@@ -131,6 +134,20 @@ public class ChangeRequestApprovedEmailHandlerTests
         await rig.Build().HandleEventAsync(Approved(ChangeRequestType.Cancel));
 
         rig.SingleSend().Template.ShouldBe(NotificationTemplateConsts.Codes.AppointmentCancelledRequestApproved);
+    }
+
+    /// <summary>2026-11-02: the office's Intake Staff are copied on the decision, once per address.</summary>
+    [Fact]
+    public async Task HandleEventAsync_AddsTheIntakeStaff_OncePerAddress()
+    {
+        var rig = new Rig();
+        rig.Office.Intake.Add("TEST-intake-1@test.local");
+        rig.Office.Intake.Add("TEST-AA@test.local");
+
+        await rig.Build().HandleEventAsync(Approved(ChangeRequestType.Cancel));
+
+        rig.SingleSendRecipients().Select(r => r.Email)
+            .ShouldBe(new[] { "TEST-aa@test.local", "TEST-intake-1@test.local" });
     }
 
     [Fact]
