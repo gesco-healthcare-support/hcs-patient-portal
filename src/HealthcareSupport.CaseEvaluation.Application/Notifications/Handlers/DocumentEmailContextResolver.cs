@@ -157,6 +157,7 @@ public class DocumentEmailContextResolver : ITransientDependency
             AppointmentStatus = appointment.AppointmentStatus,
             DueDate = appointment.DueDate,
             BookerEmail = bookerUser?.Email,
+            BookerUserId = bookerUser?.Id,
             CreatorIsStaff = creatorIsStaff,
             PatientAddresses = patientAddresses,
             PatientIdentityUserId = patient?.IdentityUserId,
@@ -316,6 +317,9 @@ public class DocumentEmailContext
     public AppointmentStatusType AppointmentStatus { get; set; }
     public DateTime? DueDate { get; set; }
     public string? BookerEmail { get; set; }
+
+    /// <summary>2026-11-03: the submitting account's id; null for a staff submitter or an unrecorded one.</summary>
+    public Guid? BookerUserId { get; set; }
 
     /// <summary>2026-11-03: the submitting account (<c>CreatorId ?? BookedByUserId</c>) holds an office-side
     /// role. A staff booking is auto-approved and sends one approval set instead of request emails; a staff
