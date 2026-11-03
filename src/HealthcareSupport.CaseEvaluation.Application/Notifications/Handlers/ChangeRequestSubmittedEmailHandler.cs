@@ -38,6 +38,7 @@ public class ChangeRequestSubmittedEmailHandler :
     private readonly IAppointmentRecipientResolver _recipientResolver;
     private readonly IRepository<AppointmentChangeRequest, Guid> _changeRequestRepository;
     private readonly OfficeNotificationRecipients _officeRecipients;
+    private readonly ConsentLinkHolders _consentLinkHolders;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<ChangeRequestSubmittedEmailHandler> _logger;
 
@@ -47,6 +48,7 @@ public class ChangeRequestSubmittedEmailHandler :
         IAppointmentRecipientResolver recipientResolver,
         IRepository<AppointmentChangeRequest, Guid> changeRequestRepository,
         OfficeNotificationRecipients officeRecipients,
+        ConsentLinkHolders consentLinkHolders,
         ICurrentTenant currentTenant,
         ILogger<ChangeRequestSubmittedEmailHandler> logger)
     {
@@ -55,6 +57,7 @@ public class ChangeRequestSubmittedEmailHandler :
         _recipientResolver = recipientResolver;
         _changeRequestRepository = changeRequestRepository;
         _officeRecipients = officeRecipients;
+        _consentLinkHolders = consentLinkHolders;
         _currentTenant = currentTenant;
         _logger = logger;
     }
@@ -77,7 +80,7 @@ public class ChangeRequestSubmittedEmailHandler :
         // Deliberately scoped to the email only. The other two subscribers to this event are
         // untouched: staff still get their in-app notification (InAppNotificationHandlers) so
         // the request is visible in the queue, and the cancel-side clinical-staff email
-        // (ClinicalStaffCancellationEmailHandler) is unaffected. CANCELLATION keeps this email
+        // (ClinicalStaffCancellationEmailHandler, retired 2026-11-03) is unaffected. CANCELLATION keeps this email
         // -- its consent is issued at submit, so there is no later message to fold it into.
         if (eventData.ChangeRequestType == ChangeRequestType.Reschedule)
         {
@@ -121,6 +124,19 @@ public class ChangeRequestSubmittedEmailHandler :
 
             // 2026-11-02: the office's Intake Staff are copied on the cancel request.
             await _officeRecipients.AppendIntakeAsync(recipients);
+
+            // 2026-11-03: one email per person per event. Whoever is asked to agree or decline holds a
+            // consent link, and that consent email is their email for this cancel request, so they do not
+            // also get this information notice. The office inbox and Intake Staff (who hold no link) get
+            // this one only: the separate clinical-staff cancellation email was retired.
+            var linkHolders = await _consentLinkHolders.ResolveEmailsAsync(
+                eventData.AppointmentId, eventData.SubmittedByUserId);
+            if (linkHolders.Count > 0)
+            {
+                recipients = recipients
+                    .Where(r => !linkHolders.Contains(r.Email, StringComparer.OrdinalIgnoreCase))
+                    .ToList();
+            }
 
             if (recipients.Count == 0)
             {

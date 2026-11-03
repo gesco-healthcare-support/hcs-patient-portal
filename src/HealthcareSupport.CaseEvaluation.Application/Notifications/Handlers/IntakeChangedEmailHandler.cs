@@ -26,20 +26,20 @@ public class IntakeChangedEmailHandler :
 {
     private readonly INotificationDispatcher _dispatcher;
     private readonly DocumentEmailContextResolver _contextResolver;
-    private readonly IAppointmentRecipientResolver _recipientResolver;
+    private readonly OfficeNotificationRecipients _officeRecipients;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<IntakeChangedEmailHandler> _logger;
 
     public IntakeChangedEmailHandler(
         INotificationDispatcher dispatcher,
         DocumentEmailContextResolver contextResolver,
-        IAppointmentRecipientResolver recipientResolver,
+        OfficeNotificationRecipients officeRecipients,
         ICurrentTenant currentTenant,
         ILogger<IntakeChangedEmailHandler> logger)
     {
         _dispatcher = dispatcher;
         _contextResolver = contextResolver;
-        _recipientResolver = recipientResolver;
+        _officeRecipients = officeRecipients;
         _currentTenant = currentTenant;
         _logger = logger;
     }
@@ -63,22 +63,16 @@ public class IntakeChangedEmailHandler :
                 return;
             }
 
-            var resolverOutput = await _recipientResolver.ResolveAsync(
-                eventData.AppointmentId,
-                NotificationKind.IntakeChanged);
-
-            var recipients = resolverOutput
-                .Where(r => !string.IsNullOrWhiteSpace(r.To))
-                .Select(r => new NotificationRecipient(
-                    email: r.To,
-                    role: r.Role,
-                    isRegistered: r.IsRegistered))
-                .ToList();
+            // 2026-11-03: a details edit (date, panel number, due date) is the office's own housekeeping,
+            // so the change log goes to the office inbox ONLY -- no party hears about it, and the
+            // separate reschedule-by-admin notice is no longer sent.
+            var recipients = await _officeRecipients.GetOfficeInboxAsync(
+                $"IntakeChanged/{eventData.AppointmentId}");
 
             if (recipients.Count == 0)
             {
                 _logger.LogInformation(
-                    "IntakeChangedEmailHandler: no recipients resolved for appointment {AppointmentId}; skipping.",
+                    "IntakeChangedEmailHandler: no office inbox for appointment {AppointmentId}; skipping.",
                     eventData.AppointmentId);
                 return;
             }
@@ -108,23 +102,6 @@ public class IntakeChangedEmailHandler :
                 recipients: recipients,
                 variables: diffVariables,
                 contextTag: NotificationOccurrence.At($"IntakeChanged/{eventData.AppointmentId}", eventData.OccurredAt));
-
-            if (eventData.DateOrTimeChanged)
-            {
-                var rescheduleVariables = new Dictionary<string, object?>(baseVariables, StringComparer.Ordinal)
-                {
-                    // ctx.AppointmentDate is the post-update date/time.
-                    ["NewAppointmentDate"] = baseVariables.TryGetValue("AppointmentDate", out var date)
-                        ? date
-                        : string.Empty,
-                };
-
-                await _dispatcher.DispatchAsync(
-                    templateCode: NotificationTemplateConsts.Codes.AppointmentRescheduleRequestByAdmin,
-                    recipients: recipients,
-                    variables: rescheduleVariables,
-                    contextTag: NotificationOccurrence.At($"IntakeChanged/Reschedule/{eventData.AppointmentId}", eventData.OccurredAt));
-            }
         }
     }
 

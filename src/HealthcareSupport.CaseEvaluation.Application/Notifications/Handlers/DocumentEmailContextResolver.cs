@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
@@ -6,6 +7,7 @@ using HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes;
 using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
 using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.Appointments;
+using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
 using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.ExternalSignups;
 using HealthcareSupport.CaseEvaluation.Patients;
@@ -79,12 +81,6 @@ public class DocumentEmailContextResolver : ITransientDependency
             ? null
             : await _patientRepository.FindAsync(appointment.PatientId);
 
-        // IP6 (2026-06-05): IdentityUserId is nullable for unclaimed patient
-        // records; downstream BookerEmail/BookerFullName degrade to null.
-        var bookerUser = appointment.IdentityUserId.HasValue
-            ? await _identityUserRepository.FindAsync(appointment.IdentityUserId.Value)
-            : null;
-
         // Phase 4 (C3 / D3): recipient promotion keys off the appointment CREATOR
         // (the firm/paralegal booker), NOT IdentityUserId (which is the patient
         // when the patient has a login). When the creator holds an attorney role
@@ -92,7 +88,13 @@ public class DocumentEmailContextResolver : ITransientDependency
         // To that attorney with the creator + other parties CC'd. Resolves to null
         // when not promoted, so handlers fall back to the existing booker anchor and
         // Patient / Claim Examiner / internal-staff bookings stay unchanged.
-        var (creatorUser, creatorRoles) = await ResolveCreatorAsync(appointment.CreatorId);
+        var (creatorUser, creatorRoles) = await ResolveCreatorAsync(AppointmentSubmitter.IdOf(appointment));
+
+        // 2026-11-03: the "booker" is the account that submitted the request (the creator), not the
+        // patient's login in IdentityUserId. A staff submitter is not mailed as the booker (the office
+        // hears through the inbox and Intake Staff), so BookerEmail/BookerFullName stay empty for staff.
+        var creatorIsStaff = AppointmentSubmitter.HoldsStaffRole(creatorRoles);
+        var bookerUser = creatorIsStaff ? null : creatorUser;
 
         var primaryRecipientEmail = AttorneyRecipientPromotion.ResolvePrimaryRecipientEmail(
             creatorRoles,
@@ -128,6 +130,17 @@ public class DocumentEmailContextResolver : ITransientDependency
 
         var documentLabel = await ResolveDocumentLabelAsync(document);
 
+        // The patient is the submitter when the creator is the patient's own login or carries the
+        // patient's email. Used by the "patient hears nothing before approval" rule.
+        var patientAddresses = new[] { patient?.Email, appointment.PatientEmail }
+            .Where(e => !string.IsNullOrWhiteSpace(e))
+            .Select(e => e!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var patientIsSubmitter = !creatorIsStaff && creatorUser != null
+            && ((patient?.IdentityUserId is { } patientLogin && patientLogin == creatorUser.Id)
+                || patientAddresses.Any(a => string.Equals(a, creatorUser.Email, StringComparison.OrdinalIgnoreCase)));
+
         // Route through IAccountUrlBuilder. Tenant comes from the
         // appointment row's TenantId (the source of truth) rather than
         // _currentTenant.Name (which is null inside the
@@ -142,6 +155,9 @@ public class DocumentEmailContextResolver : ITransientDependency
             AppointmentDate = appointment.AppointmentDate,
             DueDate = appointment.DueDate,
             BookerEmail = bookerUser?.Email,
+            CreatorIsStaff = creatorIsStaff,
+            PatientAddresses = patientAddresses,
+            PatientIsSubmitter = patientIsSubmitter,
             BookerFullName = JoinName(bookerUser?.Name, bookerUser?.Surname),
             PatientFirstName = patient?.FirstName,
             PatientLastName = patient?.LastName,
@@ -293,6 +309,18 @@ public class DocumentEmailContext
     public DateTime AppointmentDate { get; set; }
     public DateTime? DueDate { get; set; }
     public string? BookerEmail { get; set; }
+
+    /// <summary>2026-11-03: the submitting account (<c>CreatorId ?? BookedByUserId</c>) holds an office-side
+    /// role. A staff booking is auto-approved and sends one approval set instead of request emails; a staff
+    /// submitter is never the booker an email is addressed to.</summary>
+    public bool CreatorIsStaff { get; set; }
+
+    /// <summary>2026-11-03: the patient's addresses (patient row + the appointment's patient email column).</summary>
+    public IReadOnlyList<string> PatientAddresses { get; set; } = Array.Empty<string>();
+
+    /// <summary>2026-11-03: the patient submitted the request themselves. When false, the patient hears
+    /// nothing about it until it is approved.</summary>
+    public bool PatientIsSubmitter { get; set; }
     public string BookerFullName { get; set; } = string.Empty;
     public string? PatientFirstName { get; set; }
     public string? PatientLastName { get; set; }

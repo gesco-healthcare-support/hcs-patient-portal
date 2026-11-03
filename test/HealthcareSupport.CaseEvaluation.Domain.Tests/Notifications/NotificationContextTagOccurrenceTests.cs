@@ -50,7 +50,6 @@ public class NotificationContextTagOccurrenceTests
         ["ChangeRequestSubmitted/"] = "per change request",
         ["ChangeRequestRejected/"] = "per change request",
         ["ChangeRequestApproved/"] = "per change request",
-        ["ClinicalStaffCancellation/"] = "per change request",
         ["UserQuery/Submitted/"] = "per query",
         ["Invite/"] = "per invitation; resending is a separate, per-request tag",
         ["AccessorInvited/"] = "per new account, created once",

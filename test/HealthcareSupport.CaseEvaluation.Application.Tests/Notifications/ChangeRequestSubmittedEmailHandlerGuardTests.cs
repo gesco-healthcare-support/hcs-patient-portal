@@ -48,6 +48,8 @@ public class ChangeRequestSubmittedEmailHandlerGuardTests
                 PatientFirstName = "TEST-First",
                 PatientLastName = "TEST-Last",
             });
+            LinkHolders.ResolveEmailsAsync(Arg.Any<Guid>(), Arg.Any<Guid>())
+                .Returns(Task.FromResult<IReadOnlyList<string>>(Array.Empty<string>()));
             ChangeRequests.FindAsync(Arg.Any<Guid>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
                 .Returns(new AppointmentChangeRequest(
                     Guid.NewGuid(), null, Guid.NewGuid(), ChangeRequestType.Cancel,
@@ -55,6 +57,9 @@ public class ChangeRequestSubmittedEmailHandlerGuardTests
         }
 
         public FakeOfficeRecipients Office { get; } = new();
+
+        /// <summary>The consent-link holders; empty unless a test lists them. The ctor args are never dereferenced.</summary>
+        public ConsentLinkHolders LinkHolders { get; } = Substitute.For<ConsentLinkHolders>(null, null);
 
         public ChangeRequestSubmittedEmailHandler Build()
         {
@@ -69,6 +74,7 @@ public class ChangeRequestSubmittedEmailHandlerGuardTests
                 recipients,
                 ChangeRequests,
                 Office,
+                LinkHolders,
                 Substitute.For<ICurrentTenant>(),
                 NullLogger<ChangeRequestSubmittedEmailHandler>.Instance);
         }
@@ -146,5 +152,37 @@ public class ChangeRequestSubmittedEmailHandlerGuardTests
         await rig.Build().HandleEventAsync(CancelSubmitted());
 
         rig.Dispatcher.ReceivedCalls().ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// 2026-11-03: one email per person per event. The opposing side's representative holds a consent
+    /// link, so the consent email is their email for this cancel request and they are left off this
+    /// information notice; everyone else (the other parties, Intake Staff, the inbox) still gets it.
+    /// </summary>
+    [Fact]
+    public async Task HandleEventAsync_TheConsentLinkHolder_IsLeftOffTheInformationNotice()
+    {
+        var rig = new Rig();
+        rig.Office.Intake.Add("TEST-intake-1@test.local");
+        rig.LinkHolders.ResolveEmailsAsync(Arg.Any<Guid>(), Arg.Any<Guid>())
+            .Returns(Task.FromResult<IReadOnlyList<string>>(new[] { "TEST-AA@test.local" }));
+
+        await rig.Build().HandleEventAsync(CancelSubmitted());
+
+        var recipients = (IReadOnlyCollection<NotificationRecipient>)rig.Dispatcher.ReceivedCalls()
+            .Where(c => c.GetMethodInfo().Name == nameof(INotificationDispatcher.DispatchAsync))
+            .ShouldHaveSingleItem().GetArguments()[1]!;
+        recipients.Select(r => r.Email).ShouldBe(new[] { "TEST-intake-1@test.local" });
+    }
+
+    [Fact]
+    public async Task HandleEventAsync_TheSubmitterAndAppointmentAreHandedToTheLinkHolderLookup()
+    {
+        var rig = new Rig();
+        var evt = CancelSubmitted();
+
+        await rig.Build().HandleEventAsync(evt);
+
+        await rig.LinkHolders.Received(1).ResolveEmailsAsync(evt.AppointmentId, evt.SubmittedByUserId);
     }
 }

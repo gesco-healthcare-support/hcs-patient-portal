@@ -49,11 +49,12 @@ namespace HealthcareSupport.CaseEvaluation.Notifications.Handlers;
 ///     office staff and would email themselves.</item>
 /// </list>
 ///
-/// <para>External-vs-internal classification uses
-/// <see cref="BookingFlowRoles.IsInternalUserCaller"/> against the
-/// booker's roles -- the canonical NEW signal that mirrors OLD's
-/// <c>UserType</c> claim. Booker resolved by
-/// <see cref="AppointmentSubmittedEto.BookerUserId"/>.</para>
+/// <para>2026-11-03: external-vs-internal is decided from the SUBMITTER's roles
+/// (<c>DocumentEmailContext.CreatorIsStaff</c>, the appointment's creator), not from the
+/// patient login in <c>AppointmentSubmittedEto.BookerUserId</c>. A staff booking sends no
+/// request emails at all (the Approved email is the one notice), and unless the patient
+/// submitted the request the patient is left off the request email (see
+/// <see cref="PatientBeforeApprovalRule"/>).</para>
 /// </summary>
 public class BookingSubmissionEmailHandler :
     ILocalEventHandler<AppointmentSubmittedEto>,
@@ -66,7 +67,6 @@ public class BookingSubmissionEmailHandler :
     private readonly IRepository<DoctorAvailability, Guid> _doctorAvailabilityRepository;
     private readonly IRepository<Patient, Guid> _patientRepository;
     private readonly OfficeNotificationRecipients _officeRecipients;
-    private readonly IdentityUserManager _userManager;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<BookingSubmissionEmailHandler> _logger;
     // BUG-029 v3 fix (2026-05-21): tenant-aware URL composition.
@@ -84,7 +84,6 @@ public class BookingSubmissionEmailHandler :
         IRepository<DoctorAvailability, Guid> doctorAvailabilityRepository,
         IRepository<Patient, Guid> patientRepository,
         OfficeNotificationRecipients officeRecipients,
-        IdentityUserManager userManager,
         ICurrentTenant currentTenant,
         ILogger<BookingSubmissionEmailHandler> logger,
         IAccountUrlBuilder accountUrlBuilder)
@@ -96,7 +95,6 @@ public class BookingSubmissionEmailHandler :
         _doctorAvailabilityRepository = doctorAvailabilityRepository;
         _patientRepository = patientRepository;
         _officeRecipients = officeRecipients;
-        _userManager = userManager;
         _currentTenant = currentTenant;
         _logger = logger;
         _accountUrlBuilder = accountUrlBuilder;
@@ -125,6 +123,19 @@ public class BookingSubmissionEmailHandler :
             var appointment = await _appointmentRepository.FindAsync(eventData.AppointmentId);
             if (appointment == null)
             {
+                return;
+            }
+
+            // 2026-11-03: a booking made by a staff member is auto-approved right after it is submitted,
+            // so the office sends ONE set of emails -- the Approved email to the parties, the inbox and
+            // the Intake Staff -- and none of the request emails. The submitter is the appointment's
+            // creator, not the patient login in IdentityUserId.
+            if (ctx.CreatorIsStaff)
+            {
+                _logger.LogInformation(
+                    "BookingSubmissionEmailHandler: appointment {AppointmentId} was booked by staff; "
+                    + "request emails skipped (the approval email is the one notice).",
+                    eventData.AppointmentId);
                 return;
             }
 
@@ -202,9 +213,9 @@ public class BookingSubmissionEmailHandler :
     {
         var resolverOutput = await _recipientResolver.ResolveAsync(
             eventData.AppointmentId, NotificationKind.Submitted);
-        var recipients = resolverOutput
-            .Where(r => !string.IsNullOrWhiteSpace(r.To))
-            .ToList();
+        // 2026-11-03: unless the patient submitted this request, the patient hears nothing until approval.
+        var recipients = PatientBeforeApprovalRule.Apply(
+            resolverOutput.Where(r => !string.IsNullOrWhiteSpace(r.To)), ctx);
 
         if (recipients.Count == 0)
         {
@@ -226,11 +237,8 @@ public class BookingSubmissionEmailHandler :
 
         // Build the booker name + patient name once -- both are stable
         // across all recipient variants and used by every template body.
-        var bookerUser = eventData.BookerUserId == Guid.Empty
-            ? null
-            : await _userManager.FindByIdAsync(eventData.BookerUserId.ToString());
         var patient = await _patientRepository.FindAsync(eventData.PatientId);
-        var bookerName = ResolveBookerName(bookerUser, patient);
+        var bookerName = ResolveBookerName(ctx.BookerFullName, ctx.BookerEmail, patient);
         var patientName = ResolvePatientName(patient);
         var dateLine = appointment.AppointmentDate.ToString("MMM d, yyyy h:mm tt");
 
@@ -245,7 +253,7 @@ public class BookingSubmissionEmailHandler :
         // booker email. The promoted AA/DA email is a resolved party, so To binds
         // to it and the other parties + creator are CC'd.
         var addressing = PartitionAppointmentRequested(
-            recipients, ctx.PrimaryRecipientEmail ?? bookerUser?.Email);
+            recipients, ctx.PrimaryRecipientEmail ?? ctx.BookerEmail);
 
         if (addressing.To != null)
         {
@@ -515,22 +523,18 @@ public class BookingSubmissionEmailHandler :
 
     /// <summary>
     /// Phase 2.A: human-friendly booker name. Pulls from the
-    /// <see cref="IdentityUser"/> first; falls back to the patient row
+    /// submitter's name first; falls back to the patient row
     /// when the booker has no display name (e.g. early-flow accounts).
     /// </summary>
-    private static string ResolveBookerName(IdentityUser? bookerUser, Patient? patient)
+    private static string ResolveBookerName(string? bookerFullName, string? bookerEmail, Patient? patient)
     {
-        if (bookerUser != null)
+        if (!string.IsNullOrWhiteSpace(bookerFullName))
         {
-            var name = $"{bookerUser.Name} {bookerUser.Surname}".Trim();
-            if (!string.IsNullOrWhiteSpace(name))
-            {
-                return name;
-            }
-            if (!string.IsNullOrWhiteSpace(bookerUser.Email))
-            {
-                return bookerUser.Email!;
-            }
+            return bookerFullName.Trim();
+        }
+        if (!string.IsNullOrWhiteSpace(bookerEmail))
+        {
+            return bookerEmail;
         }
         if (patient != null)
         {
@@ -571,7 +575,8 @@ public class BookingSubmissionEmailHandler :
         string appointmentFromTime,
         string appointmentToTime)
     {
-        if (!await IsBookerExternalAsync(eventData.BookerUserId))
+        // The submitter is the appointment's creator; a staff submitter was already filtered out above.
+        if (ctx.CreatorIsStaff)
         {
             return;
         }
@@ -600,32 +605,6 @@ public class BookingSubmissionEmailHandler :
             recipients: staffRecipients,
             variables: vars,
             contextTag: $"BookingSubmitted/ApproveReject/{eventData.AppointmentId}");
-    }
-
-    /// <summary>
-    /// Returns <c>true</c> when the booker holds zero internal roles
-    /// (Patient / Adjuster / Applicant Attorney / Defense Attorney /
-    /// Claim Examiner). Inverts <see cref="BookingFlowRoles.IsInternalUserCaller"/>.
-    /// </summary>
-    private async Task<bool> IsBookerExternalAsync(Guid bookerUserId)
-    {
-        if (bookerUserId == Guid.Empty)
-        {
-            return true;
-        }
-        var booker = await _userManager.FindByIdAsync(bookerUserId.ToString());
-        if (booker == null)
-        {
-            // No booker row -- treat as external (OLD's UserClaim path
-            // would have thrown earlier for a missing user; we log + skip
-            // the staff blast defensively).
-            _logger.LogDebug(
-                "BookingSubmissionEmailHandler: booker {UserId} not found; treating as external.",
-                bookerUserId);
-            return true;
-        }
-        var roles = await _userManager.GetRolesAsync(booker);
-        return !BookingFlowRoles.IsInternalUserCaller(roles);
     }
 
     /// <summary>

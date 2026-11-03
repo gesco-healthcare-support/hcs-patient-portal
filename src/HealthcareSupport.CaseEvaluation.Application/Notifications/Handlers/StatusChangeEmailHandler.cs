@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
 using HealthcareSupport.CaseEvaluation.AppointmentInfoRequests;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
@@ -65,6 +66,7 @@ public class StatusChangeEmailHandler :
     private readonly IAppointmentRecipientResolver _recipientResolver;
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly IRepository<AppointmentInfoRequest, Guid> _infoRequestRepository;
+    private readonly IRepository<AppointmentChangeRequest, Guid> _changeRequestRepository;
     private readonly IRepository<DoctorAvailability, Guid> _doctorAvailabilityRepository;
     private readonly BookerCcDispatcher _bookerCcDispatcher;
     private readonly OfficeNotificationRecipients _officeRecipients;
@@ -77,6 +79,7 @@ public class StatusChangeEmailHandler :
         IAppointmentRecipientResolver recipientResolver,
         IRepository<Appointment, Guid> appointmentRepository,
         IRepository<AppointmentInfoRequest, Guid> infoRequestRepository,
+        IRepository<AppointmentChangeRequest, Guid> changeRequestRepository,
         IRepository<DoctorAvailability, Guid> doctorAvailabilityRepository,
         BookerCcDispatcher bookerCcDispatcher,
         OfficeNotificationRecipients officeRecipients,
@@ -88,6 +91,7 @@ public class StatusChangeEmailHandler :
         _recipientResolver = recipientResolver;
         _appointmentRepository = appointmentRepository;
         _infoRequestRepository = infoRequestRepository;
+        _changeRequestRepository = changeRequestRepository;
         _doctorAvailabilityRepository = doctorAvailabilityRepository;
         _bookerCcDispatcher = bookerCcDispatcher;
         _officeRecipients = officeRecipients;
@@ -108,6 +112,22 @@ public class StatusChangeEmailHandler :
         // states like Billed / RescheduleRequested / CancellationRequested
         // either fire from their own handlers or are not emailed at all).
         if (!IsHandledStatus(eventData.ToStatus))
+        {
+            return;
+        }
+
+        // 2026-11-03: an event whose status did not change is not a status change. The appointment
+        // edit publishes one when only the SLOT moved (from == to == the current status), and without
+        // this an Approved appointment that merely changed slot re-sent the Approved email to everyone.
+        if (eventData.FromStatus == eventData.ToStatus)
+        {
+            return;
+        }
+
+        // 2026-11-03: turning down a reschedule request moves RescheduleRequested back to Approved. The
+        // turned-down email is the notice for that; the Approved email must not fire again.
+        if (eventData.ToStatus == AppointmentStatusType.Approved
+            && eventData.FromStatus == AppointmentStatusType.RescheduleRequested)
         {
             return;
         }
@@ -165,6 +185,13 @@ public class StatusChangeEmailHandler :
                     .Select(r => new NotificationRecipient(
                         email: r.To, role: r.Role, isRegistered: r.IsRegistered))
                     .ToList();
+
+                // 2026-11-03: rejected and sent-back are "before approval" emails. When someone other
+                // than the patient submitted the request, the patient is told nothing until it is approved.
+                if (status is AppointmentStatusType.Rejected or AppointmentStatusType.InfoRequested)
+                {
+                    stakeholders = PatientBeforeApprovalRule.Apply(stakeholders, ctx);
+                }
             }
 
             try
@@ -187,6 +214,17 @@ public class StatusChangeEmailHandler :
                         break;
 
                     case AppointmentStatusType.CancelledNoBill:
+                        // 2026-11-03: a cancellation finished from a change request already sends the
+                        // change-request approved email to the same people, so this one is skipped.
+                        if (await HasCancelChangeRequestAsync(eventData.AppointmentId))
+                        {
+                            _logger.LogInformation(
+                                "StatusChangeEmailHandler: appointment {AppointmentId} was cancelled through a change "
+                                + "request; the change-request email is the one notice, so the status email is skipped.",
+                                eventData.AppointmentId);
+                            break;
+                        }
+
                         await DispatchCancelledNoBillAsync(
                             eventData, ctx, appointment, appointmentDate, appointmentFromTime, stakeholders);
                         break;
@@ -215,6 +253,18 @@ public class StatusChangeEmailHandler :
                     ex.Data.Contains("templateCode") ? ex.Data["templateCode"] : "(unspecified)");
             }
         }
+    }
+
+    /// <summary>
+    /// True when the appointment has a cancellation change request that is open or accepted -- the
+    /// state a request is in while its finalizer moves the appointment to a cancelled status. Every
+    /// path to CancelledNoBill runs through one.
+    /// </summary>
+    private async Task<bool> HasCancelChangeRequestAsync(Guid appointmentId)
+    {
+        return await _changeRequestRepository.AnyAsync(cr => cr.AppointmentId == appointmentId
+            && cr.ChangeRequestType == ChangeRequestType.Cancel
+            && (cr.RequestStatus == RequestStatusType.Pending || cr.RequestStatus == RequestStatusType.Accepted));
     }
 
     /// <summary>
@@ -427,7 +477,10 @@ public class StatusChangeEmailHandler :
         string appointmentFromTime,
         List<NotificationRecipient> stakeholders)
     {
-        var requesterEmail = ctx.PrimaryRecipientEmail ?? ctx.BookerEmail;
+        // 2026-11-03: the requester is the submitter. A staff submitter is not mailed, so the first
+        // remaining party (never the patient before approval, never the office) is the To instead.
+        var requesterEmail = ctx.PrimaryRecipientEmail ?? ctx.BookerEmail
+            ?? stakeholders.FirstOrDefault(r => (r.Role ?? RecipientRole.Patient) != RecipientRole.OfficeAdmin)?.Email;
         if (string.IsNullOrWhiteSpace(requesterEmail))
         {
             _logger.LogWarning(

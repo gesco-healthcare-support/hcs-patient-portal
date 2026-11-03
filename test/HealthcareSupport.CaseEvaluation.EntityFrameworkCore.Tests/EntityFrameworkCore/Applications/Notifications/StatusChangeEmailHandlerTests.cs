@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
 using HealthcareSupport.CaseEvaluation.Enums;
@@ -315,6 +316,128 @@ public class StatusChangeEmailHandlerTests : CaseEvaluationEntityFrameworkCoreTe
         _dispatcher.Dispatches.ShouldBeEmpty();
     }
 
+    // ---- 2026-11-03: duplicate suppressions (one email per person per event) ----
+
+    /// <summary>
+    /// An edit that only moves the SLOT republishes the appointment's own status as from == to. That is
+    /// not a status change, so it must not re-send the Approved email. (Control: the first Approved Fact.)
+    /// </summary>
+    [Fact]
+    public async Task ASlotOnlyEdit_PublishesTheSameStatusTwice_AndSendsNothing()
+    {
+        WithStakeholder();
+
+        await RaiseAsync(AppointmentStatusType.Approved, from: AppointmentStatusType.Approved);
+
+        _dispatcher.Dispatches.ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Turning down a reschedule moves RescheduleRequested back to Approved. The turned-down email is the
+    /// notice; the Approved email must not fire again. (Control: the same event from Pending sends.)
+    /// </summary>
+    [Fact]
+    public async Task ARejectedReschedule_BackToApproved_SendsNoApprovedEmail()
+    {
+        WithStakeholder();
+
+        await RaiseAsync(AppointmentStatusType.Approved, from: AppointmentStatusType.RescheduleRequested);
+
+        _dispatcher.Dispatches.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task ApprovedFromPending_StillSendsTheApprovedEmail_ControlForTheTwoFactsAbove()
+    {
+        WithStakeholder();
+
+        await RaiseAsync(AppointmentStatusType.Approved, from: AppointmentStatusType.Pending);
+
+        _dispatcher.Dispatches.ShouldHaveSingleItem()
+            .TemplateCode.ShouldBe(NotificationTemplateConsts.Codes.PatientAppointmentApprovedExt);
+    }
+
+    /// <summary>
+    /// A cancellation finished from a change request already sends the change-request approved email to the
+    /// same people, so the status email for that transition is skipped. (Control: the CancelledNoBill
+    /// Facts above, on the same appointment with no change request.)
+    /// </summary>
+    [Fact]
+    public async Task CancelledNoBill_FinishedFromAChangeRequest_SendsNoStatusEmail()
+    {
+        WithStakeholder();
+        await AddCancelRequestAsync(RequestStatusType.Pending);
+
+        await RaiseAsync(AppointmentStatusType.CancelledNoBill, from: AppointmentStatusType.Approved);
+
+        _dispatcher.Dispatches.ShouldBeEmpty();
+    }
+
+    // ---- 2026-11-03: the patient hears nothing before approval unless they submitted the request ----
+
+    [Theory]
+    [InlineData(AppointmentStatusType.Rejected)]
+    [InlineData(AppointmentStatusType.InfoRequested)]
+    public async Task BeforeApproval_ThePatientIsLeftOff_WhenSomeoneElseSubmitted(AppointmentStatusType status)
+    {
+        WithStakeholder();
+        WithPatientParty();
+        await SetSubmitterAsync(IdentityUsersTestData.ApplicantAttorney1UserId);
+
+        await RaiseAsync(status, from: AppointmentStatusType.Pending);
+
+        var sent = _dispatcher.Dispatches.ShouldHaveSingleItem();
+        sent.Recipients.ShouldNotContain(PatientsTestData.Patient1Email);
+        sent.Recipients.ShouldContain(StakeholderEmail);
+    }
+
+    [Theory]
+    [InlineData(AppointmentStatusType.Rejected)]
+    [InlineData(AppointmentStatusType.InfoRequested)]
+    public async Task BeforeApproval_ThePatientIsKept_WhenThePatientSubmitted(AppointmentStatusType status)
+    {
+        WithStakeholder();
+        WithPatientParty();
+        await SetSubmitterAsync(IdentityUsersTestData.Patient1UserId);
+
+        await RaiseAsync(status, from: AppointmentStatusType.Pending);
+
+        _dispatcher.Dispatches.ShouldHaveSingleItem().Recipients.ShouldContain(PatientsTestData.Patient1Email);
+    }
+
+    /// <summary>After approval the patient is a normal party again, whoever submitted.</summary>
+    [Fact]
+    public async Task OnceApproved_ThePatientIsEmailedAgain_EvenWhenSomeoneElseSubmitted()
+    {
+        WithStakeholder();
+        WithPatientParty();
+        await SetSubmitterAsync(IdentityUsersTestData.ApplicantAttorney1UserId);
+
+        await RaiseAsync(AppointmentStatusType.Approved, from: AppointmentStatusType.Pending);
+
+        _dispatcher.Dispatches.ShouldHaveSingleItem().Recipients.ShouldContain(PatientsTestData.Patient1Email);
+    }
+
+    /// <summary>
+    /// The sent-back email is To the submitter. A staff submitter is not mailed, so it is addressed To the
+    /// first remaining party instead of being dropped.
+    /// </summary>
+    [Fact]
+    public async Task SentBack_AStaffSubmittedRequest_IsToTheFirstRemainingParty()
+    {
+        WithStakeholder();
+        WithPatientParty();
+        var intake = await SeedIntakeForSubmitterAsync();
+        await SetSubmitterAsync(await FindUserIdAsync(intake));
+
+        await RaiseAsync(AppointmentStatusType.InfoRequested, from: AppointmentStatusType.Pending);
+
+        var sent = _dispatcher.Dispatches.ShouldHaveSingleItem();
+        sent.To.ShouldBe(StakeholderEmail);
+        sent.Recipients.Count(r => string.Equals(r, intake, StringComparison.OrdinalIgnoreCase)).ShouldBe(0, "a staff submitter is not mailed as the booker");
+        sent.Recipients.ShouldNotContain(PatientsTestData.Patient1Email);
+    }
+
     // ---- Guards ----
 
     [Fact]
@@ -351,6 +474,46 @@ public class StatusChangeEmailHandlerTests : CaseEvaluationEntityFrameworkCoreTe
 
     // ------------------------------------------------------------------------
 
+    /// <summary>The appointment's patient as a resolved party, at the address on the patient row.</summary>
+    private void WithPatientParty() =>
+        _recipients.Recipients.Add(new SendAppointmentEmailArgs { To = PatientsTestData.Patient1Email, Role = RecipientRole.Patient });
+
+    /// <summary>Records who submitted appointment 1 (<c>BookedByUserId</c>, the stamp the creator falls back to).</summary>
+    private Task SetSubmitterAsync(Guid userId) => ChangeAppointmentAsync(a => a.BookedByUserId = userId);
+
+    private async Task<string> SeedIntakeForSubmitterAsync()
+    {
+        var intake = string.Empty;
+        await InTenantAAsync(async (users, roles) =>
+        {
+            intake = await RoleUserSeeder.CreateUserInRoleAsync(users, roles, TenantsTestData.TenantARef, "Intake Staff", "submitter-intake");
+        });
+        return intake;
+    }
+
+    private async Task<Guid> FindUserIdAsync(string email)
+    {
+        var id = Guid.Empty;
+        await InTenantAAsync(async (users, _) => id = (await users.FindByEmailAsync(email))!.Id);
+        return id;
+    }
+
+    private Task AddCancelRequestAsync(RequestStatusType status) => WithUnitOfWorkAsync(async () =>
+    {
+        using (GetRequiredService<ICurrentTenant>().Change(TenantsTestData.TenantARef))
+        {
+            var request = new AppointmentChangeRequest(
+                Guid.NewGuid(), TenantsTestData.TenantARef, AppointmentsTestData.Appointment1Id,
+                ChangeRequestType.Cancel, cancellationReason: "TEST- cancel", reScheduleReason: null,
+                newDoctorAvailabilityId: null);
+            if (status == RequestStatusType.Accepted)
+            {
+                request.MarkDecided(RequestStatusType.Accepted, null, new DateTime(2026, 9, 24, 12, 0, 0, DateTimeKind.Utc));
+            }
+            await GetRequiredService<IRepository<AppointmentChangeRequest, Guid>>().InsertAsync(request, autoSave: true);
+        }
+    });
+
     private StatusChangeEmailHandler Handler() => GetRequiredService<StatusChangeEmailHandler>();
 
     /// <summary>One real stakeholder plus a blank-address decoy the handler must drop.</summary>
@@ -360,13 +523,16 @@ public class StatusChangeEmailHandlerTests : CaseEvaluationEntityFrameworkCoreTe
         _recipients.Recipients.Add(new SendAppointmentEmailArgs { To = "", Role = RecipientRole.DefenseAttorney });
     }
 
-    private async Task RaiseAsync(AppointmentStatusType status, Guid? appointmentId = null, string? reason = null)
+    private async Task RaiseAsync(
+        AppointmentStatusType status, Guid? appointmentId = null, string? reason = null,
+        AppointmentStatusType? from = null)
     {
         _dispatcher.Clear();
         await WithUnitOfWorkAsync(() => Handler().HandleEventAsync(new AppointmentStatusChangedEto
         {
             AppointmentId = appointmentId ?? AppointmentsTestData.Appointment1Id,
             TenantId = TenantsTestData.TenantARef,
+            FromStatus = from,
             ToStatus = status,
             Reason = reason,
             OccurredAt = new DateTime(2026, 9, 24, 12, 0, 0, DateTimeKind.Utc),

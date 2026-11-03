@@ -48,6 +48,7 @@ public class BookingSubmissionEmailHandlerTests : CaseEvaluationEntityFrameworkC
     public async Task TheOfficeMailbox_GetsItsOwnNotice_ApartFromThePartiesNotice()
     {
         WithPatientAndOfficeMailbox();
+        await SetSubmitterAsync(IdentityUsersTestData.Patient1UserId);
 
         await RaiseAsync(bookerUserId: IdentityUsersTestData.Patient1UserId);
 
@@ -71,6 +72,7 @@ public class BookingSubmissionEmailHandlerTests : CaseEvaluationEntityFrameworkC
     {
         WithPatientAndOfficeMailbox();
         await NamePatient1UserAsync("TEST-Booker", "TEST-Named");
+        await SetSubmitterAsync(IdentityUsersTestData.Patient1UserId);
 
         await RaiseAsync(bookerUserId: IdentityUsersTestData.Patient1UserId);
 
@@ -252,7 +254,107 @@ public class BookingSubmissionEmailHandlerTests : CaseEvaluationEntityFrameworkC
         _dispatcher.Dispatches.ShouldBeEmpty();
     }
 
+    // ---- 2026-11-03: the booker is the SUBMITTER (the appointment's creator), not the patient login ----
+
+    /// <summary>
+    /// The request notice is addressed To the account that submitted the request, even when that login
+    /// is not the patient's, and the patient -- who did not submit it -- hears nothing before approval.
+    /// </summary>
+    [Fact]
+    public async Task ASubmittingAttorney_IsToldOfTheRequest_AndThePatientIsNot()
+    {
+        _parties.Recipients.Add(Party(IdentityUsersTestData.ApplicantAttorney1Email, RecipientRole.ApplicantAttorney));
+        _parties.Recipients.Add(Party(PatientsTestData.Patient1Email, RecipientRole.Patient));
+        _parties.Recipients.Add(Party(OfficeMailbox, RecipientRole.OfficeAdmin));
+        await SetSubmitterAsync(IdentityUsersTestData.ApplicantAttorney1UserId);
+
+        await RaiseAsync(bookerUserId: IdentityUsersTestData.Patient1UserId);
+
+        var parties = Sent(NotificationTemplateConsts.Codes.AppointmentRequestedRegistered);
+        parties.To.ShouldBe(IdentityUsersTestData.ApplicantAttorney1Email);
+        parties.Recipients.ShouldNotContain(PatientsTestData.Patient1Email);
+        Sent(NotificationTemplateConsts.Codes.AppointmentRequestedOffice).Recipients.ShouldBe(new[] { OfficeMailbox });
+    }
+
+    /// <summary>The control for the Fact above: the same booking submitted by the patient keeps the patient on it.</summary>
+    [Fact]
+    public async Task ThePatientWhoSubmittedTheirOwnRequest_IsToldOfIt()
+    {
+        _parties.Recipients.Add(Party(IdentityUsersTestData.ApplicantAttorney1Email, RecipientRole.ApplicantAttorney));
+        _parties.Recipients.Add(Party(PatientsTestData.Patient1Email, RecipientRole.Patient));
+        await SetSubmitterAsync(IdentityUsersTestData.Patient1UserId);
+
+        await RaiseAsync(bookerUserId: IdentityUsersTestData.Patient1UserId);
+
+        var parties = Sent(NotificationTemplateConsts.Codes.AppointmentRequestedRegistered);
+        parties.Recipients.ShouldContain(PatientsTestData.Patient1Email);
+    }
+
+    /// <summary>
+    /// A booking made by staff is auto-approved right after it is submitted, so it sends NO request
+    /// emails (not the parties', not the office notice, not the approve/reject request): the Approved
+    /// email is the one notice. The patient login in IdentityUserId is not what decides this.
+    /// </summary>
+    [Fact]
+    public async Task AStaffBooking_SendsNoRequestEmailsAtAll()
+    {
+        WithPatientAndOfficeMailbox();
+        var (_, intake) = await SeedStaffAsync(TenantsTestData.TenantARef, "booking-staffbooker", lowIdRoles: false);
+        var staffId = await FindUserIdAsync(intake);
+        await SetSubmitterAsync(staffId);
+
+        await RaiseAsync(bookerUserId: IdentityUsersTestData.Patient1UserId);
+
+        _dispatcher.Dispatches.ShouldBeEmpty();
+    }
+
+    /// <summary>The control for the Fact above: the same booking, submitted by an attorney, does send.</summary>
+    [Fact]
+    public async Task ANonStaffSubmitter_DoesSendTheRequestEmails_ControlForTheStaffBooking()
+    {
+        WithPatientAndOfficeMailbox();
+        await SeedStaffAsync(TenantsTestData.TenantARef, "booking-staffcontrol", lowIdRoles: false);
+        await SetSubmitterAsync(IdentityUsersTestData.ApplicantAttorney1UserId);
+
+        await RaiseAsync(bookerUserId: IdentityUsersTestData.Patient1UserId);
+
+        _dispatcher.Dispatches.Select(d => d.TemplateCode).ShouldContain(NotificationTemplateConsts.Codes.AppointmentRequestedRegistered);
+        _dispatcher.Dispatches.Select(d => d.TemplateCode).ShouldContain(NotificationTemplateConsts.Codes.PatientAppointmentApproveReject);
+    }
+
     // ------------------------------------------------------------------------
+
+    private static SendAppointmentEmailArgs Party(string email, RecipientRole role) => new()
+    {
+        To = email,
+        Role = role,
+        IsRegistered = true,
+    };
+
+    /// <summary>Records who submitted appointment 1 (<c>BookedByUserId</c>, the stamp the creator falls back to).</summary>
+    private Task SetSubmitterAsync(Guid userId) => WithUnitOfWorkAsync(async () =>
+    {
+        using (GetRequiredService<ICurrentTenant>().Change(TenantsTestData.TenantARef))
+        {
+            var repository = GetRequiredService<IRepository<Appointment, Guid>>();
+            var appointment = await repository.GetAsync(AppointmentsTestData.Appointment1Id);
+            appointment.BookedByUserId = userId;
+            await repository.UpdateAsync(appointment, autoSave: true);
+        }
+    });
+
+    private async Task<Guid> FindUserIdAsync(string email)
+    {
+        var id = Guid.Empty;
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (GetRequiredService<ICurrentTenant>().Change(TenantsTestData.TenantARef))
+            {
+                id = (await GetRequiredService<IdentityUserManager>().FindByEmailAsync(email))!.Id;
+            }
+        });
+        return id;
+    }
 
     private RecordedDispatch Sent(string templateCode) =>
         _dispatcher.Dispatches.Where(d => d.TemplateCode == templateCode).ShouldHaveSingleItem();

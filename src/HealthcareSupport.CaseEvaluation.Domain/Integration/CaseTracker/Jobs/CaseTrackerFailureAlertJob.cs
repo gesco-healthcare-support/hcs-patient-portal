@@ -10,7 +10,6 @@ using Microsoft.Extensions.Logging;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.EventBus.Local;
-using Volo.Abp.Identity;
 using Volo.Abp.MultiTenancy;
 using Volo.Abp.Timing;
 using Volo.Abp.Uow;
@@ -18,7 +17,7 @@ using Volo.Abp.Uow;
 namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Jobs;
 
 /// <summary>
-/// Tells internal staff when Case Tracker pushes have dead-lettered, because a permanently failed push
+/// Raises the technical alert when Case Tracker pushes have dead-lettered, because a permanently failed push
 /// means a case silently never reached the Case Tracker and nothing in either system's UI shows it.
 ///
 /// <para>BATCHED, not one email per failure. The contract originally said per-failure, but the usual
@@ -27,8 +26,10 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Jobs;
 /// strictly more useful. The <c>AlertedAt</c> stamp on each row is what makes a batch send exactly
 /// once.</para>
 ///
-/// <para>Emits an event per staff member rather than sending directly, because the email dispatcher
-/// lives in the Application layer. Mirrors <c>InternalStaffQueueDigestJob</c>.</para>
+/// <para>Emits ONE event per alert rather than sending directly, because the email dispatcher lives in the
+/// Application layer. Since 2026-11-03 the email goes to the technical list in
+/// <c>CaseTracker:FeedAlertRecipients</c> only -- Staff Supervisors and Intake Staff no longer receive it, so
+/// no office staff are looked up here and an office with none is still alerted.</para>
 ///
 /// <para>EARLY WARNING (#917, 2026-09-23). A retryable failure now keeps retrying for 24 hours before it
 /// dead-letters, so the dead-letter email alone would tell staff about an outage a day late. A second pass
@@ -40,13 +41,6 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Jobs;
 /// </summary>
 public class CaseTrackerFailureAlertJob : ITransientDependency
 {
-    /// <summary>
-    /// Roles that count as internal staff. Same pair <c>InternalStaffQueueDigestJob</c> uses -- these are
-    /// the roles that already receive operational appointment mail, so alerting them needs no new
-    /// recipient concept.
-    /// </summary>
-    private static readonly string[] InternalStaffRoles = { "Staff Supervisor", "Intake Staff" };
-
     /// <summary>
     /// Failures listed in the body. Beyond this the count still reports the true total and the body says
     /// it was truncated, so a systemic failure never produces an unreadable email OR a misleading count.
@@ -65,7 +59,6 @@ public class CaseTrackerFailureAlertJob : ITransientDependency
     private readonly IIntegrationOutboxRepository _outboxRepository;
     private readonly IntegrationOutboxManager _outboxManager;
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
-    private readonly IIdentityUserRepository _identityUserRepository;
     private readonly ILocalEventBus _localEventBus;
     private readonly ITenantStore _tenantStore;
     private readonly IClock _clock;
@@ -76,7 +69,6 @@ public class CaseTrackerFailureAlertJob : ITransientDependency
         IIntegrationOutboxRepository outboxRepository,
         IntegrationOutboxManager outboxManager,
         IRepository<Appointment, Guid> appointmentRepository,
-        IIdentityUserRepository identityUserRepository,
         ILocalEventBus localEventBus,
         ITenantStore tenantStore,
         IClock clock,
@@ -86,7 +78,6 @@ public class CaseTrackerFailureAlertJob : ITransientDependency
         _outboxRepository = outboxRepository;
         _outboxManager = outboxManager;
         _appointmentRepository = appointmentRepository;
-        _identityUserRepository = identityUserRepository;
         _localEventBus = localEventBus;
         _tenantStore = tenantStore;
         _clock = clock;
@@ -135,27 +126,17 @@ public class CaseTrackerFailureAlertJob : ITransientDependency
             return (0, 0);
         }
 
-        var staff = await ResolveInternalStaffAsync();
-        if (staff.Count == 0)
-        {
-            // Do NOT stamp the rows: nobody was told, so a later run (once staff exist) still should.
-            _logger.LogWarning(
-                "CaseTrackerFailureAlertJob: office {OfficeId} has {DeadLetters} un-alerted dead letter(s) and {Retrying} un-warned retrying push(es) but no internal staff to notify.",
-                officeId, deadLetters.Count, retrying.Count);
-            return (0, 0);
-        }
-
         // From the tenant STORE, not ICurrentTenant.Name. ForEachOfficeAsync enters each office via
         // ICurrentTenant.Change(id), which sets the id but leaves Name null -- reading Name here would
         // have put a blank office into the alert email. Same bug found live on the admin screen.
         var tenant = await _tenantStore.FindAsync(officeId);
-        var office = new OfficeAlert(officeId, tenant?.Name ?? string.Empty, staff, _clock.Now);
+        var office = new OfficeAlert(officeId, tenant?.Name ?? string.Empty, _clock.Now);
 
         // Each stamp only AFTER its events are published, so a crash mid-publish re-alerts rather than
         // silently swallowing the batch.
         if (deadLetters.Count > 0)
         {
-            await PublishToStaffAsync(office, CaseTrackerPushAlertKind.DeadLettered, deadLetters);
+            await PublishAlertAsync(office, CaseTrackerPushAlertKind.DeadLettered, deadLetters);
             foreach (var row in deadLetters)
             {
                 row.MarkAlerted(office.Now);
@@ -165,40 +146,34 @@ public class CaseTrackerFailureAlertJob : ITransientDependency
 
         if (retrying.Count > 0)
         {
-            await PublishToStaffAsync(office, CaseTrackerPushAlertKind.StillRetrying, retrying);
+            await PublishAlertAsync(office, CaseTrackerPushAlertKind.StillRetrying, retrying);
             await _outboxRepository.StampEarlyWarnedAsync(retrying.Select(r => r.Id).ToList(), office.Now);
         }
 
         return (deadLetters.Count, retrying.Count);
     }
 
-    /// <summary>One event per staff member, each carrying the same batch.</summary>
-    private async Task PublishToStaffAsync(
+    /// <summary>One event for the batch; the email handler addresses it to the technical list.</summary>
+    private async Task PublishAlertAsync(
         OfficeAlert office,
         CaseTrackerPushAlertKind kind,
         List<IntegrationOutboxItem> rows)
     {
         var summaries = await BuildSummariesAsync(rows);
 
-        foreach (var user in office.Staff)
+        await _localEventBus.PublishAsync(new CaseTrackerPushFailedEto
         {
-            await _localEventBus.PublishAsync(new CaseTrackerPushFailedEto
-            {
-                Kind = kind,
-                TenantId = office.OfficeId,
-                OfficeName = office.OfficeName,
-                StaffUserId = user.Id,
-                StaffEmail = user.Email,
-                StaffFirstName = string.IsNullOrWhiteSpace(user.Name) ? user.UserName : user.Name,
-                FailureCount = rows.Count,
-                Failures = summaries,
-                OccurredAt = office.Now,
-            });
-        }
+            Kind = kind,
+            TenantId = office.OfficeId,
+            OfficeName = office.OfficeName,
+            FailureCount = rows.Count,
+            Failures = summaries,
+            OccurredAt = office.Now,
+        });
     }
 
     /// <summary>What every alert for one office in one run shares.</summary>
-    private sealed record OfficeAlert(Guid OfficeId, string OfficeName, List<IdentityUser> Staff, DateTime Now);
+    private sealed record OfficeAlert(Guid OfficeId, string OfficeName, DateTime Now);
 
     private async Task<List<IntegrationOutboxItem>> FindUnalertedFailuresAsync()
     {
@@ -237,21 +212,5 @@ public class CaseTrackerFailureAlertJob : ITransientDependency
                 LastError = r.LastError,
             })
             .ToList();
-    }
-
-    private async Task<List<IdentityUser>> ResolveInternalStaffAsync()
-    {
-        var byId = new Dictionary<Guid, IdentityUser>();
-
-        foreach (var roleName in InternalStaffRoles)
-        {
-            var users = await _identityUserRepository.GetActiveListByNormalizedRoleNameAsync(roleName.ToUpperInvariant());
-            foreach (var user in users.Where(u => !string.IsNullOrWhiteSpace(u.Email)))
-            {
-                byId[user.Id] = user; // a user holding both roles is alerted once
-            }
-        }
-
-        return byId.Values.ToList();
     }
 }
