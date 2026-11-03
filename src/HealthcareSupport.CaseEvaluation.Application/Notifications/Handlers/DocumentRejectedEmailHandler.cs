@@ -43,6 +43,7 @@ public class DocumentRejectedEmailHandler :
         DocumentEmailContextResolver contextResolver,
         IAppointmentRecipientResolver recipientResolver,
         MissingRequiredDocumentsResolver missingRequiredDocumentsResolver,
+        OfficeNotificationRecipients officeRecipients,
         ICurrentTenant currentTenant,
         ILogger<DocumentRejectedEmailHandler> logger,
         IAccountUrlBuilder accountUrlBuilder)
@@ -52,6 +53,7 @@ public class DocumentRejectedEmailHandler :
             contextResolver,
             recipientResolver,
             missingRequiredDocumentsResolver,
+            officeRecipients,
             currentTenant,
             logger,
             accountUrlBuilder);
@@ -75,7 +77,6 @@ public class DocumentRejectedEmailHandler :
             OccurredAt = eventData.OccurredAt,
             Kind = NotificationKind.DocumentRejected,
             EmailKind = DocumentEmailKind.Rejected,
-            ExcludeOfficeFromCc = true,
             RejectionNotes = eventData.RejectionNotes,
             Uploader = ctx => (ctx.DocumentUploadedByUserId, ctx.DocumentUploadedByUserId.HasValue),
             RemainingDocsTemplateCode = NotificationTemplateConsts.Codes.PatientDocumentRejectedRemainingDocs,

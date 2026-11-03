@@ -59,7 +59,7 @@ a backlog that used to be silently absorbed.
 | `../Appointments/Handlers/SlotCascadeHandler.cs` | Log-only stub; subscribes to AppointmentStatusChangedEto |
 
 Application layer counterparts (Application/Notifications/):
-NotificationDispatcher, NotificationTemplateRenderer, CcRecipientAppender, EmailSubjectBuilder,
+NotificationDispatcher, NotificationTemplateRenderer, OfficeNotificationRecipients, EmailSubjectBuilder,
 TenantUrlComposer, AccountUrlBuilder, and 18+ event handlers.
 
 ## Conventions
@@ -141,9 +141,10 @@ This is the correct pattern; do not add cross-tenant queries without the scope c
   packet-attachment path silently skips ("is not Generated").
 - `TemplateVariableSubstitutor` lives in Domain (not Application) so the AuthServer's
   `IAccountEmailer` override can use it without a cross-layer reference.
-- `CcRecipientAppender` (Application layer) appends the per-tenant `SystemParameter.CcEmailIds`
-  (semicolon-separated) list to a recipient collection. It is NOT called on the
-  AppointmentRequested fan-out (Decision 2.1, 2026-05-08) -- only on the ApproveReject blast.
+- `OfficeNotificationRecipients` (Application layer, 2026-11-02) is the office's own copy of an
+  email: the office notification inbox plus the active Intake Staff, one row per address. Staff
+  Supervisors get no per-event mail and the per-tenant `SystemParameter.CcEmailIds` list is no longer
+  appended anywhere (the column and its screen field remain).
 
 ## Related
 

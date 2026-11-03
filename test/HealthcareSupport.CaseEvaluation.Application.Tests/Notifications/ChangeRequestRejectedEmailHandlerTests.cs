@@ -67,6 +67,8 @@ public class ChangeRequestRejectedEmailHandlerTests
             Party("TEST-patient@test.local", RecipientRole.Patient),
         };
 
+        public FakeOfficeRecipients Office { get; } = new();
+
         public Rig()
         {
             ContextResolver.ResolveAsync(Arg.Any<Guid>(), Arg.Any<Guid?>()).Returns(_ => Context);
@@ -81,6 +83,7 @@ public class ChangeRequestRejectedEmailHandlerTests
             Dispatcher,
             ContextResolver,
             RecipientResolver,
+            Office,
             CurrentTenant,
             NullLogger<ChangeRequestRejectedEmailHandler>.Instance);
     }
@@ -157,6 +160,21 @@ public class ChangeRequestRejectedEmailHandlerTests
 
         SingleSend(rig.Dispatcher).Variables["ClinicName"].ShouldBe(
             string.Empty, "the renderer resolves the office name from the tenant store (#1014)");
+    }
+
+    /// <summary>2026-11-02: the office's Intake Staff are copied on the decision, once per address.</summary>
+    [Fact]
+    public async Task HandleEventAsync_AddsTheIntakeStaff_OncePerAddress()
+    {
+        var rig = new Rig();
+        rig.Office.Intake.Add("TEST-intake-1@test.local");
+        rig.Office.Intake.Add("TEST-PATIENT@test.local");
+
+        await rig.Build().HandleEventAsync(RejectedEvent());
+
+        SingleSend(rig.Dispatcher).Recipients.Select(r => r.Email).ShouldBe(
+            new[] { "TEST-applicant-attorney@test.local", "TEST-patient@test.local", "TEST-intake-1@test.local" },
+            ignoreOrder: true);
     }
 
     [Fact]

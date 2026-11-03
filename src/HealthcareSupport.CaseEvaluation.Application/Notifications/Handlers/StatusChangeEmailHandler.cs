@@ -67,22 +67,9 @@ public class StatusChangeEmailHandler :
     private readonly IRepository<AppointmentInfoRequest, Guid> _infoRequestRepository;
     private readonly IRepository<DoctorAvailability, Guid> _doctorAvailabilityRepository;
     private readonly BookerCcDispatcher _bookerCcDispatcher;
-    private readonly IdentityUserManager _userManager;
+    private readonly OfficeNotificationRecipients _officeRecipients;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<StatusChangeEmailHandler> _logger;
-
-    /// <summary>
-    /// Phase 2.C (2026-05-08): NoShow recipients are limited to internal
-    /// staff (StaffSupervisor + IntakeStaff) per OLD :1021 -- patient does
-    /// NOT receive the no-show notification. Same role allow-list as
-    /// <c>BookingSubmissionEmailHandler.StaffApprovalNotificationRoles</c>;
-    /// kept duplicated here so each handler is self-contained.
-    /// </summary>
-    private static readonly string[] NoShowInternalRoles =
-    {
-        "Staff Supervisor",
-        "Intake Staff",
-    };
 
     public StatusChangeEmailHandler(
         INotificationDispatcher dispatcher,
@@ -92,7 +79,7 @@ public class StatusChangeEmailHandler :
         IRepository<AppointmentInfoRequest, Guid> infoRequestRepository,
         IRepository<DoctorAvailability, Guid> doctorAvailabilityRepository,
         BookerCcDispatcher bookerCcDispatcher,
-        IdentityUserManager userManager,
+        OfficeNotificationRecipients officeRecipients,
         ICurrentTenant currentTenant,
         ILogger<StatusChangeEmailHandler> logger)
     {
@@ -103,7 +90,7 @@ public class StatusChangeEmailHandler :
         _infoRequestRepository = infoRequestRepository;
         _doctorAvailabilityRepository = doctorAvailabilityRepository;
         _bookerCcDispatcher = bookerCcDispatcher;
-        _userManager = userManager;
+        _officeRecipients = officeRecipients;
         _currentTenant = currentTenant;
         _logger = logger;
     }
@@ -160,14 +147,12 @@ public class StatusChangeEmailHandler :
             // track the post-condition.
             var status = eventData.ToStatus!.Value;
 
-            // NoShow goes to internal staff only (OLD :1021) and InfoRequested
-            // (Prompt 17) goes to the requester only -- both compute their own
-            // recipient set inside the dispatch method rather than via the
-            // stakeholder resolver. The others (Approved, Rejected,
-            // CancelledNoBill) use the standard stakeholder fan-out.
+            // NoShow goes to the office inbox + Intake Staff only (2026-11-02), so it
+            // computes its own recipient set inside the dispatch method rather than via
+            // the stakeholder resolver. The others (Approved, Rejected, CancelledNoBill,
+            // InfoRequested) use the standard stakeholder fan-out.
             List<NotificationRecipient> stakeholders;
-            if (status == AppointmentStatusType.NoShow
-                || status == AppointmentStatusType.InfoRequested)
+            if (status == AppointmentStatusType.NoShow)
             {
                 stakeholders = new List<NotificationRecipient>();
             }
@@ -208,7 +193,7 @@ public class StatusChangeEmailHandler :
 
                     case AppointmentStatusType.InfoRequested:
                         await DispatchInfoRequestedAsync(
-                            eventData, ctx, appointment, appointmentDate, appointmentFromTime);
+                            eventData, ctx, appointment, appointmentDate, appointmentFromTime, stakeholders);
                         break;
                 }
             }
@@ -269,8 +254,11 @@ public class StatusChangeEmailHandler :
                 wrapInternalComments: WrapPleaseNote(appointment.InternalUserComments),
                 rejectionNotes: null);
             // C1 (2026-06-09): one message To the booker, CC the other parties
-            // + office (was a per-recipient fan-out). Office CC handled inside
-            // DispatchToBookerWithCcAsync via the per-tenant CcEmailIds list.
+            // (was a per-recipient fan-out). The resolver already put the office inbox
+            // among the stakeholders; 2026-11-02 adds the Intake Staff and drops the
+            // per-tenant CcEmailIds list.
+            stakeholders = new List<NotificationRecipient>(stakeholders);
+            await _officeRecipients.AppendIntakeAsync(stakeholders);
             await DispatchToBookerWithCcAsync(
                 templateCode: NotificationTemplateConsts.Codes.PatientAppointmentApprovedExt,
                 ctx: ctx,
@@ -322,7 +310,9 @@ public class StatusChangeEmailHandler :
         // C3 (2026-06-09): one message To the booker, CC the other parties + office.
         // PARITY-FLAG: OLD rejection (AppointmentDomain.cs:990) sent with NO CC
         // (3-arg SendSMTPMail); NEW adds the office CC per Adrian 2026-06-09.
-        // (OLD source: AppointmentDomain.cs:984-991)
+        // (OLD source: AppointmentDomain.cs:984-991) 2026-11-02: Intake Staff join the CC.
+        stakeholders = new List<NotificationRecipient>(stakeholders);
+        await _officeRecipients.AppendIntakeAsync(stakeholders);
         await DispatchToBookerWithCcAsync(
             templateCode: NotificationTemplateConsts.Codes.PatientAppointmentRejected,
             ctx: ctx,
@@ -334,10 +324,10 @@ public class StatusChangeEmailHandler :
     /// <summary>
     /// Phase 2.C / Decision 5 (2026-05-08): NoShow fires
     /// <c>PatientAppointmentNoShow</c> to internal staff only -- patient
-    /// does NOT receive a no-show notification. Replicates OLD :1016-1026
-    /// exactly: <c>emailTos</c> is rebuilt from a vInternalUserEmail walk
-    /// limited to <c>StaffSupervisor + IntakeStaff</c>. NO CC (OLD :1026
-    /// is the 3-arg overload).
+    /// does NOT receive a no-show notification. OLD :1016-1026 mailed Staff
+    /// Supervisor + Intake Staff; since 2026-11-02 the recipients are the office
+    /// inbox + the switched-on Intake Staff (Supervisors get no per-event mail).
+    /// NO CC (OLD :1026 is the 3-arg overload).
     /// </summary>
     private async Task DispatchNoShowAsync(
         AppointmentStatusChangedEto eventData,
@@ -346,11 +336,12 @@ public class StatusChangeEmailHandler :
         string appointmentDate,
         string appointmentFromTime)
     {
-        var staffRecipients = await ResolveNoShowInternalRecipientsAsync(eventData.AppointmentId);
+        var staffRecipients = await _officeRecipients.GetOfficeInboxAndIntakeAsync(
+            $"NoShow/{eventData.AppointmentId}");
         if (staffRecipients.Count == 0)
         {
             _logger.LogInformation(
-                "StatusChangeEmailHandler: no Staff Supervisor / Intake Staff users in tenant; skipping NoShow for appointment {AppointmentId}.",
+                "StatusChangeEmailHandler: no office inbox or Intake Staff in tenant; skipping NoShow for appointment {AppointmentId}.",
                 eventData.AppointmentId);
             return;
         }
@@ -422,9 +413,9 @@ public class StatusChangeEmailHandler :
 
     /// <summary>
     /// Prompt 17 (2026-06-17): InfoRequested fires
-    /// <c>PatientAppointmentInfoRequested</c> to the REQUESTER (booker) only --
-    /// a send-back asks the person who submitted the request to correct it, so
-    /// the other parties are not CC'd. The body carries the staff note + a deep
+    /// <c>PatientAppointmentInfoRequested</c> To the REQUESTER (booker);
+    /// since 2026-11-02 the other parties and the office inbox are CC'd (not
+    /// Intake Staff). The body carries the staff note + a deep
     /// link to the external fix-it page and templates NO field values (HIPAA:
     /// the requester sees the specific fields on the page, not in the email).
     /// </summary>
@@ -433,7 +424,8 @@ public class StatusChangeEmailHandler :
         DocumentEmailContext ctx,
         Appointment appointment,
         string appointmentDate,
-        string appointmentFromTime)
+        string appointmentFromTime,
+        List<NotificationRecipient> stakeholders)
     {
         var requesterEmail = ctx.PrimaryRecipientEmail ?? ctx.BookerEmail;
         if (string.IsNullOrWhiteSpace(requesterEmail))
@@ -462,14 +454,12 @@ public class StatusChangeEmailHandler :
             ["AppointmentViewUrl"] = BuildFixItUrl(ctx.PortalBaseUrl, eventData.AppointmentId),
         };
 
-        var recipients = new List<NotificationRecipient>
-        {
-            new(email: requesterEmail, isRegistered: true),
-        };
-
-        await _dispatcher.DispatchAsync(
+        // The resolver's party set already carries the office inbox; the dispatcher
+        // drops a CC equal to the To address and repeats within the CC list.
+        await _dispatcher.DispatchToWithCcAsync(
             templateCode: NotificationTemplateConsts.Codes.PatientAppointmentInfoRequested,
-            recipients: recipients,
+            to: new NotificationRecipient(email: requesterEmail, isRegistered: true),
+            cc: stakeholders,
             variables: vars,
             // Send Back can happen more than once for one appointment (Pending -> InfoRequested ->
             // resubmitted -> InfoRequested again), so each one is its own email.
@@ -489,40 +479,8 @@ public class StatusChangeEmailHandler :
     }
 
     /// <summary>
-    /// Phase 2.C: walks <see cref="IdentityUserManager"/> for every user in
-    /// <c>Staff Supervisor</c> + <c>Intake Staff</c> and packages them into
-    /// <see cref="NotificationRecipient"/> rows. Mirrors OLD :1021's
-    /// internal-staff RoleId filter (the supervisor + receptionist
-    /// tiers). Dedupes on email so a user with both roles only gets one
-    /// email.
-    /// </summary>
-    private async Task<List<NotificationRecipient>> ResolveNoShowInternalRecipientsAsync(Guid appointmentId)
-    {
-        var byEmail = new Dictionary<string, NotificationRecipient>(StringComparer.OrdinalIgnoreCase);
-        foreach (var roleName in NoShowInternalRoles)
-        {
-            var users = await _userManager.GetActiveUsersInRoleAsync(roleName);
-            foreach (var user in users)
-            {
-                if (string.IsNullOrWhiteSpace(user.Email))
-                {
-                    _logger.LogDebug(
-                        "StatusChangeEmailHandler: skipping {Role} user {UserId} -- empty email; appointment {AppointmentId}.",
-                        roleName, user.Id, appointmentId);
-                    continue;
-                }
-                byEmail[user.Email] = new NotificationRecipient(
-                    email: user.Email,
-                    role: RecipientRole.OfficeAdmin,
-                    isRegistered: true);
-            }
-        }
-        return byEmail.Values.ToList();
-    }
-
-    /// <summary>
     /// C-group (2026-06-09): sends ONE message addressed To the booker with the
-    /// other parties + per-tenant office CC list CC'd, via
+    /// other parties CC'd, via
     /// <see cref="INotificationDispatcher.DispatchToWithCcAsync"/>. The booker is
     /// resolved from the appointment creator (<c>ctx.BookerEmail</c>); when the
     /// booker is not among the resolved parties (e.g. a staff-created booking)
@@ -672,6 +630,7 @@ public class StatusChangeEmailHandler :
         // The resolver doesn't gate behavior by kind today; using Approved
         // here is purely a context tag for downstream logging.
         AppointmentStatusType.CancelledNoBill => NotificationKind.Approved,
+        AppointmentStatusType.InfoRequested => NotificationKind.Approved,
         _ => throw new ArgumentOutOfRangeException(nameof(status), status, null),
     };
 

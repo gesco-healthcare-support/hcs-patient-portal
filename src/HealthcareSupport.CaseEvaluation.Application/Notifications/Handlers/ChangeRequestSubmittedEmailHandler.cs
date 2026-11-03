@@ -37,6 +37,7 @@ public class ChangeRequestSubmittedEmailHandler :
     private readonly DocumentEmailContextResolver _contextResolver;
     private readonly IAppointmentRecipientResolver _recipientResolver;
     private readonly IRepository<AppointmentChangeRequest, Guid> _changeRequestRepository;
+    private readonly OfficeNotificationRecipients _officeRecipients;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<ChangeRequestSubmittedEmailHandler> _logger;
 
@@ -45,6 +46,7 @@ public class ChangeRequestSubmittedEmailHandler :
         DocumentEmailContextResolver contextResolver,
         IAppointmentRecipientResolver recipientResolver,
         IRepository<AppointmentChangeRequest, Guid> changeRequestRepository,
+        OfficeNotificationRecipients officeRecipients,
         ICurrentTenant currentTenant,
         ILogger<ChangeRequestSubmittedEmailHandler> logger)
     {
@@ -52,6 +54,7 @@ public class ChangeRequestSubmittedEmailHandler :
         _contextResolver = contextResolver;
         _recipientResolver = recipientResolver;
         _changeRequestRepository = changeRequestRepository;
+        _officeRecipients = officeRecipients;
         _currentTenant = currentTenant;
         _logger = logger;
     }
@@ -115,6 +118,9 @@ public class ChangeRequestSubmittedEmailHandler :
                     role: r.Role,
                     isRegistered: r.IsRegistered))
                 .ToList();
+
+            // 2026-11-02: the office's Intake Staff are copied on the cancel request.
+            await _officeRecipients.AppendIntakeAsync(recipients);
 
             if (recipients.Count == 0)
             {

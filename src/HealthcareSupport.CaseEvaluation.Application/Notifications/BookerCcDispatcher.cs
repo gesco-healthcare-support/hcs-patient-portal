@@ -8,7 +8,7 @@ namespace HealthcareSupport.CaseEvaluation.Notifications;
 /// <summary>
 /// Group F (2026-06-09): shared ex-parte addressing helper, extracted from
 /// <c>StatusChangeEmailHandler</c>. Sends ONE message addressed To the booker
-/// with the other parties + the per-tenant office CC list CC'd, via
+/// with the other parties CC'd, via
 /// <see cref="INotificationDispatcher.DispatchToWithCcAsync"/>.
 ///
 /// <para>Used by the status-change emails (Group C) and the consolidated
@@ -19,23 +19,19 @@ namespace HealthcareSupport.CaseEvaluation.Notifications;
 public class BookerCcDispatcher : ITransientDependency
 {
     private readonly INotificationDispatcher _dispatcher;
-    private readonly CcRecipientAppender _ccAppender;
     private readonly ILogger<BookerCcDispatcher> _logger;
 
     public BookerCcDispatcher(
         INotificationDispatcher dispatcher,
-        CcRecipientAppender ccAppender,
         ILogger<BookerCcDispatcher> logger)
     {
         _dispatcher = dispatcher;
-        _ccAppender = ccAppender;
         _logger = logger;
     }
 
     /// <summary>
     /// Partitions <paramref name="stakeholders"/> into To = the booker and
-    /// CC = everyone else, appends the per-tenant office CC list
-    /// (<c>SystemParameter.CcEmailIds</c>), and dispatches one email. No-op
+    /// CC = everyone else and dispatches one email. No-op
     /// (logs) when no To recipient can be resolved.
     /// </summary>
     public virtual async Task DispatchToBookerWithCcAsync(
@@ -55,9 +51,9 @@ public class BookerCcDispatcher : ITransientDependency
             return;
         }
 
-        // The dispatcher dedups a CC address equal to the To address.
-        await _ccAppender.AppendAsync(cc, contextTagForLogging: contextTag);
-
+        // The dispatcher dedups a CC address equal to the To address. The per-office
+        // SystemParameter.CcEmailIds list is no longer appended (2026-11-02): callers add the
+        // office inbox / Intake Staff to the stakeholders themselves.
         await _dispatcher.DispatchToWithCcAsync(
             templateCode: templateCode,
             to: to,

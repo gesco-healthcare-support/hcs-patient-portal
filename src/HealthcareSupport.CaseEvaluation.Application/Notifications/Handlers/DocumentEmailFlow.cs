@@ -38,9 +38,6 @@ internal sealed class DocumentEmailSpec
     public required NotificationKind Kind { get; init; }
     public required DocumentEmailKind EmailKind { get; init; }
 
-    /// <summary>Whether the office mailbox is dropped from the CC (accept and reject do, upload does not).</summary>
-    public required bool ExcludeOfficeFromCc { get; init; }
-
     /// <summary>Verbatim staff notes for the rejected template; null for the other two.</summary>
     public string? RejectionNotes { get; init; }
 
@@ -70,6 +67,7 @@ internal sealed class DocumentEmailFlow
     private readonly DocumentEmailContextResolver _contextResolver;
     private readonly IAppointmentRecipientResolver _recipientResolver;
     private readonly MissingRequiredDocumentsResolver? _missingRequiredDocumentsResolver;
+    private readonly OfficeNotificationRecipients _officeRecipients;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILogger _logger;
     private readonly IAccountUrlBuilder _accountUrlBuilder;
@@ -79,6 +77,7 @@ internal sealed class DocumentEmailFlow
         DocumentEmailContextResolver contextResolver,
         IAppointmentRecipientResolver recipientResolver,
         MissingRequiredDocumentsResolver? missingRequiredDocumentsResolver,
+        OfficeNotificationRecipients officeRecipients,
         ICurrentTenant currentTenant,
         ILogger logger,
         IAccountUrlBuilder accountUrlBuilder)
@@ -87,6 +86,7 @@ internal sealed class DocumentEmailFlow
         _contextResolver = contextResolver;
         _recipientResolver = recipientResolver;
         _missingRequiredDocumentsResolver = missingRequiredDocumentsResolver;
+        _officeRecipients = officeRecipients;
         _currentTenant = currentTenant;
         _logger = logger;
         _accountUrlBuilder = accountUrlBuilder;
@@ -122,19 +122,21 @@ internal sealed class DocumentEmailFlow
             }
 
             // Single To+CC message: To the uploader, CC the other appointment parties.
-            // The dispatcher dedups the To address out of the CC list.
+            // The dispatcher dedups the To address out of the CC list. 2026-11-02: the CC is the other
+            // parties + the office inbox (the resolver puts it among the parties, on accept and reject
+            // too) + the Intake Staff.
             var parties = await _recipientResolver.ResolveAsync(spec.AppointmentId, spec.Kind);
             var to = new NotificationRecipient(
                 email: uploaderEmail,
                 role: RecipientRole.Patient,
                 isRegistered: uploader.IsRegistered);
             var cc = parties
-                .Where(p => !spec.ExcludeOfficeFromCc || p.Role != RecipientRole.OfficeAdmin)
                 .Select(p => new NotificationRecipient(
                     email: p.To,
                     role: p.Role ?? RecipientRole.Patient,
                     isRegistered: p.IsRegistered))
                 .ToList();
+            await _officeRecipients.AppendIntakeAsync(cc);
 
             var variables = DocumentNotificationContext.BuildVariables(
                 patientFirstName: ctx.PatientFirstName,
