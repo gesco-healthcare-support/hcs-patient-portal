@@ -192,6 +192,46 @@ public abstract class NotificationTemplatesAppServiceTests<TStartupModule>
     }
 
     [Fact]
+    public async Task UpdateAsync_OnAShippedHtmlTemplate_KeepsTheShippedBodyIntact_AndTracksTheStaffEditMark()
+    {
+        // 2026-11-02: the mark keeps the seeder (run on every deploy) from overwriting an office's edit. On a
+        // template that ships an HTML body, the shipped body itself must survive a subject-only save byte for
+        // byte: the sanitizer works on fragments and would strip its <html>/<body> wrapper, and once marked,
+        // no deploy would repair it.
+        await EnsureSeededAsync(TenantsTestData.TenantARef);
+        var code = NotificationTemplateConsts.Codes.PatientAppointmentApprovedExt;
+        NotificationTemplateSeedDefaults.HasResourceBackedBody(code).ShouldBeTrue();
+        var shipped = NotificationTemplateSeedDefaults.GetSeedDefaults(code);
+        shipped.BodyEmail.ShouldContain("<body");
+
+        using (_currentTenant.Change(TenantsTestData.TenantARef))
+        {
+            var current = await _appService.GetByCodeAsync(code);
+            var id = current.NotificationTemplate.Id;
+            var stamp = current.NotificationTemplate.ConcurrencyStamp;
+
+            // (a) A subject-only edit: the shipped body is stored unchanged, and the row is the office's own.
+            stamp = (await SaveAsync(id, stamp, "TEST- the office's own subject", shipped.BodyEmail, shipped.BodySms)).ConcurrencyStamp;
+            var row = await ReadAsync(id);
+            row.BodyEmail.ShouldBe(shipped.BodyEmail);
+            row.IsEditedByStaff().ShouldBeTrue();
+
+            // (b) Saving the shipped subject and body back clears the mark, so later shipped changes arrive.
+            stamp = (await SaveAsync(id, stamp, shipped.Subject, shipped.BodyEmail, shipped.BodySms)).ConcurrencyStamp;
+            row = await ReadAsync(id);
+            row.BodyEmail.ShouldBe(shipped.BodyEmail);
+            row.IsEditedByStaff().ShouldBeFalse();
+
+            // (c) A real body edit is still sanitized, and marks the row.
+            await SaveAsync(id, stamp, shipped.Subject, shipped.BodyEmail.Replace("</body>", "<script>steal()</script></body>"), shipped.BodySms);
+            row = await ReadAsync(id);
+            row.BodyEmail.ToLowerInvariant().ShouldNotContain("<script");
+            row.BodyEmail.ShouldNotContain("steal");
+            row.IsEditedByStaff().ShouldBeTrue();
+        }
+    }
+
+    [Fact]
     public async Task UpdateAsync_SanitizesScriptFromBodyEmail()
     {
         // #6 (2026-06-19): UpdateAsync sanitizes the HTML email body on write.
@@ -304,6 +344,24 @@ public abstract class NotificationTemplatesAppServiceTests<TStartupModule>
     /// does not do directly. Seeding inline keeps the test class
     /// self-contained.
     /// </summary>
+    private Task<NotificationTemplateDto> SaveAsync(Guid id, string concurrencyStamp, string? subject, string bodyEmail, string bodySms) =>
+        _appService.UpdateAsync(id, new NotificationTemplateUpdateDto
+        {
+            Subject = subject,
+            BodyEmail = bodyEmail,
+            BodySms = bodySms,
+            IsActive = true,
+            ConcurrencyStamp = concurrencyStamp,
+        });
+
+    private async Task<NotificationTemplate> ReadAsync(Guid id)
+    {
+        using var uow = _unitOfWorkManager.Begin(requiresNew: true, isTransactional: false);
+        var row = await _templateRepository.GetAsync(id);
+        await uow.CompleteAsync();
+        return row;
+    }
+
     private async Task EnsureSeededAsync(Guid? tenantId)
     {
         using var uow = _unitOfWorkManager.Begin(requiresNew: true, isTransactional: false);

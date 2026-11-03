@@ -124,13 +124,21 @@ public class NotificationTemplatesAppService : ApplicationService, INotification
         ValidateBodies(input);
         ValidateSubjectLength(input);
 
+        var entity = await _templateRepository.GetAsync(id);
+
         // #6 (2026-06-19): sanitize the HTML email body before persist. The
         // renderer returns stored bodies verbatim, so the stored value must
         // already be XSS-safe. BodySms is left untouched -- it is sent as plain
         // text, never HTML, so HTML sanitization does not apply.
-        input.BodyEmail = _emailBodySanitizer.Sanitize(input.BodyEmail);
-
-        var entity = await _templateRepository.GetAsync(id);
+        // 2026-11-02: except the shipped default itself, byte for byte. It is our own embedded resource, and
+        // the sanitizer works on fragments, so it would strip the shipped document wrapper
+        // (<html>/<head>/<body>): a subject-only edit would then store a stripped body that, now that edits
+        // survive the seeder, no deploy would ever repair.
+        var shippedBody = NotificationTemplateSeedDefaults.GetSeedDefaults(entity.TemplateCode).BodyEmail;
+        if (!string.Equals(input.BodyEmail, shippedBody, StringComparison.Ordinal))
+        {
+            input.BodyEmail = _emailBodySanitizer.Sanitize(input.BodyEmail);
+        }
 
         // Optimistic concurrency: round-trip the stamp from the read DTO.
         // Tests / first-call paths may omit it -- only enforce when set.
@@ -140,6 +148,10 @@ public class NotificationTemplatesAppService : ApplicationService, INotification
         }
 
         ApplyUpdate(input, entity);
+        // 2026-11-02: a row the editor leaves different from the shipped default is the office's own
+        // wording; the seeder (run on every deploy) no longer overwrites it.
+        entity.MarkEditedByStaff(NotificationTemplateVariableCatalog.IsCustomized(
+            entity.TemplateCode, entity.Subject, entity.BodyEmail, entity.BodySms));
 
         await _templateRepository.UpdateAsync(entity, autoSave: true);
         return MapToDto(entity);
