@@ -143,6 +143,7 @@ public static class PacketTokenMap
             ["##Office.RecordsDeliveryAddress##"] = c.Office.RecordsDeliveryAddress,
             ["##Office.RecordsReleaseAddress##"] = c.Office.RecordsReleaseAddress,
             ["##Office.MissedAppointmentFee##"] = c.Office.MissedAppointmentFee,
+            ["##Office.SignatureImage##"] = c.Office.SignatureImage,
         };
     }
 }

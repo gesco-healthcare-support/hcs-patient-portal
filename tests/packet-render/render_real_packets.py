@@ -32,12 +32,15 @@ the same pull request: run with --print and copy the dict it prints.
 Synthetic values only. Never put real patient data in this file.
 """
 
+import base64
 import io
 import json
+import struct
 import subprocess
 import sys
 import urllib.error
 import urllib.request
+import zlib
 
 sys.path.insert(0, "/app")
 import app  # noqa: E402  the running service's module: its template list and token pattern
@@ -48,6 +51,29 @@ RENDER_URL = "http://127.0.0.1:3001/render"
 # A value such as <&'> would not catch that: "<&" is not a tag, so it renders the same either way (measured).
 SYNTHETIC_VALUE = "<i>&'\"</i>"
 
+SIGNATURE_TOKEN = "##Office.SignatureImage##"
+
+
+def synthetic_signature_data_uri():
+    """A tiny SYNTHETIC png (a coloured diagonal on transparency), as the data URI the .NET side sends.
+
+    Never a real signature: the real one is never committed or used by a test.
+    """
+    width, height = 40, 16
+    rows = b"".join(
+        b"\x00" + b"".join((b"\xd0\x20\x20\xff" if x == y * 2 or x == y * 2 + 1 else b"\x00\x00\x00\x00")
+                           for x in range(width))
+        for y in range(height))
+
+    def chunk(kind, data):
+        return (struct.pack(">I", len(data)) + kind + data
+                + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF))
+
+    png = (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0))
+           + chunk(b"IDAT", zlib.compress(rows)) + chunk(b"IEND", b""))
+    return "data:image/png;base64," + base64.b64encode(png).decode("ascii")
+
+
 # Pinned from a real render of this commit's image. See the module docstring before changing one.
 EXPECTED = {
     "attorney-ame": {"pages": 2, "widgets": 0},
@@ -57,9 +83,12 @@ EXPECTED = {
 }
 
 
-def render(name):
+def render(name, signature=None):
+    """POST the template with every token filled. signature: None = a synthetic png, "" = the office has none."""
     html = app._TEMPLATE_FILES[name].read_text(encoding="utf-8")
     tokens = dict.fromkeys(sorted(set(app.TOKEN_REGEX.findall(html))), SYNTHETIC_VALUE)
+    if SIGNATURE_TOKEN in tokens:
+        tokens[SIGNATURE_TOKEN] = synthetic_signature_data_uri() if signature is None else signature
     body = json.dumps({"template": name, "tokens": tokens}).encode("utf-8")
     request = urllib.request.Request(RENDER_URL, data=body, headers={"Content-Type": "application/json"})
     try:
@@ -74,6 +103,30 @@ def measure(pdf):
         widgets = sum(1 for page in document.pages for annotation in (page.get("/Annots") or [])
                       if annotation.get("/Subtype") == "/Widget")
         return {"pages": len(document.pages), "widgets": widgets}
+
+
+def images_on_page(pdf, index):
+    with pikepdf.open(io.BytesIO(pdf)) as document:
+        return len(document.pages[index].images)
+
+
+def signature_problems(name, payload):
+    """The QME Form 110 page (page 3 of the PQME attorney packet) carries the image, and only when one is sent."""
+    if name != "attorney-pqme":
+        return []
+    problems = []
+    if images_on_page(payload, 2) < 1:
+        problems.append("the synthetic signature did not reach page 3 of the PDF")
+    status, content_type, blank, _ = render(name, signature="")
+    if status != 200 or content_type != "application/pdf":
+        problems.append(f"the render with no signature answered HTTP {status}")
+    else:
+        got = measure(blank)
+        if got != EXPECTED[name]:
+            problems.append(f"with no signature: {got}, want {EXPECTED[name]}")
+        if images_on_page(blank, 2) != 0:
+            problems.append("an office with no signature must print no image on page 3")
+    return problems
 
 
 def text_problems(pdf):
@@ -103,7 +156,7 @@ def check(name):
         got = measure(payload)
     except pikepdf.PdfError as error:
         return f"{name}: pikepdf cannot open it: {error}", False, None
-    problems = text_problems(payload)
+    problems = text_problems(payload) + signature_problems(name, payload)
     want = EXPECTED.get(name)
     if want != got:
         problems.append(f"want {want}")

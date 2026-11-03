@@ -69,6 +69,8 @@ public class AttyCEPacketEmailHandler :
     private readonly IAccountUrlBuilder _accountUrlBuilder;
     // E5 (2026-06-09): resolve each recipient's display name for the greeting.
     private readonly IdentityUserManager _userManager;
+    // 2026-11-03: the booker gets this packet too.
+    private readonly AttorneyPacketBookerRecipient _bookerRecipient;
 
     public AttyCEPacketEmailHandler(
         INotificationDispatcher dispatcher,
@@ -77,7 +79,8 @@ public class AttyCEPacketEmailHandler :
         ICurrentTenant currentTenant,
         ILogger<AttyCEPacketEmailHandler> logger,
         IAccountUrlBuilder accountUrlBuilder,
-        IdentityUserManager userManager)
+        IdentityUserManager userManager,
+        AttorneyPacketBookerRecipient bookerRecipient)
     {
         _dispatcher = dispatcher;
         _contextResolver = contextResolver;
@@ -86,6 +89,7 @@ public class AttyCEPacketEmailHandler :
         _logger = logger;
         _accountUrlBuilder = accountUrlBuilder;
         _userManager = userManager;
+        _bookerRecipient = bookerRecipient;
     }
 
     [UnitOfWork]
@@ -117,6 +121,21 @@ public class AttyCEPacketEmailHandler :
                     email: r.To,
                     role: r.Role,
                     isRegistered: r.IsRegistered))
+                .ToList();
+
+            // 2026-11-03: the account that submitted the appointment is mailed like the attorneys (same
+            // template, same context tag, so the party-change re-send still reaches new addresses only).
+            // The resolver tags a booker as Patient, so the role filter above drops them; they are added
+            // here, once, when no AA/DA/CE entry already carries their address.
+            var booker = await _bookerRecipient.ResolveAsync(ctx);
+            if (booker != null)
+            {
+                recipients.Add(booker);
+            }
+
+            recipients = recipients
+                .GroupBy(r => r.Email.Trim(), StringComparer.OrdinalIgnoreCase)
+                .Select(g => g.First())
                 .ToList();
 
             if (recipients.Count == 0)

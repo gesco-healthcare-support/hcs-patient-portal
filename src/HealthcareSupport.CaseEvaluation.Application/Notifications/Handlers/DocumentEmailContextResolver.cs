@@ -9,6 +9,7 @@ using HealthcareSupport.CaseEvaluation.ApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
 using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
+using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.ExternalSignups;
 using HealthcareSupport.CaseEvaluation.Patients;
 using HealthcareSupport.CaseEvaluation.Settings;
@@ -153,8 +154,10 @@ public class DocumentEmailContextResolver : ITransientDependency
             TenantId = appointment.TenantId,
             RequestConfirmationNumber = appointment.RequestConfirmationNumber,
             AppointmentDate = appointment.AppointmentDate,
+            AppointmentStatus = appointment.AppointmentStatus,
             DueDate = appointment.DueDate,
             BookerEmail = bookerUser?.Email,
+            BookerUserId = bookerUser?.Id,
             CreatorIsStaff = creatorIsStaff,
             PatientAddresses = patientAddresses,
             PatientIdentityUserId = patient?.IdentityUserId,
@@ -308,8 +311,15 @@ public class DocumentEmailContext
     public Guid? TenantId { get; set; }
     public string RequestConfirmationNumber { get; set; } = string.Empty;
     public DateTime AppointmentDate { get; set; }
+
+    /// <summary>2026-11-03: the appointment's status when the context was read. Lets a handler apply the
+    /// "patient hears nothing before approval" rule to an event that carries no status of its own.</summary>
+    public AppointmentStatusType AppointmentStatus { get; set; }
     public DateTime? DueDate { get; set; }
     public string? BookerEmail { get; set; }
+
+    /// <summary>2026-11-03: the submitting account's id; null for a staff submitter or an unrecorded one.</summary>
+    public Guid? BookerUserId { get; set; }
 
     /// <summary>2026-11-03: the submitting account (<c>CreatorId ?? BookedByUserId</c>) holds an office-side
     /// role. A staff booking is auto-approved and sends one approval set instead of request emails; a staff

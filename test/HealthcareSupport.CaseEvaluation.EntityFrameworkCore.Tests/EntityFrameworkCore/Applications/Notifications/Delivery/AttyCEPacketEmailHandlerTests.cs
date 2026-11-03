@@ -7,11 +7,14 @@ using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
 using HealthcareSupport.CaseEvaluation.Notifications;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using HealthcareSupport.CaseEvaluation.Notifications.Handlers;
+using HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Notifications;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
+using HealthcareSupport.CaseEvaluation.Patients;
 using HealthcareSupport.CaseEvaluation.TestData;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Shouldly;
+using Volo.Abp;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Identity;
 using Volo.Abp.MultiTenancy;
@@ -156,7 +159,188 @@ public class AttyCEPacketEmailHandlerTests : CaseEvaluationEntityFrameworkCoreTe
         _recorder.Sent.ShouldBeEmpty();
     }
 
+    // ---- 2026-11-03: the booker (the account that submitted the appointment) is mailed too ----
+
+    [Fact]
+    public async Task AnAttorneyBooker_WhoseAddressIsNotTheTypedAttorney_IsMailedWithTheParties_OneEmailEach()
+    {
+        // The A00002 shape: a firm login submitted the request; the attorney typed on it is someone else.
+        WithPartiesAndDecoys();
+        var bookerEmail = await CreateBookerAsync("Applicant Attorney");
+
+        await RaiseAsync(PacketKind.AttorneyClaimExaminer);
+
+        _recorder.Sent.Count.ShouldBe(4);
+        _recorder.Sent.SelectMany(s => s.Recipients).ShouldBe(
+            new[] { IdentityUsersTestData.ApplicantAttorney1Email, DefenseEmail, ExaminerEmail, bookerEmail }, ignoreOrder: true);
+        var bookerMail = _recorder.Sent.Single(s => s.Recipients.Contains(bookerEmail));
+        bookerMail.TemplateCode.ShouldBe(NotificationTemplateConsts.Codes.AppointmentDocumentAddWithAttachment);
+        bookerMail.Packet!.Kind.ShouldBe(PacketKind.AttorneyClaimExaminer);
+        bookerMail.Variables["PacketLabel"].ShouldBe("Appointment Notice");
+    }
+
+    [Fact]
+    public async Task ABookerWhoIsAlsoTheTypedAttorney_IsMailedOnce_WhateverTheCase()
+    {
+        _parties.Parties.Add(new SendAppointmentEmailArgs { To = IdentityUsersTestData.ApplicantAttorney1Email.ToLowerInvariant(), Role = RecipientRole.ApplicantAttorney });
+        await SetSubmitterAsync(IdentityUsersTestData.ApplicantAttorney1UserId);
+
+        await RaiseAsync(PacketKind.AttorneyClaimExaminer);
+
+        _recorder.Sent.Count.ShouldBe(1);
+        _recorder.Sent.Single().Recipients.Single().ShouldBe(
+            IdentityUsersTestData.ApplicantAttorney1Email, StringCompareShould.IgnoreCase);
+    }
+
+    [Fact]
+    public async Task AnAttorneyBooker_WhoIsThePatientsOwnLogin_IsNotMailedTheAttorneyPacket()
+    {
+        // Positive control: the first Fact in this group, the same booker role when the booker is not the patient.
+        WithPartiesAndDecoys();
+        var bookerEmail = await CreateBookerAsync("Applicant Attorney");
+        await SetPatientLoginAsync(bookerEmail);
+
+        await RaiseAsync(PacketKind.AttorneyClaimExaminer);
+
+        _recorder.Sent.SelectMany(s => s.Recipients).ShouldNotContain(bookerEmail);
+        _recorder.Sent.Count.ShouldBe(3);
+    }
+
+    [Fact]
+    public async Task AnAttorneyBooker_WhoseConfirmedEmailIsThePatientsAddress_IsNotMailedTheAttorneyPacket()
+    {
+        WithPartiesAndDecoys();
+        var bookerEmail = await CreateBookerAsync("Applicant Attorney", email: PatientsTestData.Patient1Email, confirmed: true);
+
+        await RaiseAsync(PacketKind.AttorneyClaimExaminer);
+
+        _recorder.Sent.SelectMany(s => s.Recipients).ShouldNotContain(bookerEmail);
+        _recorder.Sent.Count.ShouldBe(3);
+    }
+
+    [Theory]
+    [InlineData("Intake Staff")]
+    [InlineData("Staff Supervisor")]
+    public async Task AStaffBooker_IsNotMailedTheAttorneyPacket(string staffRole)
+    {
+        WithPartiesAndDecoys();
+        var bookerEmail = await CreateBookerAsync(staffRole);
+
+        await RaiseAsync(PacketKind.AttorneyClaimExaminer);
+
+        _recorder.Sent.SelectMany(s => s.Recipients).ShouldNotContain(bookerEmail);
+        _recorder.Sent.Count.ShouldBe(3);
+    }
+
+    [Fact]
+    public async Task AnInactiveBooker_IsNotMailedTheAttorneyPacket()
+    {
+        WithPartiesAndDecoys();
+        var bookerEmail = await CreateBookerAsync("Applicant Attorney", active: false);
+
+        await RaiseAsync(PacketKind.AttorneyClaimExaminer);
+
+        _recorder.Sent.SelectMany(s => s.Recipients).ShouldNotContain(bookerEmail);
+        _recorder.Sent.Count.ShouldBe(3);
+    }
+
+    [Fact]
+    public async Task ABookerWhoHoldsPatientAndAttorneyRoles_FailsPacketVisibility_AndIsNotMailed()
+    {
+        // Any account holding the Patient role may see only the Patient packet, whatever else it holds.
+        WithPartiesAndDecoys();
+        var bookerEmail = await CreateBookerAsync("Applicant Attorney", extraRole: "Patient");
+
+        await RaiseAsync(PacketKind.AttorneyClaimExaminer);
+
+        _recorder.Sent.SelectMany(s => s.Recipients).ShouldNotContain(bookerEmail);
+        _recorder.Sent.Count.ShouldBe(3);
+    }
+
+    [Fact]
+    public async Task AnAttorneyBookerFromAnotherOffice_IsNotMailed()
+    {
+        // The submitter id resolves in office A only; an office B account with that role is never found.
+        WithPartiesAndDecoys();
+        var otherOfficeId = Guid.NewGuid();
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (GetRequiredService<ICurrentTenant>().Change(TenantsTestData.TenantBRef))
+            {
+                var users = GetRequiredService<IdentityUserManager>();
+                var email = await RoleUserSeeder.CreateUserInRoleAsync(
+                    users, GetRequiredService<IdentityRoleManager>(), TenantsTestData.TenantBRef, "Applicant Attorney", "atty-officeb-booker");
+                otherOfficeId = (await users.FindByEmailAsync(email))!.Id;
+            }
+        });
+        await SetSubmitterAsync(otherOfficeId);
+
+        await RaiseAsync(PacketKind.AttorneyClaimExaminer);
+
+        _recorder.Sent.Count.ShouldBe(3);
+    }
+
     // ------------------------------------------------------------------------
+
+    /// <summary>Creates a booker in office A, records them as the appointment's submitter, returns their address.</summary>
+    private async Task<string> CreateBookerAsync(string role, bool active = true, string? email = null, bool confirmed = false, string? extraRole = null)
+    {
+        var id = Guid.Empty;
+        var address = string.Empty;
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (GetRequiredService<ICurrentTenant>().Change(TenantsTestData.TenantARef))
+            {
+                var users = GetRequiredService<IdentityUserManager>();
+                var roles = GetRequiredService<IdentityRoleManager>();
+                address = await RoleUserSeeder.CreateUserInRoleAsync(users, roles, TenantsTestData.TenantARef, role, "atty-booker");
+                var user = (await users.FindByEmailAsync(address))!;
+                if (email != null)
+                {
+                    (await users.SetEmailAsync(user, email)).Succeeded.ShouldBeTrue();
+                    address = email;
+                }
+                user.SetEmailConfirmed(confirmed);
+                user.SetIsActive(active);
+                (await users.UpdateAsync(user)).Succeeded.ShouldBeTrue();
+                if (extraRole != null)
+                {
+                    if (await roles.FindByNameAsync(extraRole) == null)
+                    {
+                        (await roles.CreateAsync(new IdentityRole(Guid.NewGuid(), extraRole, TenantsTestData.TenantARef))).Succeeded.ShouldBeTrue();
+                    }
+                    (await users.AddToRoleAsync(user, extraRole)).Succeeded.ShouldBeTrue();
+                }
+                id = user.Id;
+            }
+        });
+        await SetSubmitterAsync(id);
+        return address;
+    }
+
+    private Task SetSubmitterAsync(Guid creator) => WithUnitOfWorkAsync(async () =>
+    {
+        using (GetRequiredService<ICurrentTenant>().Change(TenantsTestData.TenantARef))
+        {
+            var repository = GetRequiredService<IRepository<Appointment, Guid>>();
+            var appointment = await repository.GetAsync(AppointmentsTestData.Appointment1Id);
+            ObjectHelper.TrySetProperty(appointment, a => a.CreatorId, () => (Guid?)creator);
+            await repository.UpdateAsync(appointment, autoSave: true);
+        }
+    });
+
+    private Task SetPatientLoginAsync(string email) => WithUnitOfWorkAsync(async () =>
+    {
+        using (GetRequiredService<ICurrentTenant>().Change(TenantsTestData.TenantARef))
+        {
+            var login = (await GetRequiredService<IdentityUserManager>().FindByEmailAsync(email))!.Id;
+            var appointment = await GetRequiredService<IRepository<Appointment, Guid>>().GetAsync(AppointmentsTestData.Appointment1Id);
+            var patients = GetRequiredService<IRepository<Patient, Guid>>();
+            var patient = await patients.GetAsync(appointment.PatientId);
+            patient.IdentityUserId = login;
+            await patients.UpdateAsync(patient, autoSave: true);
+        }
+    });
 
     private string? GreetingFor(string email) =>
         _recorder.Sent.Single(s => s.Recipients.Contains(email)).Variables["Greeting"] as string;
