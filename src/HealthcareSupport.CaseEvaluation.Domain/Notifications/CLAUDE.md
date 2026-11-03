@@ -15,8 +15,7 @@ deferred until Twilio creds land (Phase 18 open item).
 | `StaffRecipients.cs` | Who a role-based notice goes to: the role's holders who are switched ON (2026-10-26). Every staff email, digest, alert and in-app notice reads its users through it, so a switched-off account (an unassigned operator's office login keeps its role) gets nothing |
 | `ReminderCadence.cs` | Value object turning a comma-separated anchor list (`"14,7,3"`) into a firing predicate. No DI, no IO. Parsing is defensive because the list is admin-editable |
 | `Outbox/` | Store-and-forward email: `NotificationOutboxItem`, `NotificationOutboxManager`, `OutboxDrainJob`, `OutboxDrainService`, `OutboxEmailSender` |
-| `Jobs/PendingDailyDigestJob.cs` | 09:00 PT -- digest of Pending appointments to intake-staff inbox |
-| `Jobs/InternalStaffQueueDigestJob.cs` | 09:15 PT -- per-staff queue counts (Staff Supervisor + Intake Staff only) |
+| `Jobs/RetiredRecurringJobs.cs` | Hangfire ids of retired jobs; the host module purges each with `RemoveIfExists`. Holds the two daily digests' ids, replaced 2026-11-03 by `StaffSummaryJob` (in `Application/Notifications/Jobs/`, 08:00 and 16:00 PT: one summary per office to the inbox + active Intake Staff, one all-offices summary to each active host Staff Supervisor) |
 | `Jobs/AppointmentReminderJob.cs` | 08:15 PT -- the CONSOLIDATED due-date reminder. Anchors come from `RemindersPolicy.DueDateApproachingAnchors`; due-date nudge and outstanding documents go out as ONE email |
 | `Jobs/JointDeclarationOverdueJob.cs` | 06:00 PT -- FLAGS joint-declaration-overdue appointments. It does NOT cancel |
 | `Jobs/ApprovalReconciliationJob.cs` | Approval reconciliation |

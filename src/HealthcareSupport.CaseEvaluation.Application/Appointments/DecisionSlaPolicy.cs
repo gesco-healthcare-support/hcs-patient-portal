@@ -9,7 +9,7 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 /// per-tenant window for safety margin
 /// (<c>SystemParameter.PendingAppointmentOverDueNotificationDays</c>,
 /// default 3). These helpers centralize the "decision due" / "overdue" math
-/// so the daily pending digest (<c>PendingDailyDigestEmailHandler</c>) and the
+/// so the twice-daily staff summary (<c>StaffSummaryJob</c>) and the
 /// dashboard "decision overdue" tile (<c>DashboardAppService</c>) agree to the
 /// day. No status change is ever made -- the deadline only escalates / notifies.
 ///

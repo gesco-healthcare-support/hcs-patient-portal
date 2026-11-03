@@ -283,7 +283,19 @@ public static class NotificationTemplateConsts
         public const string AccountEmailChanged = "AccountEmailChanged";
 
         /// <summary>
-        /// All 72 codes in seed order (count asserted by
+        /// 2026-11-03 -- the 08:00 / 16:00 Pacific summary for one office, to its notification inbox and its
+        /// Intake Staff. Replaces the daily pending digest and the per-staff queue-counts email.
+        /// </summary>
+        public const string OfficeDailySummary = "OfficeDailySummary";
+
+        /// <summary>
+        /// 2026-11-03 -- the 08:00 / 16:00 Pacific all-offices summary, to each host Staff Supervisor. Sent from
+        /// host scope by a host recurring job.
+        /// </summary>
+        public const string SupervisorDailySummary = "SupervisorDailySummary";
+
+        /// <summary>
+        /// All 74 codes in seed order (count asserted by
         /// <c>NotificationTemplatesValidatorUnitTests.Codes_All_Has64Codes</c> -- keep both in step;
         /// this comment had drifted by one before 2026-07-28). Used by
         /// <c>NotificationTemplateDataSeedContributor</c> to ensure each
@@ -352,6 +364,10 @@ public static class NotificationTemplateConsts
 
             // 2026-10-27 -- "your sign-in email was changed", to the previous address.
             AccountEmailChanged,
+
+            // 2026-11-03 -- twice-daily office and supervisor summaries.
+            OfficeDailySummary,
+            SupervisorDailySummary,
         };
 
         /// <summary>
@@ -373,6 +389,8 @@ public static class NotificationTemplateConsts
         ///         screen, or one asking for a new activation link, is sent it from host scope.</item>
         ///   <item><c>AccountEmailChanged</c> (2026-10-27) -- an administrator changes a host user's
         ///         sign-in email from host scope.</item>
+        ///   <item><c>SupervisorDailySummary</c> (2026-11-03) -- the all-offices summary a host recurring job
+        ///         sends to each host Staff Supervisor twice a day.</item>
         ///   <item><c>CaseTrackerMissingIntakes</c> (#944, 2026-09-24) -- the weekly cross-office
         ///         missing-intake report, sent by a host recurring job. The one entry that is not
         ///         account lifecycle: it reports on every office at once, so no office scope fits.</item>
@@ -390,6 +408,7 @@ public static class NotificationTemplateConsts
             CaseTrackerMissingIntakes,
             AccountActivation,
             AccountEmailChanged,
+            SupervisorDailySummary,
         };
     }
 }

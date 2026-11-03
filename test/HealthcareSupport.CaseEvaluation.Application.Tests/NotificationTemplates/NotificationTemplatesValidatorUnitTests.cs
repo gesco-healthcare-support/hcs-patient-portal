@@ -229,7 +229,9 @@ public class NotificationTemplatesValidatorUnitTests
         // receives: choose a password from its link, which also confirms the email (+1 -> 71).
         // 2026-10-27 added AccountEmailChanged, the notice to a previous address when an administrator
         // changes someone's sign-in email (+1 -> 72).
-        NotificationTemplateConsts.Codes.All.Length.ShouldBe(72);
+        // 2026-11-03 added OfficeDailySummary and SupervisorDailySummary, the twice-daily summaries that
+        // replace the two daily digests (+2 -> 74).
+        NotificationTemplateConsts.Codes.All.Length.ShouldBe(74);
     }
 
     [Fact]
