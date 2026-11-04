@@ -62479,13 +62479,17 @@
         "Patient",
         "ClaimExaminer",
         "ApplicantAttorney",
-        "DefenseAttorney"
+        "DefenseAttorney",
+        "ApplicantParalegal",
+        "DefenseParalegal"
       ],
       "enumValues": [
         1,
         2,
         3,
-        4
+        4,
+        5,
+        6
       ],
       "genericArguments": null,
       "properties": null
