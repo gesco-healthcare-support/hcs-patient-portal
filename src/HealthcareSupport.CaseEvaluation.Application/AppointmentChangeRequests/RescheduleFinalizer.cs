@@ -14,6 +14,7 @@ using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 using Volo.Abp.BackgroundJobs;
 using Volo.Abp.Guids;
 using Volo.Abp.MultiTenancy;
+using Volo.Abp.Uow;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
 
@@ -42,6 +43,7 @@ public class RescheduleFinalizer : ITransientDependency
     private readonly IGuidGenerator _guidGenerator;
     private readonly IClock _clock;
     private readonly ICurrentTenant _currentTenant;
+    private readonly IUnitOfWorkManager _unitOfWorkManager;
 
     public RescheduleFinalizer(
         IRepository<Appointment, Guid> appointmentRepository,
@@ -55,7 +57,8 @@ public class RescheduleFinalizer : ITransientDependency
         IBackgroundJobManager backgroundJobManager,
         IGuidGenerator guidGenerator,
         IClock clock,
-        ICurrentTenant currentTenant)
+        ICurrentTenant currentTenant,
+        IUnitOfWorkManager unitOfWorkManager)
     {
         _appointmentRepository = appointmentRepository;
         _doctorAvailabilityRepository = doctorAvailabilityRepository;
@@ -69,6 +72,7 @@ public class RescheduleFinalizer : ITransientDependency
         _guidGenerator = guidGenerator;
         _clock = clock;
         _currentTenant = currentTenant;
+        _unitOfWorkManager = unitOfWorkManager;
     }
 
     /// <param name="currentRound">The consent round whose date both sides agreed to.</param>
@@ -184,7 +188,12 @@ public class RescheduleFinalizer : ITransientDependency
         // user-facing HTTP caller, and staff finalizing a reschedule are not a party to the
         // appointment they just created, so the guard rejects them. Same generator, no borrowed
         // authorization.
-        await _backgroundJobManager.EnqueueAsync(new GenerateAppointmentPacketArgs
+        //
+        // 2026-11-03: enqueued when this unit of work COMPLETES, not here. Hangfire's manager enqueues
+        // at once, so a worker could pick the job up before the new appointment row committed (seen live
+        // on the consent path, whose finalizer runs in its own requiresNew unit of work: "no such entity
+        // Appointment" in the packet job, then a retry). Same pattern as PacketGenerationOnApprovedHandler.
+        await EnqueuePacketJobWhenCommittedAsync(new GenerateAppointmentPacketArgs
         {
             AppointmentId = newAppointment.Id,
             TenantId = _currentTenant.Id,
@@ -271,4 +280,7 @@ public class RescheduleFinalizer : ITransientDependency
             copied.Total,
             isAdminOverride);
     }
+
+    private Task EnqueuePacketJobWhenCommittedAsync(GenerateAppointmentPacketArgs args) =>
+        PacketJobOnCommit.EnqueueAsync(_unitOfWorkManager, _backgroundJobManager, _currentTenant, _logger, args);
 }
