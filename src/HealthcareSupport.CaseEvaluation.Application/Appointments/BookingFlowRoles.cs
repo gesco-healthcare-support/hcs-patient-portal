@@ -56,16 +56,18 @@ internal static class BookingFlowRoles
     /// External roles permitted to manage (add / edit / remove) appointment
     /// accessors -- but only on an appointment they created (the creator check
     /// lives in <see cref="AppointmentAccessRules.CanManageAccessors"/>). Today:
-    /// Applicant Attorney + Defense Attorney. The paralegal-on-behalf-of-attorney
-    /// feature appends "Paralegal" here as a one-line extension; the Domain rule
-    /// and the guard need no change. Names mirror the external roles seeded by
-    /// <c>ExternalUserRoleDataSeedContributor</c> /
+    /// both sides' law-office roles: Applicant / Defense Attorney and, since
+    /// 2026-11-04, Applicant / Defense Paralegal (the usual booker). The Domain
+    /// rule and the guard needed no change. Names mirror the external roles seeded
+    /// by <c>ExternalUserRoleDataSeedContributor</c> /
     /// <c>AppointmentAccessorRules.RecognizedExternalRoles</c>.
     /// </summary>
     internal static readonly System.Collections.Generic.IReadOnlyList<string> ExternalAccessorManagerRoles = new[]
     {
-        "Applicant Attorney",
-        "Defense Attorney",
+        HealthcareSupport.CaseEvaluation.Identity.ExternalRoleConsts.ApplicantAttorney,
+        HealthcareSupport.CaseEvaluation.Identity.ExternalRoleConsts.DefenseAttorney,
+        HealthcareSupport.CaseEvaluation.Identity.ExternalRoleConsts.ApplicantParalegal,
+        HealthcareSupport.CaseEvaluation.Identity.ExternalRoleConsts.DefenseParalegal,
     };
 
     /// <summary>
