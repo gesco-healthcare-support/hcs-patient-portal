@@ -114,6 +114,9 @@ public class ChangeRequestApprovedEmailHandler :
             // name (a switched-on Intake user is already in this list, once).
             await _officeRecipients.AppendIntakeAsync(recipients);
 
+            // 2026-11-04: the case followers (external booker, accessors) are copied like the parties.
+            recipients = CaseFollowers.Append(recipients, ctx, patientRoleAllowed: true);
+
             if (recipients.Count == 0)
             {
                 _logger.LogInformation(

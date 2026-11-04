@@ -138,6 +138,10 @@ internal sealed class DocumentEmailFlow
                 .ToList();
             await _officeRecipients.AppendIntakeAsync(cc);
 
+            // 2026-11-04: the case followers (external booker, accessors) are copied like the parties;
+            // no patient rule applies to document mail.
+            cc = CaseFollowers.Append(cc, ctx, patientRoleAllowed: true);
+
             var variables = DocumentNotificationContext.BuildVariables(
                 patientFirstName: ctx.PatientFirstName,
                 patientLastName: ctx.PatientLastName,

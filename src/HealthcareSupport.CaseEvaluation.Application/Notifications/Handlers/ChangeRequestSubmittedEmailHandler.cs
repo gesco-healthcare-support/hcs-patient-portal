@@ -114,12 +114,20 @@ public class ChangeRequestSubmittedEmailHandler :
             await _officeRecipients.AppendIntakeAsync(recipients);
 
             var isReschedule = eventData.ChangeRequestType == ChangeRequestType.Reschedule;
+            var patientRequested = isReschedule
+                && await IsPatientRequesterAsync(ctx, eventData.SubmittedByUserId);
+
+            // 2026-11-04: the case followers (external booker, accessors) are copied like the parties. A
+            // Patient-role accessor hears of a reschedule request only when the patient asked; a cancel
+            // request goes to every party, and the consent-link filter below still removes link holders.
+            recipients = CaseFollowers.Append(
+                recipients, ctx, patientRoleAllowed: !isReschedule || patientRequested);
+
             if (isReschedule)
             {
                 // Row 7: a reschedule request asks nobody to agree yet (consent opens when staff set a
                 // date), so nobody holds a link. The patient hears of it only when the patient asked.
-                recipients = PatientBeforeApprovalRule.ApplyForRequester(
-                    recipients, ctx, await IsPatientRequesterAsync(ctx, eventData.SubmittedByUserId));
+                recipients = PatientBeforeApprovalRule.ApplyForRequester(recipients, ctx, patientRequested);
             }
             else
             {

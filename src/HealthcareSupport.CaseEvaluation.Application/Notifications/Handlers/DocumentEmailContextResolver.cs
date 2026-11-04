@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.AppointmentAccessors;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 using HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes;
 using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
@@ -38,6 +39,7 @@ public class DocumentEmailContextResolver : ITransientDependency
     private readonly IRepository<ApplicantAttorney, Guid> _applicantAttorneyRepository;
     private readonly IRepository<DefenseAttorney, Guid> _defenseAttorneyRepository;
     private readonly IdentityUserManager _userManager;
+    private readonly IRepository<AppointmentAccessor, Guid> _accessorRepository;
     private readonly IAppointmentDocumentTypeRepository _documentTypeRepository;
     // Tenant-aware URL composition via the centralized builder.
     private readonly IAccountUrlBuilder _accountUrlBuilder;
@@ -51,6 +53,7 @@ public class DocumentEmailContextResolver : ITransientDependency
         IRepository<ApplicantAttorney, Guid> applicantAttorneyRepository,
         IRepository<DefenseAttorney, Guid> defenseAttorneyRepository,
         IdentityUserManager userManager,
+        IRepository<AppointmentAccessor, Guid> accessorRepository,
         IAppointmentDocumentTypeRepository documentTypeRepository,
         IAccountUrlBuilder accountUrlBuilder)
     {
@@ -62,6 +65,7 @@ public class DocumentEmailContextResolver : ITransientDependency
         _applicantAttorneyRepository = applicantAttorneyRepository;
         _defenseAttorneyRepository = defenseAttorneyRepository;
         _userManager = userManager;
+        _accessorRepository = accessorRepository;
         _documentTypeRepository = documentTypeRepository;
         _accountUrlBuilder = accountUrlBuilder;
     }
@@ -96,6 +100,10 @@ public class DocumentEmailContextResolver : ITransientDependency
         // hears through the inbox and Intake Staff), so BookerEmail/BookerFullName stay empty for staff.
         var creatorIsStaff = AppointmentSubmitter.HoldsStaffRole(creatorRoles);
         var bookerUser = creatorIsStaff ? null : creatorUser;
+
+        // 2026-11-04: the case followers -- the external booker and every accessor -- loaded once for
+        // every handler that mails the parties (see CaseFollowers).
+        var followers = await ResolveFollowersAsync(appointmentId, bookerUser, creatorRoles);
 
         var primaryRecipientEmail = AttorneyRecipientPromotion.ResolvePrimaryRecipientEmail(
             creatorRoles,
@@ -159,6 +167,7 @@ public class DocumentEmailContextResolver : ITransientDependency
             BookerEmail = bookerUser?.Email,
             BookerUserId = bookerUser?.Id,
             CreatorIsStaff = creatorIsStaff,
+            Followers = followers,
             PatientAddresses = patientAddresses,
             PatientIdentityUserId = patient?.IdentityUserId,
             PatientIsSubmitter = patientIsSubmitter,
@@ -190,6 +199,61 @@ public class DocumentEmailContextResolver : ITransientDependency
             IsAdHoc = document?.IsAdHoc ?? false,
             IsJointDeclaration = document?.IsJointDeclaration ?? false,
         };
+    }
+
+    /// <summary>
+    /// 2026-11-04: the appointment's case followers. The external booker (null for a staff submitter) plus
+    /// each accessor whose login is active, has an address and holds no staff role. An unconfirmed address
+    /// is accepted, like the typed party addresses. One row per address (case-insensitive); the booker wins.
+    /// </summary>
+    private async Task<IReadOnlyList<CaseFollower>> ResolveFollowersAsync(
+        Guid appointmentId, IdentityUser? bookerUser, IList<string> bookerRoles)
+    {
+        var followers = new List<CaseFollower>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        if (bookerUser != null && bookerUser.IsActive && !string.IsNullOrWhiteSpace(bookerUser.Email))
+        {
+            var booker = ToFollower(bookerUser, bookerRoles, isBooker: true);
+            seen.Add(booker.Email);
+            followers.Add(booker);
+        }
+
+        var accessors = await _accessorRepository.GetListAsync(a => a.AppointmentId == appointmentId);
+        foreach (var accessor in accessors)
+        {
+            var user = await _userManager.FindByIdAsync(accessor.IdentityUserId.ToString());
+            if (user == null || !user.IsActive || string.IsNullOrWhiteSpace(user.Email))
+            {
+                continue;
+            }
+
+            var roles = await _userManager.GetRolesAsync(user);
+            if (AppointmentSubmitter.HoldsStaffRole(roles))
+            {
+                continue;
+            }
+
+            var follower = ToFollower(user, roles, isBooker: false);
+            if (seen.Add(follower.Email))
+            {
+                followers.Add(follower);
+            }
+        }
+
+        return followers;
+    }
+
+    private static CaseFollower ToFollower(IdentityUser user, IEnumerable<string> roles, bool isBooker)
+    {
+        var roleNames = roles.ToList();
+        return new CaseFollower(
+            Email: user.Email!.Trim(),
+            UserId: user.Id,
+            IsBooker: isBooker,
+            IsPatientRole: CaseFollowers.IsPatientRole(roleNames),
+            Role: CaseFollowers.RoleOf(roleNames),
+            RoleNames: roleNames);
     }
 
     private async Task<(IdentityUser? User, IList<string> Roles)> ResolveCreatorAsync(Guid? creatorId)
@@ -325,6 +389,10 @@ public class DocumentEmailContext
     /// role. A staff booking is auto-approved and sends one approval set instead of request emails; a staff
     /// submitter is never the booker an email is addressed to.</summary>
     public bool CreatorIsStaff { get; set; }
+
+    /// <summary>2026-11-04: the case followers -- the external booker and every active, non-staff accessor
+    /// with an address. Never null. See <see cref="CaseFollowers"/>.</summary>
+    public IReadOnlyList<CaseFollower> Followers { get; set; } = Array.Empty<CaseFollower>();
 
     /// <summary>2026-11-03: the patient's addresses (patient row + the appointment's patient email column).</summary>
     public IReadOnlyList<string> PatientAddresses { get; set; } = Array.Empty<string>();

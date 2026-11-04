@@ -80,7 +80,7 @@ public class PatientPacketEmailKindGateTests
     private static DocumentEmailContextResolver StubResolver(DocumentEmailContext? ctx)
     {
         var resolver = Substitute.For<DocumentEmailContextResolver>(
-            null, null, null, null, null, null, null, null, null, null);
+            null, null, null, null, null, null, null, null, null, null, null);
         resolver.ResolveAsync(Arg.Any<Guid>(), Arg.Any<Guid?>()).Returns(ctx);
         return resolver;
     }
