@@ -111,8 +111,10 @@ Seven named roles plus the ABP superuser.
 | `Applicant Attorney` | `ExternalUserRoleDataSeedContributor` | Host **and** Tenant | External. The role ROW exists on the host too, with no grants -- see below |
 | `Defense Attorney` | `ExternalUserRoleDataSeedContributor` | Host **and** Tenant | External. The role ROW exists on the host too, with no grants -- see below |
 | `Claim Examiner` | `ExternalUserRoleDataSeedContributor` | Host **and** Tenant | External. The role ROW exists on the host too, with no grants -- see below |
+| `Applicant Paralegal` | `ExternalUserRoleDataSeedContributor` | Host **and** Tenant | External (2026-11-04). Same grants as `Applicant Attorney`; never the attorney of record |
+| `Defense Paralegal` | `ExternalUserRoleDataSeedContributor` | Host **and** Tenant | External (2026-11-04). Same grants as `Defense Attorney`; never the attorney of record |
 
-**The four external roles exist on the host as well, and that surprises people.**
+**The external roles exist on the host as well, and that surprises people.**
 `ExternalUserRoleDataSeedContributor.SeedAsync` calls `EnsureRoleAsync` for every name in
 `ExternalRoleConsts.All` on **every** seeding pass, before it checks the tenant
 (`ExternalUserRoleDataSeedContributor.cs:39-42`). The GRANTS are what is tenant-only: they sit
@@ -120,11 +122,11 @@ behind `if (context?.TenantId != null)`, with a comment explaining that external
 tenant-scoped.
 
 Both halves of that are true of different things, which is why the page had it wrong. The
-**permissions** are tenant-scoped. The **role rows** are not: four external roles exist in the host
+**permissions** are tenant-scoped. The **role rows** are not: the six external roles exist in the host
 database with nothing granted to them. Empty roles are not a way in by themselves, but anyone
 auditing the host role list should expect to find them rather than treat them as a surprise.
 
-**The four external roles receive a byte-identical permission set.** The seeder loops over
+**The external roles receive a byte-identical permission set.** The seeder loops over
 `ExternalRoleConsts.All` and grants every role the same `BookingBaselineGrants()` list, so any
 statement that a Defense Attorney or Claim Examiner cannot do something an Applicant Attorney can
 is wrong at the permission layer. The only per-role difference is `Patients.RevealSsn`, granted to

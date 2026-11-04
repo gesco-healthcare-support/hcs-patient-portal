@@ -28,6 +28,15 @@ from `ExternalRoleConsts.All`:
 | **Claim Examiner**     | Insurance company representative                 |
 | **Applicant Attorney** | Attorney representing the worker                 |
 | **Defense Attorney**   | Attorney representing the employer/insurer       |
+| **Applicant Paralegal** | A law office's paralegal on the applicant side (2026-11-04) |
+| **Defense Paralegal**  | A law office's paralegal on the defense side (2026-11-04) |
+
+**Paralegals (2026-11-04).** Most bookers are a law office's paralegal rather than the attorney of
+record, so each side has its own paralegal role. It holds exactly the grants of that side's attorney
+and counts as that side wherever the BOOKER matters (change-request side, attorney packet, the To of
+the case mails, the joint declaration upload, Authorized Users on cases it created). It is never the
+attorney OF RECORD: the party email columns and the attorney link rows never admit it, it gets no
+attorney record at sign-up, and it reaches a case only as its creator or an Authorized User.
 
 External users never reach the internal shell. The Angular route table decides that with a
 `canMatch` pair, `externalUserOnlyMatchGuard` and `internalUserOnlyMatchGuard`.
@@ -59,15 +68,15 @@ the office.
 
 > **The matrix that used to be here was wrong, and wrong in a way worth understanding.** It denied
 > Defense Attorney and Claim Examiner the ability to book appointments or request a cancellation,
-> and gave those rights only to Patient and Applicant Attorney. At the permission layer, **all four
-> external roles receive a byte-identical set.** The seeder loops over `ExternalRoleConsts.All` and
+> and gave those rights only to Patient and Applicant Attorney. At the permission layer, **all
+> external roles (six since 2026-11-04) receive a byte-identical set.** The seeder loops over `ExternalRoleConsts.All` and
 > grants every role the same `BookingBaselineGrants()` list.
 
-### The four external roles have the same permissions
+### The external roles have the same permissions
 
 There is exactly one per-role difference in the entire external grant: **`Patients.RevealSsn` is
 granted to `Patient` alone.** Everything else -- booking, change requests, document upload, the
-whole child-resource set -- is granted identically to all four.
+whole child-resource set -- is granted identically to all six.
 
 This is deliberate, and the seeder says why:
 
@@ -167,6 +176,8 @@ The registration form maps to `ExternalUserType` (defined in `src/HealthcareSupp
 | 2     | ClaimExaminer       | "Claim Examiner"     |
 | 3     | ApplicantAttorney   | "Applicant Attorney" |
 | 4     | DefenseAttorney     | "Defense Attorney"   |
+| 5     | ApplicantParalegal  | "Applicant Paralegal" |
+| 6     | DefenseParalegal    | "Defense Paralegal"  |
 
 ### Registration Sequence
 
@@ -175,7 +186,7 @@ flowchart TD
     A[Anonymous user visits signup page] --> B[GetTenantOptionsAsync returns list of tenants/doctors]
     B --> C[User selects a tenant]
     C --> D[User fills registration form]
-    D --> E[User selects role: Patient, Applicant Attorney, Defense Attorney, or Claim Examiner]
+    D --> E[User selects role: Patient, an Attorney or Paralegal of either side, or Claim Examiner]
     E --> F{RegisterAsync called}
     F --> G[Resolve tenant ID]
     G --> H[Ensure role exists in tenant]
