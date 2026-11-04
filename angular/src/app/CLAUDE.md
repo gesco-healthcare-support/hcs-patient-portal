@@ -109,9 +109,10 @@ component uses them.
   an office the current office is used. The invite link can be copied from the result as a
   fallback when mail does not arrive. When the email already has an account the server issues
   nothing and says so. `ExternalUserType` is NUMERIC (`Patient=1, ClaimExaminer=2,
-ApplicantAttorney=3, DefenseAttorney=4`); the dropdown order in `INVITE_ROLE_OPTIONS`
-  (Patient, Applicant Attorney, Defense Attorney, Claim Examiner) differs from the numeric order on
-  purpose -- do not reorder.
+ApplicantAttorney=3, DefenseAttorney=4, ApplicantParalegal=5, DefenseParalegal=6`); the dropdown
+  order in `INVITE_ROLE_OPTIONS` is values 1,3,5,4,6,2 (Patient, Attorney (Applicant side),
+  Paralegal (Applicant side), Attorney (Defense side), Paralegal (Defense side), Claim Examiner)
+  and differs from the numeric order on purpose -- do not reorder. 5 and 6 are the paralegal roles.
 
 ## Related
 

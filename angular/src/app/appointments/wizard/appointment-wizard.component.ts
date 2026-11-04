@@ -551,7 +551,8 @@ export class AppointmentWizardComponent extends AppointmentAddComponent implemen
           Enabled: true,
           FirstName: p.firstName ?? null,
           LastName: p.lastName ?? null,
-          Email: p.email ?? currentUser?.email ?? null,
+          // The LOGIN email, not the attorney master's (which can differ): the field is locked to it.
+          Email: currentUser?.email ?? null,
           FirmName: p.firmName ?? null,
           WebAddress: p.webAddress ?? null,
           PhoneNumber: p.phoneNumber ?? null,
@@ -566,7 +567,14 @@ export class AppointmentWizardComponent extends AppointmentAddComponent implemen
         );
       },
       error: () => {
-        /* booker is not an attorney (404) or lookup failed -- no prefill */
+        // Profile lookup failed: the login email is still the attorney's address, so seed it
+        // (only into a blank field, never over a draft / re-request source value).
+        const control = this.form.get(
+          (isApplicantAttorneyRole(roles) ? 'applicantAttorney' : 'defenseAttorney') + 'Email',
+        );
+        if (control && currentUser?.email && !(control.value ?? '').toString().trim()) {
+          control.setValue(currentUser.email);
+        }
       },
     });
   }

@@ -1500,14 +1500,20 @@ export class AppointmentAddComponent {
 
   /**
    * The attorney email is locked to the attorney booker's own login email on their own side
-   * (they cannot name a different "attorney" address). Locked only once it holds a value, so a
-   * failed profile load cannot leave a required field that nobody can fill. Paralegals and staff
-   * type the attorney freely.
+   * (they cannot name a different "attorney" address). Locked ONLY while the field equals the
+   * login email (case-insensitive, trimmed): an empty or partly typed field, or a different value
+   * from a re-request source, stays editable. No login email known: never lock. Paralegals and
+   * staff type the attorney freely.
    */
   attorneyEmailLocked(role: LawOfficeSide): boolean {
     const isOwnSide = role === 'applicant' ? this.isApplicantAttorney : this.isDefenseAttorney;
     if (!isOwnSide || this.isItAdmin) return false;
-    return !!this.form.get(role + 'AttorneyEmail')?.value;
+    const login = (this.currentUser?.email ?? '').toString().trim().toLowerCase();
+    const value = (this.form.get(role + 'AttorneyEmail')?.value ?? '')
+      .toString()
+      .trim()
+      .toLowerCase();
+    return login !== '' && value === login;
   }
 
   /** Role names the Paralegal / Authorized User picker offers this booker. */

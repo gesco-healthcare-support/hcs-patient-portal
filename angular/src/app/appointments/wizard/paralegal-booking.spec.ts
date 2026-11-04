@@ -101,15 +101,33 @@ describe('wizard paralegal booking', () => {
   afterEach(() => TestBed.resetTestingModule());
 
   describe('attorney email lock', () => {
-    it('locks the own-side email of an attorney booker once it has a value', () => {
-      const c = create({ roles: ['Applicant Attorney'] });
-      c.form.get('applicantAttorneyEmail')!.setValue('ada@example.test');
+    const LOGIN = 'Ada@Example.test';
+
+    it('locks the own-side email while it equals the login email (case/trim-insensitive)', () => {
+      const c = create({ roles: ['Applicant Attorney'], email: LOGIN });
+      c.form.get('applicantAttorneyEmail')!.setValue(' ada@example.TEST ');
 
       expect(c.attorneyEmailLocked('applicant')).toBeTrue();
     });
 
-    it('does not lock an empty email (no stranded required field)', () => {
+    it('does not lock an empty or partly typed email', () => {
+      const c = create({ roles: ['Applicant Attorney'], email: LOGIN });
+      expect(c.attorneyEmailLocked('applicant')).toBeFalse();
+
+      c.form.get('applicantAttorneyEmail')!.setValue('a');
+      expect(c.attorneyEmailLocked('applicant')).toBeFalse();
+    });
+
+    it('does not lock a different value (e.g. a re-request source email)', () => {
+      const c = create({ roles: ['Applicant Attorney'], email: LOGIN });
+      c.form.get('applicantAttorneyEmail')!.setValue('other@example.test');
+
+      expect(c.attorneyEmailLocked('applicant')).toBeFalse();
+    });
+
+    it('never locks when the login email is unknown', () => {
       const c = create({ roles: ['Applicant Attorney'] });
+      c.form.get('applicantAttorneyEmail')!.setValue('x@example.test');
 
       expect(c.attorneyEmailLocked('applicant')).toBeFalse();
     });
@@ -123,7 +141,7 @@ describe('wizard paralegal booking', () => {
         [['Staff Supervisor'], 'applicant'],
         [['Applicant Attorney', 'IT Admin'], 'applicant'],
       ] as Array<[string[], 'applicant' | 'defense']>) {
-        const c = create({ roles });
+        const c = create({ roles, email });
         c.form.get(side + 'AttorneyEmail')!.setValue(email);
         expect(c.attorneyEmailLocked(side)).withContext(roles.join()).toBeFalse();
         TestBed.resetTestingModule();
@@ -132,16 +150,37 @@ describe('wizard paralegal booking', () => {
   });
 
   describe('attorney prefill', () => {
-    it('falls back to the login email when the profile has none', () => {
+    it('prefills the LOGIN email even when the profile email differs', () => {
       const c = create({
         roles: ['Defense Attorney'],
         email: 'login@example.test',
-        profile: { kind: 'defense', firstName: 'Dee', lastName: 'Fence' },
+        profile: {
+          kind: 'defense',
+          firstName: 'Dee',
+          lastName: 'Fence',
+          email: 'master@example.test',
+        },
       });
 
       c.prefillBookingAttorney();
 
       expect(c.form.get('defenseAttorneyEmail')!.value).toBe('login@example.test');
+    });
+
+    it('does not overwrite an email a re-request source already put there', () => {
+      const c = create({
+        roles: ['Defense Attorney'],
+        email: 'login@example.test',
+        profile: { kind: 'defense', firstName: 'Dee' },
+      });
+      c.form.patchValue({
+        defenseAttorneyFirstName: 'Src',
+        defenseAttorneyEmail: 'src@example.test',
+      });
+
+      c.prefillBookingAttorney();
+
+      expect(c.form.get('defenseAttorneyEmail')!.value).toBe('src@example.test');
     });
 
     it('never prefills a paralegal booker (and never calls the profile endpoint)', () => {
