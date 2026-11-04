@@ -6,7 +6,12 @@ using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
+using System.Collections.Generic;
 using System.Linq;
+using HealthcareSupport.CaseEvaluation.AppointmentDocuments.Jobs;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Volo.Abp.BackgroundJobs;
 using Volo.Abp.Guids;
 using Shouldly;
 using Volo.Abp;
@@ -26,6 +31,31 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.MultiOffice;
 public class MultiOfficeConsentCompletionTests : ConsentRoundTestBase
 {
     private static int _counter = 200;
+
+    /// <summary>
+    /// Replaces the job manager for this class so every enqueue is recorded. Nothing is run (job execution is off in this rig anyway).
+    /// </summary>
+    private readonly RecordingJobManager _jobs = new();
+
+    protected override void AfterAddApplication(IServiceCollection services)
+    {
+        services.Replace(ServiceDescriptor.Singleton<IBackgroundJobManager>(_jobs));
+    }
+
+    private sealed class RecordingJobManager : IBackgroundJobManager
+    {
+        public List<object> Calls { get; } = new();
+
+        public Task<string> EnqueueAsync<TArgs>(
+            TArgs args, BackgroundJobPriority priority = BackgroundJobPriority.Normal, TimeSpan? delay = null)
+        {
+            lock (Calls)
+            {
+                Calls.Add(args!);
+            }
+            return Task.FromResult(Guid.NewGuid().ToString());
+        }
+    }
 
     private readonly ChangeRequestConsentCompletion _completion;
     private readonly ChangeRequestConsentManager _consentManager;
@@ -363,5 +393,66 @@ public class MultiOfficeConsentCompletionTests : ConsentRoundTestBase
         await InOfficeAsync(office, async () =>
             (await RoundRepository.GetCurrentAsync(requestId))!.ProposedOutcome
                 .ShouldBe(AppointmentStatusType.RescheduledLate));
+    }
+
+    private List<GenerateAppointmentPacketArgs> PacketJobsFor(Guid appointmentId)
+    {
+        lock (_jobs.Calls)
+        {
+            return _jobs.Calls.OfType<GenerateAppointmentPacketArgs>()
+                .Where(a => a.AppointmentId == appointmentId).ToList();
+        }
+    }
+
+    [Fact]
+    public async Task Completing_a_reschedule_enqueues_one_packet_job_for_the_replacement_appointment()
+    {
+        var rig = await SeedRescheduleAsync(AppointmentStatusType.RescheduledNoBill, false, false, new string?[2]);
+
+        (await CompleteAsync(rig)).ShouldBe(ChangeRequestCompletionResult.Completed);
+
+        Guid newAppointmentId = Guid.Empty;
+        await InOfficeAsync(rig.Office, async () =>
+            newAppointmentId = (await _appointments.GetAsync(a => a.RescheduledFromAppointmentId == rig.AppointmentId)).Id);
+        var sent = PacketJobsFor(newAppointmentId);
+        sent.Count.ShouldBe(1, "one packet job for the replacement appointment, and none for the closed one");
+        sent[0].TenantId.ShouldBe(rig.Office.OfficeId);
+        PacketJobsFor(rig.AppointmentId).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task A_finalize_whose_unit_of_work_is_rolled_back_enqueues_no_packet_job()
+    {
+        var rig = await SeedRescheduleAsync(AppointmentStatusType.RescheduledNoBill, false, false, new string?[2]);
+        await GrantAllAsync(rig);
+        var finalizer = GetRequiredService<RescheduleFinalizer>();
+        var before = _jobs.Calls.Count;
+
+        await Should.ThrowAsync<InvalidOperationException>(() => InOfficeAsync(rig.Office, async () =>
+        {
+            var request = await ChangeRequestRepository.GetAsync(rig.ChangeRequestId);
+            var round = (await RoundRepository.GetCurrentAsync(rig.ChangeRequestId))!;
+            await finalizer.FinalizeAsync(request, round, AppointmentStatusType.RescheduledNoBill, rig.ProposerId);
+            throw new InvalidOperationException("TEST-force-rollback");
+        }));
+
+        // On main the job was enqueued the moment the finalizer ran, so a rollback left a job pointing at an
+        // appointment that never existed; the packet job then failed with "no such entity".
+        _jobs.Calls.Count.ShouldBe(before, "a rolled-back unit of work leaves no replacement appointment to generate packets for");
+    }
+
+    [Fact]
+    public async Task Completing_a_cancellation_enqueues_no_packet_job()
+    {
+        var rig = await SeedCancellationAsync(AppointmentStatusType.CancelledNoBill, Guid.NewGuid());
+
+        (await CompleteAsync(rig)).ShouldBe(ChangeRequestCompletionResult.Completed);
+
+        PacketJobsFor(rig.AppointmentId).ShouldBeEmpty(
+            "the cancellation finalizer enqueues nothing; if it ever does, it must do so on commit like the reschedule");
+        lock (_jobs.Calls)
+        {
+            _jobs.Calls.OfType<GenerateAppointmentPacketArgs>().Any().ShouldBeFalse();
+        }
     }
 }

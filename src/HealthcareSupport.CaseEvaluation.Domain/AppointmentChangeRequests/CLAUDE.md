@@ -66,6 +66,9 @@ to the approval email. A failure is logged and never undoes the recorded consent
 stays Pending and granted, and the manual Approve still finishes it -- which is also the path
 for rounds created before this change. `ProposedOutcome` is a proposal only;
 `CancellationOutcome` remains the DECIDED outcome.
+`RescheduleFinalizer` enqueues the replacement appointment's packet job in
+`IUnitOfWork.OnCompleted`, never inline: the completion's unit of work is its own, and a job
+started before the commit finds no such appointment. `CancellationFinalizer` enqueues nothing.
 
 ## Conventions
 
