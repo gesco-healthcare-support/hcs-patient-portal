@@ -281,36 +281,6 @@ public class RescheduleFinalizer : ITransientDependency
             isAdminOverride);
     }
 
-    private async Task EnqueuePacketJobWhenCommittedAsync(GenerateAppointmentPacketArgs args)
-    {
-        var current = _unitOfWorkManager.Current;
-        if (current == null)
-        {
-            await _backgroundJobManager.EnqueueAsync(args);
-            return;
-        }
-
-        // The callback runs after the commit, possibly outside this tenant scope.
-        var tenantId = _currentTenant.Id;
-        current.OnCompleted(async () =>
-        {
-            using (_currentTenant.Change(tenantId))
-            {
-                try
-                {
-                    await _backgroundJobManager.EnqueueAsync(args);
-                }
-                catch (ObjectDisposedException ex)
-                {
-                    // Test / shutdown only: the DI scope the in-memory job store captured is gone. Losing one
-                    // enqueue there is recoverable (staff can regenerate the packet), and the reconciliation
-                    // job releases stalled sets.
-                    _logger.LogWarning(
-                        ex,
-                        "RescheduleFinalizer: packet job enqueue skipped for appointment {AppointmentId} -- DI scope disposed before the unit of work completed.",
-                        args.AppointmentId);
-                }
-            }
-        });
-    }
+    private Task EnqueuePacketJobWhenCommittedAsync(GenerateAppointmentPacketArgs args) =>
+        PacketJobOnCommit.EnqueueAsync(_unitOfWorkManager, _backgroundJobManager, _currentTenant, _logger, args);
 }
