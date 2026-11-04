@@ -252,6 +252,18 @@ describe('AppointmentAddComponent booking engine', () => {
       expect(c.isSourceLoadRequired).toBeFalse();
     });
 
+    it('hides the lookup and the source requirement once "not booked in this portal" is ticked', () => {
+      const c = create({ queryParams: { type: '2' } });
+      expect(c.showRevalWithoutSourceOption).toBeTrue();
+      c.setRevalWithoutSource(true);
+      expect(c.showSourceLookup).toBeFalse();
+      expect(c.isSourceLoadRequired).toBeFalse();
+      expect(c.resolveSubmitMode() as number).toBe(4);
+      c.setRevalWithoutSource(false);
+      expect(c.showSourceLookup).toBeTrue();
+      expect(c.isSourceLoadRequired).toBeTrue();
+    });
+
     it('never requires a source for a new booking', () => {
       expect(create().isSourceLoadRequired).toBeFalse();
     });
@@ -2280,6 +2292,43 @@ describe('AppointmentAddComponent booking engine', () => {
       expect(payload.appointmentStatus).toBe(AppointmentStatusType.Pending);
       expect(payload.locationId).toBe('loc-1');
       expect(payload.injuryDetails).toBeTruthy();
+    });
+
+    it('submits a re-evaluation without a source once "not booked in this portal" is ticked', async () => {
+      const c = create({ queryParams: { type: '2' } });
+      fillValidForm(c);
+      c.setRevalWithoutSource(true);
+
+      await c.onSubmit();
+
+      expect(submit).toHaveBeenCalledTimes(1);
+      const payload = submit.calls.mostRecent().args[0];
+      expect(payload.mode as number).toBe(4);
+      expect(payload.sourceConfirmationNumber).toBeUndefined();
+    });
+
+    it('still blocks a re-evaluation with no source when the box is not ticked', async () => {
+      const c = create({ queryParams: { type: '2' } });
+      fillValidForm(c);
+      c.setRevalWithoutSource(true);
+      c.setRevalWithoutSource(false);
+
+      await c.onSubmit();
+
+      expect(c.sourceLoadMessage).toContain('prior approved appointment');
+      expect(submit).not.toHaveBeenCalled();
+    });
+
+    it('ignores the box for a re-book, which still needs its source', async () => {
+      const c = create({ queryParams: { type: '3' } });
+      fillValidForm(c);
+      c.setRevalWithoutSource(true);
+
+      await c.onSubmit();
+
+      expect(c.showRevalWithoutSourceOption).toBeFalse();
+      expect(c.sourceLoadMessage).toContain('book again');
+      expect(submit).not.toHaveBeenCalled();
     });
 
     it('combines the chosen date and slot into one timestamp', async () => {

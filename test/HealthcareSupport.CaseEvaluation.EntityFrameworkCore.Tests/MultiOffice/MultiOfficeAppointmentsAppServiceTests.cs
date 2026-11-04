@@ -164,6 +164,50 @@ public partial class MultiOfficeAppointmentsAppServiceTests : CaseEvaluationMult
     }
 
     [Fact]
+    public async Task CreateRevalWithoutSourceAsync_StampsReEvaluationWithNoSourceLinks()
+    {
+        var (officeA, _) = await GetSeededOfficesAsync();
+
+        await InOfficeAsync(officeA, async () =>
+        {
+            var date = TestToday.AddDays(11);
+            var slotId = await InsertSlotAsync(officeA, date, new TimeOnly(15, 0), new TimeOnly(16, 0));
+            var input = BuildCreateDto(officeA, slotId, date.AddHours(15).AddMinutes(15));
+
+            AppointmentDto created;
+            using (WithCurrentUser.Run(_principalAccessor, officeA.BookerUserId, "admin"))
+            {
+                created = await _appointmentsAppService.CreateRevalWithoutSourceAsync(input);
+            }
+
+            var persisted = await _appointmentRepository.GetAsync(created.Id);
+            persisted.EvaluationKind.ShouldBe(EvaluationKind.ReEvaluation);
+            persisted.OriginalAppointmentId.ShouldBeNull();
+            persisted.RescheduledFromAppointmentId.ShouldBeNull();
+            persisted.RequestConfirmationNumber.ShouldNotBeNullOrWhiteSpace();
+            persisted.AppointmentStatus.ShouldBe(AppointmentStatusType.Pending);
+        });
+    }
+
+    [Fact]
+    public async Task CreateAsync_StillStampsAFirstEvaluation()
+    {
+        var (officeA, _) = await GetSeededOfficesAsync();
+
+        await InOfficeAsync(officeA, async () =>
+        {
+            var date = TestToday.AddDays(12);
+            var slotId = await InsertSlotAsync(officeA, date, new TimeOnly(15, 0), new TimeOnly(16, 0));
+            var input = BuildCreateDto(officeA, slotId, date.AddHours(15).AddMinutes(15));
+
+            var created = await _appointmentsAppService.CreateAsync(input);
+
+            (await _appointmentRepository.GetAsync(created.Id)).EvaluationKind
+                .ShouldBe(EvaluationKind.Evaluation);
+        });
+    }
+
+    [Fact]
     public async Task CreateAsync_WhenInputOmitsIsPatientAlreadyExist_DefaultsToFalseOnEntity()
     {
         var (officeA, _) = await GetSeededOfficesAsync();

@@ -683,6 +683,34 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
     }
 
     [Fact]
+    public async Task SubmitAsync_RevalWithoutSourceMode_NeedsNoSourceAndLinksNothing()
+    {
+        var (office, _) = await GetSeededOfficesAsync();
+        await SeedNotificationTemplatesAsync(office);
+
+        var date = TestToday.AddDays(60);
+        AppointmentSubmitResultDto? result = null;
+
+        await InOfficeAsync(office, async () =>
+        {
+            var slotId = await InsertSlotAsync(office, date, new TimeOnly(9, 0), new TimeOnly(10, 0));
+            var input = BuildSubmitDto(office, slotId, date.AddHours(9).AddMinutes(15), dayOffset: 600);
+            input.Mode = BookingSubmitMode.RevalWithoutSource;
+            input.SourceConfirmationNumber = null;
+            result = await _appointments.SubmitAsync(input);
+        });
+
+        await InOfficeAsync(office, async () =>
+        {
+            var created = await _appointmentRepository.GetAsync(result!.AppointmentId);
+            created.EvaluationKind.ShouldBe(EvaluationKind.ReEvaluation);
+            created.OriginalAppointmentId.ShouldBeNull();
+            created.RescheduledFromAppointmentId.ShouldBeNull();
+            created.RequestConfirmationNumber.ShouldNotBeNullOrWhiteSpace();
+        });
+    }
+
+    [Fact]
     public async Task SubmitAsync_ReBookMode_LinksTheSourceOnTheReplacementChain()
     {
         var (office, _) = await GetSeededOfficesAsync();

@@ -78,6 +78,11 @@ import { AddressChoice, AddressDiffItem } from '../shared/address/confirm-addres
 import { NgbDateStruct } from '@ng-bootstrap/ng-bootstrap';
 import type { AppointmentDto, AppointmentSubmitDto } from '../proxy/appointments/models';
 import { BookingSubmitMode } from '../proxy/enums/booking-submit-mode.enum';
+import {
+  REVAL_WITHOUT_SOURCE_SUBMIT_MODE,
+  canOfferRevalWithoutSource,
+  isRevalWithoutSource,
+} from './shared/reval-without-source.util';
 import type { AppointmentClaimExaminerDto } from '../proxy/appointment-claim-examiners/models';
 import type { AppointmentPrimaryInsuranceDto } from '../proxy/appointment-primary-insurances/models';
 import { AppointmentService } from '../proxy/appointments/appointment.service';
@@ -372,6 +377,11 @@ export class AppointmentAddComponent {
   // The source confirmation number once a prior appointment has been loaded
   // for prefill. Null until loaded; gates the reval/re-request submit path.
   sourceConfirmationNumber: string | null = null;
+  /**
+   * Reval mode only: the booker ticked "The first evaluation was not booked in this portal". The
+   * form is then an ordinary blank one and no source is required or sent.
+   */
+  revalWithoutSource = false;
   isLoadingSource = false;
   sourceLoadMessage = '';
   /**
@@ -408,7 +418,22 @@ export class AppointmentAddComponent {
    * the URL and auto-loads, so it never shows the lookup.
    */
   get showSourceLookup(): boolean {
-    return this.isReevaluation || this.isReBook;
+    return (this.isReevaluation && !this.isRevalWithoutSourceChosen) || this.isReBook;
+  }
+
+  /** The re-evaluation is anchored to nothing: the first evaluation predates this portal. */
+  get isRevalWithoutSourceChosen(): boolean {
+    return isRevalWithoutSource(this.bookingMode, this.revalWithoutSource);
+  }
+
+  /** Whether the "not booked in this portal" choice is shown (reval, nothing loaded yet). */
+  get showRevalWithoutSourceOption(): boolean {
+    return canOfferRevalWithoutSource(this.bookingMode, this.sourceConfirmationNumber);
+  }
+
+  setRevalWithoutSource(checked: boolean): void {
+    this.revalWithoutSource = checked;
+    this.sourceLoadMessage = '';
   }
 
   /**
@@ -418,7 +443,11 @@ export class AppointmentAddComponent {
    * than the submit guard silently returning with feedback rendered off-screen.
    */
   get isSourceLoadRequired(): boolean {
-    return this.bookingMode !== 'new' && !this.sourceConfirmationNumber;
+    return (
+      this.bookingMode !== 'new' &&
+      !this.sourceConfirmationNumber &&
+      !this.isRevalWithoutSourceChosen
+    );
   }
 
   /** Localization key for the page heading, by mode. */
@@ -2104,6 +2133,9 @@ export class AppointmentAddComponent {
     // modes previously fell through to a plain create, so they still do. Removing that guard here
     // would turn a broken navigation state into a hard refusal, which is a behaviour change this PR
     // has no reason to make. The server refuses a modeless source independently, for other callers.
+    if (this.isRevalWithoutSourceChosen && !this.sourceConfirmationNumber) {
+      return REVAL_WITHOUT_SOURCE_SUBMIT_MODE;
+    }
     if (!this.sourceConfirmationNumber) {
       return BookingSubmitMode.Create;
     }
@@ -2265,7 +2297,11 @@ export class AppointmentAddComponent {
     // server endpoints take the source confirmation # in the route). Block
     // submit until one is loaded so we never silently fall through to a plain
     // create for a re-eval/re-request.
-    if (this.bookingMode === 'new' || this.sourceConfirmationNumber) {
+    if (
+      this.bookingMode === 'new' ||
+      this.sourceConfirmationNumber ||
+      this.isRevalWithoutSourceChosen
+    ) {
       return null;
     }
     if (this.bookingMode === 'reval') {

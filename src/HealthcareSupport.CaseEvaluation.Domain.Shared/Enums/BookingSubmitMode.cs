@@ -36,5 +36,12 @@ namespace HealthcareSupport.CaseEvaluation.Enums
         /// Links on the replacement chain, not the re-eval chain.
         /// </summary>
         ReBook = 3,
+
+        /// <summary>
+        /// A re-evaluation whose first evaluation was booked before this portal existed. Needs NO
+        /// source confirmation number (any supplied one is ignored), links nothing, and is stamped
+        /// <c>EvaluationKind.ReEvaluation</c>. Gated by the same permission as every other create.
+        /// </summary>
+        RevalWithoutSource = 4,
     }
 }

@@ -76,7 +76,7 @@ transition diagram and rule.
    link row (takes the first result of a `maxResultCount: 10` fetch).
 
 8. **Create/Update are permission-gated at the API.** `CreateAsync` (and
-   `ReSubmitAsync`/`CreateRevalAsync`) require `Appointments.Create`; `UpdateAsync`
+   `ReSubmitAsync`/`CreateRevalAsync`/`CreateRevalWithoutSourceAsync`) require `Appointments.Create`; `UpdateAsync`
    requires `Appointments.Edit` (internal-staff only -- external parties edit via
    change-requests, matching OLD). Enforced by ABP's authorization interceptor on the
    `[Authorize(permission)]` attributes; guarded by

@@ -66,6 +66,15 @@ public class AppointmentsAppServiceAuthorizationTests
     }
 
     [Fact]
+    public void CreateRevalWithoutSourceAsync_requires_the_Create_permission()
+    {
+        // There is no source status to gate on, so the permission is the whole gate; it must be
+        // exactly the one CreateRevalAsync demands.
+        RequiresPolicy(nameof(AppointmentsAppService.CreateRevalWithoutSourceAsync),
+            CaseEvaluationPermissions.Appointments.Create).ShouldBeTrue();
+    }
+
+    [Fact]
     public void DeleteAsync_requires_the_Delete_permission()
     {
         RequiresPolicy(nameof(AppointmentsAppService.DeleteAsync),
