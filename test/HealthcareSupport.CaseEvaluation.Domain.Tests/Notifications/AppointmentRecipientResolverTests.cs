@@ -113,6 +113,14 @@ public class AppointmentRecipientResolverTests
         Assert.Equal(2, recipients.Count);
         Assert.All(recipients, r => Assert.Equal(OfficeTenantId, r.TenantId));
         Assert.All(recipients, r => Assert.Equal(OfficeTenantName, r.TenantName));
+
+        // 2026-11-04: the change-request side resolver tells the SUBMITTER's entry from the named
+        // parties by its context suffix, so the suffix is pinned here as a literal.
+        var booker = Assert.Single(recipients, r => r.To == "booker@falkinstein.test");
+        Assert.EndsWith("/booker", booker.Context);
+        Assert.True(AppointmentRecipientResolver.IsBookerEntry(booker));
+        Assert.False(AppointmentRecipientResolver.IsBookerEntry(
+            Assert.Single(recipients, r => r.To == "office@falkinstein.test")));
     }
 
     [Fact]

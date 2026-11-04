@@ -476,7 +476,8 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     /// after another as successive filters, which gave a dual-role caller the INTERSECTION -- fewer
     /// patients than either role on its own.) A Patient admits only patient records linked to its
     /// own account. A Claim Examiner is matched by email, as <see cref="GetClaimExaminerVisiblePatientIdsAsync"/>
-    /// documents. Roles this method does not name admit nothing.
+    /// documents. A paralegal (2026-11-04) admits the patients of the appointments it booked, never
+    /// by the attorney link rows. Roles this method does not name admit nothing.
     /// </summary>
     private async Task<List<Guid>> GetLookupVisiblePatientIdsAsync()
     {
@@ -492,6 +493,14 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         if (await IsClaimExaminerAsync())
         {
             visible.UnionWith(await GetClaimExaminerVisiblePatientIdsAsync());
+        }
+        if (Patients.PatientBookingReadAccess.IsParalegal(CurrentUser) && CurrentUser.Id is Guid paralegalId)
+        {
+            var booked = Patients.BookingPartyAppointments.ForParalegal(
+                    await _appointmentRepository.GetQueryableAsync(), paralegalId)
+                .Select(a => a.PatientId)
+                .Distinct();
+            visible.UnionWith(await AsyncExecuter.ToListAsync(booked));
         }
         if (CurrentUser.IsInRole("Patient") && CurrentUser.Id is Guid userId)
         {

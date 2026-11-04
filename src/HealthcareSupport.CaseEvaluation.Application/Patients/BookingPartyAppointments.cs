@@ -18,6 +18,10 @@ namespace HealthcareSupport.CaseEvaluation.Patients;
 ///   <c>BookedByUserId</c> on rows from before the creator stamp), or is the linked attorney on it.</item>
 ///   <item>Claim Examiner: the appointment names the caller's email as its claim examiner, compared
 ///   case-insensitively. A Claim Examiner has no link table, so the email column is the only link.</item>
+///   <item>Applicant and Defense Paralegal (2026-11-04): the caller booked the appointment, and
+///   nothing else. A paralegal is never the attorney OF RECORD, so the attorney link rows -- whose
+///   account is resolved from an email the booker types -- must not admit one: any booker could
+///   otherwise type a paralegal's address and hand them the patient.</item>
 /// </list>
 /// </summary>
 internal static class BookingPartyAppointments
@@ -38,6 +42,11 @@ internal static class BookingPartyAppointments
     {
         return appointments.Where(a => (a.CreatorId ?? a.BookedByUserId) == userId
             || links.Any(l => l.AppointmentId == a.Id && l.IdentityUserId == userId));
+    }
+
+    internal static IQueryable<Appointment> ForParalegal(IQueryable<Appointment> appointments, Guid userId)
+    {
+        return appointments.Where(a => (a.CreatorId ?? a.BookedByUserId) == userId);
     }
 
     /// <summary>Empty for a caller with no email, who cannot be matched to any appointment.</summary>

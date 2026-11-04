@@ -45,7 +45,8 @@ public class MultiOfficeExternalRoleGrantsTests : CaseEvaluationMultiOfficeTestB
     private const string RoleProviderName = "R";
 
     /// <summary>
-    /// The four external booking roles, as the seeder grants them today.
+    /// The six external booking roles, as the seeder grants them today (the two paralegal
+    /// roles since 2026-11-04).
     ///
     /// <para>DELIBERATELY A LITERAL, not read from the seeder. Deriving it from the code
     /// under test would make this assertion vacuous -- the list and the loop would move
@@ -77,6 +78,8 @@ public class MultiOfficeExternalRoleGrantsTests : CaseEvaluationMultiOfficeTestB
         "Claim Examiner",
         "Applicant Attorney",
         "Defense Attorney",
+        "Applicant Paralegal",
+        "Defense Paralegal",
     };
 
     private readonly ExternalUserRoleDataSeedContributor _externalRoleSeeder;
@@ -113,6 +116,47 @@ public class MultiOfficeExternalRoleGrantsTests : CaseEvaluationMultiOfficeTestB
                             + "for a user who can still log in");
                     }
                 }
+            }
+        }, requiresNew: true);
+    }
+
+    /// <summary>
+    /// 2026-11-04: the paralegal roles hold EXACTLY what the attorney of the same side holds -- not
+    /// a subset (a paralegal who can log in but not book), not a superset (nothing here may reach
+    /// SSN reveal or staff permissions). Compared against every permission defined, so a grant
+    /// added to one role and not the other fails here.
+    /// </summary>
+    [Theory]
+    [InlineData("Applicant Paralegal", "Applicant Attorney")]
+    [InlineData("Defense Paralegal", "Defense Attorney")]
+    public async Task A_paralegal_holds_exactly_what_its_sides_attorney_holds(string paralegal, string attorney)
+    {
+        var (officeA, _) = await GetSeededOfficesAsync();
+        await SeedExternalRolesAsync(officeA.OfficeId);
+        var definitions = GetRequiredService<Volo.Abp.Authorization.Permissions.IPermissionDefinitionManager>();
+        var allPermissions = (await definitions.GetPermissionsAsync()).Select(p => p.Name).ToList();
+        allPermissions.ShouldNotBeEmpty();
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(officeA.OfficeId))
+            {
+                var attorneyGrants = new List<string>();
+                var paralegalGrants = new List<string>();
+                foreach (var permission in allPermissions)
+                {
+                    if (await IsGrantedAsync(permission, attorney))
+                    {
+                        attorneyGrants.Add(permission);
+                    }
+                    if (await IsGrantedAsync(permission, paralegal))
+                    {
+                        paralegalGrants.Add(permission);
+                    }
+                }
+
+                attorneyGrants.ShouldNotBeEmpty("an attorney with no grants would make the comparison vacuous");
+                paralegalGrants.ShouldBe(attorneyGrants, ignoreOrder: true);
             }
         }, requiresNew: true);
     }

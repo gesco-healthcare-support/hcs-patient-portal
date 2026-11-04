@@ -79,6 +79,73 @@ public class ChangeRequestSideResolverUnitTests
         sideB!.RequestingSide.ShouldBe(ChangeRequestSide.SideB);
     }
 
+    // 2026-11-04: the recipient resolver also lists the SUBMITTER, tagged Patient, with a context
+    // ending in "/booker". It is not a named party, so it must not decide the side or stand in as a
+    // side's representative. The literal "booker" is deliberate: an independent copy of the suffix.
+    private static SendAppointmentEmailArgs Booker(string email) => new()
+    {
+        To = email,
+        Role = RecipientRole.Patient,
+        Context = $"Resolver/Submitted/Patient/{AppointmentId}/booker",
+    };
+
+    [Theory]
+    [InlineData("Defense Paralegal")]
+    [InlineData("Defense Attorney")]
+    public async Task A_defense_side_booker_listed_by_the_resolver_is_placed_on_side_b(string bookerRole)
+    {
+        // Before 2026-11-04 the booker's own entry matched first and put them on Side A, so the
+        // defense side was asked to consent to its own request.
+        var booker = Booker("TEST-defense-paralegal@test.local");
+
+        var result = await With(Patient, Applicant, Defense, booker)
+            .ResolveAsync(AppointmentId, "test-defense-paralegal@TEST.local", new[] { bookerRole });
+
+        result.ShouldNotBeNull();
+        result.RequestingSide.ShouldBe(ChangeRequestSide.SideB);
+        result.OpposingRepEmail.ShouldBe(Applicant.To);
+        result.AllParties.ShouldContain(booker); // the confirmation still copies the booker
+    }
+
+    [Fact]
+    public async Task An_applicant_side_paralegal_booker_is_placed_on_side_a()
+    {
+        var result = await With(Patient, Applicant, Defense, Booker("TEST-applicant-paralegal@test.local"))
+            .ResolveAsync(AppointmentId, "TEST-applicant-paralegal@test.local", new[] { "Applicant Paralegal" });
+
+        result!.RequestingSide.ShouldBe(ChangeRequestSide.SideA);
+        result.OpposingRepEmail.ShouldBe(Defense.To);
+    }
+
+    [Fact]
+    public async Task A_patient_booker_is_still_side_a_whether_or_not_their_login_is_the_patient_address()
+    {
+        // Same address: the resolver keeps the patient entry only. Different address: only the
+        // booker entry carries it, and the Patient role places them.
+        var sameAddress = await With(Patient, Defense).ResolveAsync(AppointmentId, Patient.To, new[] { "Patient" });
+        var ownLogin = await With(Patient, Defense, Booker("TEST-patient-login@test.local"))
+            .ResolveAsync(AppointmentId, "TEST-patient-login@test.local", new[] { "Patient" });
+
+        sameAddress!.RequestingSide.ShouldBe(ChangeRequestSide.SideA);
+        sameAddress.OpposingRepEmail.ShouldBe(Defense.To);
+        ownLogin!.RequestingSide.ShouldBe(ChangeRequestSide.SideA);
+        ownLogin.OpposingRepEmail.ShouldBe(Defense.To);
+    }
+
+    [Fact]
+    public async Task The_booker_is_never_a_sides_consent_representative()
+    {
+        // No applicant attorney and no patient address: Side A has nobody to ask. The booker used
+        // to be picked as the "Patient" fallback.
+        var booker = Booker("TEST-firm-booker@test.local");
+
+        var bothSides = await With(Defense, booker).ResolveBothSidesAsync(AppointmentId);
+        var defenseFiled = await With(Defense, booker).ResolveAsync(AppointmentId, Defense.To);
+
+        bothSides.ShouldBe(new ChangeRequestBothSidesResolution(null, null, Defense.To, RecipientRole.DefenseAttorney));
+        defenseFiled.ShouldBeNull();
+    }
+
     [Fact]
     public async Task No_side_is_resolved_for_an_unplaceable_submitter()
     {

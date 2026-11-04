@@ -35,6 +35,7 @@ using Volo.Saas.Tenants;
 using Volo.Abp.MultiTenancy;
 using System.Globalization;
 using HealthcareSupport.CaseEvaluation.Timing;
+using HealthcareSupport.CaseEvaluation.Identity;
 
 namespace HealthcareSupport.CaseEvaluation.ExternalSignups;
 
@@ -284,14 +285,9 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         }
 
         // Internal staff only (external callers returned empty above). Staff administer the
-        // whole tenant, so all 4 external roles are safely searchable by the term.
-        var allowedRoleNames = new[]
-        {
-            "Patient",
-            "Applicant Attorney",
-            "Defense Attorney",
-            "Claim Examiner",
-        };
+        // whole tenant, so every external role (paralegals too, 2026-11-04) is safely
+        // searchable by the term.
+        var allowedRoleNames = ExternalRoleConsts.All;
 
         var roleQuery = await _identityRoleRepository.GetQueryableAsync();
         var roles = await AsyncExecuter.ToListAsync(
@@ -498,11 +494,10 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         }
 
         var roleNames = await _userManager.GetRolesAsync(user);
+        // 2026-11-04: the paralegal roles are external roles too, so the SPA learns them here.
         var userRole = roleNames.FirstOrDefault(r =>
-            string.Equals(r, "Patient", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(r, "Applicant Attorney", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(r, "Defense Attorney", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(r, "Claim Examiner", StringComparison.OrdinalIgnoreCase)) ?? string.Empty;
+            ExternalRoleConsts.All.Any(external => string.Equals(r, external, StringComparison.OrdinalIgnoreCase)))
+            ?? string.Empty;
 
         // Phase 9 (2026-05-03) -- surface IsExternalUser + IsAccessor
         // extension props registered in Phase 2.4 so the Angular SPA can
@@ -619,6 +614,12 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
                     break;
                 case ExternalUserType.ClaimExaminer:
                     await EnsureClaimExaminerAsync(input, user);
+                    break;
+                case ExternalUserType.ApplicantParalegal:
+                case ExternalUserType.DefenseParalegal:
+                    // 2026-11-04: a paralegal is not the attorney of record, so no attorney
+                    // master is created or claimed; they reach a case as its creator or an
+                    // Authorized User.
                     break;
             }
 
@@ -747,11 +748,12 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         // FirmName + auto-derives FirmEmail from EmailId.ToLower() for
         // attorneys. NEW respects an explicit FirmEmail when supplied;
         // otherwise auto-derives, matching OLD behavior.
-        if (IsAttorneyRole(input.UserType))
+        // 2026-11-04: a paralegal's firm is optional, so it is stored only when given.
+        if (IsLawOfficeRole(input.UserType) && !string.IsNullOrWhiteSpace(input.FirmName))
         {
             user.SetProperty(
                 CaseEvaluationModuleExtensionConfigurator.FirmNamePropertyName,
-                input.FirmName!.Trim());
+                input.FirmName.Trim());
             user.SetProperty(
                 CaseEvaluationModuleExtensionConfigurator.FirmEmailPropertyName,
                 DeriveFirmEmail(input));
@@ -1000,6 +1002,9 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         {
             await AutoLinkClaimExaminerAsync(user.Id, normalizedEmail);
         }
+        // 2026-11-04: paralegals auto-link nothing. The attorney links match the party email
+        // columns, which name the attorney of record, and AutoLinkDefenseAttorneyAsync would
+        // even create a defense attorney master.
     }
 
     private async Task AutoLinkApplicantAttorneyAsync(Guid identityUserId, string normalizedEmail)
@@ -1244,9 +1249,10 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         var firstName = string.IsNullOrWhiteSpace(input.FirstName) ? null : input.FirstName.Trim();
         var lastName = string.IsNullOrWhiteSpace(input.LastName) ? null : input.LastName.Trim();
 
-        // #21 (2026-06-16): persist firm name for attorney invites only so
-        // registration can pre-fill the firm; null for non-attorney roles.
-        var firmName = IsAttorneyRole(input.UserType) && !string.IsNullOrWhiteSpace(input.FirmName)
+        // #21 (2026-06-16): persist firm name for law-office invites only so
+        // registration can pre-fill the firm; null for the other roles. 2026-11-04:
+        // paralegals belong to a firm too (optional for them).
+        var firmName = IsLawOfficeRole(input.UserType) && !string.IsNullOrWhiteSpace(input.FirmName)
             ? input.FirmName.Trim()
             : null;
 
@@ -1651,6 +1657,8 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         ExternalUserType.ApplicantAttorney => true,
         ExternalUserType.DefenseAttorney => true,
         ExternalUserType.ClaimExaminer => true,
+        ExternalUserType.ApplicantParalegal => true,
+        ExternalUserType.DefenseParalegal => true,
         _ => false,
     };
 
@@ -1660,6 +1668,10 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         ExternalUserType.ApplicantAttorney => RecipientRole.ApplicantAttorney,
         ExternalUserType.DefenseAttorney => RecipientRole.DefenseAttorney,
         ExternalUserType.ClaimExaminer => RecipientRole.ClaimExaminer,
+        // 2026-11-04: RecipientRole has no paralegal value; the side's attorney tag is the
+        // closest (one body per template today, so the tag only labels the invite).
+        ExternalUserType.ApplicantParalegal => RecipientRole.ApplicantAttorney,
+        ExternalUserType.DefenseParalegal => RecipientRole.DefenseAttorney,
         _ => RecipientRole.Patient,
     };
 
@@ -1709,6 +1721,8 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             ExternalUserType.ClaimExaminer => "Claim Examiner",
             ExternalUserType.ApplicantAttorney => "Applicant Attorney",
             ExternalUserType.DefenseAttorney => "Defense Attorney",
+            ExternalUserType.ApplicantParalegal => ExternalRoleConsts.ApplicantParalegal,
+            ExternalUserType.DefenseParalegal => ExternalRoleConsts.DefenseParalegal,
             _ => throw new UserFriendlyException("Invalid user type."),
         };
     }
@@ -1723,6 +1737,17 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     internal static bool IsAttorneyRole(ExternalUserType userType) =>
         userType == ExternalUserType.ApplicantAttorney
         || userType == ExternalUserType.DefenseAttorney;
+
+    /// <summary>
+    /// True for the attorney AND paralegal roles (2026-11-04): the people of a law office,
+    /// who may carry a firm name. Only <see cref="IsAttorneyRole"/> makes the firm REQUIRED
+    /// and creates an attorney master; a paralegal's firm is optional and stored on the
+    /// account only.
+    /// </summary>
+    internal static bool IsLawOfficeRole(ExternalUserType userType) =>
+        IsAttorneyRole(userType)
+        || userType == ExternalUserType.ApplicantParalegal
+        || userType == ExternalUserType.DefenseParalegal;
 
     /// <summary>
     /// OLD-parity validation invoked at the top of <c>RegisterAsync</c>:

@@ -611,8 +611,8 @@ public static class CaseEvaluationDomainErrorCodes
     /// Phase 14 (2026-05-04) -- raised by
     /// <c>DocumentUploadGate.EnsureCreatorIsAttorney</c> when a JDF
     /// upload is attempted by anyone other than the booking attorney
-    /// (or when that user is not in an Applicant/Defense Attorney
-    /// role). Localization key
+    /// (or when that user is not in an Applicant/Defense Attorney or,
+    /// since 2026-11-04, Applicant/Defense Paralegal role). Localization key
     /// <c>CaseEvaluation:Document.JdfUploaderMustBeBookingAttorney</c>.
     /// </summary>
     public const string JdfUploaderMustBeBookingAttorney =

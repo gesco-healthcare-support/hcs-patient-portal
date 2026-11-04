@@ -43,7 +43,8 @@ public class ExternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
             }
 
             // Phase 1A (2026-05-06) -- baseline booking permissions for the
-            // four external roles. Mirrors OLD where any authenticated
+            // external roles (six since 2026-11-04: the two paralegal roles get
+            // exactly what the attorneys get). Mirrors OLD where any authenticated
             // external user could see the slot list and create their own
             // appointment. Restrictions on cross-tenant + cross-user data
             // are enforced by IMultiTenant + AppService-level filtering, not
@@ -59,8 +60,8 @@ public class ExternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
                 // F1 / Design B (2026-05-29) -- among the external roles, ONLY
                 // the Patient may reveal an SSN, and only their own record
                 // (SsnRevealAccess enforces the owner check at the AppService).
-                // Applicant Attorney / Defense Attorney / Claim Examiner never
-                // reveal SSNs, so they are not granted Patients.RevealSsn.
+                // The attorneys, paralegals and Claim Examiner never reveal
+                // SSNs, so they are not granted Patients.RevealSsn.
                 await GrantAllAsync(
                     ExternalRoleConsts.Patient, new[] { $"{Group}.Patients.RevealSsn" });
             }

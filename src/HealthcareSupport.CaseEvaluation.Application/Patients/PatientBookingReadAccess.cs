@@ -7,6 +7,7 @@ using HealthcareSupport.CaseEvaluation.Appointments;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Users;
+using HealthcareSupport.CaseEvaluation.Identity;
 
 namespace HealthcareSupport.CaseEvaluation.Patients;
 
@@ -23,8 +24,9 @@ namespace HealthcareSupport.CaseEvaluation.Patients;
 ///   <item>an Applicant Attorney, Defense Attorney or Claim Examiner who is a party to one of the
 ///   patient's appointments, by the SAME rule the wizard's patient typeahead uses
 ///   (<see cref="BookingPartyAppointments"/>, which <c>AppointmentsAppService.GetPatientLookupAsync</c> also uses): booker or linked attorney for the two
-///   attorney roles, the named claim-examiner email for a Claim Examiner. So an id opens exactly the
-///   records the typeahead could have offered, and "book for an existing patient" keeps working.</item>
+///   attorney roles, the named claim-examiner email for a Claim Examiner, and the booker ONLY for an
+///   Applicant or Defense Paralegal (2026-11-04). So an id opens exactly the records the typeahead
+///   could have offered, and "book for an existing patient" keeps working.</item>
 /// </list>
 ///
 /// <para><b>Unlike <see cref="PatientBookingEditAccess"/>, parties ARE admitted, and that is a
@@ -123,7 +125,18 @@ public class PatientBookingReadAccess : ITransientDependency
             return true;
         }
 
+        if (_currentUser.Id.HasValue && IsParalegal(_currentUser)
+            && BookingPartyAppointments.ForParalegal(appointments, _currentUser.Id.Value).Any())
+        {
+            return true;
+        }
+
         return _currentUser.IsInRole(ClaimExaminerRole)
             && BookingPartyAppointments.ForClaimExaminer(appointments, _currentUser.GetVerifiedEmail()).Any();
     }
+
+    /// <summary>Either side's paralegal (2026-11-04); shared with the typeahead in AppointmentsAppService.</summary>
+    internal static bool IsParalegal(ICurrentUser currentUser) =>
+        currentUser.IsInRole(ExternalRoleConsts.ApplicantParalegal)
+        || currentUser.IsInRole(ExternalRoleConsts.DefenseParalegal);
 }

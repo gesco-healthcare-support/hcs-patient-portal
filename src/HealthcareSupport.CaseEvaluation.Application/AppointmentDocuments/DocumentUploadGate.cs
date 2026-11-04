@@ -5,6 +5,7 @@ using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Data;
 using HealthcareSupport.CaseEvaluation.Enums;
 using Volo.Abp;
+using HealthcareSupport.CaseEvaluation.Identity;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 
@@ -107,9 +108,11 @@ internal static class DocumentUploadGate
             throw new BusinessException(
                 CaseEvaluationDomainErrorCodes.JdfUploaderMustBeBookingAttorney);
         }
+        // 2026-11-04: the booking PARALEGAL counts as the booking attorney here -- they
+        // booked on the attorney's behalf, and the booker check above still applies.
         var isAttorney = currentUserRoleNames.Any(r =>
-            string.Equals(r, "Applicant Attorney", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(r, "Defense Attorney", StringComparison.OrdinalIgnoreCase));
+            ExternalRoleConsts.ApplicantLawOffice.Contains(r, StringComparer.OrdinalIgnoreCase) ||
+            ExternalRoleConsts.DefenseLawOffice.Contains(r, StringComparer.OrdinalIgnoreCase));
         if (!isAttorney)
         {
             throw new BusinessException(
