@@ -114,6 +114,34 @@ const ROLE_CONFIGS: { match: string; config: RoleConfig }[] = [
     },
   },
   {
+    match: 'applicant paralegal',
+    config: {
+      label: 'Paralegal (Applicant side)',
+      canBook: true,
+      canReeval: true,
+      showPatientCol: true,
+      showDob: true,
+      defaultView: 'table',
+      listTitle: 'Case appointments',
+      listSub: 'Evaluations you booked or were given access to',
+      heroSub: 'Book evaluations for your office and track every request in one place.',
+    },
+  },
+  {
+    match: 'defense paralegal',
+    config: {
+      label: 'Paralegal (Defense side)',
+      canBook: true,
+      canReeval: true,
+      showPatientCol: true,
+      showDob: true,
+      defaultView: 'table',
+      listTitle: 'Case appointments',
+      listSub: 'Evaluations you booked or were given access to',
+      heroSub: 'Book evaluations for your office and track every request in one place.',
+    },
+  },
+  {
     match: 'claim examiner',
     config: {
       // R2-4 (2026-06-22): all 4 external roles share the same capabilities

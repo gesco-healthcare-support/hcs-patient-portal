@@ -86,12 +86,14 @@ describe('InviteExternalUserComponent surfaces', () => {
   afterEach(() => TestBed.resetTestingModule());
 
   describe('the role dropdown', () => {
-    it('offers exactly the four external roles', () => {
+    it('offers exactly the six external roles', () => {
       const c = create();
       expect(c.roleOptions.map((o: { label: string }) => o.label)).toEqual([
         'Patient',
-        'Applicant Attorney',
-        'Defense Attorney',
+        'Attorney (Applicant side)',
+        'Paralegal (Applicant side)',
+        'Attorney (Defense side)',
+        'Paralegal (Defense side)',
         'Claim Examiner',
       ]);
     });
@@ -108,8 +110,10 @@ describe('InviteExternalUserComponent surfaces', () => {
       );
       expect(byLabel.get('Patient')).toBe(1);
       expect(byLabel.get('Claim Examiner')).toBe(2);
-      expect(byLabel.get('Applicant Attorney')).toBe(3);
-      expect(byLabel.get('Defense Attorney')).toBe(4);
+      expect(byLabel.get('Attorney (Applicant side)')).toBe(3);
+      expect(byLabel.get('Attorney (Defense side)')).toBe(4);
+      expect(byLabel.get('Paralegal (Applicant side)')).toBe(5);
+      expect(byLabel.get('Paralegal (Defense side)')).toBe(6);
     });
 
     it('defaults to Patient', () => {

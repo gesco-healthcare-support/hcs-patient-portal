@@ -45,12 +45,16 @@ export class InviteExternalUserComponent {
   private readonly toaster = inject(ToasterService);
 
   // ExternalUserType enum values: Patient=1, ClaimExaminer=2,
-  // ApplicantAttorney=3, DefenseAttorney=4. Order kept stable with the
+  // ApplicantAttorney=3, DefenseAttorney=4, ApplicantParalegal=5, DefenseParalegal=6. Order kept stable with the
   // proxy enum so the numeric values flow through to the backend.
   readonly roleOptions = [
     { value: 1, label: 'Patient' },
-    { value: 3, label: 'Applicant Attorney' },
-    { value: 4, label: 'Defense Attorney' },
+    { value: 3, label: 'Attorney (Applicant side)' },
+    // A paralegal belongs to one side and is NOT an attorney of record: the invite carries only
+    // name + email + role (this form has no firm or attorney-master fields).
+    { value: 5, label: 'Paralegal (Applicant side)' },
+    { value: 4, label: 'Attorney (Defense side)' },
+    { value: 6, label: 'Paralegal (Defense side)' },
     { value: 2, label: 'Claim Examiner' },
   ];
 
