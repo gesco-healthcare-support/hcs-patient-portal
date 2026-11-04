@@ -1,3 +1,8 @@
+import {
+  authorizedUserRoleLabel,
+  authorizedUserRoleOptions,
+  isParalegalRole,
+} from '../../../shared/auth/external-user-roles';
 import { HttpClient } from '@angular/common/http';
 import { Directive, OnInit, inject } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
@@ -275,7 +280,13 @@ export class AppointmentViewComponent implements OnInit {
   ];
   // Group J: valid accessor roles -- email is free-typed, role chosen from
   // the seeded external roles. Order mirrors the invite-user dropdown.
-  readonly roleOptions = ['Patient', 'Applicant Attorney', 'Defense Attorney', 'Claim Examiner'];
+  readonly roleLabel = authorizedUserRoleLabel;
+
+  /** Role names the "Paralegal / Authorized User" modal offers: own side's paralegal; staff get both. */
+  get roleOptions(): string[] {
+    const roles = (this.configState.getOne('currentUser') as any)?.roles ?? [];
+    return authorizedUserRoleOptions(roles, this.isInternalUser);
+  }
   externalAuthorizedUserOptions: ExternalAuthorizedUserOption[] = [];
   appointmentAuthorizedUsers: AppointmentAuthorizedUserRow[] = [];
   isAuthorizedUserModalOpen = false;
@@ -742,6 +753,8 @@ export class AppointmentViewComponent implements OnInit {
       'patient',
       'applicant attorney',
       'defense attorney',
+      'applicant paralegal',
+      'defense paralegal',
       'claim examiner',
     ]);
     return roles.some((role: string) => externalUserRoles.has(role?.toLowerCase() ?? ''));
@@ -865,7 +878,9 @@ export class AppointmentViewComponent implements OnInit {
     const creatorId = this.appointment?.appointment?.creatorId;
     const currentUserId = (this.configState.getOne('currentUser') as any)?.id;
     return (
-      (this.isApplicantAttorney || this.isDefenseAttorney) &&
+      (this.isApplicantAttorney ||
+        this.isDefenseAttorney ||
+        isParalegalRole((this.configState.getOne('currentUser') as any)?.roles)) &&
       !!creatorId &&
       creatorId === currentUserId
     );

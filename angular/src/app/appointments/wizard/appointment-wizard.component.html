@@ -189,11 +189,19 @@
             <app-appointment-add-attorney-section
               [form]="form"
               [role]="'applicant'"
-              [mandatory]="isApplicantAttorney && !isItAdmin"
+              [mandatory]="isApplicantSideBooker && !isItAdmin"
               [questionText]="attorneyQuestionFor('applicant')"
               [getStateLookup]="getStateLookup"
-              [isReadOnly]="false"
+              [isReadOnly]="attorneyEmailLocked('applicant')"
               [isFieldInvalid]="isFieldInvalidBound"
+            />
+          }
+          @if (notifyParalegalSide === 'applicant') {
+            <app-appointment-notify-paralegal
+              idPrefix="applicant-paralegal"
+              [state]="notifyParalegal"
+              [showErrors]="notifyParalegalShowErrors"
+              (stateChange)="notifyParalegal = $event"
             />
           }
         }
@@ -203,11 +211,19 @@
             <app-appointment-add-attorney-section
               [form]="form"
               [role]="'defense'"
-              [mandatory]="isDefenseAttorney && !isItAdmin"
+              [mandatory]="isDefenseSideBooker && !isItAdmin"
               [questionText]="attorneyQuestionFor('defense')"
               [getStateLookup]="getStateLookup"
-              [isReadOnly]="false"
+              [isReadOnly]="attorneyEmailLocked('defense')"
               [isFieldInvalid]="isFieldInvalidBound"
+            />
+          }
+          @if (notifyParalegalSide === 'defense') {
+            <app-appointment-notify-paralegal
+              idPrefix="defense-paralegal"
+              [state]="notifyParalegal"
+              [showErrors]="notifyParalegalShowErrors"
+              (stateChange)="notifyParalegal = $event"
             />
           }
         }
@@ -561,7 +577,10 @@
           </div>
 
           @if (shouldShowAuthorizedUserSection()) {
-            <app-appointment-add-authorized-users [users]="appointmentAuthorizedUsers" />
+            <app-appointment-add-authorized-users
+              [users]="appointmentAuthorizedUsers"
+              [roleOptions]="authorizedUserRoleOptions"
+            />
           }
           <app-appointment-add-custom-fields [customFieldsArray]="customFieldsArray" />
           <div class="ra-note" style="margin-top: 4px">
