@@ -40,8 +40,8 @@ export function wizardTitle(isInternal: boolean, mode: BookingMode): string {
 export function wizardSubtitle(isInternal: boolean, mode: BookingMode): string {
   if (mode === 'reval') {
     return isInternal
-      ? 'Look up the prior appointment, then confirm the follow-up details on behalf of the patient.'
-      : 'Look up the prior appointment, then confirm the details for the follow-up.';
+      ? 'Look up the prior appointment, or tick that the first evaluation was not booked in this portal, then confirm the follow-up details on behalf of the patient.'
+      : 'Look up the prior appointment, or tick that the first evaluation was not booked in this portal, then confirm the details for the follow-up.';
   }
   if (mode === 'reBook') {
     return isInternal
@@ -65,7 +65,7 @@ export function wizardSubtitle(isInternal: boolean, mode: BookingMode): string {
 export function sourceLookupBanner(mode: BookingMode): string {
   const step = 'by confirmation number on the Schedule step before submitting';
   if (mode === 'reval') {
-    return `Load the prior approved appointment ${step} this re-evaluation.`;
+    return `Load the prior approved appointment ${step} this re-evaluation, or tick that the first evaluation was not booked in this portal.`;
   }
   if (mode === 'reBook') {
     return `Load the appointment you want to book again ${step} this booking.`;

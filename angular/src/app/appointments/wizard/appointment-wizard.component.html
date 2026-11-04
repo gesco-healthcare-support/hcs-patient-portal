@@ -122,6 +122,24 @@
 
       @switch (currentStep.key) {
         @case ('schedule') {
+          @if (showRevalWithoutSourceOption) {
+            <div class="ra-field">
+              <label class="ra-check" for="wiz-reval-without-source">
+                <input
+                  id="wiz-reval-without-source"
+                  type="checkbox"
+                  [checked]="revalWithoutSource"
+                  (change)="setRevalWithoutSource($any($event.target).checked)"
+                />
+                The first evaluation was not booked in this portal
+              </label>
+              @if (revalWithoutSource) {
+                <div class="ra-reval__msg">
+                  No prior appointment to load. Fill in every section as for a new request.
+                </div>
+              }
+            </div>
+          }
           @if (showSourceLookup) {
             <div class="ra-reval">
               <div class="ra-field">

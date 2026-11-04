@@ -918,6 +918,13 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             return new SubmitLifecycle(null, null, null, null);
         }
 
+        if (input.Mode == BookingSubmitMode.RevalWithoutSource)
+        {
+            // No source to load, gate or link: the first evaluation predates this portal. The
+            // Appointments.Create permission on SubmitAsync is the gate, as for a plain create.
+            return new SubmitLifecycle(AppointmentLifecycleFlow.RevalWithoutSource, null, null, null);
+        }
+
         if (string.IsNullOrWhiteSpace(input.SourceConfirmationNumber))
         {
             throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentSubmitSourceRequired);
@@ -1110,6 +1117,22 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             lifecycleFlow: AppointmentLifecycleFlow.Reval,
             sourceConfirmationNumber: source.RequestConfirmationNumber,
             originalAppointmentId: source.Id);
+    }
+
+    /// <summary>
+    /// Re-evaluation whose first evaluation was booked before this portal existed, so there is no
+    /// source appointment. Same permission gate as <see cref="CreateRevalAsync"/> (there is no
+    /// source status to check), mints a fresh confirmation number, stamps
+    /// <c>EvaluationKind.ReEvaluation</c> and leaves every source link empty.
+    /// </summary>
+    [Authorize]
+    [Authorize(CaseEvaluationPermissions.Appointments.Create)]
+    public virtual Task<AppointmentDto> CreateRevalWithoutSourceAsync(AppointmentCreateDto input)
+    {
+        return CreateAppointmentInternalAsync(
+            input,
+            lifecycleFlow: AppointmentLifecycleFlow.RevalWithoutSource,
+            sourceConfirmationNumber: null);
     }
 
     /// <summary>

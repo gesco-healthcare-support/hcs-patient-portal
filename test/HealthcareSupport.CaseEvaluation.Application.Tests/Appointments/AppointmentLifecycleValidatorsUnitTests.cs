@@ -146,6 +146,22 @@ public class AppointmentLifecycleValidatorsUnitTests
     }
 
     [Fact]
+    public void ResolveConfirmationNumber_RevalWithoutSource_NeedsNoSourceAndMintsAFreshNumber()
+    {
+        AppointmentLifecycleValidators.ResolveConfirmationNumber(
+                AppointmentLifecycleFlow.RevalWithoutSource,
+                sourceConfirmationNumber: null!,
+                newlyGeneratedConfirmationNumber: "A99999")
+            .ShouldBe("A99999");
+
+        Should.Throw<ArgumentException>(() =>
+            AppointmentLifecycleValidators.ResolveConfirmationNumber(
+                AppointmentLifecycleFlow.RevalWithoutSource,
+                sourceConfirmationNumber: null!,
+                newlyGeneratedConfirmationNumber: null!));
+    }
+
+    [Fact]
     public void ResolveConfirmationNumber_NullSource_Throws()
     {
         Should.Throw<ArgumentException>(() =>
