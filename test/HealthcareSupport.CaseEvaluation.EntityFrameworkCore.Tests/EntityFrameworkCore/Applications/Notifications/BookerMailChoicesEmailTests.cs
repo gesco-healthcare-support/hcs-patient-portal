@@ -100,6 +100,34 @@ public class BookerMailChoicesEmailTests : CaseEvaluationEntityFrameworkCoreTest
         later.Count.ShouldBe(control.Count, "the opt-out dropped the booker, not whole mails");
     }
 
+    /// <summary>
+    /// Levon's case (2026-11-04, the #1524 lock removed): an Applicant Attorney-role login books and TYPES a
+    /// different applicant attorney. The booker follows by default, so the booker AND the typed lawyer both
+    /// get the party mail (request and approval) and the side-A consent link, and the booker gets the
+    /// attorney packet.
+    /// </summary>
+    [Fact]
+    public async Task AnAttorneyRoleBooker_WhoTypesAnotherLawyer_AndThatLawyer_BothGetTheCaseMail_TheLink_AndThePacket()
+    {
+        await ArrangeAsync(bookerIsLawyer: false, bookerRole: "Applicant Attorney");
+
+        await RunAsync(RaiseSubmittedAsync);
+        var request = Sent(NotificationTemplateConsts.Codes.AppointmentRequestedRegistered);
+        request.Recipients.ShouldContain(Lawyer);
+        request.Recipients.ShouldContain(Booker);
+
+        // Every later case mail, the approval and the attorney packet included, reaches both.
+        var later = await RunLaterMailAsync();
+        later.ShouldNotBeEmpty();
+        later.ShouldAllBe(m => m.Value.Contains(Booker, StringComparer.OrdinalIgnoreCase)
+                && m.Value.Contains(Lawyer, StringComparer.OrdinalIgnoreCase));
+
+        var changeRequestId = await AddChangeRequestAsync(ChangeRequestType.Reschedule);
+        var link = await RunAsync(() => PublishConsentRequestAsync(changeRequestId, ChangeRequestSide.SideA, Lawyer));
+        link.ShouldHaveSingleItem().Recipients.ShouldContain(Lawyer);
+        link.Single().Recipients.ShouldContain(Booker);
+    }
+
     /// <summary>A booker who opted out but is ALSO the typed attorney of record still gets the party mail as that party.</summary>
     [Fact]
     public async Task AnOptedOutBooker_WhoIsAlsoTheTypedAttorney_StillGetsThePartyMail()
@@ -388,7 +416,7 @@ public class BookerMailChoicesEmailTests : CaseEvaluationEntityFrameworkCoreTest
     /// one Applicant Paralegal Authorized User added by the lawyer; the parties, the patient address and the
     /// office inbox. The shared seed's own accessor is removed so only these followers exist.
     /// </summary>
-    private async Task ArrangeAsync(bool bookerIsLawyer)
+    private async Task ArrangeAsync(bool bookerIsLawyer, string bookerRole = "Claim Examiner")
     {
         await SetOfficeAsync();
         await WithUnitOfWorkAsync(async () =>
@@ -406,7 +434,7 @@ public class BookerMailChoicesEmailTests : CaseEvaluationEntityFrameworkCoreTest
 
         // A separate booker holds the Claim Examiner role: an attorney booker would be PROMOTED to the To
         // (the typed attorney) and the receipt anchor would be the lawyer, not the booker.
-        var submitter = bookerIsLawyer ? _lawyerId : await SeedUserAsync("Claim Examiner", "mc-booker", Booker);
+        var submitter = bookerIsLawyer ? _lawyerId : await SeedUserAsync(bookerRole, "mc-booker", Booker);
         await UpdateAppointmentAsync(a =>
         {
             a.ApplicantAttorneyEmail = Lawyer;

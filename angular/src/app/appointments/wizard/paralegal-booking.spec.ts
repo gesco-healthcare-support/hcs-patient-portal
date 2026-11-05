@@ -30,7 +30,7 @@ describe('wizard paralegal booking', () => {
     authorizedUserRoleOptions: string[];
     isInternalBooker: boolean;
     attorneyAnswerIsValid(key: 'applicant' | 'defense'): boolean;
-    attorneyEmailLocked(role: 'applicant' | 'defense'): boolean;
+    notifyParalegalSide: 'applicant' | 'defense' | null;
     prefillBookingAttorney(): void;
     loadExternalUserProfile(): void;
     validateCurrentStep(): boolean;
@@ -49,6 +49,16 @@ describe('wizard paralegal booking', () => {
   }
 
   const STEP = { applicant: 2, defense: 3 } as const;
+  const LAWYER_LOGIN = 'lawyer.login@example.test';
+
+  /** An attorney booker who is the lawyer of record: their own-side email is their login (the box needs it). */
+  function lawyer(role: 'Applicant Attorney' | 'Defense Attorney'): Probe {
+    const c = create({ roles: [role], email: LAWYER_LOGIN });
+    c.form
+      .get(role === 'Applicant Attorney' ? 'applicantAttorneyEmail' : 'defenseAttorneyEmail')!
+      .setValue(LAWYER_LOGIN);
+    return c;
+  }
   let profileCalls: number;
 
   function create(
@@ -110,50 +120,61 @@ describe('wizard paralegal booking', () => {
 
   afterEach(() => TestBed.resetTestingModule());
 
-  describe('attorney email lock', () => {
+  describe('attorney email (unlocked again, 2026-11-04) and the "instead of me" box', () => {
     const LOGIN = 'Ada@Example.test';
 
-    it('locks the own-side email while it equals the login email (case/trim-insensitive)', () => {
+    it('keeps no lock: an attorney booker may type another lawyer on their own side', () => {
       const c = create({ roles: ['Applicant Attorney'], email: LOGIN });
+      expect('attorneyEmailLocked' in c).toBeFalse();
+      c.form.get('applicantAttorneyEmail')!.setValue('other.lawyer@example.test');
+      expect(c.form.get('applicantAttorneyEmail')!.value).toBe('other.lawyer@example.test');
+    });
+
+    it('offers the box only while the own-side email is the login email (case/trim-insensitive)', () => {
+      const c = create({ roles: ['Applicant Attorney'], email: LOGIN });
+      expect(c.notifyParalegalSide).toBeNull();
+
       c.form.get('applicantAttorneyEmail')!.setValue(' ada@example.TEST ');
+      expect(c.notifyParalegalSide).toBe('applicant');
 
-      expect(c.attorneyEmailLocked('applicant')).toBeTrue();
+      c.form.get('applicantAttorneyEmail')!.setValue('other.lawyer@example.test');
+      expect(c.notifyParalegalSide).toBeNull();
     });
 
-    it('does not lock an empty or partly typed email', () => {
-      const c = create({ roles: ['Applicant Attorney'], email: LOGIN });
-      expect(c.attorneyEmailLocked('applicant')).toBeFalse();
+    it('a stale tick is not sent once the typed lawyer differs; the booker choice stands', () => {
+      const c = create({ roles: ['Defense Attorney'], email: LOGIN });
+      c.form.get('defenseAttorneyEmail')!.setValue(LOGIN);
+      c.notifyParalegal = {
+        enabled: true,
+        firstName: 'Jane',
+        lastName: 'Paralegal',
+        email: 'jane.paralegal@example.test',
+      };
+      c.form.get('defenseAttorneyEmail')!.setValue('other.lawyer@example.test');
+      c.form.patchValue({ firstName: 'Pat', lastName: 'Test', dateOfBirth: '1980-01-15' });
 
-      c.form.get('applicantAttorneyEmail')!.setValue('a');
-      expect(c.attorneyEmailLocked('applicant')).toBeFalse();
+      const body = c.buildSubmitPayload();
+
+      expect(body.sendAttorneyMailToParalegal).toBeUndefined();
+      expect(body.bookerFollowsCase).toBeTrue();
+      expect(body.accessors ?? []).toEqual([]);
+      expect(c.bookerFollowsDisplayed).toBeTrue();
     });
 
-    it('does not lock a different value (e.g. a re-request source email)', () => {
-      const c = create({ roles: ['Applicant Attorney'], email: LOGIN });
-      c.form.get('applicantAttorneyEmail')!.setValue('other@example.test');
-
-      expect(c.attorneyEmailLocked('applicant')).toBeFalse();
-    });
-
-    it('never locks when the login email is unknown', () => {
-      const c = create({ roles: ['Applicant Attorney'] });
-      c.form.get('applicantAttorneyEmail')!.setValue('x@example.test');
-
-      expect(c.attorneyEmailLocked('applicant')).toBeFalse();
-    });
-
-    it('does not lock the other side, a paralegal, staff or an IT admin', () => {
+    it('never offers the box with no login email, on the other side, to a paralegal, staff or an IT admin', () => {
       const email = 'x@example.test';
-      for (const [roles, side] of [
-        [['Applicant Attorney'], 'defense'],
-        [['Applicant Paralegal'], 'applicant'],
-        [['Defense Paralegal'], 'defense'],
-        [['Staff Supervisor'], 'applicant'],
-        [['Applicant Attorney', 'IT Admin'], 'applicant'],
-      ] as Array<[string[], 'applicant' | 'defense']>) {
-        const c = create({ roles, email });
+      for (const [roles, side, login] of [
+        [['Applicant Attorney'], 'applicant', undefined],
+        [['Applicant Attorney'], 'defense', email],
+        [['Applicant Paralegal'], 'applicant', email],
+        [['Staff Supervisor'], 'applicant', email],
+        [['Applicant Attorney', 'IT Admin'], 'applicant', email],
+      ] as Array<[string[], 'applicant' | 'defense', string | undefined]>) {
+        const c = create({ roles, email: login });
         c.form.get(side + 'AttorneyEmail')!.setValue(email);
-        expect(c.attorneyEmailLocked(side)).withContext(roles.join()).toBeFalse();
+        expect(c.notifyParalegalSide)
+          .withContext(roles.join() + ' ' + side)
+          .toBeNull();
         TestBed.resetTestingModule();
       }
     });
@@ -289,7 +310,7 @@ describe('wizard paralegal booking', () => {
     };
 
     it('blocks Continue on the own-side step while the ticked fields are incomplete', () => {
-      const c = create({ roles: ['Applicant Attorney'] });
+      const c = lawyer('Applicant Attorney');
       c.current = STEP.applicant;
       c.notifyParalegal = { ...TICKED, email: '' };
 
@@ -298,7 +319,7 @@ describe('wizard paralegal booking', () => {
     });
 
     it('does not consult the tick on the other side step', () => {
-      const c = create({ roles: ['Applicant Attorney'] });
+      const c = lawyer('Applicant Attorney');
       c.current = STEP.defense;
       c.notifyParalegal = { ...TICKED, email: '' };
 
@@ -313,7 +334,7 @@ describe('wizard paralegal booking', () => {
     }
 
     it('adds the paralegal to the submit accessors with the booker side role', () => {
-      const c = create({ roles: ['Defense Attorney'] });
+      const c = lawyer('Defense Attorney');
       c.notifyParalegal = TICKED;
       withPatient(c);
 
@@ -325,7 +346,7 @@ describe('wizard paralegal booking', () => {
     });
 
     it('adds nothing when unticked, and never twice for the same email', () => {
-      const c = create({ roles: ['Applicant Attorney'] });
+      const c = lawyer('Applicant Attorney');
       withPatient(c);
       expect(c.buildSubmitPayload().accessors ?? []).toEqual([]);
 
@@ -389,7 +410,7 @@ describe('wizard paralegal booking', () => {
     });
 
     it('"instead of me" sends the redirect, forces the booker off and the box shows unticked', () => {
-      const c = create({ roles: ['Applicant Attorney'] });
+      const c = lawyer('Applicant Attorney');
       c.notifyParalegal = TICKED;
 
       const body = payload(c);
@@ -401,7 +422,7 @@ describe('wizard paralegal booking', () => {
     });
 
     it('an incomplete "instead" tick sends no redirect but never the stored booker choice', () => {
-      const c = create({ roles: ['Defense Attorney'] });
+      const c = lawyer('Defense Attorney');
       c.notifyParalegal = { ...TICKED, email: '' };
 
       const body = payload(c);
@@ -411,7 +432,7 @@ describe('wizard paralegal booking', () => {
     });
 
     it('blocks submit and sends booker false when the paralegal email is an accessor with another role', () => {
-      const c = create({ roles: ['Applicant Attorney'] });
+      const c = lawyer('Applicant Attorney');
       c.notifyParalegal = TICKED;
       c.appointmentAuthorizedUsers = [
         {
@@ -434,7 +455,7 @@ describe('wizard paralegal booking', () => {
     });
 
     it('no conflict when the tick is off or the accessor already has the paralegal role', () => {
-      const c = create({ roles: ['Applicant Attorney'] });
+      const c = lawyer('Applicant Attorney');
       c.appointmentAuthorizedUsers = [acc()];
       expect(c.notifyParalegalConflict).toBeFalse();
 

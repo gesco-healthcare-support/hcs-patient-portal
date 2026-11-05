@@ -646,7 +646,7 @@ export class AppointmentAddComponent {
   }
 
   get bookerFollowsDisplayed(): boolean {
-    return bookerFollowsDisplayed(this.bookerFollowsCase, this.notifyParalegal.enabled);
+    return bookerFollowsDisplayed(this.bookerFollowsCase, this.notifyParalegalTicked);
   }
 
   /** Missing paralegal fields when the tick is on (blocks Continue on the booker's own-side step). */
@@ -1566,25 +1566,26 @@ export class AppointmentAddComponent {
     return isDefenseSideExternal(this.currentUser?.roles);
   }
 
-  /** Which side the "send notifications to my paralegal" tick applies to (attorney bookers only). */
+  /**
+   * Which side the "send notifications to my paralegal" tick applies to: an attorney booker whose
+   * own-side attorney email is their OWN login email (trimmed, case-insensitive), so they are the
+   * lawyer of record. Otherwise null, the box is hidden and no redirect is sent. 2026-11-04: the
+   * booker types the lawyer freely again (the #1524 lock is gone), so an attorney login booking for
+   * ANOTHER lawyer must not be able to silence that lawyer; the server applies the same rule.
+   */
   get notifyParalegalSide(): LawOfficeSide | null {
     if (this.isItAdmin) return null;
-    if (this.isApplicantAttorney) return 'applicant';
-    return this.isDefenseAttorney ? 'defense' : null;
+    const side: LawOfficeSide | null = this.isApplicantAttorney
+      ? 'applicant'
+      : this.isDefenseAttorney
+        ? 'defense'
+        : null;
+    return side !== null && this.ownSideEmailIsLogin(side) ? side : null;
   }
 
-  /**
-   * The attorney email is locked to the attorney booker's own login email on their own side
-   * (they cannot name a different "attorney" address). Locked ONLY while the field equals the
-   * login email (case-insensitive, trimmed): an empty or partly typed field, or a different value
-   * from a re-request source, stays editable. No login email known: never lock. Paralegals and
-   * staff type the attorney freely.
-   */
-  attorneyEmailLocked(role: LawOfficeSide): boolean {
-    const isOwnSide = role === 'applicant' ? this.isApplicantAttorney : this.isDefenseAttorney;
-    if (!isOwnSide || this.isItAdmin) return false;
+  private ownSideEmailIsLogin(side: LawOfficeSide): boolean {
     const login = (this.currentUser?.email ?? '').toString().trim().toLowerCase();
-    const value = (this.form.get(role + 'AttorneyEmail')?.value ?? '')
+    const value = (this.form.get(side + 'AttorneyEmail')?.value ?? '')
       .toString()
       .trim()
       .toLowerCase();
