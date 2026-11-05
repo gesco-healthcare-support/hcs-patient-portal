@@ -174,7 +174,7 @@ public class CaseFollowersTests
     // ---- Packets -----------------------------------------------------------------------------------
 
     [Fact]
-    public void AccessorPacketRecipients_AreNoneByDefault_AndTheSwitchIsTheOnlyGate()
+    public void AccessorPacketRecipients_FollowTheSwitch_WhichIsOn_AndPacketVisibilityDecidesWho()
     {
         var ctx = Context(
             Follower(AccessorEmail, booker: false, "Applicant Attorney"),
@@ -182,12 +182,76 @@ public class CaseFollowersTests
             Follower(BookerEmail, booker: true, "Applicant Attorney"),
             Follower("TEST-follower-nobody@test.local", booker: false, "Some Other Role"));
 
-        CaseFollowers.AccessorPacketRecipients(ctx).ShouldBeEmpty();
+        // Office decision 4 (2026-11-04): the switch is on, so the default is the attorney-role accessor only.
+        CaseFollowers.AccessorsReceivePackets.ShouldBeTrue();
+        CaseFollowers.AccessorPacketRecipients(ctx).Select(r => r.Email).ShouldBe(new[] { AccessorEmail });
         CaseFollowers.AccessorPacketRecipients(ctx, enabled: false).ShouldBeEmpty();
 
         var on = CaseFollowers.AccessorPacketRecipients(ctx, enabled: true);
         on.Select(r => r.Email).ShouldBe(new[] { AccessorEmail });
         on.Single().Role.ShouldBe(RecipientRole.ApplicantAttorney);
         on.Single().IsRegistered.ShouldBeTrue();
+    }
+
+    // ---- The booker's mail choices (2026-11-04) -----------------------------------------------------
+
+    [Fact]
+    public void IsExcluded_CutsTheRedirectedLawyer_AndAnOptedOutBookerExceptOnTheReceipt()
+    {
+        var ctx = new DocumentEmailContext
+        {
+            RedirectedAddresses = new[] { "TEST-lawyer@test.local" },
+            OptedOutBookerAddress = BookerEmail,
+        };
+
+        CaseFollowers.IsExcluded(ctx, "test-LAWYER@test.local").ShouldBeTrue("ignoring case");
+        CaseFollowers.IsExcluded(ctx, "test-lawyer@test.local", requestReceipt: true).ShouldBeTrue(
+            "the receipt never reaches the redirected lawyer");
+        CaseFollowers.IsExcluded(ctx, BookerEmail).ShouldBeTrue();
+        CaseFollowers.IsExcluded(ctx, BookerEmail, requestReceipt: true).ShouldBeFalse(
+            "the receipt is the one mail an opted-out booker still gets");
+        CaseFollowers.IsExcluded(ctx, AccessorEmail).ShouldBeFalse();
+        CaseFollowers.IsExcluded(ctx, null).ShouldBeFalse();
+        CaseFollowers.IsExcluded(new DocumentEmailContext(), BookerEmail).ShouldBeFalse("positive control: nothing excluded");
+    }
+
+    [Fact]
+    public void Append_DropsTheExcludedAddresses_FromTheIncomingRecipients_OnBothListTypes()
+    {
+        var ctx = new DocumentEmailContext
+        {
+            RedirectedAddresses = new[] { "TEST-lawyer@test.local" },
+            Followers = new[] { Follower(AccessorEmail, booker: false, "Applicant Paralegal") },
+        };
+
+        CaseFollowers.Append(Args("TEST-lawyer@test.local", "TEST-party@test.local"), ctx, patientRoleAllowed: true)
+            .Select(r => r.To).ShouldBe(new[] { "TEST-party@test.local", AccessorEmail });
+        CaseFollowers.Append(Recipients("TEST-lawyer@test.local", "TEST-party@test.local"), ctx, patientRoleAllowed: true)
+            .Select(r => r.Email).ShouldBe(new[] { "TEST-party@test.local", AccessorEmail });
+        CaseFollowers.Exclude(Recipients("TEST-lawyer@test.local", "TEST-party@test.local"), ctx)
+            .Select(r => r.Email).ShouldBe(new[] { "TEST-party@test.local" });
+    }
+
+    [Fact]
+    public void ConsentLinkFollowers_AreTheSameSideLawOfficeFollowersAddedByThatSideOrStaff()
+    {
+        var applicantAdder = new[] { "Applicant Attorney" };
+        var defenseAdder = new[] { "Defense Attorney" };
+        var staffAdder = new[] { "Staff Supervisor" };
+        var ctx = Context(
+            Follower("TEST-booker-aa@test.local", booker: true, "Applicant Attorney"),
+            Follower("TEST-para-by-aa@test.local", booker: false, "Applicant Paralegal") with { AdderRoleNames = applicantAdder },
+            Follower("TEST-para-by-staff@test.local", booker: false, "Applicant Paralegal") with { AdderRoleNames = staffAdder },
+            Follower("TEST-para-by-da@test.local", booker: false, "Applicant Paralegal") with { AdderRoleNames = defenseAdder },
+            Follower("TEST-para-unknown-adder@test.local", booker: false, "Applicant Paralegal"),
+            Follower("TEST-da-para@test.local", booker: false, "Defense Paralegal") with { AdderRoleNames = defenseAdder },
+            Follower("TEST-patient-acc@test.local", booker: false, "Patient") with { AdderRoleNames = applicantAdder });
+
+        AppointmentChangeRequests.ChangeRequestSide a = AppointmentChangeRequests.ChangeRequestSide.SideA;
+        AppointmentChangeRequests.ChangeRequestSide b = AppointmentChangeRequests.ChangeRequestSide.SideB;
+
+        CaseFollowers.ConsentLinkFollowers(ctx, a).Select(r => r.Email).ShouldBe(
+            new[] { "TEST-booker-aa@test.local", "TEST-para-by-aa@test.local", "TEST-para-by-staff@test.local" });
+        CaseFollowers.ConsentLinkFollowers(ctx, b).Select(r => r.Email).ShouldBe(new[] { "TEST-da-para@test.local" });
     }
 }

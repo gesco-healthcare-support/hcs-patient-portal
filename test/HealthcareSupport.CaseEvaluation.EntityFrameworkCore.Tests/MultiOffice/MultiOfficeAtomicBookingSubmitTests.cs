@@ -943,16 +943,16 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
 
         await InOfficeAsAsync(office, Guid.NewGuid(), "Applicant Attorney", async () =>
         {
-            var slotId = await InsertSlotAsync(office, date, new TimeOnly(9, 0), new TimeOnly(10, 0));
-            var input = BuildSubmitDto(office, slotId, date.AddHours(9).AddMinutes(15), dayOffset: 700);
+            var slotId = await InsertSlotAsync(office, date, new TimeOnly(13, 0), new TimeOnly(14, 0));
+            var input = BuildSubmitDto(office, slotId, date.AddHours(13).AddMinutes(15), dayOffset: 700);
             input.Accessors = new List<AppointmentAccessorCreateDto>();
             input.BookerFollowsCase = false;
             external = await _appointments.SubmitAsync(input);
         });
         await InOfficeAsync(office, async () =>
         {
-            var slotId = await InsertSlotAsync(office, date.AddDays(1), new TimeOnly(9, 0), new TimeOnly(10, 0));
-            var input = BuildSubmitDto(office, slotId, date.AddDays(1).AddHours(9).AddMinutes(15), dayOffset: 710);
+            var slotId = await InsertSlotAsync(office, date.AddDays(1), new TimeOnly(13, 0), new TimeOnly(14, 0));
+            var input = BuildSubmitDto(office, slotId, date.AddDays(1).AddHours(13).AddMinutes(15), dayOffset: 710);
             input.Accessors = new List<AppointmentAccessorCreateDto>();
             input.BookerFollowsCase = false;
             staff = await _appointments.SubmitAsync(input);
@@ -981,8 +981,8 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
 
         await InOfficeAsAsync(office, Guid.NewGuid(), "Applicant Attorney", async () =>
         {
-            var slotId = await InsertSlotAsync(office, date, new TimeOnly(9, 0), new TimeOnly(10, 0));
-            var input = BuildSubmitDto(office, slotId, date.AddHours(9).AddMinutes(15), dayOffset: 720);
+            var slotId = await InsertSlotAsync(office, date, new TimeOnly(13, 0), new TimeOnly(14, 0));
+            var input = BuildSubmitDto(office, slotId, date.AddHours(13).AddMinutes(15), dayOffset: 720);
             input.Accessors = new List<AppointmentAccessorCreateDto>
             {
                 new() { Email = $"para-{Guid.NewGuid():N}@example.test", Role = "Applicant Paralegal" },
@@ -1022,11 +1022,11 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
         var before = 0;
         await InOfficeAsync(office, async () =>
         {
-            slotId = await InsertSlotAsync(office, date, new TimeOnly(9, 0), new TimeOnly(10, 0));
+            slotId = await InsertSlotAsync(office, date, new TimeOnly(13, 0), new TimeOnly(14, 0));
             before = await _appointmentRepository.CountAsync();
         });
 
-        var input = BuildSubmitDto(office, slotId, date.AddHours(9).AddMinutes(15), dayOffset: 740);
+        var input = BuildSubmitDto(office, slotId, date.AddHours(13).AddMinutes(15), dayOffset: 740);
         input.Accessors = accessorRole == null
             ? new List<AppointmentAccessorCreateDto>()
             : new List<AppointmentAccessorCreateDto>

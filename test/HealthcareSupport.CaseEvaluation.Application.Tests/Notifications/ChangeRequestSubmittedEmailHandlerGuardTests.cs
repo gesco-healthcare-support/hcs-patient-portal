@@ -72,7 +72,7 @@ public class ChangeRequestSubmittedEmailHandlerGuardTests
         };
 
         /// <summary>The consent-link holders; empty unless a test lists them. The ctor args are never dereferenced.</summary>
-        public ConsentLinkHolders LinkHolders { get; } = Substitute.For<ConsentLinkHolders>(null, null);
+        public ConsentLinkHolders LinkHolders { get; } = Substitute.For<ConsentLinkHolders>(null, null, null);
 
         public ChangeRequestSubmittedEmailHandler Build()
         {
