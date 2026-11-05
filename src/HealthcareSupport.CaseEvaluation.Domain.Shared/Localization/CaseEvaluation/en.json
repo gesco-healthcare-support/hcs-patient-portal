@@ -341,7 +341,7 @@
     "CaseEvaluation:Appointment.ReBookSourceAlreadyReBooked": "That appointment has already been booked again. Use the newer appointment's confirmation number instead.",
     "CaseEvaluation:AppointmentInvalidTransition": "This action is not allowed from the appointment's current status. The status may have changed in another tab -- refresh and try again.",
     "CaseEvaluation:Appointment.AccessorRoleNotAllowed": "The accessor type must be Patient, Applicant Attorney, Applicant Paralegal, Defense Attorney, Defense Paralegal or Claim Examiner.",
-    "CaseEvaluation:Appointment.AttorneyMailRedirectAttorneyOnly": "Only the booking attorney can send this case's notifications to a paralegal.",
+    "CaseEvaluation:Appointment.AttorneyMailRedirectAttorneyOnly": "Only the attorney named on this case can send its notifications to a paralegal.",
     "CaseEvaluation:Appointment.AttorneyMailRedirectNeedsParalegal": "Add your paralegal as an Authorized User before sending this case's notifications to them.",
     "CaseEvaluation:Appointment.AccessorOtherSideNotAllowed": "You can add an attorney or paralegal of your own side only.",
     "CaseEvaluation:Appointment.AccessorRoleMismatch": "The accessor '{email}' is already registered with a different user type. Select the correct accessor type and try again.",
