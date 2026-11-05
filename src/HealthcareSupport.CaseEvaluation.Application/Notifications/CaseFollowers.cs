@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
@@ -15,6 +16,9 @@ namespace HealthcareSupport.CaseEvaluation.Notifications;
 /// account that submitted the request; <see cref="IsPatientRole"/> marks an account holding the Patient
 /// role; <see cref="Role"/> is the recipient tag for the mail (null when no party role applies);
 /// <see cref="RoleNames"/> is what the account holds, for the packet-visibility check.
+/// <see cref="AdderRoleNames"/> (2026-11-04) is what the account that ADDED the accessor row holds (null for
+/// the booker, and for a row whose adder is unknown); it decides whether a law-office accessor may answer a
+/// consent request for its side (<see cref="ConsentSideFollowerRule"/>).
 /// </summary>
 public sealed record CaseFollower(
     string Email,
@@ -22,7 +26,8 @@ public sealed record CaseFollower(
     bool IsBooker,
     bool IsPatientRole,
     RecipientRole? Role,
-    IReadOnlyList<string> RoleNames);
+    IReadOnlyList<string> RoleNames,
+    IReadOnlyList<string>? AdderRoleNames = null);
 
 /// <summary>
 /// Case followers in email routing (2026-11-04). The followers of an appointment are its external booker
@@ -38,12 +43,12 @@ public sealed record CaseFollower(
 public static class CaseFollowers
 {
     /// <summary>
-    /// The ONE switch for packets to accessors (open question for the office: should an accessor get the
-    /// attorney packet?). False: no accessor gets a packet (the booker still does, through
-    /// <see cref="AttorneyPacketBookerRecipient"/>). True: an accessor gets the attorney / claim examiner
-    /// packet when <c>PacketVisibility</c> allows one of its roles. Nothing else changes when it is flipped.
+    /// The ONE switch for packets to accessors (office decision 4, 2026-11-04: ON). False: no accessor gets
+    /// a packet (the booker still does, through <see cref="AttorneyPacketBookerRecipient"/>). True: an
+    /// accessor gets the attorney / claim examiner packet when <c>PacketVisibility</c> allows one of its
+    /// roles, so a Patient-role accessor never gets it. Nothing else changes when it is flipped.
     /// </summary>
-    public const bool AccessorsReceivePackets = false;
+    public const bool AccessorsReceivePackets = true;
 
     /// <summary>The recipient tag for an account's roles; null when it holds no party role.</summary>
     public static RecipientRole? RoleOf(IEnumerable<string?> roleNames)
@@ -77,9 +82,12 @@ public static class CaseFollowers
     public static List<SendAppointmentEmailArgs> Append(
         IEnumerable<SendAppointmentEmailArgs> recipients,
         DocumentEmailContext ctx,
-        bool patientRoleAllowed)
+        bool patientRoleAllowed,
+        bool requestReceipt = false)
     {
-        var result = recipients.ToList();
+        var result = recipients
+            .Where(r => !IsExcluded(ctx, r.To, requestReceipt))
+            .ToList();
         var present = new HashSet<string>(
             result.Select(r => (r.To ?? string.Empty).Trim()), StringComparer.OrdinalIgnoreCase);
         foreach (var follower in Eligible(ctx, patientRoleAllowed, patientNever: false))
@@ -105,6 +113,46 @@ public static class CaseFollowers
     {
         return AppendCore(recipients, ctx, patientRoleAllowed, patientNever: false);
     }
+
+    /// <summary>
+    /// True when <paramref name="email"/> must get NO mail about this appointment (2026-11-04): the
+    /// lawyer's address while the "send my mail to the paralegal instead" redirect applies, and -- except
+    /// for the request receipt (<paramref name="requestReceipt"/>) -- the address of a booker who opted
+    /// out of following the case and is not also a named party.
+    /// </summary>
+    public static bool IsExcluded(DocumentEmailContext ctx, string? email, bool requestReceipt = false)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return false;
+        }
+        var address = email.Trim();
+        if (ctx.RedirectedAddresses.Contains(address, StringComparer.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+        return !requestReceipt
+            && !string.IsNullOrWhiteSpace(ctx.OptedOutBookerAddress)
+            && string.Equals(ctx.OptedOutBookerAddress.Trim(), address, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// The case followers who get the consent LINK for <paramref name="side"/> besides its representative
+    /// (office decision 3, 2026-11-04): those <see cref="ConsentSideFollowerRule.MaySpeakForSide"/> allows. The
+    /// same link goes to all of them; the first answer wins. A booker who opted out is not a follower.
+    /// </summary>
+    public static List<NotificationRecipient> ConsentLinkFollowers(DocumentEmailContext ctx, ChangeRequestSide side)
+    {
+        return ctx.Followers
+            .Where(f => ConsentSideFollowerRule.MaySpeakForSide(side, f.RoleNames, f.IsBooker, f.AdderRoleNames))
+            .Select(f => new NotificationRecipient(email: f.Email, role: f.Role, isRegistered: true))
+            .ToList();
+    }
+
+    /// <summary>The recipients minus every address that must get nothing (see <see cref="IsExcluded"/>).</summary>
+    public static List<NotificationRecipient> Exclude(
+        IEnumerable<NotificationRecipient> recipients, DocumentEmailContext ctx) =>
+        recipients.Where(r => !IsExcluded(ctx, r.Email)).ToList();
 
     /// <summary>
     /// The append for the consent INFO notice: the patient never gets it, so a follower with a patient
@@ -147,7 +195,7 @@ public static class CaseFollowers
         bool patientRoleAllowed,
         bool patientNever)
     {
-        var result = recipients.ToList();
+        var result = Exclude(recipients, ctx);
         var present = new HashSet<string>(
             result.Select(r => (r.Email ?? string.Empty).Trim()), StringComparer.OrdinalIgnoreCase);
         foreach (var follower in Eligible(ctx, patientRoleAllowed, patientNever))

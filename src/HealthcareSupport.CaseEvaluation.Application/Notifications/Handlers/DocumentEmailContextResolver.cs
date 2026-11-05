@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentAccessors;
+using HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 using HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes;
 using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
@@ -103,12 +104,31 @@ public class DocumentEmailContextResolver : ITransientDependency
 
         // 2026-11-04: the case followers -- the external booker and every accessor -- loaded once for
         // every handler that mails the parties (see CaseFollowers).
-        var followers = await ResolveFollowersAsync(appointmentId, bookerUser, creatorRoles);
+        var allFollowers = await ResolveFollowersAsync(appointmentId, bookerUser, creatorRoles);
 
-        var primaryRecipientEmail = AttorneyRecipientPromotion.ResolvePrimaryRecipientEmail(
+        // 2026-11-04 (office decisions 1 and 2): the booker's mail choices. A booker who opted out gets
+        // only the request receipt; the lawyer whose mail is redirected gets nothing while at least one
+        // active paralegal Authorized User of that side remains. See CaseFollowers.IsExcluded.
+        var bookerOptedOut = bookerUser != null && !AppointmentMailPreferences.BookerFollowsCase(appointment);
+        var redirect = AppointmentMailPreferences.GetAttorneyMailRedirect(appointment);
+        var activeParalegalExists = redirect != null && allFollowers.Any(f =>
+            !f.IsBooker && f.RoleNames.Any(r => string.Equals(
+                r, AppointmentMailPreferences.ParalegalRoleOf(redirect.Side), StringComparison.OrdinalIgnoreCase)));
+        var redirectApplies = redirect != null && redirect.AppliesTo(appointment, activeParalegalExists);
+        var redirected = redirectApplies ? new[] { redirect!.LawyerEmail } : Array.Empty<string>();
+        bool IsRedirected(string? email) =>
+            !string.IsNullOrWhiteSpace(email)
+            && redirected.Contains(email.Trim(), StringComparer.OrdinalIgnoreCase);
+        string? HideRedirected(string? email) => IsRedirected(email) ? null : email;
+
+        var followers = allFollowers
+            .Where(f => !(bookerOptedOut && f.IsBooker) && !IsRedirected(f.Email))
+            .ToList();
+
+        var primaryRecipientEmail = HideRedirected(AttorneyRecipientPromotion.ResolvePrimaryRecipientEmail(
             creatorRoles,
             appointment.ApplicantAttorneyEmail,
-            appointment.DefenseAttorneyEmail);
+            appointment.DefenseAttorneyEmail));
         var greetingName = primaryRecipientEmail != null
             ? await ResolveAttorneyGreetingNameAsync(appointment, primaryRecipientEmail)
             : null;
@@ -150,6 +170,17 @@ public class DocumentEmailContextResolver : ITransientDependency
             && ((patient?.IdentityUserId is { } patientLogin && patientLogin == creatorUser.Id)
                 || patientAddresses.Any(a => string.Equals(a, creatorUser.Email, StringComparison.OrdinalIgnoreCase)));
 
+        // An opted-out booker who is also a named party still gets the party mail, so only a booker
+        // whose address is on no party column is cut from the later mail.
+        var bookerAddress = bookerUser?.Email?.Trim();
+        var bookerIsNamedParty = !string.IsNullOrWhiteSpace(bookerAddress)
+            && new[]
+            {
+                appointment.PatientEmail, appointment.ApplicantAttorneyEmail, appointment.DefenseAttorneyEmail,
+                appointment.ClaimExaminerEmail, patient?.Email,
+            }.Any(e => string.Equals(e?.Trim(), bookerAddress, StringComparison.OrdinalIgnoreCase));
+        var optedOutBookerAddress = bookerOptedOut && !bookerIsNamedParty ? bookerAddress : null;
+
         // Route through IAccountUrlBuilder. Tenant comes from the
         // appointment row's TenantId (the source of truth) rather than
         // _currentTenant.Name (which is null inside the
@@ -164,8 +195,16 @@ public class DocumentEmailContextResolver : ITransientDependency
             AppointmentDate = appointment.AppointmentDate,
             AppointmentStatus = appointment.AppointmentStatus,
             DueDate = appointment.DueDate,
-            BookerEmail = bookerUser?.Email,
-            BookerUserId = bookerUser?.Id,
+            // The receipt still goes to an opted-out booker (ReceiptBookerEmail); every later anchor drops
+            // the booker, and so does a redirected lawyer's address.
+            ReceiptBookerEmail = HideRedirected(bookerUser?.Email),
+            ReceiptCreatorEmail = HideRedirected(creatorUser?.Email),
+            BookerEmail = bookerOptedOut ? null : HideRedirected(bookerUser?.Email),
+            BookerUserId = bookerOptedOut ? null : bookerUser?.Id,
+            BookerOptedOut = bookerOptedOut,
+            OptedOutBookerAddress = optedOutBookerAddress,
+            RedirectedAddresses = redirected,
+            RedirectSide = redirectApplies ? redirect!.Side : null,
             CreatorIsStaff = creatorIsStaff,
             Followers = followers,
             PatientAddresses = patientAddresses,
@@ -177,11 +216,11 @@ public class DocumentEmailContextResolver : ITransientDependency
             PatientEmail = patient?.Email ?? appointment.PatientEmail,
             // 2026-06-11: denormalized AA email, used as the patient-packet
             // fallback recipient when the patient has no email of their own.
-            ApplicantAttorneyEmail = appointment.ApplicantAttorneyEmail,
+            ApplicantAttorneyEmail = HideRedirected(appointment.ApplicantAttorneyEmail),
             // Phase 4 (C3/D3/D5): denormalized DA email + creator-derived
             // promotion fields (null/false when no attorney-booker promotion).
-            DefenseAttorneyEmail = appointment.DefenseAttorneyEmail,
-            CreatorEmail = creatorUser?.Email,
+            DefenseAttorneyEmail = HideRedirected(appointment.DefenseAttorneyEmail),
+            CreatorEmail = bookerOptedOut ? null : HideRedirected(creatorUser?.Email),
             PrimaryRecipientEmail = primaryRecipientEmail,
             IsPromoted = primaryRecipientEmail != null,
             GreetingName = greetingName,
@@ -220,6 +259,7 @@ public class DocumentEmailContextResolver : ITransientDependency
         }
 
         var accessors = await _accessorRepository.GetListAsync(a => a.AppointmentId == appointmentId);
+        var adderRoles = new Dictionary<Guid, IReadOnlyList<string>>();
         foreach (var accessor in accessors)
         {
             var user = await _userManager.FindByIdAsync(accessor.IdentityUserId.ToString());
@@ -234,7 +274,10 @@ public class DocumentEmailContextResolver : ITransientDependency
                 continue;
             }
 
-            var follower = ToFollower(user, roles, isBooker: false);
+            var follower = ToFollower(user, roles, isBooker: false) with
+            {
+                AdderRoleNames = await ResolveAdderRolesAsync(accessor.CreatorId, adderRoles),
+            };
             if (seen.Add(follower.Email))
             {
                 followers.Add(follower);
@@ -242,6 +285,27 @@ public class DocumentEmailContextResolver : ITransientDependency
         }
 
         return followers;
+    }
+
+    /// <summary>The roles of the account that added an accessor row; null when the adder is unknown.</summary>
+    private async Task<IReadOnlyList<string>?> ResolveAdderRolesAsync(
+        Guid? adderId, Dictionary<Guid, IReadOnlyList<string>> cache)
+    {
+        if (!adderId.HasValue || adderId.Value == Guid.Empty)
+        {
+            return null;
+        }
+        if (cache.TryGetValue(adderId.Value, out var known))
+        {
+            return known;
+        }
+        var adder = await _userManager.FindByIdAsync(adderId.Value.ToString());
+        IReadOnlyList<string>? roles = adder == null ? null : (await _userManager.GetRolesAsync(adder)).ToList();
+        if (roles != null)
+        {
+            cache[adderId.Value] = roles;
+        }
+        return roles;
     }
 
     private static CaseFollower ToFollower(IdentityUser user, IEnumerable<string> roles, bool isBooker)
@@ -381,6 +445,29 @@ public class DocumentEmailContext
     public AppointmentStatusType AppointmentStatus { get; set; }
     public DateTime? DueDate { get; set; }
     public string? BookerEmail { get; set; }
+
+    /// <summary>2026-11-04: the booker's address for the request RECEIPT, the one mail an opted-out booker
+    /// still gets (<see cref="BookerEmail"/> is null for them). Null for a staff submitter.</summary>
+    public string? ReceiptBookerEmail { get; set; }
+
+    /// <summary>2026-11-04: the creator's address for the request receipt's "CC the creator" step
+    /// (<see cref="CreatorEmail"/> is null for an opted-out booker).</summary>
+    public string? ReceiptCreatorEmail { get; set; }
+
+    /// <summary>2026-11-04 (decision 1): the booker unticked "follow the case". <see cref="BookerEmail"/>,
+    /// <see cref="BookerUserId"/> and <see cref="CreatorEmail"/> are null and the booker is not a follower.</summary>
+    public bool BookerOptedOut { get; set; }
+
+    /// <summary>2026-11-04: the opted-out booker's address when it is on no party column (so only the
+    /// receipt may reach it); null otherwise. See <see cref="CaseFollowers.IsExcluded"/>.</summary>
+    public string? OptedOutBookerAddress { get; set; }
+
+    /// <summary>2026-11-04 (decision 2): the lawyer's address while the redirect applies; it gets NO mail
+    /// about this appointment. Empty when no redirect is in force. Never null.</summary>
+    public IReadOnlyList<string> RedirectedAddresses { get; set; } = Array.Empty<string>();
+
+    /// <summary>2026-11-04: the side whose lawyer's mail is redirected right now; null when none.</summary>
+    public ChangeRequestSide? RedirectSide { get; set; }
 
     /// <summary>2026-11-03: the submitting account's id; null for a staff submitter or an unrecorded one.</summary>
     public Guid? BookerUserId { get; set; }

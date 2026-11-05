@@ -29,8 +29,9 @@ public class AttorneyPacketBookerRecipient : ITransientDependency
 
     public virtual async Task<NotificationRecipient?> ResolveAsync(DocumentEmailContext ctx)
     {
-        // BookerUserId is already null for a staff submitter (DocumentEmailContextResolver).
-        if (ctx.BookerUserId is not { } bookerId)
+        // BookerUserId is already null for a staff submitter and for a booker who opted out of following
+        // the case (DocumentEmailContextResolver).
+        if (ctx.BookerOptedOut || ctx.BookerUserId is not { } bookerId)
         {
             return null;
         }

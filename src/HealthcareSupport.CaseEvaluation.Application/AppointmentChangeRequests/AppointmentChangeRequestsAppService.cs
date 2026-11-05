@@ -289,7 +289,7 @@ public class AppointmentChangeRequestsAppService : CaseEvaluationAppService, IAp
             await _changeRequestRepository.UpdateAsync(changeRequest, autoSave: true);
 
             await PublishConsentRequestedAsync(
-                changeRequest, resolution.OpposingRepEmail, resolution.OpposingRepRole, rawToken);
+                changeRequest, resolution.OpposingRepEmail, resolution.OpposingRepRole, rawToken, opposingSide);
             return;
         }
 
@@ -298,16 +298,16 @@ public class AppointmentChangeRequestsAppService : CaseEvaluationAppService, IAp
         changeRequest.InitiateConsent(null, submitterId);
         var bothSides = await _sideResolver.ResolveBothSidesAsync(changeRequest.AppointmentId);
 
-        var toNotify = new List<(string Email, RecipientRole Role, string Token)>();
+        var toNotify = new List<(string Email, RecipientRole Role, string Token, ChangeRequestSide Side)>();
         if (!string.IsNullOrWhiteSpace(bothSides.SideARepEmail))
         {
             var token = _consentManager.IssueSideConsent(changeRequest, ChangeRequestSide.SideA);
-            toNotify.Add((bothSides.SideARepEmail, bothSides.SideARepRole ?? RecipientRole.Patient, token));
+            toNotify.Add((bothSides.SideARepEmail, bothSides.SideARepRole ?? RecipientRole.Patient, token, ChangeRequestSide.SideA));
         }
         if (!string.IsNullOrWhiteSpace(bothSides.SideBRepEmail))
         {
             var token = _consentManager.IssueSideConsent(changeRequest, ChangeRequestSide.SideB);
-            toNotify.Add((bothSides.SideBRepEmail, bothSides.SideBRepRole ?? RecipientRole.ClaimExaminer, token));
+            toNotify.Add((bothSides.SideBRepEmail, bothSides.SideBRepRole ?? RecipientRole.ClaimExaminer, token, ChangeRequestSide.SideB));
         }
 
         if (toNotify.Count == 0)
@@ -323,9 +323,9 @@ public class AppointmentChangeRequestsAppService : CaseEvaluationAppService, IAp
 
         await _changeRequestRepository.UpdateAsync(changeRequest, autoSave: true);
 
-        foreach (var (email, role, token) in toNotify)
+        foreach (var (email, role, token, side) in toNotify)
         {
-            await PublishConsentRequestedAsync(changeRequest, email, role, token);
+            await PublishConsentRequestedAsync(changeRequest, email, role, token, side);
         }
     }
 
@@ -333,7 +333,8 @@ public class AppointmentChangeRequestsAppService : CaseEvaluationAppService, IAp
         AppointmentChangeRequest changeRequest,
         string recipientEmail,
         RecipientRole recipientRole,
-        string rawToken)
+        string rawToken,
+        ChangeRequestSide side)
     {
         var consentUrl = await _accountUrlBuilder.BuildChangeRequestConsentUrlAsync(
             changeRequest.TenantId!.Value, rawToken);
@@ -346,6 +347,7 @@ public class AppointmentChangeRequestsAppService : CaseEvaluationAppService, IAp
             ChangeRequestType = changeRequest.ChangeRequestType,
             OpposingRecipientEmail = recipientEmail,
             OpposingRecipientRole = recipientRole,
+            Side = side,
             ConsentUrl = consentUrl,
             OccurredAt = DateTime.UtcNow,
         });

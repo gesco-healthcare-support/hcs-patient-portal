@@ -40,8 +40,13 @@ public class ChangeRequestConsentRequestEmailHandlerGuardTests
         public INotificationDispatcher Dispatcher { get; } = Substitute.For<INotificationDispatcher>();
         public IRepository<AppointmentChangeRequest, Guid> ChangeRequests { get; } = Substitute.For<IRepository<AppointmentChangeRequest, Guid>>();
 
+        // 2026-11-04: no context (a missing appointment) leaves the link with the representative alone.
+        public DocumentEmailContextResolver ContextResolver { get; } =
+            Substitute.For<DocumentEmailContextResolver>(null, null, null, null, null, null, null, null, null, null, null);
+
         public Rig()
         {
+            ContextResolver.ResolveAsync(Arg.Any<Guid>(), Arg.Any<Guid?>()).Returns((DocumentEmailContext?)null);
             ChangeRequests.FindAsync(Arg.Any<Guid>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
                 .Returns(new AppointmentChangeRequest(
                     Guid.NewGuid(), null, Guid.NewGuid(), ChangeRequestType.Cancel,
@@ -54,6 +59,7 @@ public class ChangeRequestConsentRequestEmailHandlerGuardTests
             Substitute.For<IRepository<Appointment, Guid>>(),
             Substitute.For<IRepository<DoctorAvailability, Guid>>(),
             Substitute.For<ICurrentTenant>(),
+            ContextResolver,
             NullLogger<ChangeRequestConsentRequestEmailHandler>.Instance);
 
         public List<object?[]> Dispatches() =>

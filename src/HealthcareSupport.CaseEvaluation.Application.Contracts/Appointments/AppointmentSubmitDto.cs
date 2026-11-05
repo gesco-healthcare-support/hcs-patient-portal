@@ -136,6 +136,22 @@ public class AppointmentSubmitDto
     public List<AppointmentInjurySubmitDto> InjuryDetails { get; set; } = new();
 
     public List<AppointmentAccessorCreateDto> Accessors { get; set; } = new();
+
+    /// <summary>
+    /// 2026-11-04 (office decision 1): whether the external BOOKER follows the case -- receives the
+    /// case emails and the attorney packet like an Authorized User. True by default. False: the
+    /// booker gets only the request receipt; creator access to the case is unchanged. Ignored for a
+    /// staff submitter.
+    /// </summary>
+    public bool BookerFollowsCase { get; set; } = true;
+
+    /// <summary>
+    /// 2026-11-04 (office decision 2): "send all notifications to my paralegal", INSTEAD of the lawyer.
+    /// Only a booker holding an attorney role may set it, and the same submit must carry at least one
+    /// Authorized User with that side's paralegal role. The lawyer's address then gets no email about
+    /// this appointment; the side's paralegal Authorized Users get it all.
+    /// </summary>
+    public bool SendAttorneyMailToParalegal { get; set; }
 }
 
 /// <summary>
@@ -155,20 +171,4 @@ public class AppointmentInjurySubmitDto
     /// created from <see cref="Injury"/>.
     /// </summary>
     public List<AppointmentBodyPartCreateDto> BodyParts { get; set; } = new();
-
-    /// <summary>
-    /// 2026-11-04 (office decision 1): whether the external BOOKER follows the case -- receives the
-    /// case emails and the attorney packet like an Authorized User. True by default. False: the
-    /// booker gets only the request receipt; creator access to the case is unchanged. Ignored for a
-    /// staff submitter.
-    /// </summary>
-    public bool BookerFollowsCase { get; set; } = true;
-
-    /// <summary>
-    /// 2026-11-04 (office decision 2): "send all notifications to my paralegal", INSTEAD of the lawyer.
-    /// Only a booker holding an attorney role may set it, and the same submit must carry at least one
-    /// Authorized User with that side's paralegal role. The lawyer's address then gets no email about
-    /// this appointment; the side's paralegal Authorized Users get it all.
-    /// </summary>
-    public bool SendAttorneyMailToParalegal { get; set; }
 }

@@ -142,6 +142,24 @@ internal sealed class DocumentEmailFlow
             // no patient rule applies to document mail.
             cc = CaseFollowers.Append(cc, ctx, patientRoleAllowed: true);
 
+            // 2026-11-04: an uploader who must get no mail about this appointment (the redirected lawyer, an
+            // opted-out booker) is not the To; the next recipient is, so the notice still has an addressee.
+            if (CaseFollowers.IsExcluded(ctx, to.Email))
+            {
+                var next = cc.FirstOrDefault(r => (r.Role ?? RecipientRole.Patient) != RecipientRole.OfficeAdmin)
+                    ?? cc.FirstOrDefault();
+                if (next == null)
+                {
+                    _logger.LogInformation(
+                        "{Handler}: the uploader gets no mail and nobody else is addressable for appointment {AppointmentId}; skipping.",
+                        spec.HandlerName,
+                        spec.AppointmentId);
+                    return;
+                }
+                to = next;
+                cc = cc.Where(r => !ReferenceEquals(r, next)).ToList();
+            }
+
             var variables = DocumentNotificationContext.BuildVariables(
                 patientFirstName: ctx.PatientFirstName,
                 patientLastName: ctx.PatientLastName,

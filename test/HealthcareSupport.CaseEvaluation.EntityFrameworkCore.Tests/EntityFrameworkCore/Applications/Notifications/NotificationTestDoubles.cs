@@ -100,6 +100,8 @@ public sealed class StubAppointmentRecipientResolver : IAppointmentRecipientReso
             To = r.To,
             Role = r.Role,
             IsRegistered = r.IsRegistered,
+            // 2026-11-04: kept so a test can stage the submitter's own "/booker" entry.
+            Context = r.Context,
         }).ToList());
 }
 
