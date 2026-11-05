@@ -40,6 +40,9 @@ public class IntakeDateMoveEmailTests : CaseEvaluationEntityFrameworkCoreTestBas
     private const string ClaimExaminer = "TEST-move-ce@test.local";
     private const string OfficeInbox = "TEST-move-inbox@test.local";
 
+    /// <summary>The accessor the shared seed puts on Appointment1: a case follower since 2026-11-04.</summary>
+    private const string SeededAccessor = IdentityUsersTestData.ApplicantAttorney1Email;
+
     // Field initializers run before the base constructor, so both exist when AfterAddApplication runs.
     private readonly RecordingNotificationDispatcher _dispatcher = new();
     private readonly StubAppointmentRecipientResolver _parties = new();
@@ -72,7 +75,7 @@ public class IntakeDateMoveEmailTests : CaseEvaluationEntityFrameworkCoreTestBas
         var mail = _dispatcher.Dispatches.ShouldHaveSingleItem();
         mail.TemplateCode.ShouldBe(NotificationTemplateConsts.Codes.AppointmentRescheduleRequestByAdmin);
         mail.Recipients.ShouldBe(
-            new[] { PatientEmail, ApplicantAttorney, DefenseAttorney, ClaimExaminer, OfficeInbox, intake },
+            new[] { PatientEmail, ApplicantAttorney, DefenseAttorney, ClaimExaminer, OfficeInbox, intake, SeededAccessor },
             ignoreOrder: true);
         mail.Recipients.ShouldNotContain(supervisor);
         mail.Recipients.ShouldNotContain(switchedOff);
@@ -107,7 +110,8 @@ public class IntakeDateMoveEmailTests : CaseEvaluationEntityFrameworkCoreTestBas
         var mail = _dispatcher.Dispatches.ShouldHaveSingleItem();
         mail.Recipients.ShouldNotContain(PatientEmail);
         mail.Recipients.ShouldBe(
-            new[] { ApplicantAttorney, DefenseAttorney, ClaimExaminer, OfficeInbox, intake }, ignoreOrder: true);
+            new[] { ApplicantAttorney, DefenseAttorney, ClaimExaminer, OfficeInbox, intake, SeededAccessor },
+            ignoreOrder: true);
     }
 
     /// <summary>Sent back for information is still before approval: the patient is left out.</summary>

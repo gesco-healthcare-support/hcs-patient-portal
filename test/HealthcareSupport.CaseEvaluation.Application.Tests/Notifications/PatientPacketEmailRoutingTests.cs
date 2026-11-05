@@ -44,7 +44,7 @@ public class PatientPacketEmailRoutingTests
     /// </summary>
     private static PatientPacketEmailHandler Build(INotificationDispatcher dispatcher, DocumentEmailContext? ctx)
     {
-        var resolver = Substitute.For<DocumentEmailContextResolver>(null, null, null, null, null, null, null, null, null, null);
+        var resolver = Substitute.For<DocumentEmailContextResolver>(null, null, null, null, null, null, null, null, null, null, null);
         resolver.ResolveAsync(Arg.Any<Guid>(), Arg.Any<Guid?>()).Returns(ctx);
         return new PatientPacketEmailHandler(
             dispatcher,
@@ -96,6 +96,57 @@ public class PatientPacketEmailRoutingTests
         await Build(dispatcher, Context(patientEmail, "TEST-aa@test.local")).HandleEventAsync(PatientPacket());
 
         SingleDispatch(dispatcher).Recipients.ShouldHaveSingleItem().Email.ShouldBe("TEST-aa@test.local");
+    }
+
+    // 2026-11-04 (office decision 2): with the applicant attorney's mail redirected, the context hides the
+    // lawyer's address, so a patient with no email has their packet sent to the applicant paralegal(s).
+    private static CaseFollower Follower(string email, params string[] roles) =>
+        new(email, Guid.NewGuid(), IsBooker: false, IsPatientRole: false, Role: null, RoleNames: roles);
+
+    [Fact]
+    public async Task HandleEventAsync_NoPatientEmail_SideARedirect_SendsThePacketToTheApplicantParalegals()
+    {
+        var dispatcher = Substitute.For<INotificationDispatcher>();
+        var ctx = Context(null, null);
+        ctx.RedirectSide = AppointmentChangeRequests.ChangeRequestSide.SideA;
+        ctx.Followers = new[]
+        {
+            Follower("TEST-ap-1@test.local", "Applicant Paralegal"),
+            Follower("test-ap-1@TEST.local", "Applicant Paralegal"),
+            Follower("TEST-ap-2@test.local", "Applicant Paralegal"),
+            Follower("TEST-dp@test.local", "Defense Paralegal"),
+            Follower("TEST-aa-accessor@test.local", "Applicant Attorney"),
+        };
+
+        await Build(dispatcher, ctx).HandleEventAsync(PatientPacket());
+
+        SingleDispatch(dispatcher).Recipients.Select(r => r.Email)
+            .ShouldBe(new[] { "TEST-ap-1@test.local", "TEST-ap-2@test.local" }, ignoreOrder: true);
+    }
+
+    [Fact]
+    public async Task HandleEventAsync_NoPatientEmail_SideBRedirect_ChangesNothing()
+    {
+        var dispatcher = Substitute.For<INotificationDispatcher>();
+        var ctx = Context(null, "TEST-aa@test.local");
+        ctx.RedirectSide = AppointmentChangeRequests.ChangeRequestSide.SideB;
+        ctx.Followers = new[] { Follower("TEST-ap-1@test.local", "Applicant Paralegal") };
+
+        await Build(dispatcher, ctx).HandleEventAsync(PatientPacket());
+
+        SingleDispatch(dispatcher).Recipients.ShouldHaveSingleItem().Email.ShouldBe("TEST-aa@test.local");
+    }
+
+    [Fact]
+    public async Task HandleEventAsync_NoPatientEmail_SideARedirect_NoParalegal_SendsNothing()
+    {
+        var dispatcher = Substitute.For<INotificationDispatcher>();
+        var ctx = Context(null, null);
+        ctx.RedirectSide = AppointmentChangeRequests.ChangeRequestSide.SideA;
+
+        await Build(dispatcher, ctx).HandleEventAsync(PatientPacket());
+
+        dispatcher.ReceivedCalls().ShouldBeEmpty();
     }
 
     [Fact]

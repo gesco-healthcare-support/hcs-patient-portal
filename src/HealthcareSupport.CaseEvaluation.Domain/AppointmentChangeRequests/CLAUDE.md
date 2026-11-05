@@ -103,8 +103,13 @@ matching OLD parity. The domain only guards slot availability and source-appoint
 - `PartyChangeRequestConsentAppService` (2026-10-10) -- the same consent answered from inside
   the portal by a signed-in party (`api/app/change-request-consents`). The caller may answer
   for a side only when their VERIFIED email is that side's representative (the person the link
-  was emailed to, per `ChangeRequestSideResolver.ResolveBothSidesAsync`) and they pass the
-  appointment read guard; internal staff never count as a party. It records through the
+  was emailed to, per `ChangeRequestSideResolver.ResolveBothSidesAsync`) OR (2026-11-04) they
+  are a case follower of that side -- the booker while `AppointmentMailPreferences.BookerFollowsCase`,
+  or an active Authorized User -- admitted by `ConsentSideFollowerRule.MaySpeakForSide` (a
+  law-office role of that side; an Authorized User's row must have been added by staff or by an
+  account of that side, read from the row's `CreatorId`, unknown refuses) -- and they pass the
+  appointment read guard; internal staff never count as a party. Every refusal is the one
+  `ConsentNotAvailable`. It records through the
   `ChangeRequestConsentManager.RecordDecisionAsync(ChangeRequestConsentMatch, ...)` overload,
   so the link and the portal share one rule and whichever answers first wins.
 

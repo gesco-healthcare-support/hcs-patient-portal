@@ -21,6 +21,15 @@ import { AppointmentAddClaimPartiesSectionComponent } from '../sections/appointm
 import { AppointmentAddClaimInformationComponent } from '../sections/appointment-add-claim-information.component';
 import { AppointmentAddDocumentsComponent } from '../sections/appointment-add-documents.component';
 import { AppointmentAddAuthorizedUsersComponent } from '../sections/appointment-add-authorized-users.component';
+import { AppointmentNotifyParalegalComponent } from '../sections/appointment-notify-paralegal.component';
+import {
+  isApplicantAttorneyRole,
+  isDefenseAttorneyRole,
+} from '../../shared/auth/external-user-roles';
+import {
+  notifyParalegalConflictSummary,
+  notifyParalegalSummary,
+} from '../shared/notify-paralegal.util';
 import { AppointmentAddCustomFieldsComponent } from '../sections/appointment-add-custom-fields.component';
 import { ConfirmAddressDialogComponent } from '../../shared/address/confirm-address-dialog.component';
 import { IconComponent } from '../../shared/ui/icon/icon.component';
@@ -95,6 +104,7 @@ const STEPS: WizardStep[] = [
     AppointmentAddClaimInformationComponent,
     AppointmentAddDocumentsComponent,
     AppointmentAddAuthorizedUsersComponent,
+    AppointmentNotifyParalegalComponent,
     AppointmentAddCustomFieldsComponent,
     ConfirmAddressDialogComponent,
     PrefillPickerModalComponent,
@@ -362,8 +372,9 @@ export class AppointmentWizardComponent extends AppointmentAddComponent implemen
     const control = this.form.get(
       isApplicant ? 'applicantAttorneyEnabled' : 'defenseAttorneyEnabled',
     );
+    // Attorney OR paralegal of this side: the section is required and the question not asked.
     const mandatory =
-      (isApplicant ? this.isApplicantAttorney : this.isDefenseAttorney) && !this.isItAdmin;
+      (isApplicant ? this.isApplicantSideBooker : this.isDefenseSideBooker) && !this.isItAdmin;
     if (mandatory) {
       if (control?.value !== true) {
         control?.setValue(true, { emitEvent: false });
@@ -392,6 +403,22 @@ export class AppointmentWizardComponent extends AppointmentAddComponent implemen
     let valid = fieldErrors.length === 0;
 
     if ((key === 'applicant' || key === 'defense') && !this.attorneyAnswerIsValid(key)) {
+      valid = false;
+    }
+
+    // "Send all notifications to my paralegal": ticked but incomplete blocks Continue on the
+    // booker's own-side step.
+    if (key === this.notifyParalegalSide && this.notifyParalegalInvalid) {
+      this.notifyParalegalShowErrors = true;
+      this.stepErrorSummary = [
+        ...this.stepErrorSummary,
+        ...notifyParalegalSummary(this.notifyParalegal),
+      ];
+      valid = false;
+    }
+    if (key === this.notifyParalegalSide && this.notifyParalegalConflict) {
+      this.notifyParalegalShowErrors = true;
+      this.stepErrorSummary = [...this.stepErrorSummary, notifyParalegalConflictSummary()];
       valid = false;
     }
 
@@ -502,9 +529,14 @@ export class AppointmentWizardComponent extends AppointmentAddComponent implemen
   private prefillBookingAttorney(): void {
     // Only attorney bookers have a profile to pull from; gating on role here avoids a spurious
     // 404 (and its console error) for patient / claim-examiner bookers.
-    const currentUser = this.shellConfig.getOne('currentUser') as { roles?: string[] } | null;
+    const currentUser = this.shellConfig.getOne('currentUser') as {
+      roles?: string[];
+      email?: string;
+    } | null;
     const roles = currentUser?.roles ?? [];
-    if (!roles.some((r) => r === 'Applicant Attorney' || r === 'Defense Attorney')) {
+    // Attorneys only: a paralegal is NOT the attorney of record, so their attorney section
+    // stays blank and they type the real attorney (required on their side).
+    if (!isApplicantAttorneyRole(roles) && !isDefenseAttorneyRole(roles)) {
       return;
     }
     this.myAttorneyProfile.get().subscribe({
@@ -527,7 +559,8 @@ export class AppointmentWizardComponent extends AppointmentAddComponent implemen
           Enabled: true,
           FirstName: p.firstName ?? null,
           LastName: p.lastName ?? null,
-          Email: p.email ?? null,
+          // The LOGIN email, not the attorney master's (which can differ): the field is locked to it.
+          Email: currentUser?.email ?? null,
           FirmName: p.firmName ?? null,
           WebAddress: p.webAddress ?? null,
           PhoneNumber: p.phoneNumber ?? null,
@@ -542,7 +575,14 @@ export class AppointmentWizardComponent extends AppointmentAddComponent implemen
         );
       },
       error: () => {
-        /* booker is not an attorney (404) or lookup failed -- no prefill */
+        // Profile lookup failed: the login email is still the attorney's address, so seed it
+        // (only into a blank field, never over a draft / re-request source value).
+        const control = this.form.get(
+          (isApplicantAttorneyRole(roles) ? 'applicantAttorney' : 'defenseAttorney') + 'Email',
+        );
+        if (control && currentUser?.email && !(control.value ?? '').toString().trim()) {
+          control.setValue(currentUser.email);
+        }
       },
     });
   }

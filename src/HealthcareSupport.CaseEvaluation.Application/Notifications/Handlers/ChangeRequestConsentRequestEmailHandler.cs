@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
@@ -35,6 +36,7 @@ public class ChangeRequestConsentRequestEmailHandler :
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly IRepository<DoctorAvailability, Guid> _slotRepository;
     private readonly ICurrentTenant _currentTenant;
+    private readonly DocumentEmailContextResolver _contextResolver;
     private readonly ILogger<ChangeRequestConsentRequestEmailHandler> _logger;
 
     public ChangeRequestConsentRequestEmailHandler(
@@ -43,6 +45,7 @@ public class ChangeRequestConsentRequestEmailHandler :
         IRepository<Appointment, Guid> appointmentRepository,
         IRepository<DoctorAvailability, Guid> slotRepository,
         ICurrentTenant currentTenant,
+        DocumentEmailContextResolver contextResolver,
         ILogger<ChangeRequestConsentRequestEmailHandler> logger)
     {
         _dispatcher = dispatcher;
@@ -50,6 +53,7 @@ public class ChangeRequestConsentRequestEmailHandler :
         _appointmentRepository = appointmentRepository;
         _slotRepository = slotRepository;
         _currentTenant = currentTenant;
+        _contextResolver = contextResolver;
         _logger = logger;
     }
 
@@ -105,13 +109,39 @@ public class ChangeRequestConsentRequestEmailHandler :
                 ["ConsentUrl"] = eventData.ConsentUrl,
             };
 
-            var recipients = new[]
+            // 2026-11-04 (office decisions 2 and 3): the side's link goes to its representative AND to every
+            // case follower who may answer for that side. While the lawyer's mail is redirected the
+            // representative is skipped, so the link goes only to those followers (the paralegals).
+            var recipients = new List<NotificationRecipient>();
+            var ctx = await _contextResolver.ResolveAsync(eventData.AppointmentId, appointmentDocumentId: null);
+            var representative = new NotificationRecipient(
+                email: eventData.OpposingRecipientEmail,
+                role: eventData.OpposingRecipientRole,
+                isRegistered: false);
+            var representativeRedirected = ctx != null && CaseFollowers.IsExcluded(ctx, eventData.OpposingRecipientEmail);
+            if (!representativeRedirected)
             {
-                new NotificationRecipient(
-                    email: eventData.OpposingRecipientEmail,
-                    role: eventData.OpposingRecipientRole,
-                    isRegistered: false),
-            };
+                recipients.Add(representative);
+            }
+            if (ctx != null && eventData.Side is { } side)
+            {
+                foreach (var follower in CaseFollowers.ConsentLinkFollowers(ctx, side))
+                {
+                    if (!recipients.Any(r => string.Equals(r.Email, follower.Email, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        recipients.Add(follower);
+                    }
+                }
+            }
+            if (recipients.Count == 0 && representativeRedirected)
+            {
+                // Nobody may be left unable to answer: when no Authorized User may answer for the side (e.g. the
+                // only paralegal row was planted by the other side), the link goes back to the representative.
+                _logger.LogWarning(
+                    "ChangeRequestConsentRequestEmailHandler: no Authorized User may answer change request {ChangeRequestId} for its side; the consent link goes to the side representative despite the paralegal redirect.",
+                    eventData.ChangeRequestId);
+                recipients.Add(representative);
+            }
 
             try
             {

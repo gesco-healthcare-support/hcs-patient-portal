@@ -143,6 +143,12 @@ public interface IAppointmentsAppService : IApplicationService
     Task<AppointmentDto> CreateRevalAsync(string sourceConfirmationNumber, AppointmentCreateDto input);
 
     /// <summary>
+    /// Re-evaluation whose first evaluation was booked before this portal existed: no source
+    /// appointment, a fresh confirmation number, <c>EvaluationKind.ReEvaluation</c>, no link columns.
+    /// </summary>
+    Task<AppointmentDto> CreateRevalWithoutSourceAsync(AppointmentCreateDto input);
+
+    /// <summary>
     /// Item 4 (2026-08-17) -- starts a NEW appointment from a prior one that did NOT happen
     /// (cancelled, no-showed or not-seen). Mints a fresh confirmation number, persists
     /// <c>EvaluationKind.Evaluation</c>, and links back on the REPLACEMENT chain

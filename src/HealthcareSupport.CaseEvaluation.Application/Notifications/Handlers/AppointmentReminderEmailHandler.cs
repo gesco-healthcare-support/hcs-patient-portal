@@ -100,6 +100,9 @@ public class AppointmentReminderEmailHandler :
                     role: r.Role,
                     isRegistered: r.IsRegistered))
                 .ToList();
+
+            // 2026-11-04: the case followers (external booker, accessors) are copied like the parties.
+            stakeholders = CaseFollowers.Append(stakeholders, ctx, patientRoleAllowed: true);
             if (stakeholders.Count == 0)
             {
                 _logger.LogInformation(

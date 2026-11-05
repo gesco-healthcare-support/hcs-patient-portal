@@ -78,8 +78,12 @@ export interface InviteRoleOption {
 /** External roles that can be invited (the invite-form select). */
 export const INVITE_ROLE_OPTIONS: InviteRoleOption[] = [
   { value: ExternalUserType.Patient, label: 'Patient' },
-  { value: ExternalUserType.ApplicantAttorney, label: 'Applicant Attorney' },
-  { value: ExternalUserType.DefenseAttorney, label: 'Defense Attorney' },
+  { value: ExternalUserType.ApplicantAttorney, label: 'Attorney (Applicant side)' },
+  // Paralegal roles: ExternalUserType 5 / 6 on the server. Numeric casts until the generated proxy
+  // enum (which is not hand-edited) is regenerated with the backend change.
+  { value: 5 as ExternalUserType, label: 'Paralegal (Applicant side)' },
+  { value: ExternalUserType.DefenseAttorney, label: 'Attorney (Defense side)' },
+  { value: 6 as ExternalUserType, label: 'Paralegal (Defense side)' },
   { value: ExternalUserType.ClaimExaminer, label: 'Claim Examiner' },
 ];
 

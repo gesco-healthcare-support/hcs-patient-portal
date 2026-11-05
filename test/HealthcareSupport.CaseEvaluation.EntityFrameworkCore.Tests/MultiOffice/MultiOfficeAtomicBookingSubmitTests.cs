@@ -683,6 +683,34 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
     }
 
     [Fact]
+    public async Task SubmitAsync_RevalWithoutSourceMode_NeedsNoSourceAndLinksNothing()
+    {
+        var (office, _) = await GetSeededOfficesAsync();
+        await SeedNotificationTemplatesAsync(office);
+
+        var date = TestToday.AddDays(60);
+        AppointmentSubmitResultDto? result = null;
+
+        await InOfficeAsync(office, async () =>
+        {
+            var slotId = await InsertSlotAsync(office, date, new TimeOnly(9, 0), new TimeOnly(10, 0));
+            var input = BuildSubmitDto(office, slotId, date.AddHours(9).AddMinutes(15), dayOffset: 600);
+            input.Mode = BookingSubmitMode.RevalWithoutSource;
+            input.SourceConfirmationNumber = null;
+            result = await _appointments.SubmitAsync(input);
+        });
+
+        await InOfficeAsync(office, async () =>
+        {
+            var created = await _appointmentRepository.GetAsync(result!.AppointmentId);
+            created.EvaluationKind.ShouldBe(EvaluationKind.ReEvaluation);
+            created.OriginalAppointmentId.ShouldBeNull();
+            created.RescheduledFromAppointmentId.ShouldBeNull();
+            created.RequestConfirmationNumber.ShouldNotBeNullOrWhiteSpace();
+        });
+    }
+
+    [Fact]
     public async Task SubmitAsync_ReBookMode_LinksTheSourceOnTheReplacementChain()
     {
         var (office, _) = await GetSeededOfficesAsync();
@@ -897,6 +925,126 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
         }, requiresNew: true);
     }
 
+    // ------------------------------------------------------------------ mail choices (2026-11-04)
+    //
+    // Office decisions 1 and 2: the booker may stop following the case, and an attorney may send all
+    // of the lawyer's mail to a same-side paralegal Authorized User instead. Stored on the appointment
+    // itself; refused BEFORE any write when the redirect is not allowed.
+
+    /// <summary>An external booker's opt-out is stored; the same request from staff is ignored.</summary>
+    [Fact]
+    public async Task SubmitAsync_TheOptOut_IsStoredForAnExternalBooker_AndIgnoredForStaff()
+    {
+        var (office, _) = await GetSeededOfficesAsync();
+        await SeedNotificationTemplatesAsync(office);
+        var date = TestToday.AddDays(43);
+        AppointmentSubmitResultDto? external = null;
+        AppointmentSubmitResultDto? staff = null;
+
+        await InOfficeAsAsync(office, Guid.NewGuid(), "Applicant Attorney", async () =>
+        {
+            var slotId = await InsertSlotAsync(office, date, new TimeOnly(13, 0), new TimeOnly(14, 0));
+            var input = BuildSubmitDto(office, slotId, date.AddHours(13).AddMinutes(15), dayOffset: 700);
+            input.Accessors = new List<AppointmentAccessorCreateDto>();
+            input.BookerFollowsCase = false;
+            external = await _appointments.SubmitAsync(input);
+        });
+        await InOfficeAsync(office, async () =>
+        {
+            var slotId = await InsertSlotAsync(office, date.AddDays(1), new TimeOnly(13, 0), new TimeOnly(14, 0));
+            var input = BuildSubmitDto(office, slotId, date.AddDays(1).AddHours(13).AddMinutes(15), dayOffset: 710);
+            input.Accessors = new List<AppointmentAccessorCreateDto>();
+            input.BookerFollowsCase = false;
+            staff = await _appointments.SubmitAsync(input);
+        });
+
+        await InOfficeAsync(office, async () =>
+        {
+            var optedOut = await _appointmentRepository.GetAsync(external!.AppointmentId);
+            AppointmentMailPreferences.BookerFollowsCase(optedOut).ShouldBeFalse();
+            AppointmentMailPreferences.GetAttorneyMailRedirect(optedOut).ShouldBeNull();
+
+            var byStaff = await _appointmentRepository.GetAsync(staff!.AppointmentId);
+            AppointmentMailPreferences.BookerFollowsCase(byStaff).ShouldBeTrue("a staff submitter's choice is ignored");
+        });
+    }
+
+    /// <summary>The redirect is stored with its side and the lawyer's address as booked, and the booker stops following.</summary>
+    [Fact]
+    public async Task SubmitAsync_AnAttorneyWithASameSideParalegal_StoresTheRedirectWithTheSideAndTheLawyerAddress()
+    {
+        var (office, _) = await GetSeededOfficesAsync();
+        await SeedNotificationTemplatesAsync(office);
+        var date = TestToday.AddDays(46);
+        AppointmentSubmitResultDto? result = null;
+        string? lawyer = null;
+
+        await InOfficeAsAsync(office, Guid.NewGuid(), "Applicant Attorney", async () =>
+        {
+            var slotId = await InsertSlotAsync(office, date, new TimeOnly(13, 0), new TimeOnly(14, 0));
+            var input = BuildSubmitDto(office, slotId, date.AddHours(13).AddMinutes(15), dayOffset: 720);
+            input.Accessors = new List<AppointmentAccessorCreateDto>
+            {
+                new() { Email = $"para-{Guid.NewGuid():N}@example.test", Role = "Applicant Paralegal" },
+            };
+            input.SendAttorneyMailToParalegal = true;
+            lawyer = input.ApplicantAttorneyEmail;
+            result = await _appointments.SubmitAsync(input);
+        });
+
+        await InOfficeAsync(office, async () =>
+        {
+            var stored = await _appointmentRepository.GetAsync(result!.AppointmentId);
+            var redirect = AppointmentMailPreferences.GetAttorneyMailRedirect(stored).ShouldNotBeNull();
+            redirect.Side.ShouldBe(HealthcareSupport.CaseEvaluation.AppointmentChangeRequests.ChangeRequestSide.SideA);
+            redirect.LawyerEmail.ShouldBe(lawyer);
+            AppointmentMailPreferences.BookerFollowsCase(stored).ShouldBeFalse();
+        });
+    }
+
+    /// <summary>
+    /// A paralegal, a patient or a staff caller cannot ask for the redirect (400, nothing written), and an
+    /// attorney who sends no same-side paralegal -- or only an OTHER-side one -- is refused the same way.
+    /// </summary>
+    [Theory]
+    [InlineData("Applicant Paralegal", "Applicant Paralegal", false, 47)]
+    [InlineData("Patient", "Applicant Paralegal", false, 48)]
+    [InlineData("admin", "Applicant Paralegal", false, 49)]
+    [InlineData("Applicant Attorney", null, true, 55)]
+    [InlineData("Applicant Attorney", "Defense Paralegal", true, 56)]
+    public async Task SubmitAsync_ARefusedRedirect_Throws400AndWritesNothing(
+        string callerRole, string? accessorRole, bool needsParalegal, int day)
+    {
+        var (office, _) = await GetSeededOfficesAsync();
+        await SeedNotificationTemplatesAsync(office);
+        var date = TestToday.AddDays(day);
+        var slotId = Guid.Empty;
+        var before = 0;
+        await InOfficeAsync(office, async () =>
+        {
+            slotId = await InsertSlotAsync(office, date, new TimeOnly(13, 0), new TimeOnly(14, 0));
+            before = await _appointmentRepository.CountAsync();
+        });
+
+        var input = BuildSubmitDto(office, slotId, date.AddHours(13).AddMinutes(15), dayOffset: 740);
+        input.Accessors = accessorRole == null
+            ? new List<AppointmentAccessorCreateDto>()
+            : new List<AppointmentAccessorCreateDto>
+            {
+                new() { Email = $"para-{Guid.NewGuid():N}@example.test", Role = accessorRole },
+            };
+        input.SendAttorneyMailToParalegal = true;
+
+        var thrown = await Should.ThrowAsync<BusinessException>(
+            () => InOfficeAsAsync(office, Guid.NewGuid(), callerRole, () => _appointments.SubmitAsync(input)));
+
+        thrown.Code.ShouldBe(needsParalegal
+            ? CaseEvaluationDomainErrorCodes.AppointmentAttorneyMailRedirectNeedsParalegal
+            : CaseEvaluationDomainErrorCodes.AppointmentAttorneyMailRedirectAttorneyOnly);
+        await InOfficeAsync(office, async () =>
+            (await _appointmentRepository.CountAsync()).ShouldBe(before, "a refused submit writes nothing"));
+    }
+
     // ------------------------------------------------------------------ helpers
 
     /// <summary>
@@ -941,6 +1089,34 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
             var injuryIds = injuries.Select(i => i.Id).ToList();
             (await _bodyParts.CountAsync(x => injuryIds.Contains(x.AppointmentInjuryDetailId))).ShouldBe(3);
         });
+    }
+
+    /// <summary>
+    /// Office decision 3 (2026-11-04), the same-side rule at booking: an applicant-side booker may submit an
+    /// Authorized User of their own side. The refusal of an other-side one, with the whole booking rolled
+    /// back, is proved on real SQL Server in <c>BookingAtomicitySqlServerTests</c>.
+    /// </summary>
+    [Fact]
+    public async Task SubmitAsync_WithAnApplicantParalegalAccessor_ByAnApplicantAttorney_Books()
+    {
+        var (office, _) = await GetSeededOfficesAsync();
+        await SeedNotificationTemplatesAsync(office);
+        var date = TestToday.AddDays(52);
+        AppointmentSubmitResultDto? result = null;
+
+        await InOfficeAsAsync(office, Guid.NewGuid(), "Applicant Attorney", async () =>
+        {
+            var slotId = await InsertSlotAsync(office, date, new TimeOnly(14, 0), new TimeOnly(15, 0));
+            var input = BuildSubmitDto(office, slotId, date.AddHours(14).AddMinutes(15), dayOffset: 530);
+            input.Accessors = new List<AppointmentAccessorCreateDto>
+            {
+                new() { Email = $"ap-{Guid.NewGuid():N}@example.test", Role = "Applicant Paralegal" },
+            };
+            result = await _appointments.SubmitAsync(input);
+        });
+
+        result.ShouldNotBeNull();
+        result!.Accessors.ShouldBe(1);
     }
 
     /// <summary>

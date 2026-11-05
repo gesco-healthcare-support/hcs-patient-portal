@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.AppointmentAccessors;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
 using HealthcareSupport.CaseEvaluation.Notifications;
@@ -217,6 +218,17 @@ public class BookingSubmissionEmailHandlerTests : CaseEvaluationEntityFrameworkC
     public async Task NoParties_SendsNoRequestNotice()
     {
         // Positive control: the first Fact, the same booking with the parties resolved.
+        // 2026-11-04: the shared seed's accessor of Appointment1 is a case follower and would be mailed,
+        // so this test (about "no parties") takes it off the appointment first.
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (GetRequiredService<ICurrentTenant>().Change(TenantsTestData.TenantARef))
+            {
+                await AccessorTestSeeder.RemoveAllAsync(
+                    GetRequiredService<IRepository<AppointmentAccessor, Guid>>(), AppointmentsTestData.Appointment1Id);
+            }
+        });
+
         await RaiseAsync(bookerUserId: IdentityUsersTestData.Patient1UserId);
 
         _dispatcher.Dispatches.ShouldBeEmpty();

@@ -989,11 +989,14 @@
       <div class="ad-card" id="ad-sec-users">
         <div class="ad-card__head">
           <span class="ic tint-slate"><app-icon name="users" [size]="18" /></span>
-          <h3>Authorized users</h3>
+          <h3>Paralegal / Authorized users</h3>
         </div>
         <div class="ad-card__body">
+          @if (followerNoteText) {
+            <div class="ad-empty" id="follower-note">{{ followerNoteText }}</div>
+          }
           @if (appointmentAuthorizedUsers.length === 0) {
-            <div class="ad-empty">No additional authorized users.</div>
+            <div class="ad-empty">No paralegals or additional authorized users.</div>
           } @else {
             <table class="ad-table">
               <thead>

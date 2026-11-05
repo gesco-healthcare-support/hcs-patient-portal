@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
+using HealthcareSupport.CaseEvaluation.Notifications;
+using HealthcareSupport.CaseEvaluation.Notifications.Handlers;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Identity;
 
@@ -22,11 +24,16 @@ public class ConsentLinkHolders : ITransientDependency
 {
     private readonly ChangeRequestSideResolver _sideResolver;
     private readonly IdentityUserManager _userManager;
+    private readonly DocumentEmailContextResolver _contextResolver;
 
-    public ConsentLinkHolders(ChangeRequestSideResolver sideResolver, IdentityUserManager userManager)
+    public ConsentLinkHolders(
+        ChangeRequestSideResolver sideResolver,
+        IdentityUserManager userManager,
+        DocumentEmailContextResolver contextResolver)
     {
         _sideResolver = sideResolver;
         _userManager = userManager;
+        _contextResolver = contextResolver;
     }
 
     /// <summary>The addresses the consent emails for this submission are sent to.</summary>
@@ -45,15 +52,49 @@ public class ConsentLinkHolders : ITransientDependency
         if (AppointmentSubmitter.HoldsStaffRole(roles))
         {
             var both = await _sideResolver.ResolveBothSidesAsync(appointmentId);
-            return new[] { both.SideARepEmail, both.SideBRepEmail }
+            var asked = new List<ChangeRequestSide>();
+            if (!string.IsNullOrWhiteSpace(both.SideARepEmail))
+            {
+                asked.Add(ChangeRequestSide.SideA);
+            }
+            if (!string.IsNullOrWhiteSpace(both.SideBRepEmail))
+            {
+                asked.Add(ChangeRequestSide.SideB);
+            }
+            var reps = new[] { both.SideARepEmail, both.SideBRepEmail }
                 .Where(e => !string.IsNullOrWhiteSpace(e))
                 .Select(e => e!)
                 .ToList();
+            return await WithSideFollowersAsync(appointmentId, reps, asked);
         }
 
         // Matched on the CONFIRMED email only, as the consent issuer does.
         var verifiedEmail = submitter is { EmailConfirmed: true } ? submitter.Email : null;
         var side = await _sideResolver.ResolveAsync(appointmentId, verifiedEmail, roles);
-        return side == null ? Array.Empty<string>() : new[] { side.OpposingRepEmail };
+        if (side == null)
+        {
+            return Array.Empty<string>();
+        }
+        var opposing = side.RequestingSide == ChangeRequestSide.SideA ? ChangeRequestSide.SideB : ChangeRequestSide.SideA;
+        return await WithSideFollowersAsync(appointmentId, new[] { side.OpposingRepEmail }, new[] { opposing });
+    }
+
+    /// <summary>
+    /// 2026-11-04 (office decision 3): the case followers who may answer for an asked side get that side's
+    /// link too, so they hold a link as well and stay off the request-submitted notice.
+    /// </summary>
+    private async Task<IReadOnlyList<string>> WithSideFollowersAsync(
+        Guid appointmentId, IEnumerable<string> representatives, IReadOnlyCollection<ChangeRequestSide> askedSides)
+    {
+        var holders = new List<string>(representatives);
+        var ctx = await _contextResolver.ResolveAsync(appointmentId, appointmentDocumentId: null);
+        if (ctx != null)
+        {
+            foreach (var side in askedSides)
+            {
+                holders.AddRange(CaseFollowers.ConsentLinkFollowers(ctx, side).Select(f => f.Email));
+            }
+        }
+        return holders;
     }
 }

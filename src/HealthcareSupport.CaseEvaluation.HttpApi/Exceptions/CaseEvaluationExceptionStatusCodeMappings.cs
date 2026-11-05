@@ -53,6 +53,17 @@ public static class CaseEvaluationExceptionStatusCodeMappings
             CaseEvaluationDomainErrorCodes.AppointmentAttorneyFirmNameRequired,
             HttpStatusCode.BadRequest);
 
+        // 2026-11-04: the booker's mail choices and the same-side Authorized User rule.
+        options.Map(
+            CaseEvaluationDomainErrorCodes.AppointmentAttorneyMailRedirectAttorneyOnly,
+            HttpStatusCode.BadRequest);
+        options.Map(
+            CaseEvaluationDomainErrorCodes.AppointmentAttorneyMailRedirectNeedsParalegal,
+            HttpStatusCode.BadRequest);
+        options.Map(
+            CaseEvaluationDomainErrorCodes.AppointmentAccessorOtherSideNotAllowed,
+            HttpStatusCode.BadRequest);
+
         // Internal-user (IT-Admin) creation flow.
         options.Map(
             CaseEvaluationDomainErrorCodes.InternalUserInvalidRole,

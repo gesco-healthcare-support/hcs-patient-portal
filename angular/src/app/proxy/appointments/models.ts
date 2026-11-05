@@ -96,6 +96,8 @@ export interface AppointmentDto extends FullAuditedEntityDto<string> {
   defenseAttorneyStateId?: string | null;
   defenseAttorneyZipCode?: string | null;
   refferedBy?: string | null;
+  bookerFollowsCase?: boolean;
+  attorneyMailToParalegal?: boolean;
 }
 
 export interface AppointmentInjurySubmitDto {
@@ -142,6 +144,8 @@ export interface AppointmentSubmitDto {
   claimExaminer?: AppointmentClaimExaminerCreateDto | null;
   injuryDetails?: AppointmentInjurySubmitDto[];
   accessors?: AppointmentAccessorCreateDto[];
+  bookerFollowsCase?: boolean;
+  sendAttorneyMailToParalegal?: boolean;
 }
 
 export interface AppointmentSubmitResultDto {

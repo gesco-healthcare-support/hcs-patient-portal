@@ -1,16 +1,34 @@
-<!-- #121 phase T2 (2026-05-13) -- "Additional Authorized User" table +
+<!-- #121 phase T2 (2026-05-13) -- "Paralegal / Authorized User" table +
      modal. Parent gates visibility (Claim Examiner bookers hide this
      per OLD's B11 parity rule) so this child renders the section
      unconditionally when mounted. -->
 <div class="card mb-4">
   <div class="card-header d-flex justify-content-between align-items-center">
-    <h5 class="card-title mb-0 fw-bold">Additional Authorized User</h5>
+    <h5 class="card-title mb-0 fw-bold">Paralegal / Authorized User</h5>
     <button type="button" class="btn btn-primary btn-sm" (click)="openAddAuthorizedUserModal()">
       Add
       <i class="fa fa-plus ms-1"></i>
     </button>
   </div>
   <div class="card-body">
+    @if (showBookerFollows) {
+      <div class="form-check mb-3">
+        <input
+          class="form-check-input"
+          type="checkbox"
+          id="booker-follows-case"
+          [checked]="bookerFollows"
+          [disabled]="bookerFollowsDisabled"
+          (change)="bookerFollowsChange.emit($any($event.target).checked)"
+        />
+        <label class="form-check-label fw-semibold" for="booker-follows-case">
+          Add me as an Authorized User (I get every email about this case)
+        </label>
+        <div class="text-secondary small">
+          Untick it to get only the request receipt. You can still sign in to see the case.
+        </div>
+      </div>
+    }
     <div class="table-responsive">
       <table class="table table-sm align-middle mb-0">
         <thead class="table-light">
@@ -68,7 +86,9 @@
         <div class="modal-header">
           <h5 class="modal-title">
             {{
-              authorizedUserModalMode === 'edit' ? 'Edit Authorized User' : 'Add Authorized User'
+              authorizedUserModalMode === 'edit'
+                ? 'Edit Paralegal / Authorized User'
+                : 'Add Paralegal / Authorized User'
             }}
           </h5>
           <button
@@ -135,7 +155,7 @@
               >
                 <option value="">Select role</option>
                 @for (role of roleOptions; track role) {
-                  <option [value]="role">{{ role }}</option>
+                  <option [value]="role">{{ roleLabel(role) }}</option>
                 }
               </select>
               @if (
