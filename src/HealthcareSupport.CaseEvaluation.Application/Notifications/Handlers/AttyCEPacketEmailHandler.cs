@@ -133,6 +133,10 @@ public class AttyCEPacketEmailHandler :
                 recipients.Add(booker);
             }
 
+            // 2026-11-04: accessors get the packet only while CaseFollowers.AccessorsReceivePackets is on
+            // (off today), and then only when PacketVisibility allows one of their roles.
+            recipients.AddRange(CaseFollowers.AccessorPacketRecipients(ctx));
+
             recipients = recipients
                 .GroupBy(r => r.Email.Trim(), StringComparer.OrdinalIgnoreCase)
                 .Select(g => g.First())

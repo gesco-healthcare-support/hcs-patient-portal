@@ -85,6 +85,9 @@ public class ChangeRequestRejectedEmailHandler :
             // 2026-11-02: the office's Intake Staff are copied on the decision.
             await _officeRecipients.AppendIntakeAsync(recipients);
 
+            // 2026-11-04: the case followers (external booker, accessors) are copied like the parties.
+            recipients = CaseFollowers.Append(recipients, ctx, patientRoleAllowed: true);
+
             if (recipients.Count == 0)
             {
                 _logger.LogInformation(

@@ -5,6 +5,7 @@ export enum BookingSubmitMode {
   ReSubmit = 1,
   Reval = 2,
   ReBook = 3,
+  RevalWithoutSource = 4,
 }
 
 export const bookingSubmitModeOptions = mapEnumToOptions(BookingSubmitMode);

@@ -3,10 +3,13 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.AppointmentAccessors;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
+using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Notifications;
 using Volo.Abp;
+using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Identity;
 
 namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Notifications;
@@ -98,6 +101,24 @@ public sealed class StubAppointmentRecipientResolver : IAppointmentRecipientReso
             Role = r.Role,
             IsRegistered = r.IsRegistered,
         }).ToList());
+}
+
+/// <summary>
+/// 2026-11-04: accessor rows for the case-follower tests. The shared test seed puts one accessor
+/// (<c>IdentityUsersTestData.ApplicantAttorney1</c>, role Applicant Attorney) on Appointment1, so a test
+/// that is about "nobody to tell" removes it first, and a test about followers adds its own. Call inside
+/// a unit of work with the office entered.
+/// </summary>
+public static class AccessorTestSeeder
+{
+    /// <summary>Soft-deletes every accessor row of the appointment.</summary>
+    public static Task RemoveAllAsync(IRepository<AppointmentAccessor, Guid> accessors, Guid appointmentId) =>
+        accessors.DeleteAsync(a => a.AppointmentId == appointmentId, autoSave: true);
+
+    /// <summary>Makes <paramref name="userId"/> an accessor (View) of the appointment.</summary>
+    public static Task AddAsync(IRepository<AppointmentAccessor, Guid> accessors, Guid userId, Guid appointmentId) =>
+        accessors.InsertAsync(
+            new AppointmentAccessor(Guid.NewGuid(), userId, appointmentId, AccessType.View), autoSave: true);
 }
 
 /// <summary>Creates users in named roles inside whatever tenant scope the caller has entered.</summary>

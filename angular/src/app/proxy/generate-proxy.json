@@ -13217,6 +13217,23 @@
                   }
                 },
                 {
+                  "name": "CreateRevalWithoutSourceAsync",
+                  "parametersOnMethod": [
+                    {
+                      "name": "input",
+                      "typeAsString": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentCreateDto, HealthcareSupport.CaseEvaluation.Application.Contracts",
+                      "type": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentCreateDto",
+                      "typeSimple": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentCreateDto",
+                      "isOptional": false,
+                      "defaultValue": null
+                    }
+                  ],
+                  "returnValue": {
+                    "type": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentDto",
+                    "typeSimple": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentDto"
+                  }
+                },
+                {
                   "name": "CreateReBookAsync",
                   "parametersOnMethod": [
                     {
@@ -14770,6 +14787,43 @@
                   "bindingSourceId": "Path",
                   "descriptorName": ""
                 },
+                {
+                  "nameOnMethod": "input",
+                  "name": "input",
+                  "jsonName": null,
+                  "type": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentCreateDto",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentCreateDto",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Body",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentDto",
+                "typeSimple": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentDto"
+              },
+              "allowAnonymous": null,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.Appointments.IAppointmentsAppService"
+            },
+            "CreateRevalWithoutSourceAsyncByInput": {
+              "uniqueName": "CreateRevalWithoutSourceAsyncByInput",
+              "name": "CreateRevalWithoutSourceAsync",
+              "httpMethod": "POST",
+              "url": "api/app/appointments/create-reval-without-source",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "input",
+                  "typeAsString": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentCreateDto, HealthcareSupport.CaseEvaluation.Application.Contracts",
+                  "type": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentCreateDto",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentCreateDto",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
                 {
                   "nameOnMethod": "input",
                   "name": "input",
@@ -61916,13 +61970,15 @@
         "Create",
         "ReSubmit",
         "Reval",
-        "ReBook"
+        "ReBook",
+        "RevalWithoutSource"
       ],
       "enumValues": [
         0,
         1,
         2,
-        3
+        3,
+        4
       ],
       "genericArguments": null,
       "properties": null
@@ -62479,13 +62535,17 @@
         "Patient",
         "ClaimExaminer",
         "ApplicantAttorney",
-        "DefenseAttorney"
+        "DefenseAttorney",
+        "ApplicantParalegal",
+        "DefenseParalegal"
       ],
       "enumValues": [
         1,
         2,
         3,
-        4
+        4,
+        5,
+        6
       ],
       "genericArguments": null,
       "properties": null

@@ -44,7 +44,7 @@ public class PatientPacketEmailRoutingTests
     /// </summary>
     private static PatientPacketEmailHandler Build(INotificationDispatcher dispatcher, DocumentEmailContext? ctx)
     {
-        var resolver = Substitute.For<DocumentEmailContextResolver>(null, null, null, null, null, null, null, null, null, null);
+        var resolver = Substitute.For<DocumentEmailContextResolver>(null, null, null, null, null, null, null, null, null, null, null);
         resolver.ResolveAsync(Arg.Any<Guid>(), Arg.Any<Guid?>()).Returns(ctx);
         return new PatientPacketEmailHandler(
             dispatcher,

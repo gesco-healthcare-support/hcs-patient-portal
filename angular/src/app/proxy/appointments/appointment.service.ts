@@ -49,6 +49,15 @@ export class AppointmentService {
     { apiName: this.apiName,...config });
   
 
+  createRevalWithoutSource = (input: AppointmentCreateDto, config?: Partial<Rest.Config>) =>
+    this.restService.request<any, AppointmentDto>({
+      method: 'POST',
+      url: '/api/app/appointments/create-reval-without-source',
+      body: input,
+    },
+    { apiName: this.apiName,...config });
+  
+
   delete = (id: string, config?: Partial<Rest.Config>) =>
     this.restService.request<any, void>({
       method: 'DELETE',

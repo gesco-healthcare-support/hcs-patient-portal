@@ -214,8 +214,12 @@ public class BookingSubmissionEmailHandler :
         var resolverOutput = await _recipientResolver.ResolveAsync(
             eventData.AppointmentId, NotificationKind.Submitted);
         // 2026-11-03: unless the patient submitted this request, the patient hears nothing until approval.
+        // 2026-11-04: the case followers (external booker, accessors) are copied like the parties; a
+        // Patient-role accessor follows the same patient rule.
         var recipients = PatientBeforeApprovalRule.Apply(
-            resolverOutput.Where(r => !string.IsNullOrWhiteSpace(r.To)), ctx);
+            CaseFollowers.Append(
+                resolverOutput.Where(r => !string.IsNullOrWhiteSpace(r.To)), ctx, ctx.PatientIsSubmitter),
+            ctx);
 
         if (recipients.Count == 0)
         {

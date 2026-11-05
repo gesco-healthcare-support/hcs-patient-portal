@@ -179,6 +179,24 @@ public class AttyCEPacketEmailHandlerTests : CaseEvaluationEntityFrameworkCoreTe
         bookerMail.Variables["PacketLabel"].ShouldBe("Appointment Notice");
     }
 
+    // 2026-11-04: the usual booker is a law office's PARALEGAL; it gets the attorney packet like the
+    // booking attorney does.
+    [Theory]
+    [InlineData("Applicant Paralegal")]
+    [InlineData("Defense Paralegal")]
+    public async Task AParalegalBooker_IsMailedTheAttorneyPacket_WithTheParties(string role)
+    {
+        WithPartiesAndDecoys();
+        var bookerEmail = await CreateBookerAsync(role);
+
+        await RaiseAsync(PacketKind.AttorneyClaimExaminer);
+
+        _recorder.Sent.SelectMany(s => s.Recipients).ShouldBe(
+            new[] { IdentityUsersTestData.ApplicantAttorney1Email, DefenseEmail, ExaminerEmail, bookerEmail }, ignoreOrder: true);
+        _recorder.Sent.Single(s => s.Recipients.Contains(bookerEmail)).Packet!.Kind
+            .ShouldBe(PacketKind.AttorneyClaimExaminer);
+    }
+
     [Fact]
     public async Task ABookerWhoIsAlsoTheTypedAttorney_IsMailedOnce_WhateverTheCase()
     {

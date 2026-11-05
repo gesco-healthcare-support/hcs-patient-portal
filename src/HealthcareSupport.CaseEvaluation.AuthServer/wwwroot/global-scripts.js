@@ -27,12 +27,28 @@
   const externalSignupApiBaseUrl = resolveExternalSignupApiBaseUrl();
   const externalSignupEndpoint = new URL('/api/public/external-signup/register', externalSignupApiBaseUrl).toString();
   const debug = window.localStorage && window.localStorage.getItem('externalSignupDebug') === 'true';
+  // 2026-11-04: the law-office roles are shown per side, attorney then paralegal. The
+  // label set and order are shared with the staff invite screen; `roleName` is the seeded
+  // role, which the `?role=` pre-fill links carry.
   const externalUserRoles = [
-    { value: 1, label: 'Patient' },
-    { value: 2, label: 'Claim Examiner' },
-    { value: 3, label: 'Applicant Attorney' },
-    { value: 4, label: 'Defense Attorney' },
+    { value: 1, label: 'Patient', roleName: 'Patient' },
+    { value: 3, label: 'Attorney (Applicant side)', roleName: 'Applicant Attorney' },
+    { value: 5, label: 'Paralegal (Applicant side)', roleName: 'Applicant Paralegal' },
+    { value: 4, label: 'Attorney (Defense side)', roleName: 'Defense Attorney' },
+    { value: 6, label: 'Paralegal (Defense side)', roleName: 'Defense Paralegal' },
+    { value: 2, label: 'Claim Examiner', roleName: 'Claim Examiner' },
   ];
+
+  // Attorneys (3, 4) register as firm accounts: no First/Last, Firm name required.
+  function isAttorneyUserType(value) {
+    return value === 3 || value === 4;
+  }
+
+  // Attorneys and paralegals (5, 6) belong to a law office, so both may give a firm name;
+  // a paralegal is a person (First/Last kept) and the firm is optional for them.
+  function isLawOfficeUserType(value) {
+    return isAttorneyUserType(value) || value === 5 || value === 6;
+  }
   let isSubmitting = false;
   let submitHookAttached = false;
   let clickHookAttached = false;
@@ -294,13 +310,13 @@
       // deliberately deviates.
       var select = form.querySelector('#external-user-type');
       var role = select ? Number(select.value || 1) : 1;
-      var isAttorney = role === 3 || role === 4;
+      var isAttorney = isAttorneyUserType(role);
       var firstWrap = firstNameInput.closest('.form-floating, .mb-2, .mb-3');
       var lastWrap = lastNameInput.closest('.form-floating, .mb-2, .mb-3');
       var firmWrap = firmNameInput.closest('.form-floating, .mb-2, .mb-3');
       if (firstWrap) firstWrap.style.display = isAttorney ? 'none' : '';
       if (lastWrap) lastWrap.style.display = isAttorney ? 'none' : '';
-      if (firmWrap) firmWrap.style.display = isAttorney ? '' : 'none';
+      if (firmWrap) firmWrap.style.display = isLawOfficeUserType(role) ? '' : 'none';
       // BUG-012 (2026-05-22): toggle the required attribute alongside
       // visibility so ensureButtonDisabledBinding (which gates on
       // input[required]) includes Firm Name in its check for attorney
@@ -960,13 +976,14 @@
     const firstName = getFirstValue(form, ['#external-first-name', 'input[name="FirstName"]']);
     const lastName = getFirstValue(form, ['#external-last-name', 'input[name="LastName"]']);
     const firmName = getFirstValue(form, ['#external-firm-name', 'input[name="FirmName"]']);
-    const isAttorney = userType === 3 || userType === 4;
+    const isAttorney = isAttorneyUserType(userType);
 
     const payload = {
       userType: userType,
       firstName: isAttorney ? null : (firstName || null),
       lastName: isAttorney ? null : (lastName || null),
-      firmName: isAttorney ? (firmName || null) : null,
+      // 2026-11-04: a paralegal may send a firm too (optional for them).
+      firmName: isLawOfficeUserType(userType) ? (firmName || null) : null,
       email: email,
       password: password,
       confirmPassword: confirmPassword,
@@ -1310,8 +1327,8 @@
   }
 
   // 1.6 (2026-04-30): pre-fill role select from `?role=` query param. Accepts
-  // either the label ("Patient", "Applicant Attorney") or the numeric enum
-  // value ("1".."4"). Idempotent -- if the role-select cannot be located the
+  // either the label ("Patient", "Attorney (Applicant side)"), the role name
+  // ("Applicant Attorney") or the numeric enum value ("1".."6"). Idempotent -- if the role-select cannot be located the
   // call is a no-op.
   function applyRolePrefill(select) {
     if (!select) return;
@@ -1325,7 +1342,8 @@
     }
     if (!resolvedValue) {
       var byLabel = externalUserRoles.find(function (r) {
-        return r.label.toLowerCase() === raw.toLowerCase();
+        return r.label.toLowerCase() === raw.toLowerCase()
+          || r.roleName.toLowerCase() === raw.toLowerCase();
       });
       if (byLabel) resolvedValue = byLabel.value;
     }
@@ -1425,8 +1443,8 @@
     // Defense Attorney (4).
     var firmInput = form.querySelector('#external-firm-name');
     var firmWrap = firmInput ? firmInput.closest('.form-floating, .mb-2, .mb-3') : null;
-    var isAttorney = userTypeValue === 3 || userTypeValue === 4;
-    if (firmWrap) firmWrap.style.display = isAttorney ? '' : 'none';
+    var isAttorney = isAttorneyUserType(userTypeValue);
+    if (firmWrap) firmWrap.style.display = isLawOfficeUserType(userTypeValue) ? '' : 'none';
     // BUG-012 (2026-05-22): mirror the required-attribute toggle from
     // applyRoleVisibility so the invite-flow path (which locks email +
     // role and bypasses the role-select change event) also gates submit

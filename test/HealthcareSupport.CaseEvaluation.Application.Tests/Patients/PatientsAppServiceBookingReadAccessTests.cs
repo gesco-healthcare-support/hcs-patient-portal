@@ -109,7 +109,36 @@ public abstract class PatientsAppServiceBookingReadAccessTests<TStartupModule>
             Guid.NewGuid(), "TEST-other-examiner@test.local", ClaimExaminer, PatientsTestData.Patient1Id));
     }
 
+    /// <summary>
+    /// 2026-11-04: a paralegal is admitted ONLY as the booker. ApplicantAttorney1 is both on the
+    /// seeded applicant-attorney LINK of Appointment1 and an Authorized User (accessor) on it -- either
+    /// would admit an attorney or show the case -- and calling as a paralegal it must still be refused,
+    /// because the link's account is resolved from an email the booker types.
+    /// </summary>
+    [Theory]
+    [InlineData("Applicant Paralegal")]
+    [InlineData("Defense Paralegal")]
+    public async Task A_paralegal_who_did_not_book_cannot_read_the_patient_even_on_the_link_or_as_an_accessor(string role)
+    {
+        await Should.ThrowAsync<AbpAuthorizationException>(() => ReadAs(
+            IdentityUsersTestData.ApplicantAttorney1UserId, IdentityUsersTestData.ApplicantAttorney1Email,
+            role, PatientsTestData.Patient1Id));
+    }
+
     // ------------------------------------------------------------------ admitted
+
+    [Theory]
+    [InlineData("Applicant Paralegal")]
+    [InlineData("Defense Paralegal")]
+    public async Task A_paralegal_who_booked_the_appointment_can_read_the_patient(string role)
+    {
+        var booker = Guid.NewGuid();
+        await SetAppointment1BookerAsync(booker);
+
+        var dto = await ReadAs(booker, null, role, PatientsTestData.Patient1Id);
+
+        dto.Patient.Id.ShouldBe(PatientsTestData.Patient1Id);
+    }
 
     [Fact]
     public async Task The_linked_applicant_attorney_can_read_the_patient_with_the_ssn_masked()

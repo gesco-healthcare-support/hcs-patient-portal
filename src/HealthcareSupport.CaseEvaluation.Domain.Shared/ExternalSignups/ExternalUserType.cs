@@ -16,6 +16,10 @@ namespace HealthcareSupport.CaseEvaluation.ExternalSignups;
 /// data only ever used "Claim Examiner", so "Adjuster" was an unseeded,
 /// permission-less dead-end. Do NOT renumber the remaining values; test seeds
 /// and Angular references hardcode 1-4.</para>
+///
+/// <para>2026-11-04: 5 and 6 added for the law-office PARALEGAL, one per side.
+/// Most bookers are a paralegal rather than the attorney of record, so they get
+/// their own role instead of booking "as a lawyer". Additive: 1-4 unchanged.</para>
 /// </summary>
 public enum ExternalUserType
 {
@@ -23,4 +27,6 @@ public enum ExternalUserType
     ClaimExaminer = 2,
     ApplicantAttorney = 3,
     DefenseAttorney = 4,
+    ApplicantParalegal = 5,
+    DefenseParalegal = 6,
 }

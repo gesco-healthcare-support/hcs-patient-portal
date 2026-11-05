@@ -54,7 +54,7 @@ public class DocumentUploadedEmailHandlerTests
         /// <c>virtual</c> and are configured below, so the real bodies never run.
         /// </summary>
         public DocumentEmailContextResolver ContextResolver { get; } =
-            Substitute.For<DocumentEmailContextResolver>(null, null, null, null, null, null, null, null, null, null);
+            Substitute.For<DocumentEmailContextResolver>(null, null, null, null, null, null, null, null, null, null, null);
 
         public IAppointmentRecipientResolver RecipientResolver { get; } = Substitute.For<IAppointmentRecipientResolver>();
         public ICurrentTenant CurrentTenant { get; } = Substitute.For<ICurrentTenant>();

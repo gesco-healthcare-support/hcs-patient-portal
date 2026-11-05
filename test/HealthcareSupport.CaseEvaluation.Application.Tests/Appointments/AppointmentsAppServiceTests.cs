@@ -1266,6 +1266,78 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
         });
     }
 
+    /// <summary>
+    /// 2026-11-04: a paralegal finds the patients of the appointments it BOOKED, and only those. The
+    /// second appointment names the same account on its applicant-attorney LINK (which admits an
+    /// attorney); for a paralegal that link must not count -- its account is resolved from an email
+    /// the booker types, so any booker could otherwise hand a paralegal the patient.
+    /// </summary>
+    [Theory]
+    [InlineData("Applicant Paralegal")]
+    [InlineData("Defense Paralegal")]
+    public async Task GetPatientLookupAsync_AsParalegal_SeesOnlyPatientsOfAppointmentsItBooked(string role)
+    {
+        var token = Guid.NewGuid().ToString("N")[..8];
+        // A real seeded account (the link row has a foreign key to it), acting under the paralegal
+        // role only; the token-scoped filter keeps its other appointments out of the result.
+        var paralegalId = IdentityUsersTestData.DefenseAttorney1UserId;
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var bookedPatientId = await SeedLookupPatientAsync(token, "pl-booked");
+                var linkedPatientId = await SeedLookupPatientAsync(token, "pl-linked");
+
+                Guid bookedAppointmentId;
+                Guid linkedAppointmentId;
+                using (WithCurrentUser.Run(
+                           _currentPrincipalAccessor,
+                           IdentityUsersTestData.HostAdminId,
+                           IdentityUsersTestData.HostAdminRoleName))
+                {
+                    bookedAppointmentId = await SeedLookupAppointmentAsync(
+                        token, "pl-booked", bookedPatientId, IdentityUsersTestData.ClaimExaminer1Email);
+                    linkedAppointmentId = await SeedLookupAppointmentAsync(
+                        token, "pl-linked", linkedPatientId, IdentityUsersTestData.ClaimExaminer1Email);
+                }
+
+                // Booked BY the paralegal. The rule reads CreatorId ?? BookedByUserId; ABP stamps no
+                // creator here (the test principal carries no office), so the booker stamp decides.
+                var booked = await _appointmentRepository.GetAsync(bookedAppointmentId);
+                booked.CreatorId.ShouldBeNull();
+                booked.BookedByUserId = paralegalId;
+                await _appointmentRepository.UpdateAsync(booked, autoSave: true);
+
+                await _appointmentApplicantAttorneyRepository.InsertAsync(
+                    new AppointmentApplicantAttorney(
+                        id: Guid.NewGuid(),
+                        appointmentId: linkedAppointmentId,
+                        applicantAttorneyId: ApplicantAttorneysTestData.Attorney1Id,
+                        identityUserId: paralegalId)
+                    {
+                        TenantId = TenantsTestData.TenantARef,
+                    },
+                    autoSave: true);
+
+                using (WithCurrentUser.Run(_currentPrincipalAccessor, paralegalId, role))
+                {
+                    var result = await _appointmentsAppService.GetPatientLookupAsync(
+                        new LookupRequestDto { Filter = token, MaxResultCount = 1000 });
+
+                    result.Items.ShouldContain(
+                        x => x.Id == bookedPatientId,
+                        "A paralegal must find the patient of an appointment it booked. If this fails "
+                        + "the exclusion below is vacuous.");
+                    result.Items.ShouldNotContain(
+                        x => x.Id == linkedPatientId,
+                        "A paralegal must NOT find a patient through the attorney link: it is never "
+                        + "the attorney of record.");
+                }
+            }
+        });
+    }
+
     // =====================================================================
     // Defense Attorney scoping, and the booker-side scoping on
     // GetIdentityUserLookupAsync. Phase 8 tranche 1 follow-up (2026-09-16).

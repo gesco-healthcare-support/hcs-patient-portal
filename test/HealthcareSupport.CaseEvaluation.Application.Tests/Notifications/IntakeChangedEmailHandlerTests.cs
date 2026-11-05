@@ -48,7 +48,7 @@ public class IntakeChangedEmailHandlerTests
         /// configured below, so the real body never runs.
         /// </summary>
         public DocumentEmailContextResolver ContextResolver { get; } =
-            Substitute.For<DocumentEmailContextResolver>(null, null, null, null, null, null, null, null, null, null);
+            Substitute.For<DocumentEmailContextResolver>(null, null, null, null, null, null, null, null, null, null, null);
 
         /// <summary>Only a date move reads the parties; it returns nobody beyond the office inbox here.</summary>
         public IAppointmentRecipientResolver Parties { get; } = Substitute.For<IAppointmentRecipientResolver>();
