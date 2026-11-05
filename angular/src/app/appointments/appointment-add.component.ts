@@ -610,7 +610,7 @@ export class AppointmentAddComponent {
 
   /** The box is offered to an external booker who sees the Paralegal / Authorized User section. */
   get showBookerFollowsOption(): boolean {
-    return !this.isInternalBooker && this.shouldShowAuthorizedUserSection();
+    return !this.isInternalBooker && (this.isApplicantSideBooker || this.isDefenseSideBooker);
   }
 
   /** The lawyer's "instead of me" tick is on (attorney bookers only), complete or not. */
@@ -1668,15 +1668,19 @@ export class AppointmentAddComponent {
   }
 
   /**
-   * B (2026-06-10): the booking-time "Additional Authorized User" section is
-   * only offered to callers who may manage accessors -- internal staff or an
-   * Applicant/Defense Attorney booker (the booker is the creator-to-be, so the
-   * creator condition is implicit during booking). Cosmetic only; the server's
-   * EnsureCanManageAccessorsAsync gate stays authoritative. Paralegal-ready: the
-   * paralegal feature adds `|| this.isParalegal` here (additive).
+   * The booking-time "Additional Authorized User" section is only offered to callers who may manage
+   * accessors (the booker is the creator-to-be, so the creator condition is implicit during booking).
+   * Cosmetic only; the server's AccessorManagementRules gate stays authoritative.
    */
   shouldShowAuthorizedUserSection(): boolean {
-    return this.isInternalBooker || this.isApplicantSideBooker || this.isDefenseSideBooker;
+    // 2026-11-05 (decisions 3-5): staff, a law-office booker (own side), or a claim examiner booker (their
+    // assistant). A Patient manages no Authorized Users, so they see no section and ask staff.
+    return (
+      this.isInternalBooker ||
+      this.isApplicantSideBooker ||
+      this.isDefenseSideBooker ||
+      this.isClaimExaminerRole
+    );
   }
 
   /**

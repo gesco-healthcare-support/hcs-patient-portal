@@ -69,7 +69,7 @@ public class PatientPacketEmailRoutingTests
             .Where(c => c.GetMethodInfo().Name == nameof(INotificationDispatcher.DispatchAsync))
             .ToList();
         calls.Count.ShouldBe(1, "one patient packet sends exactly one email");
-        var args = calls[0].GetArguments();
+        var args = calls[0].GetArguments().Skip(1).ToArray();
         return ((string)args[0]!, (IReadOnlyCollection<NotificationRecipient>)args[1]!);
     }
 

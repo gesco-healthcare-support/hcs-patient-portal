@@ -21282,6 +21282,604 @@
             }
           }
         },
+        "HealthcareSupport.CaseEvaluation.Controllers.EmailStops.EmailStopsController": {
+          "controllerName": "EmailStops",
+          "controllerGroupName": "EmailStop",
+          "isRemoteService": true,
+          "isIntegrationService": false,
+          "apiVersion": null,
+          "type": "HealthcareSupport.CaseEvaluation.Controllers.EmailStops.EmailStopsController",
+          "interfaces": [
+            {
+              "type": "HealthcareSupport.CaseEvaluation.EmailStops.IEmailStopsAppService",
+              "name": "IEmailStopsAppService",
+              "methods": [
+                {
+                  "name": "GetAppointmentRecipientsAsync",
+                  "parametersOnMethod": [
+                    {
+                      "name": "appointmentId",
+                      "typeAsString": "System.Guid, System.Private.CoreLib",
+                      "type": "System.Guid",
+                      "typeSimple": "string",
+                      "isOptional": false,
+                      "defaultValue": null
+                    }
+                  ],
+                  "returnValue": {
+                    "type": "HealthcareSupport.CaseEvaluation.EmailStops.AppointmentEmailRecipientsDto",
+                    "typeSimple": "HealthcareSupport.CaseEvaluation.EmailStops.AppointmentEmailRecipientsDto"
+                  }
+                },
+                {
+                  "name": "StopForAppointmentAsync",
+                  "parametersOnMethod": [
+                    {
+                      "name": "appointmentId",
+                      "typeAsString": "System.Guid, System.Private.CoreLib",
+                      "type": "System.Guid",
+                      "typeSimple": "string",
+                      "isOptional": false,
+                      "defaultValue": null
+                    },
+                    {
+                      "name": "input",
+                      "typeAsString": "HealthcareSupport.CaseEvaluation.EmailStops.StopAppointmentEmailsInput, HealthcareSupport.CaseEvaluation.Application.Contracts",
+                      "type": "HealthcareSupport.CaseEvaluation.EmailStops.StopAppointmentEmailsInput",
+                      "typeSimple": "HealthcareSupport.CaseEvaluation.EmailStops.StopAppointmentEmailsInput",
+                      "isOptional": false,
+                      "defaultValue": null
+                    }
+                  ],
+                  "returnValue": {
+                    "type": "HealthcareSupport.CaseEvaluation.EmailStops.EmailStopStatusDto",
+                    "typeSimple": "HealthcareSupport.CaseEvaluation.EmailStops.EmailStopStatusDto"
+                  }
+                },
+                {
+                  "name": "ResumeForAppointmentAsync",
+                  "parametersOnMethod": [
+                    {
+                      "name": "appointmentId",
+                      "typeAsString": "System.Guid, System.Private.CoreLib",
+                      "type": "System.Guid",
+                      "typeSimple": "string",
+                      "isOptional": false,
+                      "defaultValue": null
+                    },
+                    {
+                      "name": "email",
+                      "typeAsString": "System.String, System.Private.CoreLib",
+                      "type": "System.String",
+                      "typeSimple": "string",
+                      "isOptional": false,
+                      "defaultValue": null
+                    }
+                  ],
+                  "returnValue": {
+                    "type": "System.Void",
+                    "typeSimple": "System.Void"
+                  }
+                },
+                {
+                  "name": "GetConsentImpactAsync",
+                  "parametersOnMethod": [
+                    {
+                      "name": "appointmentId",
+                      "typeAsString": "System.Guid, System.Private.CoreLib",
+                      "type": "System.Guid",
+                      "typeSimple": "string",
+                      "isOptional": false,
+                      "defaultValue": null
+                    },
+                    {
+                      "name": "email",
+                      "typeAsString": "System.String, System.Private.CoreLib",
+                      "type": "System.String",
+                      "typeSimple": "string",
+                      "isOptional": false,
+                      "defaultValue": null
+                    },
+                    {
+                      "name": "scope",
+                      "typeAsString": "HealthcareSupport.CaseEvaluation.EmailStops.EmailStopScope, HealthcareSupport.CaseEvaluation.Domain.Shared",
+                      "type": "HealthcareSupport.CaseEvaluation.EmailStops.EmailStopScope",
+                      "typeSimple": "enum",
+                      "isOptional": false,
+                      "defaultValue": null
+                    }
+                  ],
+                  "returnValue": {
+                    "type": "HealthcareSupport.CaseEvaluation.EmailStops.EmailStopConsentImpactDto",
+                    "typeSimple": "HealthcareSupport.CaseEvaluation.EmailStops.EmailStopConsentImpactDto"
+                  }
+                },
+                {
+                  "name": "GetListAsync",
+                  "parametersOnMethod": [
+                    {
+                      "name": "input",
+                      "typeAsString": "HealthcareSupport.CaseEvaluation.EmailStops.GetGlobalEmailStopsInput, HealthcareSupport.CaseEvaluation.Application.Contracts",
+                      "type": "HealthcareSupport.CaseEvaluation.EmailStops.GetGlobalEmailStopsInput",
+                      "typeSimple": "HealthcareSupport.CaseEvaluation.EmailStops.GetGlobalEmailStopsInput",
+                      "isOptional": false,
+                      "defaultValue": null
+                    }
+                  ],
+                  "returnValue": {
+                    "type": "Volo.Abp.Application.Dtos.PagedResultDto<HealthcareSupport.CaseEvaluation.EmailStops.GlobalEmailStopDto>",
+                    "typeSimple": "Volo.Abp.Application.Dtos.PagedResultDto<HealthcareSupport.CaseEvaluation.EmailStops.GlobalEmailStopDto>"
+                  }
+                },
+                {
+                  "name": "CreateAsync",
+                  "parametersOnMethod": [
+                    {
+                      "name": "input",
+                      "typeAsString": "HealthcareSupport.CaseEvaluation.EmailStops.CreateGlobalEmailStopInput, HealthcareSupport.CaseEvaluation.Application.Contracts",
+                      "type": "HealthcareSupport.CaseEvaluation.EmailStops.CreateGlobalEmailStopInput",
+                      "typeSimple": "HealthcareSupport.CaseEvaluation.EmailStops.CreateGlobalEmailStopInput",
+                      "isOptional": false,
+                      "defaultValue": null
+                    }
+                  ],
+                  "returnValue": {
+                    "type": "HealthcareSupport.CaseEvaluation.EmailStops.GlobalEmailStopDto",
+                    "typeSimple": "HealthcareSupport.CaseEvaluation.EmailStops.GlobalEmailStopDto"
+                  }
+                },
+                {
+                  "name": "DeleteAsync",
+                  "parametersOnMethod": [
+                    {
+                      "name": "id",
+                      "typeAsString": "System.Guid, System.Private.CoreLib",
+                      "type": "System.Guid",
+                      "typeSimple": "string",
+                      "isOptional": false,
+                      "defaultValue": null
+                    }
+                  ],
+                  "returnValue": {
+                    "type": "System.Void",
+                    "typeSimple": "System.Void"
+                  }
+                },
+                {
+                  "name": "GetGlobalConsentImpactAsync",
+                  "parametersOnMethod": [
+                    {
+                      "name": "email",
+                      "typeAsString": "System.String, System.Private.CoreLib",
+                      "type": "System.String",
+                      "typeSimple": "string",
+                      "isOptional": false,
+                      "defaultValue": null
+                    }
+                  ],
+                  "returnValue": {
+                    "type": "HealthcareSupport.CaseEvaluation.EmailStops.EmailStopConsentImpactDto",
+                    "typeSimple": "HealthcareSupport.CaseEvaluation.EmailStops.EmailStopConsentImpactDto"
+                  }
+                }
+              ]
+            }
+          ],
+          "actions": {
+            "GetAppointmentRecipientsAsyncByAppointmentId": {
+              "uniqueName": "GetAppointmentRecipientsAsyncByAppointmentId",
+              "name": "GetAppointmentRecipientsAsync",
+              "httpMethod": "GET",
+              "url": "api/app/appointments/{appointmentId}/email-recipients",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "appointmentId",
+                  "typeAsString": "System.Guid, System.Private.CoreLib",
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "appointmentId",
+                  "name": "appointmentId",
+                  "jsonName": null,
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": [],
+                  "bindingSourceId": "Path",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "HealthcareSupport.CaseEvaluation.EmailStops.AppointmentEmailRecipientsDto",
+                "typeSimple": "HealthcareSupport.CaseEvaluation.EmailStops.AppointmentEmailRecipientsDto"
+              },
+              "allowAnonymous": false,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.EmailStops.IEmailStopsAppService"
+            },
+            "StopForAppointmentAsyncByAppointmentIdAndInput": {
+              "uniqueName": "StopForAppointmentAsyncByAppointmentIdAndInput",
+              "name": "StopForAppointmentAsync",
+              "httpMethod": "POST",
+              "url": "api/app/appointments/{appointmentId}/email-stops",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "appointmentId",
+                  "typeAsString": "System.Guid, System.Private.CoreLib",
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null
+                },
+                {
+                  "name": "input",
+                  "typeAsString": "HealthcareSupport.CaseEvaluation.EmailStops.StopAppointmentEmailsInput, HealthcareSupport.CaseEvaluation.Application.Contracts",
+                  "type": "HealthcareSupport.CaseEvaluation.EmailStops.StopAppointmentEmailsInput",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.EmailStops.StopAppointmentEmailsInput",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "appointmentId",
+                  "name": "appointmentId",
+                  "jsonName": null,
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": [],
+                  "bindingSourceId": "Path",
+                  "descriptorName": ""
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "input",
+                  "jsonName": null,
+                  "type": "HealthcareSupport.CaseEvaluation.EmailStops.StopAppointmentEmailsInput",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.EmailStops.StopAppointmentEmailsInput",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Body",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "HealthcareSupport.CaseEvaluation.EmailStops.EmailStopStatusDto",
+                "typeSimple": "HealthcareSupport.CaseEvaluation.EmailStops.EmailStopStatusDto"
+              },
+              "allowAnonymous": false,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.EmailStops.IEmailStopsAppService"
+            },
+            "ResumeForAppointmentAsyncByAppointmentIdAndEmail": {
+              "uniqueName": "ResumeForAppointmentAsyncByAppointmentIdAndEmail",
+              "name": "ResumeForAppointmentAsync",
+              "httpMethod": "DELETE",
+              "url": "api/app/appointments/{appointmentId}/email-stops",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "appointmentId",
+                  "typeAsString": "System.Guid, System.Private.CoreLib",
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null
+                },
+                {
+                  "name": "email",
+                  "typeAsString": "System.String, System.Private.CoreLib",
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "appointmentId",
+                  "name": "appointmentId",
+                  "jsonName": null,
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": [],
+                  "bindingSourceId": "Path",
+                  "descriptorName": ""
+                },
+                {
+                  "nameOnMethod": "email",
+                  "name": "email",
+                  "jsonName": null,
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Query",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "System.Void",
+                "typeSimple": "System.Void"
+              },
+              "allowAnonymous": false,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.EmailStops.IEmailStopsAppService"
+            },
+            "GetConsentImpactAsyncByAppointmentIdAndEmailAndScope": {
+              "uniqueName": "GetConsentImpactAsyncByAppointmentIdAndEmailAndScope",
+              "name": "GetConsentImpactAsync",
+              "httpMethod": "GET",
+              "url": "api/app/appointments/{appointmentId}/email-stops/consent-impact",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "appointmentId",
+                  "typeAsString": "System.Guid, System.Private.CoreLib",
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null
+                },
+                {
+                  "name": "email",
+                  "typeAsString": "System.String, System.Private.CoreLib",
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null
+                },
+                {
+                  "name": "scope",
+                  "typeAsString": "HealthcareSupport.CaseEvaluation.EmailStops.EmailStopScope, HealthcareSupport.CaseEvaluation.Domain.Shared",
+                  "type": "HealthcareSupport.CaseEvaluation.EmailStops.EmailStopScope",
+                  "typeSimple": "enum",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "appointmentId",
+                  "name": "appointmentId",
+                  "jsonName": null,
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": [],
+                  "bindingSourceId": "Path",
+                  "descriptorName": ""
+                },
+                {
+                  "nameOnMethod": "email",
+                  "name": "email",
+                  "jsonName": null,
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Query",
+                  "descriptorName": ""
+                },
+                {
+                  "nameOnMethod": "scope",
+                  "name": "scope",
+                  "jsonName": null,
+                  "type": "HealthcareSupport.CaseEvaluation.EmailStops.EmailStopScope",
+                  "typeSimple": "enum",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Query",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "HealthcareSupport.CaseEvaluation.EmailStops.EmailStopConsentImpactDto",
+                "typeSimple": "HealthcareSupport.CaseEvaluation.EmailStops.EmailStopConsentImpactDto"
+              },
+              "allowAnonymous": false,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.EmailStops.IEmailStopsAppService"
+            },
+            "GetListAsyncByInput": {
+              "uniqueName": "GetListAsyncByInput",
+              "name": "GetListAsync",
+              "httpMethod": "GET",
+              "url": "api/app/email-stops",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "input",
+                  "typeAsString": "HealthcareSupport.CaseEvaluation.EmailStops.GetGlobalEmailStopsInput, HealthcareSupport.CaseEvaluation.Application.Contracts",
+                  "type": "HealthcareSupport.CaseEvaluation.EmailStops.GetGlobalEmailStopsInput",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.EmailStops.GetGlobalEmailStopsInput",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "input",
+                  "name": "Filter",
+                  "jsonName": null,
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Query",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "Sorting",
+                  "jsonName": null,
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Query",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "SkipCount",
+                  "jsonName": null,
+                  "type": "System.Int32",
+                  "typeSimple": "number",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Query",
+                  "descriptorName": "input"
+                },
+                {
+                  "nameOnMethod": "input",
+                  "name": "MaxResultCount",
+                  "jsonName": null,
+                  "type": "System.Int32",
+                  "typeSimple": "number",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Query",
+                  "descriptorName": "input"
+                }
+              ],
+              "returnValue": {
+                "type": "Volo.Abp.Application.Dtos.PagedResultDto<HealthcareSupport.CaseEvaluation.EmailStops.GlobalEmailStopDto>",
+                "typeSimple": "Volo.Abp.Application.Dtos.PagedResultDto<HealthcareSupport.CaseEvaluation.EmailStops.GlobalEmailStopDto>"
+              },
+              "allowAnonymous": false,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.EmailStops.IEmailStopsAppService"
+            },
+            "CreateAsyncByInput": {
+              "uniqueName": "CreateAsyncByInput",
+              "name": "CreateAsync",
+              "httpMethod": "POST",
+              "url": "api/app/email-stops",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "input",
+                  "typeAsString": "HealthcareSupport.CaseEvaluation.EmailStops.CreateGlobalEmailStopInput, HealthcareSupport.CaseEvaluation.Application.Contracts",
+                  "type": "HealthcareSupport.CaseEvaluation.EmailStops.CreateGlobalEmailStopInput",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.EmailStops.CreateGlobalEmailStopInput",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "input",
+                  "name": "input",
+                  "jsonName": null,
+                  "type": "HealthcareSupport.CaseEvaluation.EmailStops.CreateGlobalEmailStopInput",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.EmailStops.CreateGlobalEmailStopInput",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Body",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "HealthcareSupport.CaseEvaluation.EmailStops.GlobalEmailStopDto",
+                "typeSimple": "HealthcareSupport.CaseEvaluation.EmailStops.GlobalEmailStopDto"
+              },
+              "allowAnonymous": false,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.EmailStops.IEmailStopsAppService"
+            },
+            "DeleteAsyncById": {
+              "uniqueName": "DeleteAsyncById",
+              "name": "DeleteAsync",
+              "httpMethod": "DELETE",
+              "url": "api/app/email-stops/{id}",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "id",
+                  "typeAsString": "System.Guid, System.Private.CoreLib",
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "id",
+                  "name": "id",
+                  "jsonName": null,
+                  "type": "System.Guid",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": [],
+                  "bindingSourceId": "Path",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "System.Void",
+                "typeSimple": "System.Void"
+              },
+              "allowAnonymous": false,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.EmailStops.IEmailStopsAppService"
+            },
+            "GetGlobalConsentImpactAsyncByEmail": {
+              "uniqueName": "GetGlobalConsentImpactAsyncByEmail",
+              "name": "GetGlobalConsentImpactAsync",
+              "httpMethod": "GET",
+              "url": "api/app/email-stops/consent-impact",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "email",
+                  "typeAsString": "System.String, System.Private.CoreLib",
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "email",
+                  "name": "email",
+                  "jsonName": null,
+                  "type": "System.String",
+                  "typeSimple": "string",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Query",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "HealthcareSupport.CaseEvaluation.EmailStops.EmailStopConsentImpactDto",
+                "typeSimple": "HealthcareSupport.CaseEvaluation.EmailStops.EmailStopConsentImpactDto"
+              },
+              "allowAnonymous": false,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.EmailStops.IEmailStopsAppService"
+            }
+          }
+        },
         "HealthcareSupport.CaseEvaluation.Controllers.ExternalAccount.AccountActivationController": {
           "controllerName": "AccountActivation",
           "controllerGroupName": "AccountActivation",
@@ -61938,6 +62536,548 @@
           "isRequired": false,
           "minLength": null,
           "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.EmailStops.AppointmentEmailRecipientDto": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "Email",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "Name",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "Kinds",
+          "jsonName": null,
+          "type": "[HealthcareSupport.CaseEvaluation.EmailStops.EmailRecipientKind]",
+          "typeSimple": "[enum]",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "RoutingNote",
+          "jsonName": null,
+          "type": "HealthcareSupport.CaseEvaluation.EmailStops.EmailRoutingNote",
+          "typeSimple": "enum",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "CaseStop",
+          "jsonName": null,
+          "type": "HealthcareSupport.CaseEvaluation.EmailStops.EmailStopStatusDto",
+          "typeSimple": "HealthcareSupport.CaseEvaluation.EmailStops.EmailStopStatusDto",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "AllCasesStop",
+          "jsonName": null,
+          "type": "HealthcareSupport.CaseEvaluation.EmailStops.EmailStopStatusDto",
+          "typeSimple": "HealthcareSupport.CaseEvaluation.EmailStops.EmailStopStatusDto",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.EmailStops.AppointmentEmailRecipientsDto": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "Items",
+          "jsonName": null,
+          "type": "[HealthcareSupport.CaseEvaluation.EmailStops.AppointmentEmailRecipientDto]",
+          "typeSimple": "[HealthcareSupport.CaseEvaluation.EmailStops.AppointmentEmailRecipientDto]",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.EmailStops.CreateGlobalEmailStopInput": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "Email",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": true,
+          "minLength": 0,
+          "maxLength": 256,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "Note",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": 0,
+          "maxLength": 256,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.EmailStops.EmailRecipientKind": {
+      "baseType": "System.Enum",
+      "isEnum": true,
+      "enumNames": [
+        "Patient",
+        "ApplicantAttorney",
+        "ApplicantParalegal",
+        "DefenseAttorney",
+        "DefenseParalegal",
+        "ClaimExaminer",
+        "Booker",
+        "AuthorizedUser"
+      ],
+      "enumValues": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "genericArguments": null,
+      "properties": null
+    },
+    "HealthcareSupport.CaseEvaluation.EmailStops.EmailRoutingNote": {
+      "baseType": "System.Enum",
+      "isEnum": true,
+      "enumNames": [
+        "None",
+        "SendsToParalegalInstead",
+        "RequestReceiptOnly",
+        "StartsAfterApproval"
+      ],
+      "enumValues": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "genericArguments": null,
+      "properties": null
+    },
+    "HealthcareSupport.CaseEvaluation.EmailStops.EmailStopConsentImpactCaseDto": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "AppointmentId",
+          "jsonName": null,
+          "type": "System.Guid",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "RequestConfirmationNumber",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "Side",
+          "jsonName": null,
+          "type": "HealthcareSupport.CaseEvaluation.AppointmentChangeRequests.ChangeRequestSide",
+          "typeSimple": "enum",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.EmailStops.EmailStopConsentImpactDto": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "HasImpact",
+          "jsonName": null,
+          "type": "System.Boolean",
+          "typeSimple": "boolean",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "ThisCaseSides",
+          "jsonName": null,
+          "type": "[HealthcareSupport.CaseEvaluation.AppointmentChangeRequests.ChangeRequestSide]",
+          "typeSimple": "[enum]",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "OtherCases",
+          "jsonName": null,
+          "type": "[HealthcareSupport.CaseEvaluation.EmailStops.EmailStopConsentImpactCaseDto]",
+          "typeSimple": "[HealthcareSupport.CaseEvaluation.EmailStops.EmailStopConsentImpactCaseDto]",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.EmailStops.EmailStopScope": {
+      "baseType": "System.Enum",
+      "isEnum": true,
+      "enumNames": [
+        "Case",
+        "AllCases"
+      ],
+      "enumValues": [
+        1,
+        2
+      ],
+      "genericArguments": null,
+      "properties": null
+    },
+    "HealthcareSupport.CaseEvaluation.EmailStops.EmailStopStatusDto": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "Id",
+          "jsonName": null,
+          "type": "System.Guid",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "Scope",
+          "jsonName": null,
+          "type": "HealthcareSupport.CaseEvaluation.EmailStops.EmailStopScope",
+          "typeSimple": "enum",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "StoppedByName",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "StoppedAt",
+          "jsonName": null,
+          "type": "System.DateTime",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "Note",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "StoppedFromOfficeName",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.EmailStops.GetGlobalEmailStopsInput": {
+      "baseType": "Volo.Abp.Application.Dtos.PagedAndSortedResultRequestDto",
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "Filter",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.EmailStops.GlobalEmailStopDto": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "Id",
+          "jsonName": null,
+          "type": "System.Guid",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "Email",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "StoppedByName",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "StoppedAt",
+          "jsonName": null,
+          "type": "System.DateTime",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "Note",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "StoppedFromOfficeName",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.EmailStops.StopAppointmentEmailsInput": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "Email",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": true,
+          "minLength": 0,
+          "maxLength": 256,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "Scope",
+          "jsonName": null,
+          "type": "HealthcareSupport.CaseEvaluation.EmailStops.EmailStopScope",
+          "typeSimple": "enum",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "Note",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": 0,
+          "maxLength": 256,
           "minimum": null,
           "maximum": null,
           "regex": null,

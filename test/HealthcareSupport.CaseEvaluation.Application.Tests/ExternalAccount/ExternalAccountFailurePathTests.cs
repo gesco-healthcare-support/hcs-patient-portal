@@ -114,6 +114,7 @@ public abstract class ExternalAccountFailurePathTests<TStartupModule>
 
     private void FailSending(string templateCode) =>
         _dispatcher.DispatchAsync(
+                Arg.Any<NotificationCase>(),
                 templateCode, Arg.Any<IReadOnlyCollection<NotificationRecipient>>(),
                 Arg.Any<IReadOnlyDictionary<string, object?>>(), Arg.Any<string>(),
                 Arg.Any<PacketAttachmentRef?>(), Arg.Any<CancellationToken>())
@@ -122,7 +123,7 @@ public abstract class ExternalAccountFailurePathTests<TStartupModule>
     private List<object?[]> Sends(string templateCode) =>
         _dispatcher.ReceivedCalls()
             .Where(c => c.GetMethodInfo().Name == nameof(INotificationDispatcher.DispatchAsync))
-            .Select(c => c.GetArguments())
+            .Select(c => c.GetArguments().Skip(1).ToArray())
             .Where(args => (string)args[0]! == templateCode)
             .ToList();
 

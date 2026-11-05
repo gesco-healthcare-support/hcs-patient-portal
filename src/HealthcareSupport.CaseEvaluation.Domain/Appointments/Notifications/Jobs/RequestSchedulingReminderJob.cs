@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments.Jobs;
+using HealthcareSupport.CaseEvaluation.EmailStops;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.MultiTenancy;
 using HealthcareSupport.CaseEvaluation.Notifications;
@@ -38,6 +39,7 @@ public class RequestSchedulingReminderJob : ITransientDependency
     private readonly ISettingProvider _settingProvider;
     private readonly ILogger<RequestSchedulingReminderJob> _logger;
     private readonly IClock _clock;
+    private readonly IEmailStopPolicy _emailStopPolicy;
 
     public RequestSchedulingReminderJob(
         IRepository<Appointment, Guid> appointmentRepository,
@@ -46,8 +48,10 @@ public class RequestSchedulingReminderJob : ITransientDependency
         IBackgroundJobManager backgroundJobManager,
         ISettingProvider settingProvider,
         ILogger<RequestSchedulingReminderJob> logger,
-        IClock clock)
+        IClock clock,
+        IEmailStopPolicy emailStopPolicy)
     {
+        _emailStopPolicy = emailStopPolicy;
         _appointmentRepository = appointmentRepository;
         _tenantWorkRunner = tenantWorkRunner;
         _recipientResolver = recipientResolver;
@@ -108,10 +112,22 @@ public class RequestSchedulingReminderJob : ITransientDependency
             var recipients = await _recipientResolver.ResolveAsync(
                 appointment.Id,
                 NotificationKind.RequestSchedulingReminder);
+            // 2026-11-05: this job enqueues the send job directly (no outbox), so it applies the staff email
+            // stops itself -- one lookup per appointment, over all its recipients.
+            var stops = await _emailStopPolicy.LookupAsync(recipients.Select(r => r.To), appointment.Id)
+                ?? EmailStopLookup.Empty;
             var subject = $"Reminder: appointment request {appointment.RequestConfirmationNumber} still pending";
             var body = $"<p>Confirmation #{appointment.RequestConfirmationNumber} has not been scheduled yet.</p><p>Per CCR Title 8 Sec. 31.5 reminder schedule, please review and respond.</p>";
             foreach (var args in recipients)
             {
+                if (stops.IsStopped(args.To, appointment.Id))
+                {
+                    _logger.LogInformation(
+                        "RequestSchedulingReminderJob: email stopped by staff ({Scope}); 1 recipient left off appointment {AppointmentId}.",
+                        stops.ScopeOf(args.To, appointment.Id),
+                        appointment.Id);
+                    continue;
+                }
                 args.Subject = subject;
                 args.Body = body;
                 args.IsBodyHtml = true;

@@ -141,18 +141,23 @@ public class EfCoreAuthorizedUserSameSideTests
         (await CountAccessorsAsync(id)).ShouldBe(1);
     }
 
+    // 2026-11-05 (decision 3, review): a Patient or Claim Examiner role is not a side, so a law-office booker
+    // may not add one -- such an account gets the attorney packet and case mail, and the booker could not
+    // remove the row again. Only a claim examiner party may add a Claim Examiner helper (decision 5).
     [Theory]
     [InlineData("Patient")]
     [InlineData("Claim Examiner")]
-    public async Task Patient_and_claim_examiner_accessors_carry_no_side_and_are_unchanged(string role)
+    public async Task A_law_office_booker_cannot_add_a_patient_or_claim_examiner_accessor(string role)
     {
         var caller = Guid.NewGuid();
         var id = await BookAsync(caller);
 
-        await AsCallerAsync(caller, ExternalRoleConsts.DefenseParalegal, () =>
-            _service.CreateAsync(NewAccessor(id, NewEmail("np"), role)));
+        var refused = await Should.ThrowAsync<BusinessException>(() =>
+            AsCallerAsync(caller, ExternalRoleConsts.DefenseParalegal, () =>
+                _service.CreateAsync(NewAccessor(id, NewEmail("np"), role))));
 
-        (await CountAccessorsAsync(id)).ShouldBe(1);
+        refused.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentAccessDenied);
+        (await CountAccessorsAsync(id)).ShouldBe(0);
     }
 
     [Theory]

@@ -155,7 +155,7 @@
               >
                 <option value="">Select role</option>
                 @for (role of roleOptions; track role) {
-                  <option [value]="role">{{ roleLabel(role) }}</option>
+                  <option [value]="role">{{ roleLabel(role) | abpLocalization }}</option>
                 }
               </select>
               @if (

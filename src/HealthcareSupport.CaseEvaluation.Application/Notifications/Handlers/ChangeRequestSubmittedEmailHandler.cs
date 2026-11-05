@@ -192,6 +192,7 @@ public class ChangeRequestSubmittedEmailHandler :
             try
             {
                 await _dispatcher.DispatchAsync(
+                    notificationCase: NotificationCase.Of(eventData.AppointmentId),
                     templateCode: templateCode,
                     recipients: recipients,
                     variables: variables,

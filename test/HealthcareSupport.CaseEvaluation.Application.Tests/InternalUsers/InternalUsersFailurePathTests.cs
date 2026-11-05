@@ -144,6 +144,7 @@ public abstract class InternalUsersFailurePathTests<TStartupModule>
     public async Task A_failed_activation_email_leaves_the_account_created_and_says_so()
     {
         _dispatcher.DispatchAsync(
+                Arg.Any<NotificationCase>(),
                 NotificationTemplateConsts.Codes.AccountActivation, Arg.Any<IReadOnlyCollection<NotificationRecipient>>(),
                 Arg.Any<IReadOnlyDictionary<string, object?>>(), Arg.Any<string>(),
                 Arg.Any<PacketAttachmentRef?>(), Arg.Any<CancellationToken>())

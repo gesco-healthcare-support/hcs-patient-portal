@@ -1,3 +1,4 @@
+using HealthcareSupport.CaseEvaluation.EmailStops;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -71,7 +72,7 @@ public class OutboxDrainServiceTests
         var settingProvider = Substitute.For<ISettingProvider>();
         settingProvider.GetOrNullAsync(CaseEvaluationSettings.NotificationsPolicy.EmailEnabled)
             .Returns(emailEnabled ? "true" : "false");
-        var service = new OutboxDrainService(manager, sender, clock, settingProvider, NullLogger<OutboxDrainService>.Instance);
+        var service = new OutboxDrainService(manager, sender, clock, settingProvider, NullLogger<OutboxDrainService>.Instance, Substitute.For<IEmailStopPolicy>());
 
         return new Harness { Rows = rows, Manager = manager, Sender = sender, Service = service };
     }

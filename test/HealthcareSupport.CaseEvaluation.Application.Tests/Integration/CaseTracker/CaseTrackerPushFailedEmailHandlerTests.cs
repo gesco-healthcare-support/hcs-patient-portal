@@ -108,7 +108,7 @@ public class CaseTrackerPushFailedEmailHandlerTests
 
         var args = dispatcher.ReceivedCalls()
             .Where(c => c.GetMethodInfo().Name == nameof(INotificationDispatcher.DispatchAsync))
-            .ShouldHaveSingleItem().GetArguments();
+            .ShouldHaveSingleItem().GetArguments().Skip(1).ToArray();
         ((IReadOnlyCollection<NotificationRecipient>)args[1]!).Count.ShouldBe(2);
         ((string)args[3]!).ShouldBe(
             $"{NotificationTemplateConsts.Codes.CaseTrackerPushFailed}/{alert.TenantId}/t{alert.OccurredAt.Ticks}");
@@ -245,7 +245,7 @@ public class CaseTrackerPushFailedEmailHandlerTests
     {
         var args = dispatcher.ReceivedCalls()
             .Where(c => c.GetMethodInfo().Name == nameof(INotificationDispatcher.DispatchAsync))
-            .ShouldHaveSingleItem().GetArguments();
+            .ShouldHaveSingleItem().GetArguments().Skip(1).ToArray();
         return ((string)args[0]!, (IReadOnlyCollection<NotificationRecipient>)args[1]!, (IReadOnlyDictionary<string, object?>)args[2]!);
     }
 }

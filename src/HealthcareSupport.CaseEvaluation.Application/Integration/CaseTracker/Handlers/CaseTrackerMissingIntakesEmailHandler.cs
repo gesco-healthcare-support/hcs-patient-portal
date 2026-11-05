@@ -80,6 +80,7 @@ public class CaseTrackerMissingIntakesEmailHandler :
             };
 
             await _dispatcher.DispatchAsync(
+                notificationCase: NotificationCase.None,
                 templateCode: NotificationTemplateConsts.Codes.CaseTrackerMissingIntakes,
                 recipients: recipients,
                 variables: variables,

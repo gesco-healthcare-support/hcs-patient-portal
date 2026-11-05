@@ -282,6 +282,7 @@ public class OfficePacketCopyEmailHandlerTests : CaseEvaluationEntityFrameworkCo
         public void Clear() => _sent.Clear();
 
         public Task DispatchWithPacketsAsync(
+            NotificationCase notificationCase,
             string templateCode,
             IReadOnlyCollection<NotificationRecipient> recipients,
             IReadOnlyDictionary<string, object?> variables,

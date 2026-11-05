@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
+import { LocalizationPipe } from '@abp/ng.core';
 import { authorizedUserRoleLabel } from '../../shared/auth/external-user-roles';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 
@@ -54,7 +55,7 @@ export type ExternalAuthorizedUserOption = {
 @Component({
   selector: 'app-appointment-add-authorized-users',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, LocalizationPipe],
   templateUrl: './appointment-add-authorized-users.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -91,7 +92,12 @@ export class AppointmentAddAuthorizedUsersComponent {
   @Input() bookerFollowsDisabled = false;
   @Output() bookerFollowsChange = new EventEmitter<boolean>();
 
-  readonly roleLabel = authorizedUserRoleLabel;
+  /** True for an external booker: a claim examiner's helper is then labelled an assistant. */
+  @Input() externalBooker = false;
+
+  roleLabel(role: string): string {
+    return authorizedUserRoleLabel(role, this.externalBooker);
+  }
 
   isAuthorizedUserModalOpen = false;
   authorizedUserModalMode: 'create' | 'edit' = 'create';

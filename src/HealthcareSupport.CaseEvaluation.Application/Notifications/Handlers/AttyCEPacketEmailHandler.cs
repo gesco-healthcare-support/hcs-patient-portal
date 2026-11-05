@@ -197,6 +197,7 @@ public class AttyCEPacketEmailHandler :
                 };
 
                 await _dispatcher.DispatchAsync(
+                    notificationCase: NotificationCase.Of(eventData.AppointmentId),
                     templateCode: NotificationTemplateConsts.Codes.AppointmentDocumentAddWithAttachment,
                     recipients: new[] { recipient },
                     variables: withUrl,

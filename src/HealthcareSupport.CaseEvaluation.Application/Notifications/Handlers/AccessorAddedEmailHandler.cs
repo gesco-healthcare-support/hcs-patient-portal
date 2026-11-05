@@ -91,6 +91,7 @@ public class AccessorAddedEmailHandler :
             try
             {
                 await _dispatcher.DispatchAsync(
+                    notificationCase: NotificationCase.Of(eventData.AppointmentId),
                     templateCode: NotificationTemplateConsts.Codes.AccessorAppointmentAdded,
                     recipients: recipients,
                     variables: variables,

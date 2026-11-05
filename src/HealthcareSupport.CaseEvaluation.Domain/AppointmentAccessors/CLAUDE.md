@@ -15,6 +15,7 @@ replaced it.)
 | `AppointmentAccessor.cs`                         | `FullAuditedEntity<Guid>, IMultiTenant` (not AggregateRoot -- link row, not domain root) |
 | `AppointmentAccessorManager.cs`                  | `CreateAsync` / `UpdateAsync` / `CreateOrLinkAsync` (Phase 11i)                          |
 | `AppointmentAccessorRules.cs`                    | Pure static logic: `ResolveOutcome` + `AccessorLinkOutcome` enum                         |
+| `AccessorManagementRules.cs`                     | Pure who-may-manage rule (`Decide`) + `AccessorManageDecision`, `AccessorCaller`, `AccessorCase`, `AccessorTarget` |
 | `AppointmentAccessorWithNavigationProperties.cs` | Read-shape: `AppointmentAccessor + IdentityUser? + Appointment?`                         |
 | `AppointmentAccessorAppointment.cs`              | Composite-key join entity -- code-gen artefact, unregistered, inert                      |
 | `IAppointmentAccessorRepository.cs`              | Custom repo contract                                                                     |
@@ -94,6 +95,16 @@ before touching the DB -- fail fast is intentional (see dual-ctor pattern in Dom
   through that service, so the one check covers both. It is what lets
   `ConsentSideFollowerRule` trust an accessor row's adder when the in-portal consent card decides
   who may answer for a side.
+- **Own-side management after booking (2026-11-05, decisions 3-5).** `AppointmentReadAccessGuard`
+  hydrates the caller's standing (booker, accessor row, verified email) and `AccessorManagementRules.Decide`
+  judges it. An external caller manages (add / edit / remove) only Authorized Users of a law-office side on
+  which they are a party of THIS case (named attorney by verified email + attorney role, or the booker / an
+  Authorized User holding a role of that side); a claim examiner party manages Claim Examiner helpers only;
+  a Patient manages nothing. A law-office booker may NOT add a Patient or Claim Examiner role (not their side; the
+  booking wizard offers each booker only what this rule admits, since a refusal inside the atomic submit
+  fails the whole booking). Delete now judges the target account's roles like Update. A firm account
+  holding both sides is judged per side (`LawOfficeSideOf` answers side A first, so it is not used).
+  Wrong side -> 400 `AppointmentAccessorOtherSideNotAllowed`; not on the case -> `AppointmentAccessDenied`.
 - `AccessType` enum values are non-sequential (`View=23`, `Edit=24`) -- legacy values. Add
   new values with explicit integer codes; do not assume zero-based ordering.
 - `Check.NotNull` on `Guid` value-type params in `CreateAsync` / `UpdateAsync` is a no-op
