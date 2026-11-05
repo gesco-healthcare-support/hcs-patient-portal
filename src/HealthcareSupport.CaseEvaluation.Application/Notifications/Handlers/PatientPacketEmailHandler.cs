@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
+using HealthcareSupport.CaseEvaluation.Identity;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using HealthcareSupport.CaseEvaluation.Settings;
@@ -80,7 +83,30 @@ public class PatientPacketEmailHandler :
             // set (OLD silent-skip parity).
             var recipientEmail = ResolvePatientPacketRecipientEmail(
                 ctx.PatientEmail, ctx.ApplicantAttorneyEmail);
-            if (string.IsNullOrWhiteSpace(recipientEmail))
+            var recipients = new List<NotificationRecipient>();
+            if (!string.IsNullOrWhiteSpace(recipientEmail))
+            {
+                recipients.Add(new NotificationRecipient(
+                    email: recipientEmail,
+                    role: RecipientRole.Patient,
+                    isRegistered: true));
+            }
+            else if (ctx.RedirectSide == ChangeRequestSide.SideA)
+            {
+                // 2026-11-04 (office decision 2): the applicant attorney's mail goes to the applicant paralegal(s)
+                // instead, and the attorney fallback above is the redirected lawyer, so the packet goes to the
+                // applicant-side paralegal Authorized Users (one mail each address).
+                recipients.AddRange(ctx.Followers
+                    .Where(f => f.RoleNames.Any(r => string.Equals(
+                        r?.Trim(), ExternalRoleConsts.ApplicantParalegal, StringComparison.OrdinalIgnoreCase)))
+                    .GroupBy(f => f.Email, StringComparer.OrdinalIgnoreCase)
+                    .Select(g => new NotificationRecipient(
+                        email: g.First().Email,
+                        role: RecipientRole.ApplicantAttorney,
+                        isRegistered: true)));
+            }
+
+            if (recipients.Count == 0)
             {
                 _logger.LogInformation(
                     "PatientPacketEmailHandler: neither patient nor applicant-attorney email set for appointment {AppointmentId}; skipping (OLD silent-skip parity).",
@@ -127,14 +153,6 @@ public class PatientPacketEmailHandler :
                 ["URL"] = documentUploadUrl,
                 ["PacketLabel"] = "Patient Packet",
                 ["Greeting"] = string.IsNullOrWhiteSpace(patientName) ? "Hello," : $"Hello {patientName},",
-            };
-
-            var recipients = new List<NotificationRecipient>
-            {
-                new NotificationRecipient(
-                    email: recipientEmail,
-                    role: RecipientRole.Patient,
-                    isRegistered: true),
             };
 
             await _dispatcher.DispatchAsync(
