@@ -292,6 +292,29 @@ public class BookerMailChoicesEmailTests : CaseEvaluationEntityFrameworkCoreTest
         redirected.ShouldHaveSingleItem().Recipients.ShouldBe(new[] { Paralegal });
     }
 
+    /// <summary>
+    /// Nobody is left unable to answer: with the redirect in force but no Authorized User who may answer for
+    /// the side (the only applicant-side paralegal was added by the DEFENSE side), the link goes back to the
+    /// side representative -- the lawyer -- rather than to nobody.
+    /// </summary>
+    [Fact]
+    public async Task UnderTheRedirect_WithNoParalegalWhoMayAnswer_TheLinkFallsBackToTheRepresentative()
+    {
+        await ArrangeAsync(bookerIsLawyer: true);
+        var changeRequestId = await AddChangeRequestAsync(ChangeRequestType.Reschedule);
+        // The lawyer's own paralegal is switched off; the only active applicant paralegal was planted by
+        // side B, so the redirect still applies (an active side-A paralegal exists) but may not answer.
+        await SwitchOffAsync(_paralegalId);
+        var defenseId = await SeedUserAsync("Defense Attorney", "mc-fb-defense", DefenseAttorney);
+        var plantedId = await SeedUserAsync("Applicant Paralegal", "mc-fb-planted", "TEST-mc-fb-planted@test.local");
+        await AddAccessorAsync(plantedId, defenseId);
+        await SetRedirectAsync(true);
+
+        var sent = await RunAsync(() => PublishConsentRequestAsync(changeRequestId, ChangeRequestSide.SideA, Lawyer));
+
+        sent.ShouldHaveSingleItem().Recipients.ShouldBe(new[] { Lawyer });
+    }
+
     /// <summary>Everyone who got a link is a link holder: they stay off the information notice and off the cancel-request party mail.</summary>
     [Fact]
     public async Task LinkRecipients_AreLinkHolders_TheyStayOffConsentInfo()

@@ -114,12 +114,14 @@ public class ChangeRequestConsentRequestEmailHandler :
             // representative is skipped, so the link goes only to those followers (the paralegals).
             var recipients = new List<NotificationRecipient>();
             var ctx = await _contextResolver.ResolveAsync(eventData.AppointmentId, appointmentDocumentId: null);
-            if (ctx == null || !CaseFollowers.IsExcluded(ctx, eventData.OpposingRecipientEmail))
+            var representative = new NotificationRecipient(
+                email: eventData.OpposingRecipientEmail,
+                role: eventData.OpposingRecipientRole,
+                isRegistered: false);
+            var representativeRedirected = ctx != null && CaseFollowers.IsExcluded(ctx, eventData.OpposingRecipientEmail);
+            if (!representativeRedirected)
             {
-                recipients.Add(new NotificationRecipient(
-                    email: eventData.OpposingRecipientEmail,
-                    role: eventData.OpposingRecipientRole,
-                    isRegistered: false));
+                recipients.Add(representative);
             }
             if (ctx != null && eventData.Side is { } side)
             {
@@ -131,12 +133,14 @@ public class ChangeRequestConsentRequestEmailHandler :
                     }
                 }
             }
-            if (recipients.Count == 0)
+            if (recipients.Count == 0 && representativeRedirected)
             {
+                // Nobody may be left unable to answer: when no Authorized User may answer for the side (e.g. the
+                // only paralegal row was planted by the other side), the link goes back to the representative.
                 _logger.LogWarning(
-                    "ChangeRequestConsentRequestEmailHandler: nobody can receive the consent link for change request {ChangeRequestId} (the representative's mail is redirected and no Authorized User may answer); skipping.",
+                    "ChangeRequestConsentRequestEmailHandler: no Authorized User may answer change request {ChangeRequestId} for its side; the consent link goes to the side representative despite the paralegal redirect.",
                     eventData.ChangeRequestId);
-                return;
+                recipients.Add(representative);
             }
 
             try
