@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, HostListener, OnInit, inject } from '@angular/core';
+import { Component, HostListener, OnInit, inject, signal } from '@angular/core';
 import { ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { LocalizationService, PermissionService, RestService } from '@abp/ng.core';
@@ -38,6 +38,10 @@ import {
   type DetailAction,
 } from './internal-detail.util';
 import { StaffPartiesEditor } from './staff-parties-editor';
+import { AppointmentEmailRecipientsCardComponent } from '../../../email-stops/appointment-email-recipients-card.component';
+import { EmailStoppedTagComponent } from '../../../email-stops/email-stopped-tag.component';
+import type { AppointmentEmailRecipientDto } from '../../../email-stops/email-stops.models';
+import { stoppedEmailSet } from '../../../email-stops/email-stops.util';
 import {
   changedRows,
   fixedSummary,
@@ -87,6 +91,8 @@ type DateLike = string | Date | null | undefined;
     RescheduleRequestModalComponent,
     CancellationRequestModalComponent,
     RequestInfoModalComponent,
+    AppointmentEmailRecipientsCardComponent,
+    EmailStoppedTagComponent,
   ],
   templateUrl: './internal-appointment-detail.component.html',
 })
@@ -99,6 +105,13 @@ export class InternalAppointmentDetailComponent extends AppointmentViewComponent
   private readonly detailToaster = inject(ToasterService);
   private readonly detailLocalization = inject(LocalizationService);
   private readonly infoRequestApi = inject(AppointmentInfoRequestService);
+
+  /** Addresses whose emails are stopped, from the "Who gets emails" card (lower-cased). */
+  protected readonly stoppedEmails = signal<ReadonlySet<string>>(new Set());
+
+  protected onRecipientsLoaded(items: AppointmentEmailRecipientDto[]): void {
+    this.stoppedEmails.set(stoppedEmailSet(items));
+  }
 
   /** Edit-details mode: read ledgers (false) vs editable form inputs (true). */
   protected editMode = false;

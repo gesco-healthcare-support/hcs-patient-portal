@@ -1,0 +1,25 @@
+.es-table {
+  margin-top: 8px;
+}
+.es-right {
+  text-align: right;
+}
+.es-none {
+  text-align: center;
+  color: var(--n-400, #868f94);
+  padding: 24px;
+}
+.es-pager {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+.es-add {
+  margin-top: 14px;
+}
+.es-cant {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--n-500, #5a6469);
+}
