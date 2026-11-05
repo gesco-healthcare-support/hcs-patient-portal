@@ -206,6 +206,7 @@ internal sealed class DocumentEmailFlow
             };
 
             await _dispatcher.DispatchToWithCcAsync(
+                notificationCase: NotificationCase.Of(spec.AppointmentId),
                 templateCode: templateCode,
                 to: to,
                 cc: cc,

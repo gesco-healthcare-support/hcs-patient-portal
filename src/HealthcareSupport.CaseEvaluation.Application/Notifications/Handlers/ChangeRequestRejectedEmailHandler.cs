@@ -121,6 +121,7 @@ public class ChangeRequestRejectedEmailHandler :
                 portalUrl: ctx.PortalBaseUrl);
 
             await _dispatcher.DispatchAsync(
+                notificationCase: NotificationCase.Of(eventData.AppointmentId),
                 templateCode: templateCode,
                 recipients: recipients,
                 variables: variables,

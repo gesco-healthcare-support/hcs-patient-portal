@@ -77,6 +77,7 @@ public class CaseTrackerMissingIntakesEmailHandlerTests
 
         tenant.Received(1).Change(null, Arg.Any<string?>());
         await dispatcher.Received(1).DispatchAsync(
+            Arg.Any<NotificationCase>(),
             NotificationTemplateConsts.Codes.CaseTrackerMissingIntakes,
             Arg.Is<IReadOnlyCollection<NotificationRecipient>>(r => r.Count == 2 && r.All(x => !x.IsRegistered)),
             Arg.Is<IReadOnlyDictionary<string, object?>>(v => (string)v["MissingIntakeCount"]! == "1"),
@@ -96,6 +97,7 @@ public class CaseTrackerMissingIntakesEmailHandlerTests
         await handler.HandleEventAsync(Report(Monday));
 
         await dispatcher.DidNotReceiveWithAnyArgs().DispatchAsync(
+            default,
             default!, default!, default!, default!, default, default);
     }
 

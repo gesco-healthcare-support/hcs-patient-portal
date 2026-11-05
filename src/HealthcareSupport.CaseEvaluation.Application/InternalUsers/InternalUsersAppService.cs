@@ -256,6 +256,7 @@ public class InternalUsersAppService : CaseEvaluationAppService, IInternalUsersA
             : await _accountUrlBuilder.BuildHostPasswordResetUrlAsync(user.Id, token);
 
         await _notificationDispatcher.DispatchAsync(
+            notificationCase: NotificationCase.None,
             templateCode: NotificationTemplateConsts.Codes.ResetPassword,
             recipients: new[]
             {

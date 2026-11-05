@@ -65,6 +65,7 @@ public class StaffEmailHostRoutingTests
         });
 
         await dispatcher.Received(1).DispatchAsync(
+            Arg.Any<NotificationCase>(),
             Arg.Any<string>(),
             Arg.Any<IReadOnlyCollection<NotificationRecipient>>(),
             Arg.Is<IReadOnlyDictionary<string, object?>>(v => PortalUrlOf(v) == HostUrl),

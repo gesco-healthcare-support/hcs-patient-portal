@@ -64,6 +64,9 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
     public DbSet<HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocument> AppointmentDocuments { get; set; } = null!;
     public DbSet<HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocumentVersion> AppointmentDocumentVersions { get; set; } = null!;
     public DbSet<HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacketVersion> AppointmentPacketVersions { get; set; } = null!;
+    public DbSet<HealthcareSupport.CaseEvaluation.EmailStops.AppointmentEmailStop> AppointmentEmailStops { get; set; } = null!;
+    // 2026-11-05: the host-level "stop emails for all cases" list (host DB only).
+    public DbSet<HealthcareSupport.CaseEvaluation.EmailStops.GlobalEmailStop> GlobalEmailStops { get; set; } = null!;
     public DbSet<HealthcareSupport.CaseEvaluation.PhiAccess.PhiAccessLogEntry> PhiAccessLog { get; set; } = null!;
     public DbSet<HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacket> AppointmentPackets { get; set; } = null!;
     public DbSet<AppointmentTypeFieldConfig> AppointmentTypeFieldConfigs { get; set; } = null!;
@@ -187,6 +190,24 @@ public class CaseEvaluationDbContext : CaseEvaluationDbContextBase<CaseEvaluatio
                     .IsUnique()
                     .HasFilter("[IsDeleted] = 0")
                     .HasDatabaseName("IX_AppEntity_OfficeBrandings_Office");
+            });
+
+            // 2026-11-05: staff "stop emails for all cases" -- one list for every practice, so host-only.
+            // Read from an office with CurrentTenant.Change(null). Soft delete = "turned back on" (the
+            // history stays); the lookup reads NormalizedEmail.
+            modelBuilder.Entity<HealthcareSupport.CaseEvaluation.EmailStops.GlobalEmailStop>(b =>
+            {
+                b.ToTable(CaseEvaluationConsts.DbTablePrefix + "EmailStops", CaseEvaluationConsts.DbSchema);
+                b.ConfigureByConvention();
+                b.Property(x => x.Email).HasColumnName("Email").IsRequired().HasMaxLength(HealthcareSupport.CaseEvaluation.EmailStops.EmailStopConsts.EmailMaxLength);
+                b.Property(x => x.NormalizedEmail).HasColumnName("NormalizedEmail").IsRequired().HasMaxLength(HealthcareSupport.CaseEvaluation.EmailStops.EmailStopConsts.EmailMaxLength);
+                b.Property(x => x.StoppedByUserId).HasColumnName("StoppedByUserId");
+                b.Property(x => x.StoppedByName).HasColumnName("StoppedByName").HasMaxLength(HealthcareSupport.CaseEvaluation.EmailStops.EmailStopConsts.NameMaxLength);
+                b.Property(x => x.StoppedAt).HasColumnName("StoppedAt");
+                b.Property(x => x.StoppedFromOfficeId).HasColumnName("StoppedFromOfficeId");
+                b.Property(x => x.StoppedFromOfficeName).HasColumnName("StoppedFromOfficeName").HasMaxLength(HealthcareSupport.CaseEvaluation.EmailStops.EmailStopConsts.OfficeNameMaxLength);
+                b.Property(x => x.Note).HasColumnName("Note").HasMaxLength(HealthcareSupport.CaseEvaluation.EmailStops.EmailStopConsts.NoteMaxLength);
+                b.HasIndex(x => x.NormalizedEmail);
             });
         }
     }

@@ -1,3 +1,4 @@
+using HealthcareSupport.CaseEvaluation.EmailStops;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -66,7 +67,7 @@ public class NotificationDispatcherGuardTests
             tenant,
             new NotificationOutboxManager(repo, SimpleGuidGenerator.Instance),
             uowManager,
-            NullLogger<NotificationDispatcher>.Instance);
+            NullLogger<NotificationDispatcher>.Instance, Substitute.For<IEmailStopPolicy>());
         return new Fixture { Dispatcher = dispatcher, Rows = rows, Renderer = renderer };
     }
 
@@ -80,6 +81,7 @@ public class NotificationDispatcherGuardTests
         var f = Build();
 
         await f.Dispatcher.DispatchAsync(
+            NotificationCase.None,
             "TEST-template",
             new[] { new NotificationRecipient("TEST-one@test.local", role: RecipientRole.Patient) },
             new Dictionary<string, object?>(),
@@ -98,6 +100,7 @@ public class NotificationDispatcherGuardTests
         var f = Build();
 
         await f.Dispatcher.DispatchAsync(
+            NotificationCase.None,
             "TEST-template", Array.Empty<NotificationRecipient>(), new Dictionary<string, object?>(), "TEST-ctx/2");
 
         f.Rows.ShouldBeEmpty();
@@ -114,6 +117,7 @@ public class NotificationDispatcherGuardTests
         var f = Build();
 
         await f.Dispatcher.DispatchAsync(
+            NotificationCase.None,
             "TEST-template",
             new[]
             {

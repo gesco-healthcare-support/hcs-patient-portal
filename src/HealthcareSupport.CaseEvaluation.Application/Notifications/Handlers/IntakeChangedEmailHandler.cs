@@ -114,6 +114,7 @@ public class IntakeChangedEmailHandler :
             };
 
             await _dispatcher.DispatchAsync(
+                notificationCase: NotificationCase.Of(eventData.AppointmentId),
                 templateCode: NotificationTemplateConsts.Codes.AppointmentChangeLogs,
                 recipients: recipients,
                 variables: diffVariables,
@@ -182,6 +183,7 @@ public class IntakeChangedEmailHandler :
         try
         {
             await _dispatcher.DispatchAsync(
+                notificationCase: NotificationCase.Of(eventData.AppointmentId),
                 templateCode: NotificationTemplateConsts.Codes.AppointmentRescheduleRequestByAdmin,
                 recipients: recipients,
                 variables: variables,

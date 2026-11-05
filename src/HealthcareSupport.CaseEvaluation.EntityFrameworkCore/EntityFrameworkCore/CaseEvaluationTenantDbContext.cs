@@ -62,6 +62,7 @@ public class CaseEvaluationTenantDbContext : CaseEvaluationDbContextBase<CaseEva
     public DbSet<HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocument> AppointmentDocuments { get; set; } = null!;
     public DbSet<HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocumentVersion> AppointmentDocumentVersions { get; set; } = null!;
     public DbSet<HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacketVersion> AppointmentPacketVersions { get; set; } = null!;
+    public DbSet<HealthcareSupport.CaseEvaluation.EmailStops.AppointmentEmailStop> AppointmentEmailStops { get; set; } = null!;
     public DbSet<HealthcareSupport.CaseEvaluation.PhiAccess.PhiAccessLogEntry> PhiAccessLog { get; set; } = null!;
     public DbSet<HealthcareSupport.CaseEvaluation.SystemParameters.SystemParameter> SystemParameters { get; set; } = null!;
     public DbSet<Document> Documents { get; set; } = null!;

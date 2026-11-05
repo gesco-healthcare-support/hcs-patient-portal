@@ -60,6 +60,7 @@ public class CaseTrackerFeedAlertEmailHandlerTests
         await handler.HandleEventAsync(Alert(CaseTrackerFeedAlertKind.SilenceStarted));
 
         await dispatcher.Received(1).DispatchAsync(
+            Arg.Any<NotificationCase>(),
             NotificationTemplateConsts.Codes.CaseTrackerFeedAlert,
             Arg.Is<IReadOnlyCollection<NotificationRecipient>>(r =>
                 r.Count == 2 && r.All(x => !x.IsRegistered)),
@@ -81,7 +82,7 @@ public class CaseTrackerFeedAlertEmailHandlerTests
 
         await handler.HandleEventAsync(Alert(CaseTrackerFeedAlertKind.StallStarted));
 
-        await dispatcher.DidNotReceiveWithAnyArgs().DispatchAsync(default!, default!, default!, default!);
+        await dispatcher.DidNotReceiveWithAnyArgs().DispatchAsync(default, default!, default!, default!, default!);
     }
 
     [Fact]

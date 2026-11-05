@@ -308,6 +308,7 @@ public class BookingSubmissionEmailHandler :
             }
 
             await _dispatcher.DispatchToWithCcAsync(
+                notificationCase: NotificationCase.Of(eventData.AppointmentId),
                 templateCode: NotificationTemplateConsts.Codes.AppointmentRequestedRegistered,
                 to: toRecipient,
                 cc: ccRecipients,
@@ -328,6 +329,7 @@ public class BookingSubmissionEmailHandler :
                     email: office.To, role: office.Role, isRegistered: office.IsRegistered),
             };
             await _dispatcher.DispatchAsync(
+                notificationCase: NotificationCase.Of(eventData.AppointmentId),
                 templateCode: NotificationTemplateConsts.Codes.AppointmentRequestedOffice,
                 recipients: officeRecipient,
                 variables: officeVariables,
@@ -606,6 +608,7 @@ public class BookingSubmissionEmailHandler :
             portalUrl: await _accountUrlBuilder.BuildPortalRootUrlAsync(null));
 
         await _dispatcher.DispatchAsync(
+            notificationCase: NotificationCase.Of(eventData.AppointmentId),
             templateCode: NotificationTemplateConsts.Codes.PatientAppointmentApproveReject,
             recipients: staffRecipients,
             variables: vars,

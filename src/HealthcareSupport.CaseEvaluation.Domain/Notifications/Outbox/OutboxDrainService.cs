@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 using HealthcareSupport.CaseEvaluation.Appointments;
+using HealthcareSupport.CaseEvaluation.EmailStops;
 using HealthcareSupport.CaseEvaluation.Settings;
 using Microsoft.Extensions.Logging;
 using Volo.Abp.DependencyInjection;
@@ -26,19 +28,22 @@ public class OutboxDrainService : ITransientDependency
     private readonly IClock _clock;
     private readonly ISettingProvider _settingProvider;
     private readonly ILogger<OutboxDrainService> _logger;
+    private readonly IEmailStopPolicy _emailStopPolicy;
 
     public OutboxDrainService(
         NotificationOutboxManager outboxManager,
         IOutboxEmailSender sender,
         IClock clock,
         ISettingProvider settingProvider,
-        ILogger<OutboxDrainService> logger)
+        ILogger<OutboxDrainService> logger,
+        IEmailStopPolicy emailStopPolicy)
     {
         _outboxManager = outboxManager;
         _sender = sender;
         _clock = clock;
         _settingProvider = settingProvider;
         _logger = logger;
+        _emailStopPolicy = emailStopPolicy;
     }
 
     /// <summary>
@@ -64,11 +69,16 @@ public class OutboxDrainService : ITransientDependency
         var size = batchSize ?? NotificationOutboxConsts.DrainBatchSize;
 
         var claimed = await _outboxManager.ClaimDueBatchAsync(_clock.Now, lease, size);
+        var stops = await LookupStopsAsync(claimed);
 
         var sent = 0;
         var failed = 0;
         foreach (var row in claimed)
         {
+            if (await ApplyEmailStopsAsync(row, stops))
+            {
+                continue;
+            }
             try
             {
                 await _sender.SendAsync(ToEmailArgs(row));
@@ -92,6 +102,52 @@ public class OutboxDrainService : ITransientDependency
         }
 
         return new OutboxDrainResult(sent, failed);
+    }
+
+    // 2026-11-05 email stops: a stop saved after a row was written must still hold. ONE lookup covers the
+    // whole claimed batch (every To and CC of every row that asks to be re-checked).
+    private async Task<EmailStopLookup> LookupStopsAsync(IReadOnlyCollection<NotificationOutboxItem> claimed)
+    {
+        var pairs = claimed
+            .Where(r => r.RequiresEmailStopCheck())
+            .SelectMany(r => r.GetCcList().Prepend(r.To).Select(a => (r.GetEmailStopCaseId(), (string?)a)))
+            .ToList();
+        if (pairs.Count == 0)
+        {
+            return EmailStopLookup.Empty;
+        }
+        return await _emailStopPolicy.LookupBatchAsync(pairs) ?? EmailStopLookup.Empty;
+    }
+
+    // Returns true when the row was fully stopped (marked Stopped, saved, not sent). A row that only lost
+    // some addresses is re-addressed and sent to the rest.
+    private async Task<bool> ApplyEmailStopsAsync(NotificationOutboxItem row, EmailStopLookup stops)
+    {
+        if (stops.IsEmpty || !row.RequiresEmailStopCheck())
+        {
+            return false;
+        }
+        var caseId = row.GetEmailStopCaseId();
+        var addressing = EmailStopAddressing.Apply(row.To, row.GetCcList(), stops, caseId);
+        if (!addressing.Changed)
+        {
+            return false;
+        }
+        foreach (var dropped in addressing.Dropped)
+        {
+            _logger.LogInformation(
+                "OutboxDrainService: email stopped by staff ({Scope}); 1 recipient left off outbox row {RowId}.",
+                stops.ScopeOf(dropped, caseId),
+                row.Id);
+        }
+        if (addressing.IsDropped)
+        {
+            row.MarkStopped(_clock.Now);
+            await _outboxManager.SaveAsync(row);
+            return true;
+        }
+        row.ReplaceRecipients(addressing.To!, addressing.Cc);
+        return false;
     }
 
     private static SendAppointmentEmailArgs ToEmailArgs(NotificationOutboxItem row)
