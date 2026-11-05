@@ -1,0 +1,160 @@
+<div class="ra-card">
+  <div class="ra-card__head">
+    <div>
+      <h3>{{ '::EmailStops:Page:Title' | abpLocalization }}</h3>
+      <p>{{ '::EmailStops:Page:Intro' | abpLocalization }}</p>
+    </div>
+  </div>
+  <div class="ra-card__body">
+    <div class="ra-field">
+      <label for="es-filter">{{ '::EmailStops:Page:Search' | abpLocalization }}</label>
+      <input
+        id="es-filter"
+        class="ra-input"
+        type="search"
+        data-testid="filter"
+        [ngModel]="filter()"
+        (ngModelChange)="setFilter($event)"
+      />
+    </div>
+
+    <table class="ad-table es-table">
+      <thead>
+        <tr>
+          <th>{{ '::EmailStops:Page:Email' | abpLocalization }}</th>
+          <th>{{ '::EmailStops:Page:StoppedBy' | abpLocalization }}</th>
+          <th>{{ '::EmailStops:Page:When' | abpLocalization }}</th>
+          <th>{{ '::EmailStops:Page:Reason' | abpLocalization }}</th>
+          <th>{{ '::EmailStops:Page:FromPractice' | abpLocalization }}</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (s of items(); track s.id) {
+          <tr data-testid="stop-row">
+            <td>{{ s.email }}</td>
+            <td>{{ s.stoppedByName || '-' }}</td>
+            <td>{{ s.stoppedAt | pacificDate: 'mediumDate' }}</td>
+            <td>{{ s.note || '-' }}</td>
+            <td>
+              {{ s.stoppedFromOfficeName || ('::EmailStops:Page:StaffSite' | abpLocalization) }}
+            </td>
+            <td class="es-right">
+              <button
+                class="af-btn af-btn--primary af-btn--sm"
+                type="button"
+                data-testid="turn-on"
+                (click)="resumeTarget.set(s)"
+              >
+                {{ '::EmailStops:TurnOnButton' | abpLocalization }}
+              </button>
+            </td>
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="6" class="es-none">{{ '::EmailStops:Page:Empty' | abpLocalization }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+    @if (hasPrev() || hasNext()) {
+      <div class="es-pager">
+        <button
+          class="af-btn af-btn--ghost af-btn--sm"
+          type="button"
+          [disabled]="!hasPrev()"
+          (click)="page(-1)"
+        >
+          {{ '::EmailStops:Page:Previous' | abpLocalization }}
+        </button>
+        <button
+          class="af-btn af-btn--ghost af-btn--sm"
+          type="button"
+          [disabled]="!hasNext()"
+          (click)="page(1)"
+        >
+          {{ '::EmailStops:Page:Next' | abpLocalization }}
+        </button>
+      </div>
+    }
+  </div>
+</div>
+
+<div class="ra-card">
+  <div class="ra-card__head">
+    <h3>{{ '::EmailStops:Page:AddTitle' | abpLocalization }}</h3>
+  </div>
+  <div class="ra-card__body">
+    <div class="ra-grid">
+      <div class="ra-field col-6">
+        <label for="es-new-email">{{ '::EmailStops:Page:Email' | abpLocalization }}</label>
+        <input
+          id="es-new-email"
+          class="ra-input"
+          type="email"
+          maxlength="256"
+          data-testid="new-email"
+          [ngModel]="newEmail()"
+          (ngModelChange)="setEmail($event)"
+        />
+      </div>
+      <div class="ra-field col-6">
+        <label for="es-new-note">{{ '::EmailStops:Dialog:Reason' | abpLocalization }}</label>
+        <input
+          id="es-new-note"
+          class="ra-input"
+          type="text"
+          maxlength="256"
+          [ngModel]="newNote()"
+          (ngModelChange)="newNote.set($event)"
+        />
+      </div>
+    </div>
+    <app-email-stop-consent-warning [impact]="impact()" [email]="newEmail()" />
+    <div class="es-add">
+      <button
+        class="af-btn af-btn--primary"
+        type="button"
+        data-testid="add-stop"
+        [disabled]="busy() || !newEmail().trim()"
+        (click)="stopAddress()"
+      >
+        {{
+          (impact()?.hasImpact ? '::EmailStops:Page:StopAnyway' : '::EmailStops:StopButton')
+            | abpLocalization
+        }}
+      </button>
+    </div>
+    @if (onStaffSite) {
+      <p class="es-cant" data-testid="staff-site-note">
+        {{ '::EmailStops:Page:CantCheck' | abpLocalization }}
+      </p>
+    }
+  </div>
+</div>
+
+@if (resumeTarget(); as target) {
+  <div class="ra-scrim">
+    <div class="ra-modal ra-modal--sm" role="dialog" aria-modal="true">
+      <div class="ra-modal__head">
+        <h3>{{ '::EmailStops:TurnOnButton' | abpLocalization }}</h3>
+      </div>
+      <div class="ra-modal__body">
+        <p>{{ '::EmailStops:Page:ConfirmTurnOn' | abpLocalization: target.email }}</p>
+      </div>
+      <div class="ra-modal__foot">
+        <button class="af-btn af-btn--ghost" type="button" (click)="resumeTarget.set(null)">
+          {{ '::EmailStops:Dialog:Cancel' | abpLocalization }}
+        </button>
+        <button
+          class="af-btn af-btn--primary"
+          type="button"
+          data-testid="confirm-turn-on"
+          (click)="confirmResume()"
+        >
+          {{ '::EmailStops:TurnOnButton' | abpLocalization }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
