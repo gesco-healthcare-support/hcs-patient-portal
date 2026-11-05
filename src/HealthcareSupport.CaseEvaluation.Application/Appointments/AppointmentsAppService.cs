@@ -777,7 +777,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         var result = new AppointmentSubmitResultDto();
 
         // 2026-11-04 (office decisions 1 and 2): refuse a bad mail choice before anything is written.
-        var mailChoices = AppointmentMailChoices.Validate(input, CurrentUser.Roles);
+        var mailChoices = AppointmentMailChoices.Validate(input, CurrentUser.Roles, CurrentUser.GetVerifiedEmail());
 
         try
         {

@@ -24,7 +24,8 @@ public static class AppointmentMailChoices
     /// <c>AppointmentAttorneyMailRedirectAttorneyOnly</c> otherwise) and a same-side paralegal among
     /// the submit's Authorized Users (400 <c>AppointmentAttorneyMailRedirectNeedsParalegal</c>).
     /// </summary>
-    public static SubmitChoices Validate(AppointmentSubmitDto input, IEnumerable<string?>? callerRoles)
+    public static SubmitChoices Validate(
+        AppointmentSubmitDto input, IEnumerable<string?>? callerRoles, string? callerVerifiedEmail = null)
     {
         ArgumentNullException.ThrowIfNull(input);
         var roles = (callerRoles ?? Array.Empty<string?>())
@@ -41,6 +42,17 @@ public static class AppointmentMailChoices
 
         var side = AttorneySideOf(roles);
         if (internalCaller || side == null)
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentAttorneyMailRedirectAttorneyOnly);
+        }
+
+        // 2026-11-04: the booker types the lawyer freely again, so the redirect is allowed only when the
+        // booker IS the lawyer named on their side (that side's attorney email is their own verified login).
+        // Otherwise an attorney login booking for another lawyer could silence that lawyer.
+        var ownSideEmail = side == ChangeRequestSide.SideA ? input.ApplicantAttorneyEmail : input.DefenseAttorneyEmail;
+        if (string.IsNullOrWhiteSpace(ownSideEmail)
+            || string.IsNullOrWhiteSpace(callerVerifiedEmail)
+            || !string.Equals(ownSideEmail.Trim(), callerVerifiedEmail.Trim(), StringComparison.OrdinalIgnoreCase))
         {
             throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentAttorneyMailRedirectAttorneyOnly);
         }

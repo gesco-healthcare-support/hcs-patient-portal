@@ -210,7 +210,7 @@
               [mandatory]="isApplicantSideBooker && !isItAdmin"
               [questionText]="attorneyQuestionFor('applicant')"
               [getStateLookup]="getStateLookup"
-              [isReadOnly]="attorneyEmailLocked('applicant')"
+              [isReadOnly]="false"
               [isFieldInvalid]="isFieldInvalidBound"
             />
           }
@@ -233,7 +233,7 @@
               [mandatory]="isDefenseSideBooker && !isItAdmin"
               [questionText]="attorneyQuestionFor('defense')"
               [getStateLookup]="getStateLookup"
-              [isReadOnly]="attorneyEmailLocked('defense')"
+              [isReadOnly]="false"
               [isFieldInvalid]="isFieldInvalidBound"
             />
           }
