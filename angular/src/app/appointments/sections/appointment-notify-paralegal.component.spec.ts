@@ -6,11 +6,12 @@ describe('AppointmentNotifyParalegalComponent', () => {
   let fixture: ComponentFixture<AppointmentNotifyParalegalComponent>;
   let emitted: NotifyParalegalState[];
 
-  function setup(state: NotifyParalegalState, showErrors = false): HTMLElement {
+  function setup(state: NotifyParalegalState, showErrors = false, conflict = false): HTMLElement {
     fixture = TestBed.createComponent(AppointmentNotifyParalegalComponent);
     emitted = [];
     fixture.componentInstance.state = state;
     fixture.componentInstance.showErrors = showErrors;
+    fixture.componentInstance.conflict = conflict;
     fixture.componentInstance.idPrefix = 'applicant-paralegal';
     fixture.componentInstance.stateChange.subscribe((s) => emitted.push(s));
     fixture.detectChanges();
@@ -49,5 +50,17 @@ describe('AppointmentNotifyParalegalComponent', () => {
 
     expect(emitted.length).toBe(1);
     expect(emitted[0].enabled).toBeTrue();
+  });
+
+  it('shows the conflict message only while ticked and in conflict', () => {
+    let el = setup({ ...EMPTY_NOTIFY_PARALEGAL, enabled: true }, false, true);
+    expect(el.querySelector('#notify-paralegal-conflict')?.textContent).toContain(
+      'already an Authorized User with another role',
+    );
+
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({ imports: [AppointmentNotifyParalegalComponent] });
+    el = setup({ ...EMPTY_NOTIFY_PARALEGAL, enabled: true }, false, false);
+    expect(el.querySelector('#notify-paralegal-conflict')).toBeNull();
   });
 });

@@ -61,6 +61,7 @@ import {
 } from '../shared/auth/external-user-roles';
 import {
   EMPTY_NOTIFY_PARALEGAL,
+  NOTIFY_PARALEGAL_CONFLICT_MESSAGE,
   notifyParalegalErrors,
   withNotifyParalegal,
   type NotifyParalegalState,
@@ -612,7 +613,25 @@ export class AppointmentAddComponent {
     return !this.isInternalBooker && this.shouldShowAuthorizedUserSection();
   }
 
-  /** The lawyer's "instead of me" tick is on and complete (its paralegal becomes the accessor). */
+  /** The lawyer's "instead of me" tick is on (attorney bookers only), complete or not. */
+  get notifyParalegalTicked(): boolean {
+    return this.notifyParalegalSide !== null && this.notifyParalegal.enabled;
+  }
+
+  /**
+   * Ticked and complete, but the typed paralegal email is already an Authorized User with another
+   * role, so the merge would keep that role and the redirect could not apply. Submitting would
+   * leave the lawyer believing they get nothing while they get everything, so it blocks.
+   */
+  get notifyParalegalConflict(): boolean {
+    return (
+      this.notifyParalegalTicked &&
+      !this.notifyParalegalInvalid &&
+      !this.sendAttorneyMailToParalegal
+    );
+  }
+
+  /** The lawyer's "instead of me" tick is on and complete AND its paralegal is a same-side accessor. */
   get sendAttorneyMailToParalegal(): boolean {
     const side = this.notifyParalegalSide;
     if (side === null || !this.notifyParalegal.enabled || this.notifyParalegalInvalid) {
@@ -2384,6 +2403,11 @@ export class AppointmentAddComponent {
 
   /** True when a booking-level gate refuses the submit; sets the flag and message it names. */
   private isSubmitBlockedByBookingGates(): boolean {
+    if (this.notifyParalegalConflict) {
+      this.notifyParalegalShowErrors = true;
+      this.patientLoadMessage = NOTIFY_PARALEGAL_CONFLICT_MESSAGE;
+      return true;
+    }
     if (this.form.invalid) {
       this.patientLoadMessage = 'Please complete all required fields before saving.';
       Object.keys(this.form.controls).forEach((key) => {
@@ -2500,7 +2524,8 @@ export class AppointmentAddComponent {
       ...resolveFollowerFields({
         showBookerOption: this.showBookerFollowsOption,
         bookerFollows: this.bookerFollowsCase,
-        instead: this.sendAttorneyMailToParalegal,
+        insteadTicked: this.notifyParalegalTicked,
+        insteadValid: this.sendAttorneyMailToParalegal,
       }),
       accessors: buildSubmitAccessors(
         withNotifyParalegal(

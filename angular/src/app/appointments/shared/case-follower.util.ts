@@ -23,14 +23,19 @@ export interface FollowerChoice {
   showBookerOption: boolean;
   /** The booker's own choice for that box. */
   bookerFollows: boolean;
-  /** "Send all notifications to my paralegal instead of me" is ticked AND complete. */
-  instead: boolean;
+  /** "Send all notifications to my paralegal instead of me" is ticked (complete or not). */
+  insteadTicked: boolean;
+  /** ...and the merged accessor list holds the side's paralegal, so the redirect can apply. */
+  insteadValid: boolean;
 }
 
 /** The fields to put on the submit body. Staff / patient bookers send neither (server default). */
 export function resolveFollowerFields(choice: FollowerChoice): FollowerSubmitFields {
-  if (choice.instead) {
-    return { bookerFollowsCase: false, sendAttorneyMailToParalegal: true };
+  if (choice.insteadTicked) {
+    // The lawyer chose "instead of me", so the booker never follows, whatever the stored box says.
+    return choice.insteadValid
+      ? { bookerFollowsCase: false, sendAttorneyMailToParalegal: true }
+      : { bookerFollowsCase: false };
   }
   return choice.showBookerOption ? { bookerFollowsCase: choice.bookerFollows } : {};
 }

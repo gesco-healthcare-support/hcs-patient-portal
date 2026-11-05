@@ -43,6 +43,9 @@ describe('wizard paralegal booking', () => {
     bookerFollowsCase: boolean;
     showBookerFollowsOption: boolean;
     bookerFollowsDisplayed: boolean;
+    notifyParalegalConflict: boolean;
+    isSubmitBlockedByBookingGates(): boolean;
+    patientLoadMessage: string;
   }
 
   const STEP = { applicant: 2, defense: 3 } as const;
@@ -353,6 +356,16 @@ describe('wizard paralegal booking', () => {
       return c.buildSubmitPayload();
     }
 
+    function acc() {
+      return {
+        firstName: 'J',
+        lastName: 'P',
+        email: 'jane.paralegal@example.test',
+        userRole: 'Patient',
+        accessTypeId: 23,
+      };
+    }
+
     it('law-office bookers send bookerFollowsCase true by default and false once unticked', () => {
       for (const role of ['Applicant Attorney', 'Defense Paralegal']) {
         const c = create({ roles: [role] });
@@ -387,17 +400,17 @@ describe('wizard paralegal booking', () => {
       expect(c.bookerFollowsCase).toBeTrue(); // the stored choice is kept for when it is unticked
     });
 
-    it('an incomplete "instead" tick sends no redirect', () => {
+    it('an incomplete "instead" tick sends no redirect but never the stored booker choice', () => {
       const c = create({ roles: ['Defense Attorney'] });
       c.notifyParalegal = { ...TICKED, email: '' };
 
       const body = payload(c);
 
       expect(body.sendAttorneyMailToParalegal).toBeUndefined();
-      expect(body.bookerFollowsCase).toBeTrue();
+      expect(body.bookerFollowsCase).toBeFalse();
     });
 
-    it('sends no redirect when the same email is already an accessor with another role', () => {
+    it('blocks submit and sends booker false when the paralegal email is an accessor with another role', () => {
       const c = create({ roles: ['Applicant Attorney'] });
       c.notifyParalegal = TICKED;
       c.appointmentAuthorizedUsers = [
@@ -412,7 +425,22 @@ describe('wizard paralegal booking', () => {
 
       const body = payload(c);
 
+      expect(c.notifyParalegalConflict).toBeTrue();
+      expect(c.isSubmitBlockedByBookingGates()).toBeTrue();
+      // Other gates also refuse an empty booking, so pin WHICH gate answered.
+      expect(c.patientLoadMessage).toContain('already an Authorized User with another role');
       expect(body.sendAttorneyMailToParalegal).toBeUndefined();
+      expect(body.bookerFollowsCase).toBeFalse();
+    });
+
+    it('no conflict when the tick is off or the accessor already has the paralegal role', () => {
+      const c = create({ roles: ['Applicant Attorney'] });
+      c.appointmentAuthorizedUsers = [acc()];
+      expect(c.notifyParalegalConflict).toBeFalse();
+
+      c.notifyParalegal = TICKED;
+      c.appointmentAuthorizedUsers = [{ ...acc(), userRole: 'Applicant Paralegal' }];
+      expect(c.notifyParalegalConflict).toBeFalse();
     });
 
     it('a paralegal booker cannot send the redirect (only attorneys may)', () => {

@@ -219,6 +219,7 @@
               idPrefix="applicant-paralegal"
               [state]="notifyParalegal"
               [showErrors]="notifyParalegalShowErrors"
+              [conflict]="notifyParalegalConflict"
               (stateChange)="notifyParalegal = $event"
             />
           }
@@ -241,6 +242,7 @@
               idPrefix="defense-paralegal"
               [state]="notifyParalegal"
               [showErrors]="notifyParalegalShowErrors"
+              [conflict]="notifyParalegalConflict"
               (stateChange)="notifyParalegal = $event"
             />
           }

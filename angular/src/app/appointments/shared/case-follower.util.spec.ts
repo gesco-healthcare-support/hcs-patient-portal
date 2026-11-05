@@ -4,25 +4,56 @@ describe('case-follower.util', () => {
   describe('resolveFollowerFields', () => {
     it('sends the booker choice when the option is offered', () => {
       expect(
-        resolveFollowerFields({ showBookerOption: true, bookerFollows: true, instead: false }),
+        resolveFollowerFields({
+          showBookerOption: true,
+          bookerFollows: true,
+          insteadTicked: false,
+          insteadValid: false,
+        }),
       ).toEqual({ bookerFollowsCase: true });
       expect(
-        resolveFollowerFields({ showBookerOption: true, bookerFollows: false, instead: false }),
+        resolveFollowerFields({
+          showBookerOption: true,
+          bookerFollows: false,
+          insteadTicked: false,
+          insteadValid: false,
+        }),
       ).toEqual({ bookerFollowsCase: false });
     });
 
     it('sends nothing for a booker who is not offered the option (staff, patient)', () => {
       expect(
-        resolveFollowerFields({ showBookerOption: false, bookerFollows: true, instead: false }),
+        resolveFollowerFields({
+          showBookerOption: false,
+          bookerFollows: true,
+          insteadTicked: false,
+          insteadValid: false,
+        }),
       ).toEqual({});
     });
 
     it('"instead" sends the redirect and forces the booker off, whatever the box says', () => {
       for (const showBookerOption of [true, false]) {
         expect(
-          resolveFollowerFields({ showBookerOption, bookerFollows: true, instead: true }),
+          resolveFollowerFields({
+            showBookerOption,
+            bookerFollows: true,
+            insteadTicked: true,
+            insteadValid: true,
+          }),
         ).toEqual({ bookerFollowsCase: false, sendAttorneyMailToParalegal: true });
       }
+    });
+
+    it('a ticked "instead" that cannot apply still never sends the stored booker choice', () => {
+      expect(
+        resolveFollowerFields({
+          showBookerOption: true,
+          bookerFollows: true,
+          insteadTicked: true,
+          insteadValid: false,
+        }),
+      ).toEqual({ bookerFollowsCase: false });
     });
   });
 
