@@ -104,6 +104,44 @@ public static class AppointmentMailPreferences
         side == ChangeRequestSide.SideA ? ExternalRoleConsts.ApplicantAttorney : ExternalRoleConsts.DefenseAttorney;
 }
 
+/// <summary>
+/// Office decision 3 (2026-11-04): who besides the side's representative may answer the consent request
+/// for side S -- a case follower holding a law-office role of side S. For an Authorized User the row must
+/// also have been added by staff or by an account holding a side-S law-office role, so one side can never
+/// plant someone who answers for the other (rows from before the same-side rule are judged the same way).
+/// Used by the consent-link mail and by the in-portal Agree/Decline card alike.
+/// </summary>
+public static class ConsentSideFollowerRule
+{
+    /// <param name="side">The side being asked to consent.</param>
+    /// <param name="followerRoles">The follower's role names.</param>
+    /// <param name="isBooker">True for the booker (who follows the case); the adder check does not apply.</param>
+    /// <param name="adderRoles">The roles of the account that added the Authorized User row; null when unknown,
+    /// which refuses.</param>
+    public static bool MaySpeakForSide(
+        ChangeRequestSide side,
+        IEnumerable<string?>? followerRoles,
+        bool isBooker,
+        IEnumerable<string?>? adderRoles)
+    {
+        if (AppointmentMailPreferences.LawOfficeSideOf(followerRoles) != side)
+        {
+            return false;
+        }
+        if (isBooker)
+        {
+            return true;
+        }
+        if (adderRoles == null)
+        {
+            return false;
+        }
+        var adder = adderRoles.ToList();
+        return Notifications.AppointmentSubmitter.HoldsStaffRole(adder)
+            || AppointmentMailPreferences.LawOfficeSideOf(adder) == side;
+    }
+}
+
 /// <summary>A stored "send the lawyer's mail to the paralegal instead" choice (decision 2).</summary>
 public sealed record AttorneyMailRedirect(ChangeRequestSide Side, string LawyerEmail)
 {
