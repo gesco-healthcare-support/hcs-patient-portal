@@ -1,11 +1,5 @@
-<div class="ra-scrim" (click)="closed.emit()">
-  <div
-    class="ra-modal ra-modal--md"
-    role="dialog"
-    aria-modal="true"
-    (click)="$event.stopPropagation()"
-    (keydown.escape)="closed.emit()"
-  >
+<div class="ra-scrim">
+  <div class="ra-modal ra-modal--md" role="dialog" aria-modal="true">
     <div class="ra-modal__head">
       <h3>{{ '::EmailStops:Dialog:Title' | abpLocalization: email() }}</h3>
     </div>
@@ -59,7 +53,7 @@
         class="af-btn af-btn--primary"
         type="button"
         data-testid="confirm-stop"
-        [disabled]="busy()"
+        [disabled]="busy() || !impactReady()"
         (click)="save()"
       >
         {{ '::EmailStops:StopButton' | abpLocalization }}

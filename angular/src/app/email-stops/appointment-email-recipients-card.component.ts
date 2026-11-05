@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  HostListener,
   effect,
   inject,
   input,
@@ -54,6 +55,14 @@ export class AppointmentEmailRecipientsCardComponent {
         untracked(() => this.load(id));
       }
     });
+  }
+
+  @HostListener('document:keydown.escape')
+  protected onEscape(): void {
+    // The stop dialog closes itself; this closes the "turn back on" confirmation.
+    if (this.confirmAll()) {
+      this.confirmAll.set(null);
+    }
   }
 
   protected stop(r: AppointmentEmailRecipientDto): void {

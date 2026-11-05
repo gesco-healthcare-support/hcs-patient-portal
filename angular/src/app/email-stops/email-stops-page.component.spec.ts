@@ -145,4 +145,17 @@ describe('EmailStopsPageComponent', () => {
     setup('office-1');
     expect(q('[data-testid="staff-site-note"]')).toBeNull();
   });
+
+  it('closes the turn-on confirmation on Escape, and Escape does nothing when it is closed', () => {
+    setup('office-1');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    fixture.detectChanges();
+    expect(q('[data-testid="confirm-turn-on"]')).toBeNull();
+    click('[data-testid="turn-on"]');
+    expect(q('[data-testid="confirm-turn-on"]')).not.toBeNull();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    fixture.detectChanges();
+    expect(q('[data-testid="confirm-turn-on"]')).toBeNull();
+    expect(service.delete).not.toHaveBeenCalled();
+  });
 });

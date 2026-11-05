@@ -96,8 +96,8 @@
 }
 
 @if (confirmAll(); as target) {
-  <div class="ra-scrim" (click)="confirmAll.set(null)">
-    <div class="ra-modal ra-modal--sm" role="dialog" (click)="$event.stopPropagation()">
+  <div class="ra-scrim">
+    <div class="ra-modal ra-modal--sm" role="dialog" aria-modal="true">
       <div class="ra-modal__head">
         <h3>{{ '::EmailStops:TurnOnButton' | abpLocalization }}</h3>
       </div>

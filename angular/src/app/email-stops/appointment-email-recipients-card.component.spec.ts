@@ -245,4 +245,26 @@ describe('AppointmentEmailRecipientsCardComponent', () => {
     expect(service.resumeForAppointment).toHaveBeenCalled();
     expect(service.delete).toHaveBeenCalledWith('global-1');
   });
+
+  it('closes the turn-back-on confirmation on Escape, and Escape does nothing when it is closed', () => {
+    setup([person({ allCasesStop: stop(EmailStopScope.AllCases, 'global-1') })]);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    fixture.detectChanges();
+    expect(q('[data-testid="confirm-all-text"]')).toBeNull();
+    click('[data-testid="resume-btn"]');
+    expect(q('[data-testid="confirm-all-text"]')).not.toBeNull();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    fixture.detectChanges();
+    expect(q('[data-testid="confirm-all-text"]')).toBeNull();
+    expect(service.delete).not.toHaveBeenCalled();
+  });
+
+  it('closes the stop dialog on Escape', () => {
+    setup([person({})]);
+    click('[data-testid="stop-btn"]');
+    expect(document.querySelector('app-email-stop-dialog')).not.toBeNull();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    fixture.detectChanges();
+    expect(document.querySelector('app-email-stop-dialog')).toBeNull();
+  });
 });

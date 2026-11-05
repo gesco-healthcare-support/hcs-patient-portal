@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  HostListener,
   OnInit,
   inject,
   input,
@@ -40,9 +41,16 @@ export class EmailStopDialogComponent implements OnInit {
   protected readonly note = signal('');
   protected readonly impact = signal<EmailStopConsentImpactDto | null>(null);
   protected readonly busy = signal(false);
+  /** False from the moment a consent check starts until it answers or fails for the CURRENT scope. */
+  protected readonly impactReady = signal(false);
 
   ngOnInit(): void {
     this.loadImpact();
+  }
+
+  @HostListener('document:keydown.escape')
+  protected onEscape(): void {
+    this.closed.emit();
   }
 
   protected chooseScope(scope: EmailStopScope): void {
@@ -74,15 +82,23 @@ export class EmailStopDialogComponent implements OnInit {
 
   private loadImpact(): void {
     this.impact.set(null);
+    this.impactReady.set(false);
     const request = ++this.impactRequest;
-    this.service
-      .getConsentImpact(this.appointmentId(), this.email(), this.scope())
-      .subscribe((impact) => {
+    this.service.getConsentImpact(this.appointmentId(), this.email(), this.scope()).subscribe({
+      next: (impact) => {
         // Ignore an answer for a scope the person has already switched away from.
         if (request === this.impactRequest) {
           this.impact.set(impact);
+          this.impactReady.set(true);
         }
-      });
+      },
+      // ABP shows the error; leave the warning empty and let the person decide.
+      error: () => {
+        if (request === this.impactRequest) {
+          this.impactReady.set(true);
+        }
+      },
+    });
   }
 
   private impactRequest = 0;

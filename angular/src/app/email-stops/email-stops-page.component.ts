@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  HostListener,
   OnInit,
   computed,
   inject,
@@ -48,6 +49,13 @@ export class EmailStopsPageComponent implements OnInit {
 
   ngOnInit(): void {
     this.load();
+  }
+
+  @HostListener('document:keydown.escape')
+  protected onEscape(): void {
+    if (this.resumeTarget()) {
+      this.resumeTarget.set(null);
+    }
   }
 
   protected setFilter(value: string): void {
