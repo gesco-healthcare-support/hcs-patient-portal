@@ -136,11 +136,9 @@ public class OutboxDrainService : ITransientDependency
         foreach (var dropped in addressing.Dropped)
         {
             _logger.LogInformation(
-                "OutboxDrainService: email stopped by staff ({Scope}); {Address} left off outbox row {RowId} ({Context}).",
+                "OutboxDrainService: email stopped by staff ({Scope}); 1 recipient left off outbox row {RowId}.",
                 stops.ScopeOf(dropped, caseId),
-                EmailStopAddress.Mask(dropped),
-                row.Id,
-                row.Context);
+                row.Id);
         }
         if (addressing.IsDropped)
         {

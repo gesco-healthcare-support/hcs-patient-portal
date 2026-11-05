@@ -106,17 +106,6 @@ public class EmailStopLookupTests
         result.Changed.ShouldBeFalse();
     }
 
-    [Theory]
-    [InlineData("ann@firm.test", "a***@firm.test")]
-    [InlineData("  Ann@Firm.test ", "A***@Firm.test")]
-    [InlineData("@firm.test", "***")]
-    [InlineData("not-an-address", "***")]
-    [InlineData(null, "(blank)")]
-    public void A_log_line_never_carries_the_full_address(string? input, string expected)
-    {
-        EmailStopAddress.Mask(input).ShouldBe(expected);
-    }
-
     [Fact]
     public void The_stop_rows_store_the_normalized_address()
     {

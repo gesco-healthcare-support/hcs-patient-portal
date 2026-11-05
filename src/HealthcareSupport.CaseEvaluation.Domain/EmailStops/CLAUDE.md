@@ -19,7 +19,7 @@ Self-service account mail still goes out (`EmailStopPolicy.NeverStoppedTemplateC
 | `EmailStopPolicy.cs` | THE one decision point: loads the stops for a send or a drain batch (one host and one office query) |
 | `IEmailStopPolicy.cs` | Seam for the policy, so the sending paths unit-test without a database |
 | `EmailStopLookup.cs` | The loaded answer per address, plus `EmailStopAddressing` (a stopped To hands the email to the first remaining CC) |
-| `EmailStopAddress.cs` | How an address is normalized for matching, and masked for logs |
+| `EmailStopAddress.cs` | How an address is normalized for matching (log lines never carry an address) |
 | `GlobalEmailStop.cs` | "All cases" stop: HOST table `AppEmailStops`, read with `CurrentTenant.Change(null)` |
 | `AppointmentEmailStop.cs` | "This case only" stop: office table `AppAppointmentEmailStops`, never a column on the appointment |
 

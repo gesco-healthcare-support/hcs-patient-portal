@@ -123,9 +123,8 @@ public class RequestSchedulingReminderJob : ITransientDependency
                 if (stops.IsStopped(args.To, appointment.Id))
                 {
                     _logger.LogInformation(
-                        "RequestSchedulingReminderJob: email stopped by staff ({Scope}); {Address} left off appointment {AppointmentId}.",
+                        "RequestSchedulingReminderJob: email stopped by staff ({Scope}); 1 recipient left off appointment {AppointmentId}.",
                         stops.ScopeOf(args.To, appointment.Id),
-                        EmailStopAddress.Mask(args.To),
                         appointment.Id);
                     continue;
                 }

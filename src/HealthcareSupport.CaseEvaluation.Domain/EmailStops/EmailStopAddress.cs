@@ -29,23 +29,4 @@ public static class EmailStopAddress
             .Select(e => e!)
             .Distinct(StringComparer.Ordinal)
             .ToList();
-
-    /// <summary>
-    /// The address with its local part hidden, for logs ("a***@firm.test"). An email stop log line must
-    /// never carry the address in full.
-    /// </summary>
-    public static string Mask(string? email)
-    {
-        if (string.IsNullOrWhiteSpace(email))
-        {
-            return "(blank)";
-        }
-        var trimmed = email.Trim();
-        var at = trimmed.LastIndexOf('@');
-        if (at <= 0)
-        {
-            return "***";
-        }
-        return string.Concat(trimmed.AsSpan(0, 1), "***", trimmed.AsSpan(at));
-    }
 }

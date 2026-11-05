@@ -96,8 +96,7 @@ public class NotificationDispatcher : INotificationDispatcher, IPacketCopyDispat
         if (recipients.Count == 0)
         {
             _logger.LogDebug(
-                "NotificationDispatcher: zero recipients for template {TemplateCode} ({Context}); short-circuiting.",
-                templateCode,
+                "NotificationDispatcher: zero recipients ({Context}); short-circuiting.",
                 contextTag);
             return;
         }
@@ -158,8 +157,7 @@ public class NotificationDispatcher : INotificationDispatcher, IPacketCopyDispat
             if (string.IsNullOrWhiteSpace(recipient.Email))
             {
                 _logger.LogWarning(
-                    "NotificationDispatcher: skipping recipient with empty email for template {TemplateCode} ({Context}).",
-                    templateCode,
+                    "NotificationDispatcher: skipping a recipient with an empty email ({Context}).",
                     contextTag);
                 continue;
             }
@@ -203,8 +201,7 @@ public class NotificationDispatcher : INotificationDispatcher, IPacketCopyDispat
         if (string.IsNullOrWhiteSpace(to.Email))
         {
             _logger.LogWarning(
-                "NotificationDispatcher: DispatchToWithCc skipped -- empty To for template {TemplateCode} ({Context}).",
-                templateCode,
+                "NotificationDispatcher: DispatchToWithCc skipped -- empty To ({Context}).",
                 contextTag);
             return;
         }
@@ -224,7 +221,7 @@ public class NotificationDispatcher : INotificationDispatcher, IPacketCopyDispat
         var addressing = EmailStopAddressing.Apply(to.Email, ccEmails, stops, notificationCase.AppointmentId);
         foreach (var dropped in addressing.Dropped)
         {
-            LogStopped(stops, dropped, notificationCase, templateCode, contextTag);
+            LogStopped(stops, dropped, notificationCase, contextTag);
         }
         if (addressing.IsDropped)
         {
@@ -268,8 +265,7 @@ public class NotificationDispatcher : INotificationDispatcher, IPacketCopyDispat
         if (string.IsNullOrWhiteSpace(recipient.Email))
         {
             _logger.LogWarning(
-                "NotificationDispatcher: skipping recipient with empty email for template {TemplateCode} ({Context}).",
-                templateCode,
+                "NotificationDispatcher: skipping a recipient with an empty email ({Context}).",
                 contextTag);
             return false;
         }
@@ -308,7 +304,7 @@ public class NotificationDispatcher : INotificationDispatcher, IPacketCopyDispat
         {
             if (stops.IsStopped(recipient.Email, notificationCase.AppointmentId))
             {
-                LogStopped(stops, recipient.Email, notificationCase, templateCode, contextTag);
+                LogStopped(stops, recipient.Email, notificationCase, contextTag);
                 continue;
             }
             remaining.Add(recipient);
@@ -331,14 +327,12 @@ public class NotificationDispatcher : INotificationDispatcher, IPacketCopyDispat
     private async Task<EmailStopLookup> LookupOrEmptyAsync(IEnumerable<string?> addresses, Guid? appointmentId) =>
         await _emailStopPolicy.LookupAsync(addresses, appointmentId) ?? EmailStopLookup.Empty;
 
-    private void LogStopped(
-        EmailStopLookup stops, string? email, NotificationCase notificationCase, string templateCode, string contextTag)
+    // No address and no template code in the line: only the scope and the context tag.
+    private void LogStopped(EmailStopLookup stops, string? email, NotificationCase notificationCase, string contextTag)
     {
         _logger.LogInformation(
-            "NotificationDispatcher: email stopped by staff ({Scope}); {Address} left off template {TemplateCode} ({Context}).",
+            "NotificationDispatcher: email stopped by staff ({Scope}); 1 recipient left off ({Context}).",
             stops.ScopeOf(email, notificationCase.AppointmentId),
-            EmailStopAddress.Mask(email),
-            templateCode,
             contextTag);
     }
 

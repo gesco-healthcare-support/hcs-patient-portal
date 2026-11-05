@@ -99,9 +99,7 @@ public class EmailStopsAppService : CaseEvaluationAppService, IEmailStopsAppServ
             GuidGenerator.Create(), CurrentTenant.Id, appointmentId, email,
             CurrentUser.Id, CallerName(), Clock.Now, input.Note);
         await _caseStopRepository.InsertAsync(stop, autoSave: true);
-        Logger.LogInformation(
-            "EmailStops: emails to {Address} stopped for appointment {AppointmentId}.",
-            EmailStopAddress.Mask(email), appointmentId);
+        Logger.LogInformation("EmailStops: an address was stopped for appointment {AppointmentId}.", appointmentId);
         return ToStatus(stop);
     }
 
@@ -120,9 +118,7 @@ public class EmailStopsAppService : CaseEvaluationAppService, IEmailStopsAppServ
             return;
         }
         await _caseStopRepository.DeleteManyAsync(stops, autoSave: true);
-        Logger.LogInformation(
-            "EmailStops: emails to {Address} turned back on for appointment {AppointmentId}.",
-            EmailStopAddress.Mask(email), appointmentId);
+        Logger.LogInformation("EmailStops: an address was turned back on for appointment {AppointmentId}.", appointmentId);
     }
 
     public virtual async Task<EmailStopConsentImpactDto> GetConsentImpactAsync(
@@ -165,8 +161,7 @@ public class EmailStopsAppService : CaseEvaluationAppService, IEmailStopsAppServ
         {
             var stop = await _globalStopRepository.GetAsync(id);
             await _globalStopRepository.DeleteAsync(stop, autoSave: true);
-            Logger.LogInformation(
-                "EmailStops: emails to {Address} turned back on for all cases.", EmailStopAddress.Mask(stop.Email));
+            Logger.LogInformation("EmailStops: an all-cases stop {StopId} was turned back on.", stop.Id);
         }
     }
 
@@ -201,8 +196,7 @@ public class EmailStopsAppService : CaseEvaluationAppService, IEmailStopsAppServ
             var stop = new GlobalEmailStop(
                 GuidGenerator.Create(), email, CurrentUser.Id, CallerName(), Clock.Now, officeId, officeName, note);
             await _globalStopRepository.InsertAsync(stop, autoSave: true);
-            Logger.LogInformation(
-                "EmailStops: emails to {Address} stopped for all cases.", EmailStopAddress.Mask(email));
+            Logger.LogInformation("EmailStops: an all-cases stop {StopId} was recorded.", stop.Id);
             return stop;
         }
     }
