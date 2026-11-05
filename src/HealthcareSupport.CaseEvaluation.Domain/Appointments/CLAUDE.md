@@ -122,6 +122,11 @@ Access and parties:
 - `ExternalCoPartyRules` -- the pure transform behind the co-party-scoped external user lookup;
   `AppointmentParties` is one appointment's four party-email columns and `CoParty` one named
   party with its role.
+- `AppointmentMailPreferences` (2026-11-04) -- the booker's per-appointment mail choices, kept in
+  `ExtraProperties` (no migration): whether the booker follows the case, and the stored
+  `AttorneyMailRedirect` ("send the lawyer's mail to the paralegal instead"), which applies only while
+  the side's attorney column still names the lawyer and an active same-side paralegal Authorized User
+  remains. `ConsentSideFollowerRule` decides which case follower may answer consent for a side.
 
 Lifecycle and booking:
 
