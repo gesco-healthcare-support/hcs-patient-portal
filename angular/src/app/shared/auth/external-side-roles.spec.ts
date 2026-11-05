@@ -55,18 +55,14 @@ describe('law-office side role helpers', () => {
     it("gives a law-office booker only their own side's law-office roles", () => {
       for (const role of ['Applicant Attorney', 'Applicant Paralegal']) {
         expect(authorizedUserRoleOptions([role], false)).toEqual([
-          'Patient',
           'Applicant Attorney',
           'Applicant Paralegal',
-          'Claim Examiner',
         ]);
       }
       for (const role of ['Defense Attorney', 'Defense Paralegal']) {
         expect(authorizedUserRoleOptions([role], false)).toEqual([
-          'Patient',
           'Defense Attorney',
           'Defense Paralegal',
-          'Claim Examiner',
         ]);
       }
     });
@@ -80,12 +76,9 @@ describe('law-office side role helpers', () => {
       expect(defense).not.toContain('Applicant Paralegal');
     });
 
-    it('gives a patient or claim examiner no law-office role at all', () => {
-      expect(authorizedUserRoleOptions(['Patient'], false)).toEqual(['Patient', 'Claim Examiner']);
-      expect(authorizedUserRoleOptions(['Claim Examiner'], false)).toEqual([
-        'Patient',
-        'Claim Examiner',
-      ]);
+    it('gives a patient nothing and a claim examiner only the Claim Examiner role', () => {
+      expect(authorizedUserRoleOptions(['Patient'], false)).toEqual([]);
+      expect(authorizedUserRoleOptions(['Claim Examiner'], false)).toEqual(['Claim Examiner']);
     });
   });
 });
@@ -95,6 +88,13 @@ describe('authorizedUserRoleLabel', () => {
     expect(authorizedUserRoleLabel('Applicant Paralegal')).toBe('Paralegal (Applicant side)');
     expect(authorizedUserRoleLabel('Defense Paralegal')).toBe('Paralegal (Defense side)');
     expect(authorizedUserRoleLabel('Patient')).toBe('Patient');
+  });
+
+  it('labels an external claim examiner helper as an assistant (a localization key)', () => {
+    expect(authorizedUserRoleLabel('Claim Examiner')).toBe('Claim Examiner');
+    expect(authorizedUserRoleLabel('Claim Examiner', true)).toBe(
+      '::Appointment:AuthorizedUsers:ClaimExaminerAssistant',
+    );
   });
 });
 

@@ -64,6 +64,12 @@ export const DEFENSE_ATTORNEY_ROLE = 'Defense Attorney';
 export const APPLICANT_PARALEGAL_ROLE = 'Applicant Paralegal';
 export const DEFENSE_PARALEGAL_ROLE = 'Defense Paralegal';
 
+const CLAIM_EXAMINER_ROLE = 'Claim Examiner';
+
+/** Localization key of the claim examiner helper's picker label (shown through `abpLocalization`). */
+export const CLAIM_EXAMINER_ASSISTANT_LABEL_KEY =
+  '::Appointment:AuthorizedUsers:ClaimExaminerAssistant';
+
 export type LawOfficeSide = 'applicant' | 'defense';
 type RoleList = ReadonlyArray<string | null | undefined> | null | undefined;
 
@@ -103,11 +109,11 @@ export function paralegalRoleForSide(side: LawOfficeSide): string {
 }
 
 /**
- * Role names offered in the "Paralegal / Authorized User" picker. Internal staff get every role.
- * An external caller may add a law-office accessor of THEIR OWN side only (the server answers
- * 400 for the other side), so a law-office booker gets Patient, Claim Examiner and their own
- * side's attorney + paralegal. Any other external caller has no side and gets Patient and
- * Claim Examiner only.
+ * Role names offered in the "Paralegal / Authorized User" picker at booking. Internal staff get every
+ * role. An external booker gets only what the server lets them add (office decisions 3-5): a law-office
+ * booker their own side's attorney + paralegal, a claim examiner booker the Claim Examiner role (their
+ * assistant), a Patient nothing (the wizard then shows no section). A Patient or Claim Examiner role is
+ * NOT offered to a law-office booker: the server refuses it, and the refusal would fail the whole booking.
  */
 export function authorizedUserRoleOptions(roles: RoleList, isInternal: boolean): string[] {
   if (isInternal) {
@@ -120,17 +126,23 @@ export function authorizedUserRoleOptions(roles: RoleList, isInternal: boolean):
       DEFENSE_PARALEGAL_ROLE,
     ];
   }
+  const options: string[] = [];
   if (isApplicantSideExternal(roles)) {
-    return ['Patient', APPLICANT_ATTORNEY_ROLE, APPLICANT_PARALEGAL_ROLE, 'Claim Examiner'];
+    options.push(APPLICANT_ATTORNEY_ROLE, APPLICANT_PARALEGAL_ROLE);
   }
   if (isDefenseSideExternal(roles)) {
-    return ['Patient', DEFENSE_ATTORNEY_ROLE, DEFENSE_PARALEGAL_ROLE, 'Claim Examiner'];
+    options.push(DEFENSE_ATTORNEY_ROLE, DEFENSE_PARALEGAL_ROLE);
   }
-  return ['Patient', 'Claim Examiner'];
+  if (options.length === 0 && holds(roles, CLAIM_EXAMINER_ROLE)) {
+    options.push(CLAIM_EXAMINER_ROLE);
+  }
+  return options;
 }
 
 /** Display text for a role in the Paralegal / Authorized User picker; the posted value stays the role string. */
-export function authorizedUserRoleLabel(role: string): string {
+export function authorizedUserRoleLabel(role: string, external = false): string {
+  // An external claim examiner's helper is an assistant; the label is a localization key.
+  if (external && role === CLAIM_EXAMINER_ROLE) return CLAIM_EXAMINER_ASSISTANT_LABEL_KEY;
   if (role === APPLICANT_PARALEGAL_ROLE) return 'Paralegal (Applicant side)';
   if (role === DEFENSE_PARALEGAL_ROLE) return 'Paralegal (Defense side)';
   return role;
@@ -147,8 +159,6 @@ export interface CaseStanding {
   defenseAttorneyEmail?: string | null;
   claimExaminerEmail?: string | null;
 }
-
-const CLAIM_EXAMINER_ROLE = 'Claim Examiner';
 
 function sameEmail(a?: string | null, b?: string | null): boolean {
   const x = (a ?? '').trim().toLowerCase();

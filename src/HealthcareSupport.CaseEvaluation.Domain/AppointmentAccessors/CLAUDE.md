@@ -100,7 +100,9 @@ before touching the DB -- fail fast is intentional (see dual-ctor pattern in Dom
   judges it. An external caller manages (add / edit / remove) only Authorized Users of a law-office side on
   which they are a party of THIS case (named attorney by verified email + attorney role, or the booker / an
   Authorized User holding a role of that side); a claim examiner party manages Claim Examiner helpers only;
-  a Patient manages nothing. Delete now judges the target account's roles like Update. A firm account
+  a Patient manages nothing. A law-office booker may NOT add a Patient or Claim Examiner role (not their side; the
+  booking wizard offers each booker only what this rule admits, since a refusal inside the atomic submit
+  fails the whole booking). Delete now judges the target account's roles like Update. A firm account
   holding both sides is judged per side (`LawOfficeSideOf` answers side A first, so it is not used).
   Wrong side -> 400 `AppointmentAccessorOtherSideNotAllowed`; not on the case -> `AppointmentAccessDenied`.
 - `AccessType` enum values are non-sequential (`View=23`, `Edit=24`) -- legacy values. Add

@@ -26,14 +26,12 @@ public enum AccessorManageDecision
 /// <param name="VerifiedEmail">The caller's VERIFIED email, never the raw claim.</param>
 /// <param name="IsBooker">The caller is the booker (CreatorId, else BookedByUserId) of this appointment.</param>
 /// <param name="IsAuthorizedUser">The caller has an accessor (Authorized User) row on this appointment.</param>
-/// <param name="IsExternalAccessorManager">The caller holds a law-office role (today's creator-only gate).</param>
 public sealed record AccessorCaller(
     bool IsInternal,
     IReadOnlyCollection<string?> Roles,
     string? VerifiedEmail,
     bool IsBooker,
-    bool IsAuthorizedUser,
-    bool IsExternalAccessorManager);
+    bool IsAuthorizedUser);
 
 /// <summary>The appointment's attorney and claim examiner email columns.</summary>
 public sealed record AccessorCase(
@@ -135,16 +133,14 @@ public static class AccessorManagementRules
 
     /// <summary>
     /// May this caller manage an Authorized User who belongs to <paramref name="accessorSides"/>?
-    /// A target with no law-office side (a Patient or Claim Examiner accessor) may be managed by a claim
-    /// examiner party only when it is a Claim Examiner helper, or by a law-office booker when
-    /// <paramref name="allowNonLawOffice"/> (adding one). A target with several sides needs the caller to
-    /// be a party of every one of them.
+    /// A target with no law-office side (a Patient or Claim Examiner accessor) may be managed only by a
+    /// claim examiner party, and only when it is a Claim Examiner helper. A target with several sides
+    /// needs the caller to be a party of every one of them.
     /// </summary>
     public static AccessorManageDecision Decide(
         AccessorCaller caller,
         AccessorCase theCase,
-        AccessorTarget target,
-        bool allowNonLawOffice)
+        AccessorTarget target)
     {
         if (caller.IsInternal)
         {
@@ -154,11 +150,11 @@ public static class AccessorManagementRules
         var accessorSides = target.Sides;
         if (accessorSides.Count == 0)
         {
-            // A Claim Examiner helper may be managed by a claim examiner party of the case (decision 5);
-            // today's creator rule (a law-office booker) is kept for adding a non-law-office role.
-            var byClaimExaminer = target.IsClaimExaminer && IsClaimExaminerParty(caller, theCase);
-            var byBooker = allowNonLawOffice && caller.IsBooker && caller.IsExternalAccessorManager;
-            return byClaimExaminer || byBooker
+            // The only non-law-office target an external caller may manage is a Claim Examiner helper, and
+            // only a claim examiner party of the case may (decision 5). A law-office booker may NOT add a
+            // Patient or Claim Examiner role: that is not their side (decision 3), and such an account would
+            // get the attorney packet and case mail while the booker could not remove the row again.
+            return target.IsClaimExaminer && IsClaimExaminerParty(caller, theCase)
                 ? AccessorManageDecision.Allowed
                 : AccessorManageDecision.Denied;
         }

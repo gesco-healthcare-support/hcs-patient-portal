@@ -17,7 +17,7 @@ public class AccessorManagementRulesTests
 
     private static AccessorCaller Caller(
         string? email = null, bool booker = false, bool authorizedUser = false, bool internalUser = false, params string[] roles) =>
-        new(internalUser, roles, email, booker, authorizedUser, IsExternalAccessorManager: roles.Any(r => r != "Patient" && r != "Claim Examiner"));
+        new(internalUser, roles, email, booker, authorizedUser);
 
     private static AccessorTarget Target(params string[] roles) => AccessorTarget.Of(roles);
 
@@ -33,16 +33,16 @@ public class AccessorManagementRulesTests
     public void Staff_may_manage_anyone()
     {
         AccessorManagementRules.Decide(Caller(internalUser: true, roles: "Intake Staff"), TheCase,
-            Target(ExternalRoleConsts.DefenseParalegal), false).ShouldBe(AccessorManageDecision.Allowed);
+            Target(ExternalRoleConsts.DefenseParalegal)).ShouldBe(AccessorManageDecision.Allowed);
     }
 
     [Fact]
     public void The_named_attorney_manages_only_the_own_side()
     {
         var caller = Caller(DefAttorney, roles: ExternalRoleConsts.DefenseAttorney);
-        AccessorManagementRules.Decide(caller, TheCase, Target(ExternalRoleConsts.DefenseParalegal), false)
+        AccessorManagementRules.Decide(caller, TheCase, Target(ExternalRoleConsts.DefenseParalegal))
             .ShouldBe(AccessorManageDecision.Allowed);
-        AccessorManagementRules.Decide(caller, TheCase, Target(ExternalRoleConsts.ApplicantParalegal), false)
+        AccessorManagementRules.Decide(caller, TheCase, Target(ExternalRoleConsts.ApplicantParalegal))
             .ShouldBe(AccessorManageDecision.OtherSide);
     }
 
@@ -84,7 +84,7 @@ public class AccessorManagementRulesTests
     {
         var caller = Caller(DefAttorney, roles: ExternalRoleConsts.DefenseAttorney);
         AccessorManagementRules.Decide(caller, TheCase,
-            Target(ExternalRoleConsts.ApplicantParalegal, ExternalRoleConsts.DefenseParalegal), false)
+            Target(ExternalRoleConsts.ApplicantParalegal, ExternalRoleConsts.DefenseParalegal))
             .ShouldBe(AccessorManageDecision.OtherSide);
     }
 
@@ -92,18 +92,18 @@ public class AccessorManagementRulesTests
     public void A_law_office_account_that_is_not_on_the_case_is_denied()
     {
         AccessorManagementRules.Decide(Caller("stranger@example.test", roles: ExternalRoleConsts.DefenseAttorney), TheCase,
-            Target(ExternalRoleConsts.DefenseParalegal), false).ShouldBe(AccessorManageDecision.Denied);
+            Target(ExternalRoleConsts.DefenseParalegal)).ShouldBe(AccessorManageDecision.Denied);
     }
 
     [Fact]
     public void A_patient_manages_nothing()
     {
         var patient = Caller("patient@example.test", booker: true, authorizedUser: true, roles: "Patient");
-        AccessorManagementRules.Decide(patient, TheCase, Target(ExternalRoleConsts.DefenseParalegal), true)
+        AccessorManagementRules.Decide(patient, TheCase, Target(ExternalRoleConsts.DefenseParalegal))
             .ShouldBe(AccessorManageDecision.OtherSide);
-        AccessorManagementRules.Decide(patient, TheCase, Target("Claim Examiner"), true)
+        AccessorManagementRules.Decide(patient, TheCase, Target("Claim Examiner"))
             .ShouldBe(AccessorManageDecision.Denied);
-        AccessorManagementRules.Decide(patient, TheCase, Target("Patient"), true)
+        AccessorManagementRules.Decide(patient, TheCase, Target("Patient"))
             .ShouldBe(AccessorManageDecision.Denied);
     }
 
@@ -111,22 +111,22 @@ public class AccessorManagementRulesTests
     public void A_claim_examiner_party_manages_claim_examiner_helpers_only()
     {
         var named = Caller(Examiner, roles: "Claim Examiner");
-        AccessorManagementRules.Decide(named, TheCase, Target("Claim Examiner"), false).ShouldBe(AccessorManageDecision.Allowed);
-        AccessorManagementRules.Decide(named, TheCase, Target(ExternalRoleConsts.ApplicantParalegal), false)
+        AccessorManagementRules.Decide(named, TheCase, Target("Claim Examiner")).ShouldBe(AccessorManageDecision.Allowed);
+        AccessorManagementRules.Decide(named, TheCase, Target(ExternalRoleConsts.ApplicantParalegal))
             .ShouldBe(AccessorManageDecision.OtherSide);
-        AccessorManagementRules.Decide(named, TheCase, Target("Patient"), false).ShouldBe(AccessorManageDecision.Denied);
+        AccessorManagementRules.Decide(named, TheCase, Target("Patient")).ShouldBe(AccessorManageDecision.Denied);
 
-        AccessorManagementRules.Decide(Caller(authorizedUser: true, roles: "Claim Examiner"), TheCase, Target("Claim Examiner"), false)
+        AccessorManagementRules.Decide(Caller(authorizedUser: true, roles: "Claim Examiner"), TheCase, Target("Claim Examiner"))
             .ShouldBe(AccessorManageDecision.Allowed);
-        AccessorManagementRules.Decide(Caller("other@example.test", roles: "Claim Examiner"), TheCase, Target("Claim Examiner"), false)
+        AccessorManagementRules.Decide(Caller("other@example.test", roles: "Claim Examiner"), TheCase, Target("Claim Examiner"))
             .ShouldBe(AccessorManageDecision.Denied);
     }
 
     [Fact]
-    public void A_law_office_booker_may_still_add_a_non_law_office_role_but_not_remove_one()
+    public void A_law_office_booker_cannot_add_or_remove_a_patient_or_claim_examiner_role()
     {
         var booker = Caller(booker: true, roles: ExternalRoleConsts.ApplicantParalegal);
-        AccessorManagementRules.Decide(booker, TheCase, Target("Claim Examiner"), true).ShouldBe(AccessorManageDecision.Allowed);
-        AccessorManagementRules.Decide(booker, TheCase, Target("Claim Examiner"), false).ShouldBe(AccessorManageDecision.Denied);
+        AccessorManagementRules.Decide(booker, TheCase, Target("Claim Examiner")).ShouldBe(AccessorManageDecision.Denied);
+        AccessorManagementRules.Decide(booker, TheCase, Target("Patient")).ShouldBe(AccessorManageDecision.Denied);
     }
 }

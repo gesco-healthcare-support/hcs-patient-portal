@@ -141,7 +141,7 @@ public class AppointmentAccessorsAppService : CaseEvaluationAppService, IAppoint
         // are read here, as Update does, so a Patient / Claim Examiner accessor is not removable by them.
         var existing = await _appointmentAccessorRepository.GetAsync(id);
         await _readAccessGuard.EnsureCanManageAccessorsAsync(
-            existing.AppointmentId, await TargetOfAccountAsync(existing.IdentityUserId), allowNonLawOffice: false);
+            existing.AppointmentId, await TargetOfAccountAsync(existing.IdentityUserId));
         await _appointmentAccessorRepository.DeleteAsync(id);
     }
 
@@ -170,13 +170,12 @@ public class AppointmentAccessorsAppService : CaseEvaluationAppService, IAppoint
         // as not recognised is left for it to refuse, with its own code. Judged BEFORE the management gate
         // so a Patient or Claim Examiner caller (who has no law-office side) is told the side is wrong.
         // 2026-11-05 (decisions 3 + 4): the side is judged against THIS case -- the caller must be the named
-        // attorney of that side, or the booker / an Authorized User holding a role of it. A role that is not
-        // a law-office role carries no side and keeps today's creator rule.
+        // attorney of that side, or the booker / an Authorized User holding a role of it. A non-law-office
+        // role is allowed only as a Claim Examiner helper added by a claim examiner party (decision 5).
         var requestedRole = AppointmentAccessorRules.ResolveRecognizedExternalRole(input.Role);
         await _readAccessGuard.EnsureCanManageAccessorsAsync(
             input.AppointmentId,
-            AccessorTarget.Of(new[] { requestedRole }),
-            allowNonLawOffice: true);
+            AccessorTarget.Of(new[] { requestedRole }));
 
         // Email-based create-or-link: resolves the email to a user or
         // auto-provisions + invites one, applies the role-conflict check, and
@@ -221,7 +220,7 @@ public class AppointmentAccessorsAppService : CaseEvaluationAppService, IAppoint
                 target.Sides.Union(next.Sides).ToList(), target.IsClaimExaminer || next.IsClaimExaminer);
         }
 
-        await _readAccessGuard.EnsureCanManageAccessorsAsync(existing.AppointmentId, target, allowNonLawOffice: false);
+        await _readAccessGuard.EnsureCanManageAccessorsAsync(existing.AppointmentId, target);
 
         var appointmentAccessor = await _appointmentAccessorManager.UpdateAsync(id, input.IdentityUserId, input.AppointmentId, input.AccessTypeId);
         return ObjectMapper.Map<AppointmentAccessor, AppointmentAccessorDto>(appointmentAccessor);

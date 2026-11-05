@@ -164,9 +164,7 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
 
   /** Picker label: a claim examiner's helper is an "assistant" (localization key); other roles as the staff page. */
   externalRoleLabel(role: string): string {
-    return role === 'Claim Examiner'
-      ? '::Appointment:AuthorizedUsers:ClaimExaminerAssistant'
-      : authorizedUserRoleLabel(role);
+    return authorizedUserRoleLabel(role, true);
   }
 
   // Send Back fix-it: the open info request (staff note + flagged fields).

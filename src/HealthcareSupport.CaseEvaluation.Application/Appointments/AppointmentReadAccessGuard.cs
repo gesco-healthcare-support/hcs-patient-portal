@@ -301,8 +301,7 @@ public class AppointmentReadAccessGuard : ITransientDependency
     /// </summary>
     public async Task<AccessorManageDecision> DecideManageAccessorsAsync(
         Appointment appointment,
-        AccessorTarget target,
-        bool allowNonLawOffice)
+        AccessorTarget target)
     {
         var callerRoles = _currentUser.Roles ?? Array.Empty<string>();
         if (BookingFlowRoles.IsInternalUserCaller(callerRoles))
@@ -325,13 +324,11 @@ public class AppointmentReadAccessGuard : ITransientDependency
             Roles: callerRoles.ToList(),
             VerifiedEmail: _currentUser.GetVerifiedEmail(),
             IsBooker: callerId.HasValue && creatorId.HasValue && creatorId.Value == callerId.Value,
-            IsAuthorizedUser: isAuthorizedUser,
-            IsExternalAccessorManager: BookingFlowRoles.IsExternalAccessorManager(callerRoles));
+            IsAuthorizedUser: isAuthorizedUser);
         return AccessorManagementRules.Decide(
             caller,
             new AccessorCase(appointment.ApplicantAttorneyEmail, appointment.DefenseAttorneyEmail, appointment.ClaimExaminerEmail),
-            target,
-            allowNonLawOffice);
+            target);
     }
 
     /// <summary>
@@ -341,11 +338,10 @@ public class AppointmentReadAccessGuard : ITransientDependency
     /// </summary>
     public async Task EnsureCanManageAccessorsAsync(
         Guid appointmentId,
-        AccessorTarget target,
-        bool allowNonLawOffice)
+        AccessorTarget target)
     {
         var appointment = await _appointmentRepository.GetAsync(appointmentId);
-        var decision = await DecideManageAccessorsAsync(appointment, target, allowNonLawOffice);
+        var decision = await DecideManageAccessorsAsync(appointment, target);
         if (decision == AccessorManageDecision.OtherSide)
         {
             throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentAccessorOtherSideNotAllowed);
