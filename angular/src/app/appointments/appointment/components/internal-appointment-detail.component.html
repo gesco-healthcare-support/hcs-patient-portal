@@ -610,7 +610,13 @@
                 </div>
                 <div class="ad-field">
                   <span class="k">Email</span>
-                  <span class="v">{{ fv('patientEmail') || '—' }}</span>
+                  <span class="v">
+                    {{ fv('patientEmail') || '—' }}
+                    <app-email-stopped-tag
+                      [email]="fv('patientEmail')"
+                      [stoppedSet]="stoppedEmails()"
+                    />
+                  </span>
                 </div>
                 <div class="ad-field">
                   <span class="k">Cell phone</span>
@@ -938,7 +944,13 @@
                 </div>
                 <div class="ad-field">
                   <span class="k">Email</span>
-                  <span class="v">{{ fv('applicantAttorneyEmail') || '—' }}</span>
+                  <span class="v">
+                    {{ fv('applicantAttorneyEmail') || '—' }}
+                    <app-email-stopped-tag
+                      [email]="fv('applicantAttorneyEmail')"
+                      [stoppedSet]="stoppedEmails()"
+                    />
+                  </span>
                 </div>
                 <div class="ad-field">
                   <span class="k">Firm name</span>
@@ -1149,7 +1161,13 @@
                 </div>
                 <div class="ad-field">
                   <span class="k">Email</span>
-                  <span class="v">{{ fv('defenseAttorneyEmail') || '—' }}</span>
+                  <span class="v">
+                    {{ fv('defenseAttorneyEmail') || '—' }}
+                    <app-email-stopped-tag
+                      [email]="fv('defenseAttorneyEmail')"
+                      [stoppedSet]="stoppedEmails()"
+                    />
+                  </span>
                 </div>
                 <div class="ad-field">
                   <span class="k">Firm name</span>
@@ -1345,7 +1363,13 @@
                 </div>
                 <div class="ad-field">
                   <span class="k">Email</span>
-                  <span class="v">{{ appointment?.claimExaminer?.email || '—' }}</span>
+                  <span class="v">
+                    {{ appointment?.claimExaminer?.email || '—' }}
+                    <app-email-stopped-tag
+                      [email]="appointment?.claimExaminer?.email"
+                      [stoppedSet]="stoppedEmails()"
+                    />
+                  </span>
                 </div>
                 <div class="ad-field">
                   <span class="k">Phone</span>
@@ -1505,7 +1529,10 @@
                 @for (row of appointmentAuthorizedUsers; track row.accessorId) {
                   <tr>
                     <td>{{ row.firstName }} {{ row.lastName }}</td>
-                    <td>{{ row.email }}</td>
+                    <td>
+                      {{ row.email }}
+                      <app-email-stopped-tag [email]="row.email" [stoppedSet]="stoppedEmails()" />
+                    </td>
                     <td>{{ row.userRole }}</td>
                     <td>{{ getAccessTypeLabel(row.accessTypeId) }}</td>
                     <td style="text-align: right; white-space: nowrap">
@@ -1542,6 +1569,11 @@
             </table>
           </div>
         </section>
+
+        <app-appointment-email-recipients-card
+          [appointmentId]="appointment.appointment?.id ?? null"
+          (recipientsChange)="onRecipientsLoaded($event)"
+        />
 
         <!-- 11 . Internal staff panel -->
         <section
