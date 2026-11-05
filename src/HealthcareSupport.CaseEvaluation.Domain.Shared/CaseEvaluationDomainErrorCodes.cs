@@ -560,7 +560,8 @@ public static class CaseEvaluationDomainErrorCodes
 
     /// <summary>
     /// 2026-11-04 (office decision 2) -- "send all notifications to my paralegal" asked for by a
-    /// booker who does not hold an attorney role. Localization key
+    /// booker who does not hold an attorney role, or who is not the attorney named on their side (that
+    /// side's attorney email is not their verified login). Localization key
     /// <c>CaseEvaluation:Appointment.AttorneyMailRedirectAttorneyOnly</c>. 400.
     /// </summary>
     public const string AppointmentAttorneyMailRedirectAttorneyOnly =
