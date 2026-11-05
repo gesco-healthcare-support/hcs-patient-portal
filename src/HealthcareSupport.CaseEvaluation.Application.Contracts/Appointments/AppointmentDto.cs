@@ -90,4 +90,10 @@ public class AppointmentDto : FullAuditedEntityDto<Guid>, IHasConcurrencyStamp
 
     /// <summary>2026-06-09: optional per-appointment "Referred By".</summary>
     public string? RefferedBy { get; set; }
+
+    /// <summary>2026-11-04: false when the booker opted out of following the case (decision 1).</summary>
+    public bool BookerFollowsCase { get; set; } = true;
+
+    /// <summary>2026-11-04: true while the lawyer's mail for this case goes to the paralegal instead (decision 2).</summary>
+    public bool AttorneyMailToParalegal { get; set; }
 }
