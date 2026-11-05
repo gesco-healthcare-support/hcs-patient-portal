@@ -132,6 +132,8 @@ public class DtoDateTimeWireTests : CaseEvaluationEntityFrameworkCoreTestBase
         "Appointments.RescheduleChainDto.DecidedAt",
         "Dashboards.DashboardActivityItemDto.When",
         "Dashboards.DashboardDeadlineItemDto.RequestedAt",
+        "EmailStops.EmailStopStatusDto.StoppedAt",
+        "EmailStops.GlobalEmailStopDto.StoppedAt",
         "ExternalSignups.InvitationDto.ExpiresAt",
         "ExternalSignups.InvitationDto.AcceptedAt",
         "ExternalSignups.InvitationValidationDto.ExpiresAt",

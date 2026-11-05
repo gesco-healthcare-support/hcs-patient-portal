@@ -872,6 +872,25 @@ internal static class CaseEvaluationSharedModelConfiguration
             b.HasOne<HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentPacket>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentPacketId).OnDelete(DeleteBehavior.NoAction);
         });
 
+        // 2026-11-05: a staff "stop emails for this case" (office DB). Its own table, not a column on the
+        // appointment, so a stop never updates the appointment row and never re-sends the case to the Case
+        // Tracker feed. Soft delete = "turned back on"; the lookup reads (AppointmentId, NormalizedEmail).
+        builder.Entity<HealthcareSupport.CaseEvaluation.EmailStops.AppointmentEmailStop>(b =>
+        {
+            b.ToTable(CaseEvaluationConsts.DbTablePrefix + "AppointmentEmailStops", CaseEvaluationConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.TenantId).HasColumnName(TenantIdColumn);
+            b.Property(x => x.AppointmentId).HasColumnName("AppointmentId").IsRequired();
+            b.Property(x => x.Email).HasColumnName("Email").IsRequired().HasMaxLength(HealthcareSupport.CaseEvaluation.EmailStops.EmailStopConsts.EmailMaxLength);
+            b.Property(x => x.NormalizedEmail).HasColumnName("NormalizedEmail").IsRequired().HasMaxLength(HealthcareSupport.CaseEvaluation.EmailStops.EmailStopConsts.EmailMaxLength);
+            b.Property(x => x.StoppedByUserId).HasColumnName("StoppedByUserId");
+            b.Property(x => x.StoppedByName).HasColumnName("StoppedByName").HasMaxLength(HealthcareSupport.CaseEvaluation.EmailStops.EmailStopConsts.NameMaxLength);
+            b.Property(x => x.StoppedAt).HasColumnName("StoppedAt");
+            b.Property(x => x.Note).HasColumnName("Note").HasMaxLength(HealthcareSupport.CaseEvaluation.EmailStops.EmailStopConsts.NoteMaxLength);
+            b.HasIndex(x => new { x.AppointmentId, x.NormalizedEmail });
+            b.HasOne<Appointment>().WithMany().IsRequired().HasForeignKey(x => x.AppointmentId).OnDelete(DeleteBehavior.NoAction);
+        });
+
         // W2-5: per-AppointmentType field-config table.
         builder.Entity<AppointmentTypeFieldConfig>(b =>
         {

@@ -116,6 +116,7 @@ public class PatientPacketEmailKindGateTests
         await BuildHandler(dispatcher).HandleEventAsync(EventFor(PacketKind.Patient));
 
         await dispatcher.ReceivedWithAnyArgs(1).DispatchAsync(
+            default,
             default!, default!, default!, default!, default, default);
     }
 

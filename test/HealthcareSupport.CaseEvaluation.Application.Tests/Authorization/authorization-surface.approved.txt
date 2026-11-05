@@ -258,6 +258,14 @@ HealthcareSupport.CaseEvaluation.Documents.DocumentsAppService.GetAsync(Guid) ->
 HealthcareSupport.CaseEvaluation.Documents.DocumentsAppService.GetListAsync(GetDocumentsInput) -> class=CaseEvaluation.Documents method=-
 HealthcareSupport.CaseEvaluation.Documents.DocumentsAppService.ReplaceFileAsync(Guid, Stream, String, String) -> class=CaseEvaluation.Documents method=CaseEvaluation.Documents.Edit
 HealthcareSupport.CaseEvaluation.Documents.DocumentsAppService.UpdateAsync(Guid, DocumentUpdateDto) -> class=CaseEvaluation.Documents method=CaseEvaluation.Documents.Edit
+HealthcareSupport.CaseEvaluation.EmailStops.EmailStopsAppService.CreateAsync(CreateGlobalEmailStopInput) -> class=CaseEvaluation.EmailStops method=-
+HealthcareSupport.CaseEvaluation.EmailStops.EmailStopsAppService.DeleteAsync(Guid) -> class=CaseEvaluation.EmailStops method=-
+HealthcareSupport.CaseEvaluation.EmailStops.EmailStopsAppService.GetAppointmentRecipientsAsync(Guid) -> class=CaseEvaluation.EmailStops method=-
+HealthcareSupport.CaseEvaluation.EmailStops.EmailStopsAppService.GetConsentImpactAsync(Guid, String, EmailStopScope) -> class=CaseEvaluation.EmailStops method=-
+HealthcareSupport.CaseEvaluation.EmailStops.EmailStopsAppService.GetGlobalConsentImpactAsync(String) -> class=CaseEvaluation.EmailStops method=-
+HealthcareSupport.CaseEvaluation.EmailStops.EmailStopsAppService.GetListAsync(GetGlobalEmailStopsInput) -> class=CaseEvaluation.EmailStops method=-
+HealthcareSupport.CaseEvaluation.EmailStops.EmailStopsAppService.ResumeForAppointmentAsync(Guid, String) -> class=CaseEvaluation.EmailStops method=-
+HealthcareSupport.CaseEvaluation.EmailStops.EmailStopsAppService.StopForAppointmentAsync(Guid, StopAppointmentEmailsInput) -> class=CaseEvaluation.EmailStops method=-
 HealthcareSupport.CaseEvaluation.ExternalAccount.AccountActivationAppService.ResendToOfficeAdministratorAsync(Guid) -> class=(authenticated) method=Saas.Tenants.Create
 HealthcareSupport.CaseEvaluation.ExternalAccount.AccountActivationAppService.ResendToUserAsync(Guid) -> class=(authenticated) method=AbpIdentity.Users.Update
 HealthcareSupport.CaseEvaluation.ExternalAccount.CaseEvaluationProfileAppService.ChangePasswordAsync(ChangePasswordInput) -> class=(authenticated) method=-

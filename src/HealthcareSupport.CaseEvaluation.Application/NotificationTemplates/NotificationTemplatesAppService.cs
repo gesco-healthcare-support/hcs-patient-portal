@@ -190,6 +190,7 @@ public class NotificationTemplatesAppService : ApplicationService, INotification
         var variables = NotificationTemplateVariableCatalog.BuildSampleVariables(entity.TemplateCode);
 
         await _notificationDispatcher.DispatchAsync(
+            NotificationCase.None,
             entity.TemplateCode,
             recipients,
             variables,

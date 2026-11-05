@@ -30,7 +30,7 @@ public sealed class ContextTagRecordingDispatcher : INotificationDispatcher
 {
     public List<RecordedDispatch> Dispatches { get; } = new();
 
-    public Task DispatchAsync(string templateCode, IReadOnlyCollection<NotificationRecipient> recipients,
+    public Task DispatchAsync(NotificationCase notificationCase, string templateCode, IReadOnlyCollection<NotificationRecipient> recipients,
         IReadOnlyDictionary<string, object?> variables, string contextTag,
         PacketAttachmentRef? packetRef = null, CancellationToken cancellationToken = default)
     {
@@ -38,7 +38,7 @@ public sealed class ContextTagRecordingDispatcher : INotificationDispatcher
         return Task.CompletedTask;
     }
 
-    public Task DispatchToWithCcAsync(string templateCode, NotificationRecipient to, IReadOnlyCollection<NotificationRecipient> cc,
+    public Task DispatchToWithCcAsync(NotificationCase notificationCase, string templateCode, NotificationRecipient to, IReadOnlyCollection<NotificationRecipient> cc,
         IReadOnlyDictionary<string, object?> variables, string contextTag,
         PacketAttachmentRef? packetRef = null, CancellationToken cancellationToken = default)
     {

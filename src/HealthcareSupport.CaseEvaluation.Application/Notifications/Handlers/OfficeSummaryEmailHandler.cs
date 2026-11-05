@@ -73,6 +73,7 @@ public class OfficeSummaryEmailHandler :
             };
 
             await _dispatcher.DispatchAsync(
+                notificationCase: NotificationCase.None,
                 templateCode: NotificationTemplateConsts.Codes.OfficeDailySummary,
                 recipients: recipients,
                 variables: variables,

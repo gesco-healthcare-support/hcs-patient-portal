@@ -120,7 +120,7 @@ public class ChangeRequestRejectedEmailHandlerTests
             .Where(c => c.GetMethodInfo().Name == nameof(INotificationDispatcher.DispatchAsync))
             .ToList();
         calls.Count.ShouldBe(1, "one rejected change request sends exactly one email");
-        var args = calls[0].GetArguments();
+        var args = calls[0].GetArguments().Skip(1).ToArray();
         return new SentEmail(
             (string)args[0]!,
             (IReadOnlyCollection<NotificationRecipient>)args[1]!,

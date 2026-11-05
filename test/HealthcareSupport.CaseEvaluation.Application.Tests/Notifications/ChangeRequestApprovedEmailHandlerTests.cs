@@ -93,7 +93,7 @@ public class ChangeRequestApprovedEmailHandlerTests
                 .Where(c => c.GetMethodInfo().Name == nameof(INotificationDispatcher.DispatchAsync))
                 .ToList();
             calls.Count.ShouldBe(1);
-            return ((IEnumerable<NotificationRecipient>)calls[0].GetArguments()[1]!).ToList();
+            return ((IEnumerable<NotificationRecipient>)calls[0].GetArguments().Skip(1).ToArray()[1]!).ToList();
         }
 
         public (string Template, IReadOnlyDictionary<string, object?> Variables) SingleSend()
@@ -102,7 +102,7 @@ public class ChangeRequestApprovedEmailHandlerTests
                 .Where(c => c.GetMethodInfo().Name == nameof(INotificationDispatcher.DispatchAsync))
                 .ToList();
             calls.Count.ShouldBe(1, "one approval sends exactly one email");
-            var args = calls[0].GetArguments();
+            var args = calls[0].GetArguments().Skip(1).ToArray();
             return ((string)args[0]!, (IReadOnlyDictionary<string, object?>)args[2]!);
         }
     }

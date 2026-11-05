@@ -84,13 +84,14 @@ public class BookerCcDispatcherFallbackTests
         var dispatcher = Substitute.For<INotificationDispatcher>();
 
         await Build(dispatcher).DispatchToBookerWithCcAsync(
+            NotificationCase.None,
             "TEST-template", bookerEmail: null,
             new[] { Party("TEST-patient@test.local", RecipientRole.Patient) },
             new Dictionary<string, object?>(), "TEST-ctx/1");
 
         var to = (NotificationRecipient)dispatcher.ReceivedCalls()
             .Where(c => c.GetMethodInfo().Name == nameof(INotificationDispatcher.DispatchToWithCcAsync))
-            .ShouldHaveSingleItem().GetArguments()[1]!;
+            .ShouldHaveSingleItem().GetArguments().Skip(1).ToArray()[1]!;
         to.Email.ShouldBe("TEST-patient@test.local");
     }
 
@@ -100,6 +101,7 @@ public class BookerCcDispatcherFallbackTests
         var dispatcher = Substitute.For<INotificationDispatcher>();
 
         await Build(dispatcher).DispatchToBookerWithCcAsync(
+            NotificationCase.None,
             "TEST-template", bookerEmail: null, Array.Empty<NotificationRecipient>(),
             new Dictionary<string, object?>(), "TEST-ctx/2");
 

@@ -136,6 +136,7 @@ public class AccessorInvitedEmailHandler :
                 ctx, tenantConfig?.Name, setupUrl, eventData.Email);
 
             await _dispatcher.DispatchAsync(
+                notificationCase: NotificationCase.Of(eventData.AppointmentId),
                 templateCode: NotificationTemplateConsts.Codes.AccessorAppointmentBooked,
                 recipients: recipients,
                 variables: variables,

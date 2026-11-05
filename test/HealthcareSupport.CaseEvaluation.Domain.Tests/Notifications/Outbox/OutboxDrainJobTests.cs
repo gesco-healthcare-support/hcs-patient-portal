@@ -30,7 +30,7 @@ public class OutboxDrainJobTests
     [InlineData(0, 0)]
     public async Task ExecuteAsync_DrainsInsideTheOfficesTenantScopeAndClosesItAfter(int sent, int failed)
     {
-        var drain = Substitute.For<OutboxDrainService>(null, null, null, null, null);
+        var drain = Substitute.For<OutboxDrainService>(null, null, null, null, null, null);
         drain.DrainDueAsync(Arg.Any<int?>()).Returns(new OutboxDrainResult(sent, failed));
         var scope = Substitute.For<IDisposable>();
         var currentTenant = Substitute.For<ICurrentTenant>();
@@ -53,7 +53,7 @@ public class OutboxDrainJobTests
     [Fact]
     public async Task ExecuteAsync_ADrainThatThrows_PropagatesAndStillClosesTheScope()
     {
-        var drain = Substitute.For<OutboxDrainService>(null, null, null, null, null);
+        var drain = Substitute.For<OutboxDrainService>(null, null, null, null, null, null);
         drain.DrainDueAsync(Arg.Any<int?>())
             .Returns<OutboxDrainResult>(_ => throw new InvalidOperationException("TEST-drain failure"));
         var scope = Substitute.For<IDisposable>();

@@ -115,7 +115,7 @@ public abstract class AccountSelfServiceFlowTests<TStartupModule>
     private List<object?[]> Dispatches() =>
         _dispatcher.ReceivedCalls()
             .Where(c => c.GetMethodInfo().Name == nameof(INotificationDispatcher.DispatchAsync))
-            .Select(c => c.GetArguments())
+            .Select(c => c.GetArguments().Skip(1).ToArray())
             .ToList();
 
     /// <summary>Fails sign-in until the account locks, and returns how many attempts that took.</summary>
@@ -166,6 +166,7 @@ public abstract class AccountSelfServiceFlowTests<TStartupModule>
     {
         var userId = await CreateUserAsync();
         _dispatcher.DispatchAsync(
+                Arg.Any<NotificationCase>(),
                 Arg.Any<string>(), Arg.Any<IReadOnlyCollection<NotificationRecipient>>(),
                 Arg.Any<IReadOnlyDictionary<string, object?>>(), Arg.Any<string>(),
                 Arg.Any<HealthcareSupport.CaseEvaluation.Appointments.PacketAttachmentRef?>(), Arg.Any<CancellationToken>())

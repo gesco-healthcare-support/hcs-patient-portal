@@ -142,6 +142,7 @@ public class UserQuerySubmittedEmailHandler :
             try
             {
                 await _dispatcher.DispatchAsync(
+                    notificationCase: NotificationCase.None,
                     templateCode: NotificationTemplateConsts.Codes.UserQuery,
                     recipients: recipients,
                     variables: variables,
