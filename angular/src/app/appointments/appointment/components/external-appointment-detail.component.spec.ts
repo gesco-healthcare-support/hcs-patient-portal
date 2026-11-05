@@ -703,6 +703,23 @@ describe('ExternalAppointmentDetailComponent', () => {
     });
   });
 
+  describe('the add-an-Authorized-User modal', () => {
+    it('closes on Escape', () => {
+      const c = create();
+      c.isAuthorizedUserModalOpen = true;
+
+      c.onAuthorizedUserEscapeKey();
+
+      expect(c.isAuthorizedUserModalOpen).toBeFalse();
+    });
+
+    it('is inert on Escape when the modal is closed', () => {
+      const c = create();
+      expect(() => c.onAuthorizedUserEscapeKey()).not.toThrow();
+      expect(c.isAuthorizedUserModalOpen).toBeFalse();
+    });
+  });
+
   describe('the resubmit confirmation', () => {
     it('opens and closes', () => {
       const c = create();

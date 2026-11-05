@@ -1073,10 +1073,12 @@
       }
     </div>
 
-    <!-- add an Authorized User to the caller's own side (decisions 3-5) -->
+    <!-- add an Authorized User to the caller's own side (decisions 3-5). Closed by its X button,
+         Cancel or Escape (onAuthorizedUserEscapeKey); no click-outside, so no div carries a
+         mouse-only handler. -->
     @if (isAuthorizedUserModalOpen) {
-      <div class="ra-scrim" (click)="closeAuthorizedUserModal()">
-        <div class="ra-modal ra-modal--md" (click)="$event.stopPropagation()">
+      <div class="ra-scrim">
+        <div class="ra-modal ra-modal--md" role="dialog" aria-modal="true">
           <div class="ra-modal__head">
             <h3>{{ '::Appointment:AuthorizedUsers:AddTitle' | abpLocalization }}</h3>
             <button class="ext-iconbtn x" type="button" (click)="closeAuthorizedUserModal()">

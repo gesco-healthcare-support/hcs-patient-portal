@@ -644,6 +644,18 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
     }
   }
 
+  /**
+   * Escape closes the "add an Authorized User" modal (2026-11-05). The modal has no click-outside
+   * close, so its keyboard path is this, the X button and Cancel; routed through
+   * closeAuthorizedUserModal so Escape does exactly what the X does.
+   */
+  @HostListener('document:keydown.escape')
+  protected onAuthorizedUserEscapeKey(): void {
+    if (this.isAuthorizedUserModalOpen) {
+      this.closeAuthorizedUserModal();
+    }
+  }
+
   protected cancelResubmit(): void {
     this.resubmitConfirmVisible = false;
   }
