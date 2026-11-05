@@ -924,4 +924,73 @@ describe('ExternalAppointmentDetailComponent', () => {
       expect(c.injuryDrafts).toEqual([]);
     });
   });
+
+  describe('Authorized users the caller may add or remove (own side of the case)', () => {
+    function asCaller(
+      roles: string[],
+      over: { email?: string; verified?: boolean; creatorId?: string; rows?: string[] } = {},
+    ): Probe {
+      const c = create({ roles });
+      Object.assign(currentUser as object, {
+        email: over.email ?? 'ada@example.test',
+        emailVerified: over.verified ?? true,
+      });
+      c.appointment = {
+        appointment: {
+          id: 'appt-1',
+          creatorId: over.creatorId,
+          applicantAttorneyEmail: 'grace@example.test',
+          defenseAttorneyEmail: 'turing@example.test',
+          claimExaminerEmail: 'examiner@example.test',
+        },
+      };
+      c.appointmentAuthorizedUsers = (over.rows ?? []).map((id) => ({
+        accessorId: `row-${id}`,
+        identityUserId: id,
+        userRole: 'Applicant Paralegal',
+      }));
+      return c;
+    }
+
+    it('shows Add and the own-side roles to the named applicant attorney', () => {
+      const c = asCaller(['Applicant Attorney'], { email: 'Grace@example.test' });
+
+      expect(c.canManageAccessors()).toBeTrue();
+      expect(c.roleOptions).toEqual(['Applicant Attorney', 'Applicant Paralegal']);
+    });
+
+    it('shows nothing to a patient, even the booker', () => {
+      const c = asCaller(['Patient'], { creatorId: 'user-1' });
+
+      expect(c.canManageAccessors()).toBeFalse();
+      expect(c.roleOptions).toEqual([]);
+    });
+
+    it('shows nothing to an attorney whose email is not verified', () => {
+      const c = asCaller(['Applicant Attorney'], { email: 'grace@example.test', verified: false });
+
+      expect(c.canManageAccessors()).toBeFalse();
+    });
+
+    it('offers a claim examiner only the Claim Examiner role', () => {
+      const c = asCaller(['Claim Examiner'], { email: 'examiner@example.test' });
+
+      expect(c.canManageAccessors()).toBeTrue();
+      expect(c.roleOptions).toEqual(['Claim Examiner']);
+    });
+
+    it('offers an Authorized User paralegal their own side only', () => {
+      const c = asCaller(['Defense Paralegal'], { rows: ['user-1'] });
+
+      expect(c.roleOptions).toEqual(['Defense Attorney', 'Defense Paralegal']);
+    });
+
+    it('shows Remove only on rows whose role the caller may manage', () => {
+      const c = asCaller(['Applicant Paralegal'], { creatorId: 'user-1' });
+
+      expect(c.canRemoveAuthorizedUser({ userRole: 'Applicant Paralegal' })).toBeTrue();
+      expect(c.canRemoveAuthorizedUser({ userRole: 'Defense Paralegal' })).toBeFalse();
+      expect(c.canRemoveAuthorizedUser({ userRole: 'Claim Examiner' })).toBeFalse();
+    });
+  });
 });

@@ -295,9 +295,70 @@ public class AppointmentReadAccessGuard : ITransientDependency
     }
 
     /// <summary>
-    /// Throwing variant of <see cref="CanManageAccessorsAsync(Guid)"/> for the
-    /// accessor mutation endpoints (Create / Update / Delete). Throws the same
-    /// shared localized access-denied error as the read / edit gates.
+    /// Office decisions 3 + 4 (2026-11-05): the side-aware manage decision for ONE Authorized User.
+    /// Hydrates the caller's standing on this case (booker, Authorized User row, verified email) and
+    /// defers to the pure <see cref="AccessorManagementRules.Decide"/>.
+    /// </summary>
+    public async Task<AccessorManageDecision> DecideManageAccessorsAsync(
+        Appointment appointment,
+        AccessorTarget target,
+        bool allowNonLawOffice)
+    {
+        var callerRoles = _currentUser.Roles ?? Array.Empty<string>();
+        if (BookingFlowRoles.IsInternalUserCaller(callerRoles))
+        {
+            return AccessorManageDecision.Allowed;
+        }
+
+        var callerId = _currentUser.Id;
+        var isAuthorizedUser = false;
+        if (callerId.HasValue)
+        {
+            var accessorQuery = await _accessorRepository.GetQueryableAsync();
+            isAuthorizedUser = await _asyncExecuter.AnyAsync(
+                accessorQuery.Where(a => a.AppointmentId == appointment.Id && a.IdentityUserId == callerId.Value));
+        }
+
+        var creatorId = appointment.CreatorId ?? appointment.BookedByUserId;
+        var caller = new AccessorCaller(
+            IsInternal: false,
+            Roles: callerRoles.ToList(),
+            VerifiedEmail: _currentUser.GetVerifiedEmail(),
+            IsBooker: callerId.HasValue && creatorId.HasValue && creatorId.Value == callerId.Value,
+            IsAuthorizedUser: isAuthorizedUser,
+            IsExternalAccessorManager: BookingFlowRoles.IsExternalAccessorManager(callerRoles));
+        return AccessorManagementRules.Decide(
+            caller,
+            new AccessorCase(appointment.ApplicantAttorneyEmail, appointment.DefenseAttorneyEmail, appointment.ClaimExaminerEmail),
+            target,
+            allowNonLawOffice);
+    }
+
+    /// <summary>
+    /// Throwing variant of <see cref="DecideManageAccessorsAsync"/>: a wrong-side caller gets
+    /// <see cref="CaseEvaluationDomainErrorCodes.AppointmentAccessorOtherSideNotAllowed"/> (400), a caller
+    /// who is not on the case the shared <see cref="CaseEvaluationDomainErrorCodes.AppointmentAccessDenied"/>.
+    /// </summary>
+    public async Task EnsureCanManageAccessorsAsync(
+        Guid appointmentId,
+        AccessorTarget target,
+        bool allowNonLawOffice)
+    {
+        var appointment = await _appointmentRepository.GetAsync(appointmentId);
+        var decision = await DecideManageAccessorsAsync(appointment, target, allowNonLawOffice);
+        if (decision == AccessorManageDecision.OtherSide)
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentAccessorOtherSideNotAllowed);
+        }
+        if (decision == AccessorManageDecision.Denied)
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentAccessDenied);
+        }
+    }
+
+    /// <summary>
+    /// Throwing variant of <see cref="CanManageAccessorsAsync(Guid)"/> (the staff-or-creator gate, no side).
+    /// Throws the same shared localized access-denied error as the read / edit gates.
     /// </summary>
     public async Task EnsureCanManageAccessorsAsync(Guid appointmentId)
     {

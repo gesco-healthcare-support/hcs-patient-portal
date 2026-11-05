@@ -135,10 +135,13 @@ public class AppointmentAccessorsAppService : CaseEvaluationAppService, IAppoint
     [Authorize]
     public virtual async Task DeleteAsync(Guid id)
     {
-        // Deny-by-default: only internal staff or the creator-attorney (AA/DA)
-        // may remove an accessor; the Edit-accessor pathway is dropped.
+        // Deny-by-default. Office decisions 3 + 4 (2026-11-05): staff may remove anyone; an external caller
+        // may remove only an Authorized User whose account holds a law-office role of a side on which the
+        // caller is a party of THIS case (named attorney, booker or Authorized User). The target's roles
+        // are read here, as Update does, so a Patient / Claim Examiner accessor is not removable by them.
         var existing = await _appointmentAccessorRepository.GetAsync(id);
-        await _readAccessGuard.EnsureCanManageAccessorsAsync(existing.AppointmentId);
+        await _readAccessGuard.EnsureCanManageAccessorsAsync(
+            existing.AppointmentId, await TargetOfAccountAsync(existing.IdentityUserId), allowNonLawOffice: false);
         await _appointmentAccessorRepository.DeleteAsync(id);
     }
 
@@ -166,13 +169,14 @@ public class AppointmentAccessorsAppService : CaseEvaluationAppService, IAppoint
         // which call this method -- passes here, so one check covers them. A role the manager will refuse
         // as not recognised is left for it to refuse, with its own code. Judged BEFORE the management gate
         // so a Patient or Claim Examiner caller (who has no law-office side) is told the side is wrong.
+        // 2026-11-05 (decisions 3 + 4): the side is judged against THIS case -- the caller must be the named
+        // attorney of that side, or the booker / an Authorized User holding a role of it. A role that is not
+        // a law-office role carries no side and keeps today's creator rule.
         var requestedRole = AppointmentAccessorRules.ResolveRecognizedExternalRole(input.Role);
-        if (requestedRole != null)
-        {
-            EnsureSameSide(new[] { requestedRole });
-        }
-
-        await _readAccessGuard.EnsureCanManageAccessorsAsync(input.AppointmentId);
+        await _readAccessGuard.EnsureCanManageAccessorsAsync(
+            input.AppointmentId,
+            AccessorTarget.Of(new[] { requestedRole }),
+            allowNonLawOffice: true);
 
         // Email-based create-or-link: resolves the email to a user or
         // auto-provisions + invites one, applies the role-conflict check, and
@@ -208,32 +212,25 @@ public class AppointmentAccessorsAppService : CaseEvaluationAppService, IAppoint
         // 2026-11-04 (office decision 3): pointing the row at another account is a role change for the
         // case, so the same-side rule applies to that account's roles. An edit that keeps the account
         // (the access type) is not re-judged.
+        // The sides judged are those of the existing account and, when it changes, of the new one.
+        var target = await TargetOfAccountAsync(existing.IdentityUserId);
         if (input.IdentityUserId != existing.IdentityUserId)
         {
-            var target = await _identityUserManager.FindByIdAsync(input.IdentityUserId.ToString());
-            if (target != null)
-            {
-                EnsureSameSide(await _identityUserManager.GetRolesAsync(target));
-            }
+            var next = await TargetOfAccountAsync(input.IdentityUserId);
+            target = new AccessorTarget(
+                target.Sides.Union(next.Sides).ToList(), target.IsClaimExaminer || next.IsClaimExaminer);
         }
 
-        await _readAccessGuard.EnsureCanManageAccessorsAsync(existing.AppointmentId);
+        await _readAccessGuard.EnsureCanManageAccessorsAsync(existing.AppointmentId, target, allowNonLawOffice: false);
 
         var appointmentAccessor = await _appointmentAccessorManager.UpdateAsync(id, input.IdentityUserId, input.AppointmentId, input.AccessTypeId);
         return ObjectMapper.Map<AppointmentAccessor, AppointmentAccessorDto>(appointmentAccessor);
     }
 
-    /// <summary>
-    /// Refuses (400) a law-office Authorized User of the other side. Staff are unrestricted; see
-    /// <see cref="AppointmentAccessorRules.MayAssignLawOfficeRole"/>.
-    /// </summary>
-    private void EnsureSameSide(IEnumerable<string?> accessorRoles)
+    /// <summary>What the account is by its roles (nothing when the account is gone).</summary>
+    private async Task<AccessorTarget> TargetOfAccountAsync(Guid identityUserId)
     {
-        var callerRoles = CurrentUser.Roles ?? Array.Empty<string>();
-        if (!AppointmentAccessorRules.MayAssignLawOfficeRole(
-                BookingFlowRoles.IsInternalUserCaller(callerRoles), callerRoles, accessorRoles))
-        {
-            throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentAccessorOtherSideNotAllowed);
-        }
+        var user = await _identityUserManager.FindByIdAsync(identityUserId.ToString());
+        return AccessorTarget.Of(user == null ? null : await _identityUserManager.GetRolesAsync(user));
     }
 }

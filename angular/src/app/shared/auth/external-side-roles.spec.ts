@@ -6,6 +6,7 @@ import {
   isDefenseSideExternal,
   isLawOfficeExternal,
   isParalegalRole,
+  manageableAccessorRoles,
   paralegalRoleForSide,
 } from './external-user-roles';
 
@@ -94,5 +95,93 @@ describe('authorizedUserRoleLabel', () => {
     expect(authorizedUserRoleLabel('Applicant Paralegal')).toBe('Paralegal (Applicant side)');
     expect(authorizedUserRoleLabel('Defense Paralegal')).toBe('Paralegal (Defense side)');
     expect(authorizedUserRoleLabel('Patient')).toBe('Patient');
+  });
+});
+
+describe('manageableAccessorRoles (own-side Authorized Users after booking)', () => {
+  const base = {
+    isBooker: false,
+    isAuthorizedUser: false,
+    applicantAttorneyEmail: 'applicant.lawyer@example.test',
+    defenseAttorneyEmail: 'defense.lawyer@example.test',
+    claimExaminerEmail: 'examiner@example.test',
+  };
+
+  it('offers the named defense attorney the defense side only', () => {
+    expect(
+      manageableAccessorRoles({
+        ...base,
+        roles: ['Defense Attorney'],
+        verifiedEmail: 'Defense.Lawyer@example.test',
+      }),
+    ).toEqual(['Defense Attorney', 'Defense Paralegal']);
+  });
+
+  it('does not treat an attorney with an unverified or non-matching email as named', () => {
+    expect(
+      manageableAccessorRoles({ ...base, roles: ['Defense Attorney'], verifiedEmail: null }),
+    ).toEqual([]);
+    expect(
+      manageableAccessorRoles({
+        ...base,
+        roles: ['Defense Attorney'],
+        verifiedEmail: 'applicant.lawyer@example.test',
+      }),
+    ).toEqual([]);
+  });
+
+  it('does not make a paralegal the named attorney by email alone', () => {
+    expect(
+      manageableAccessorRoles({
+        ...base,
+        roles: ['Defense Paralegal'],
+        verifiedEmail: 'defense.lawyer@example.test',
+      }),
+    ).toEqual([]);
+  });
+
+  it('offers a booker or Authorized User paralegal their own side only', () => {
+    expect(
+      manageableAccessorRoles({ ...base, roles: ['Applicant Paralegal'], isBooker: true }),
+    ).toEqual(['Applicant Attorney', 'Applicant Paralegal']);
+    expect(
+      manageableAccessorRoles({ ...base, roles: ['Defense Paralegal'], isAuthorizedUser: true }),
+    ).toEqual(['Defense Attorney', 'Defense Paralegal']);
+  });
+
+  it('judges a firm holding both sides per side', () => {
+    expect(
+      manageableAccessorRoles({
+        ...base,
+        roles: ['Applicant Attorney', 'Defense Attorney'],
+        verifiedEmail: 'defense.lawyer@example.test',
+      }),
+    ).toEqual(['Defense Attorney', 'Defense Paralegal']);
+  });
+
+  it('offers a claim examiner party Claim Examiner helpers only', () => {
+    expect(
+      manageableAccessorRoles({
+        ...base,
+        roles: ['Claim Examiner'],
+        verifiedEmail: 'examiner@example.test',
+      }),
+    ).toEqual(['Claim Examiner']);
+    expect(
+      manageableAccessorRoles({ ...base, roles: ['Claim Examiner'], isAuthorizedUser: true }),
+    ).toEqual(['Claim Examiner']);
+    expect(manageableAccessorRoles({ ...base, roles: ['Claim Examiner'] })).toEqual([]);
+  });
+
+  it('offers a patient nothing, even as booker', () => {
+    expect(
+      manageableAccessorRoles({
+        ...base,
+        roles: ['Patient'],
+        isBooker: true,
+        isAuthorizedUser: true,
+        verifiedEmail: 'examiner@example.test',
+      }),
+    ).toEqual([]);
   });
 });

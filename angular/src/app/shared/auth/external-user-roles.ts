@@ -135,3 +135,67 @@ export function authorizedUserRoleLabel(role: string): string {
   if (role === DEFENSE_PARALEGAL_ROLE) return 'Paralegal (Defense side)';
   return role;
 }
+
+/** What the page knows about the caller's standing on ONE case (decisions 3, 4 and 5). */
+export interface CaseStanding {
+  roles: RoleList;
+  /** The caller's verified email; leave empty when the email is not verified. */
+  verifiedEmail?: string | null;
+  isBooker: boolean;
+  isAuthorizedUser: boolean;
+  applicantAttorneyEmail?: string | null;
+  defenseAttorneyEmail?: string | null;
+  claimExaminerEmail?: string | null;
+}
+
+const CLAIM_EXAMINER_ROLE = 'Claim Examiner';
+
+function sameEmail(a?: string | null, b?: string | null): boolean {
+  const x = (a ?? '').trim().toLowerCase();
+  return x.length > 0 && x === (b ?? '').trim().toLowerCase();
+}
+
+/**
+ * The Authorized User roles an EXTERNAL caller may add or remove on a case after booking, mirroring the
+ * server rule (AccessorManagementRules). A law-office side is manageable when the caller is its named
+ * attorney (verified email equals that side's attorney column AND the attorney role), or is the booker /
+ * an Authorized User holding a role of that side. A claim examiner may manage Claim Examiner helpers only
+ * (named by verified email in the claim examiner column, or the booker / an Authorized User holding that
+ * role). A Patient manages nothing. Cosmetic: the server stays authoritative.
+ */
+export function manageableAccessorRoles(s: CaseStanding): string[] {
+  const roles: string[] = [];
+  const sidePartner = (
+    holdsSide: boolean,
+    holdsAttorney: boolean,
+    column: string | null | undefined,
+    attorney: string,
+    paralegal: string,
+  ): void => {
+    const named = holdsAttorney && sameEmail(s.verifiedEmail, column);
+    if (holdsSide && (named || s.isBooker || s.isAuthorizedUser)) {
+      roles.push(attorney, paralegal);
+    }
+  };
+  sidePartner(
+    isApplicantSideExternal(s.roles),
+    isApplicantAttorneyRole(s.roles),
+    s.applicantAttorneyEmail,
+    APPLICANT_ATTORNEY_ROLE,
+    APPLICANT_PARALEGAL_ROLE,
+  );
+  sidePartner(
+    isDefenseSideExternal(s.roles),
+    isDefenseAttorneyRole(s.roles),
+    s.defenseAttorneyEmail,
+    DEFENSE_ATTORNEY_ROLE,
+    DEFENSE_PARALEGAL_ROLE,
+  );
+  if (
+    holds(s.roles, CLAIM_EXAMINER_ROLE) &&
+    (sameEmail(s.verifiedEmail, s.claimExaminerEmail) || s.isBooker || s.isAuthorizedUser)
+  ) {
+    roles.push(CLAIM_EXAMINER_ROLE);
+  }
+  return roles;
+}

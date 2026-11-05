@@ -1,8 +1,12 @@
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { Component, HostListener, Injector, OnInit, inject } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { ConfigStateService as AbpConfigStateService, RestService } from '@abp/ng.core';
+import {
+  ConfigStateService as AbpConfigStateService,
+  LocalizationPipe,
+  RestService,
+} from '@abp/ng.core';
 import { ToasterService } from '@abp/ng.theme.shared';
 import { AppointmentStatusType } from '../../../proxy/enums/appointment-status-type.enum';
 import {
@@ -26,6 +30,7 @@ import { RescheduleChainNoteComponent } from './reschedule-chain-note.component'
 import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
 import { ExternalNavbarComponent } from '../../../shared/components/external-navbar/external-navbar.component';
 import { SubmitQueryModalComponent } from '../../../user-queries/submit-query-modal.component';
+import { authorizedUserRoleLabel } from '../../../shared/auth/external-user-roles';
 import { performFullLogout } from '../../../shared/auth/full-logout';
 import { resolveExternalUserDisplayName } from '../../../shared/auth/external-user-display-name';
 import { appointmentStatusToPill } from '../../../shared/ui/status-pill/appointment-status.util';
@@ -131,6 +136,8 @@ const CALLOUTS: Record<string, CalloutCopy> = {
     PartyConsentCardComponent,
     CommonModule,
     FormsModule,
+    ReactiveFormsModule,
+    LocalizationPipe,
     RescheduleRequestModalComponent,
     CancellationRequestModalComponent,
     AppointmentDocumentsComponent,
@@ -154,6 +161,13 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
   private readonly detailRoute = inject(ActivatedRoute);
   private readonly fixItToaster = inject(ToasterService);
   private readonly infoRequestApi = inject(AppointmentInfoRequestService);
+
+  /** Picker label: a claim examiner's helper is an "assistant" (localization key); other roles as the staff page. */
+  externalRoleLabel(role: string): string {
+    return role === 'Claim Examiner'
+      ? '::Appointment:AuthorizedUsers:ClaimExaminerAssistant'
+      : authorizedUserRoleLabel(role);
+  }
 
   // Send Back fix-it: the open info request (staff note + flagged fields).
   protected infoRequest: OpenInfoRequest | null = null;
