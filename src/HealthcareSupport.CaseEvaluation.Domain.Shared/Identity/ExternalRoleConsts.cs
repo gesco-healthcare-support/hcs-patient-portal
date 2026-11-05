@@ -30,12 +30,13 @@ namespace HealthcareSupport.CaseEvaluation.Identity;
 /// for clarity -- Adjuster to Claim Examiner, aligning with the
 /// AppointmentClaimExaminer entity, and PatientAttorney to Applicant Attorney.
 /// "Adjuster" and "Claim Examiner" are the SAME role; an earlier audit listed
-/// both and was reconciled. There is no fifth role.</para>
+/// both and was reconciled. OLD has no fifth role; the two paralegal roles
+/// (2026-11-04) are NEW's own, added because most bookers are a paralegal.</para>
 ///
 /// <para>UNIFYING THE THIRD LIST COUPLES TWO QUESTIONS, and that was decided
 /// deliberately (Adrian, 2026-09-04). Which roles get PROVISIONED and which the
 /// application RECOGNISES as external accessors are related but not identical;
-/// they are the same four names today. If a future requirement needs a role
+/// they are the same six names today. If a future requirement needs a role
 /// recognised without booking grants, or seeded without being an accessor, the
 /// answer is to split these apart deliberately -- NOT to quietly add a fourth
 /// literal somewhere, which is the state this replaced.</para>
@@ -61,6 +62,17 @@ public static class ExternalRoleConsts
     public const string DefenseAttorney = "Defense Attorney";
 
     /// <summary>
+    /// A law office's paralegal on the applicant side (2026-11-04). Granted
+    /// exactly what <see cref="ApplicantAttorney"/> holds, but NOT the attorney
+    /// of record: never matched by the appointment's party email columns, so it
+    /// reaches a case only as its creator or an accessor.
+    /// </summary>
+    public const string ApplicantParalegal = "Applicant Paralegal";
+
+    /// <summary>The defense-side counterpart of <see cref="ApplicantParalegal"/>.</summary>
+    public const string DefenseParalegal = "Defense Paralegal";
+
+    /// <summary>
     /// Every external role. The order is not significant -- both consumers
     /// iterate, and both tests assert membership rather than sequence.
     /// </summary>
@@ -70,5 +82,26 @@ public static class ExternalRoleConsts
         ClaimExaminer,
         ApplicantAttorney,
         DefenseAttorney,
+        ApplicantParalegal,
+        DefenseParalegal,
+    };
+
+    /// <summary>
+    /// The applicant side's law-office roles: the attorney and the paralegal.
+    /// Use where "an attorney of the applicant side" means the office's PEOPLE
+    /// (booking, change-request side, accessor management, the attorney packet),
+    /// never where it means the attorney OF RECORD on an appointment.
+    /// </summary>
+    public static readonly IReadOnlyList<string> ApplicantLawOffice = new[]
+    {
+        ApplicantAttorney,
+        ApplicantParalegal,
+    };
+
+    /// <summary>The defense side's law-office roles; see <see cref="ApplicantLawOffice"/>.</summary>
+    public static readonly IReadOnlyList<string> DefenseLawOffice = new[]
+    {
+        DefenseAttorney,
+        DefenseParalegal,
     };
 }

@@ -186,9 +186,16 @@ public class StatusChangeEmailHandler :
                         email: r.To, role: r.Role, isRegistered: r.IsRegistered))
                     .ToList();
 
+                // 2026-11-04: the case followers (external booker, accessors) are copied like the parties.
+                // Rejected and sent-back follow the patient rule below; approved and cancelled are after
+                // approval, so a Patient-role accessor is a normal party again.
+                var beforeApproval = status is AppointmentStatusType.Rejected or AppointmentStatusType.InfoRequested;
+                stakeholders = CaseFollowers.Append(
+                    stakeholders, ctx, patientRoleAllowed: !beforeApproval || ctx.PatientIsSubmitter);
+
                 // 2026-11-03: rejected and sent-back are "before approval" emails. When someone other
                 // than the patient submitted the request, the patient is told nothing until it is approved.
-                if (status is AppointmentStatusType.Rejected or AppointmentStatusType.InfoRequested)
+                if (beforeApproval)
                 {
                     stakeholders = PatientBeforeApprovalRule.Apply(stakeholders, ctx);
                 }

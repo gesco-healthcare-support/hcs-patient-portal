@@ -53,7 +53,7 @@ public class AppointmentReminderEmailHandlerTests
         /// configured below, so the real body never runs.
         /// </summary>
         public DocumentEmailContextResolver ContextResolver { get; } =
-            Substitute.For<DocumentEmailContextResolver>(null, null, null, null, null, null, null, null, null, null);
+            Substitute.For<DocumentEmailContextResolver>(null, null, null, null, null, null, null, null, null, null, null);
 
         public IAppointmentRecipientResolver RecipientResolver { get; } = Substitute.For<IAppointmentRecipientResolver>();
 

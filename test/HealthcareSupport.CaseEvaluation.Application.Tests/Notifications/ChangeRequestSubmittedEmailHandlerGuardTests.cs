@@ -36,7 +36,7 @@ public class ChangeRequestSubmittedEmailHandlerGuardTests
 
         /// <summary>The ten nulls are never dereferenced: <c>ResolveAsync</c> is virtual and configured.</summary>
         public DocumentEmailContextResolver ContextResolver { get; } =
-            Substitute.For<DocumentEmailContextResolver>(null, null, null, null, null, null, null, null, null, null);
+            Substitute.For<DocumentEmailContextResolver>(null, null, null, null, null, null, null, null, null, null, null);
 
         public IRepository<AppointmentChangeRequest, Guid> ChangeRequests { get; } = Substitute.For<IRepository<AppointmentChangeRequest, Guid>>();
 
@@ -72,7 +72,7 @@ public class ChangeRequestSubmittedEmailHandlerGuardTests
         };
 
         /// <summary>The consent-link holders; empty unless a test lists them. The ctor args are never dereferenced.</summary>
-        public ConsentLinkHolders LinkHolders { get; } = Substitute.For<ConsentLinkHolders>(null, null);
+        public ConsentLinkHolders LinkHolders { get; } = Substitute.For<ConsentLinkHolders>(null, null, null);
 
         public ChangeRequestSubmittedEmailHandler Build()
         {

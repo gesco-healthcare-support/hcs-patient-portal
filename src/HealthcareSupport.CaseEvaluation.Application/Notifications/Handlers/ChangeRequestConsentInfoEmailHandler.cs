@@ -92,7 +92,19 @@ public class ChangeRequestConsentInfoEmailHandler :
             recipients.AddRange(await _officeRecipients.GetOfficeInboxAndIntakeAsync(
                 $"ConsentInfo/{eventData.ChangeRequestId}"));
 
+            // 2026-11-04: the case followers (external booker, accessors) are told too, except the
+            // patient (a patient address or a Patient-role account); link holders are removed below.
+            recipients = CaseFollowers.AppendWithoutPatient(recipients, ctx);
+
             var holders = new HashSet<string>(eventData.ConsentLinkEmails ?? new List<string>(), StringComparer.OrdinalIgnoreCase);
+            // 2026-11-04: the followers who may answer for an asked side got that side's link too.
+            foreach (var side in eventData.ConsentLinkSides ?? new List<AppointmentChangeRequests.ChangeRequestSide>())
+            {
+                foreach (var follower in CaseFollowers.ConsentLinkFollowers(ctx, side))
+                {
+                    holders.Add(follower.Email.Trim());
+                }
+            }
             recipients = OfficeNotificationRecipients.Distinct(recipients)
                 .Where(r => !holders.Contains(r.Email.Trim()))
                 .ToList();

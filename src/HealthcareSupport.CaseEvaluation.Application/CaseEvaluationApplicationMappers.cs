@@ -347,8 +347,18 @@ public partial class AppointmentLanguageToLookupDtoGuidMapper : MapperBase<Appoi
 [Mapper]
 public partial class AppointmentToAppointmentDtoMappers : MapperBase<Appointment, AppointmentDto>
 {
+    [MapperIgnoreTarget(nameof(AppointmentDto.BookerFollowsCase))]
+    [MapperIgnoreTarget(nameof(AppointmentDto.AttorneyMailToParalegal))]
     public override partial AppointmentDto Map(Appointment source);
+    [MapperIgnoreTarget(nameof(AppointmentDto.BookerFollowsCase))]
+    [MapperIgnoreTarget(nameof(AppointmentDto.AttorneyMailToParalegal))]
     public override partial void Map(Appointment source, AppointmentDto destination);
+
+    // 2026-11-04: the booker's mail choices live in ExtraProperties; the detail view shows them.
+    public override void AfterMap(Appointment source, AppointmentDto destination)
+    {
+        AppointmentMailChoices.ApplyTo(source, destination);
+    }
 }
 
 [Mapper]
@@ -372,6 +382,15 @@ public partial class AppointmentWithNavigationPropertiesToAppointmentWithNavigat
     public override partial void Map(AppointmentWithNavigationProperties source, AppointmentWithNavigationPropertiesDto destination);
 
     private static Guid IdentityUserIdOrUnassigned(Guid? value) => AttorneyIdentityMapping.OrUnassigned(value);
+
+    // 2026-11-04: the nested appointment dto is mapped inline, so its AfterMap does not run here.
+    public override void AfterMap(AppointmentWithNavigationProperties source, AppointmentWithNavigationPropertiesDto destination)
+    {
+        if (source.Appointment != null && destination.Appointment != null)
+        {
+            AppointmentMailChoices.ApplyTo(source.Appointment, destination.Appointment);
+        }
+    }
 }
 
 [Mapper]
@@ -432,6 +451,11 @@ public partial class AppointmentEmployerDetailWithNavigationPropertiesToAppointm
     // Prompt 15: nested State -> StateDto carries the computed UsageCount target.
     [MapperIgnoreTarget(nameof(StateDto.UsageCount))]
     private partial StateDto MapState(State source);
+
+    // 2026-11-04: the appointment's mail-choice flags are filled by AppointmentMailChoices, not mapped.
+    [MapperIgnoreTarget(nameof(AppointmentDto.BookerFollowsCase))]
+    [MapperIgnoreTarget(nameof(AppointmentDto.AttorneyMailToParalegal))]
+    private partial AppointmentDto MapAppointment(Appointment source);
 }
 
 [Mapper]

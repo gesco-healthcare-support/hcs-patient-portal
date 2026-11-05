@@ -148,6 +148,7 @@ HealthcareSupport.CaseEvaluation.Appointments.AppointmentsAppService.ApproveAsyn
 HealthcareSupport.CaseEvaluation.Appointments.AppointmentsAppService.CreateAsync(AppointmentCreateDto) -> class=(authenticated) method=(authenticated) + CaseEvaluation.Appointments.Create
 HealthcareSupport.CaseEvaluation.Appointments.AppointmentsAppService.CreateReBookAsync(String, AppointmentCreateDto) -> class=(authenticated) method=(authenticated) + CaseEvaluation.Appointments.Create
 HealthcareSupport.CaseEvaluation.Appointments.AppointmentsAppService.CreateRevalAsync(String, AppointmentCreateDto) -> class=(authenticated) method=(authenticated) + CaseEvaluation.Appointments.Create
+HealthcareSupport.CaseEvaluation.Appointments.AppointmentsAppService.CreateRevalWithoutSourceAsync(AppointmentCreateDto) -> class=(authenticated) method=(authenticated) + CaseEvaluation.Appointments.Create
 HealthcareSupport.CaseEvaluation.Appointments.AppointmentsAppService.DeleteAsync(Guid) -> class=(authenticated) method=CaseEvaluation.Appointments.Delete
 HealthcareSupport.CaseEvaluation.Appointments.AppointmentsAppService.GetApplicantAttorneyDetailsForBookingAsync(Nullable<Guid>, String) -> class=(authenticated) method=(authenticated)
 HealthcareSupport.CaseEvaluation.Appointments.AppointmentsAppService.GetAppointmentApplicantAttorneyAsync(Guid) -> class=(authenticated) method=(authenticated)

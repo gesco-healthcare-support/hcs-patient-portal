@@ -25,6 +25,12 @@ No domain entity. The AppService operates on ABP's `IdentityUser`, `IdentityRole
 | ClaimExaminer (2) | "Claim Examiner" |
 | ApplicantAttorney (3) | "Applicant Attorney" |
 | DefenseAttorney (4) | "Defense Attorney" |
+| ApplicantParalegal (5) | "Applicant Paralegal" |
+| DefenseParalegal (6) | "Defense Paralegal" |
+
+Paralegals (2026-11-04) register as PEOPLE (first/last kept), may give a firm (optional, stored on
+the account only), and create or claim NO attorney record and no attorney link rows
+(`IsAttorneyRole` is false for them; `IsLawOfficeRole` covers attorneys + paralegals for the firm).
 
 ## Firm-based AA/DA registration (2026-06-12)
 

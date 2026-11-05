@@ -156,6 +156,20 @@ public static class AppointmentLifecycleValidators
         string sourceConfirmationNumber,
         string newlyGeneratedConfirmationNumber)
     {
+        // A re-evaluation of a first evaluation booked BEFORE this portal existed has no source
+        // appointment, hence no source number: it mints a fresh one, like a plain create.
+        if (flow == AppointmentLifecycleFlow.RevalWithoutSource)
+        {
+            if (string.IsNullOrWhiteSpace(newlyGeneratedConfirmationNumber))
+            {
+                throw new System.ArgumentException(
+                    "newlyGeneratedConfirmationNumber must be supplied so the flow has a fresh number to use.",
+                    nameof(newlyGeneratedConfirmationNumber));
+            }
+
+            return newlyGeneratedConfirmationNumber;
+        }
+
         if (string.IsNullOrWhiteSpace(sourceConfirmationNumber))
         {
             throw new System.ArgumentException(
@@ -221,4 +235,11 @@ public enum AppointmentLifecycleFlow
     /// not <see cref="Reval"/>, so no change was needed there.</para>
     /// </summary>
     ReBook = 3,
+
+    /// <summary>
+    /// A re-evaluation whose first evaluation was booked the old way, before this portal existed,
+    /// so there is NO source appointment to link or gate on. Yields
+    /// <c>EvaluationKind.ReEvaluation</c> with every source link left empty.
+    /// </summary>
+    RevalWithoutSource = 4,
 }

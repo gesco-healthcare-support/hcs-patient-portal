@@ -128,14 +128,17 @@ public class AttyCEPacketEmailHandlerTests : CaseEvaluationEntityFrameworkCoreTe
     }
 
     [Fact]
-    public async Task OnlyNonAttorneyParties_SendsNothing()
+    public async Task OnlyNonAttorneyParties_SendsOnlyToTheSeededAttorneyRoleAccessor()
     {
         _parties.Parties.Add(new SendAppointmentEmailArgs { To = PatientDecoy, Role = RecipientRole.Patient });
         _parties.Parties.Add(new SendAppointmentEmailArgs { To = RolelessDecoy, Role = null });
 
         await RaiseAsync(PacketKind.AttorneyClaimExaminer);
 
-        _recorder.Sent.ShouldBeEmpty();
+        // 2026-11-04 (office decision 4): the Authorized User the shared seed puts on Appointment1 holds the
+        // Applicant Attorney role, so it now gets the packet; the non-attorney parties still do not.
+        _recorder.Sent.SelectMany(s => s.Recipients).ShouldBe(
+            new[] { HealthcareSupport.CaseEvaluation.TestData.IdentityUsersTestData.ApplicantAttorney1Email });
     }
 
     [Fact]
@@ -177,6 +180,24 @@ public class AttyCEPacketEmailHandlerTests : CaseEvaluationEntityFrameworkCoreTe
         bookerMail.TemplateCode.ShouldBe(NotificationTemplateConsts.Codes.AppointmentDocumentAddWithAttachment);
         bookerMail.Packet!.Kind.ShouldBe(PacketKind.AttorneyClaimExaminer);
         bookerMail.Variables["PacketLabel"].ShouldBe("Appointment Notice");
+    }
+
+    // 2026-11-04: the usual booker is a law office's PARALEGAL; it gets the attorney packet like the
+    // booking attorney does.
+    [Theory]
+    [InlineData("Applicant Paralegal")]
+    [InlineData("Defense Paralegal")]
+    public async Task AParalegalBooker_IsMailedTheAttorneyPacket_WithTheParties(string role)
+    {
+        WithPartiesAndDecoys();
+        var bookerEmail = await CreateBookerAsync(role);
+
+        await RaiseAsync(PacketKind.AttorneyClaimExaminer);
+
+        _recorder.Sent.SelectMany(s => s.Recipients).ShouldBe(
+            new[] { IdentityUsersTestData.ApplicantAttorney1Email, DefenseEmail, ExaminerEmail, bookerEmail }, ignoreOrder: true);
+        _recorder.Sent.Single(s => s.Recipients.Contains(bookerEmail)).Packet!.Kind
+            .ShouldBe(PacketKind.AttorneyClaimExaminer);
     }
 
     [Fact]

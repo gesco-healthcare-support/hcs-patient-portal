@@ -176,6 +176,20 @@ public class ExternalSignupValidatorUnitTests
             () => ExternalSignupAppService.ValidateRegistrationInput(dto));
     }
 
+    // 2026-11-04: a paralegal is a person on a law office's staff, not the firm account, so the
+    // firm name is optional for them (it is stored when given) and never required.
+    [Theory]
+    [InlineData(ExternalUserType.ApplicantParalegal)]
+    [InlineData(ExternalUserType.DefenseParalegal)]
+    public void ValidateRegistrationInput_ParalegalWithoutFirmName_DoesNotThrow(ExternalUserType userType)
+    {
+        var dto = ValidPatientDto();
+        dto.UserType = userType;
+        dto.FirmName = null;
+
+        ExternalSignupAppService.ValidateRegistrationInput(dto);
+    }
+
     [Fact]
     public void ValidateRegistrationInput_DefenseAttorneyWithFirmName_DoesNotThrow()
     {
@@ -195,9 +209,35 @@ public class ExternalSignupValidatorUnitTests
     [InlineData(ExternalUserType.DefenseAttorney, true)]
     [InlineData(ExternalUserType.Patient, false)]
     [InlineData(ExternalUserType.ClaimExaminer, false)]
+    [InlineData(ExternalUserType.ApplicantParalegal, false)] // not the attorney of record
+    [InlineData(ExternalUserType.DefenseParalegal, false)]
     public void IsAttorneyRole_RecognizesBothAttorneyEnums(ExternalUserType userType, bool expected)
     {
         ExternalSignupAppService.IsAttorneyRole(userType).ShouldBe(expected);
+    }
+
+    [Fact]
+    public void ExternalUserType_WireValuesArePinned()
+    {
+        // The Angular invite screen and the AuthServer register script send these numbers.
+        ((int)ExternalUserType.Patient).ShouldBe(1);
+        ((int)ExternalUserType.ClaimExaminer).ShouldBe(2);
+        ((int)ExternalUserType.ApplicantAttorney).ShouldBe(3);
+        ((int)ExternalUserType.DefenseAttorney).ShouldBe(4);
+        ((int)ExternalUserType.ApplicantParalegal).ShouldBe(5);
+        ((int)ExternalUserType.DefenseParalegal).ShouldBe(6);
+    }
+
+    [Theory]
+    [InlineData(ExternalUserType.ApplicantAttorney, true)]
+    [InlineData(ExternalUserType.DefenseAttorney, true)]
+    [InlineData(ExternalUserType.ApplicantParalegal, true)]
+    [InlineData(ExternalUserType.DefenseParalegal, true)]
+    [InlineData(ExternalUserType.Patient, false)]
+    [InlineData(ExternalUserType.ClaimExaminer, false)]
+    public void IsLawOfficeRole_IsTheAttorneysAndParalegals(ExternalUserType userType, bool expected)
+    {
+        ExternalSignupAppService.IsLawOfficeRole(userType).ShouldBe(expected);
     }
 
     // ------------------------------------------------------------------
@@ -209,6 +249,8 @@ public class ExternalSignupValidatorUnitTests
     [InlineData(ExternalUserType.ClaimExaminer, "Claim Examiner")]
     [InlineData(ExternalUserType.ApplicantAttorney, "Applicant Attorney")]
     [InlineData(ExternalUserType.DefenseAttorney, "Defense Attorney")]
+    [InlineData(ExternalUserType.ApplicantParalegal, "Applicant Paralegal")]
+    [InlineData(ExternalUserType.DefenseParalegal, "Defense Paralegal")]
     public void ToRoleName_MapsKnownTypes(ExternalUserType userType, string expected)
     {
         ExternalSignupAppService.ToRoleName(userType).ShouldBe(expected);

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
+using HealthcareSupport.CaseEvaluation.Identity;
 using Volo.Abp.DependencyInjection;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
@@ -36,15 +37,17 @@ public class ChangeRequestSideResolver : ITransientDependency
         var recipients = (await _recipientResolver.ResolveAsync(appointmentId, NotificationKind.Submitted))
             .Where(r => !string.IsNullOrWhiteSpace(r.To))
             .ToList();
+        var parties = NamedParties(recipients);
 
         var submitterParty = string.IsNullOrWhiteSpace(submitterEmail)
             ? null
-            : recipients.FirstOrDefault(r => string.Equals(r.To, submitterEmail, StringComparison.OrdinalIgnoreCase));
+            : parties.FirstOrDefault(r => string.Equals(r.To, submitterEmail, StringComparison.OrdinalIgnoreCase));
 
         // F-014 fix (2026-06-23): the submitter is often the BOOKER (paralegal) who is not a
         // named party on the appointment, so an email match yields no side and consent used to
         // be skipped. Fall back to the submitter's registered role to place them on a side:
-        // Patient / Applicant Attorney = Side A; Defense Attorney / Claim Examiner = Side B.
+        // Patient / Applicant Attorney / Applicant Paralegal = Side A; Defense Attorney /
+        // Defense Paralegal / Claim Examiner = Side B.
         var side = ClassifySide(submitterParty?.Role) ?? ClassifySideFromRoles(submitterRoles);
         if (side == null)
         {
@@ -52,10 +55,10 @@ public class ChangeRequestSideResolver : ITransientDependency
         }
 
         var opposingRep = side == ChangeRequestSide.SideA
-            ? recipients.FirstOrDefault(r => r.Role == RecipientRole.DefenseAttorney)
-              ?? recipients.FirstOrDefault(r => r.Role == RecipientRole.ClaimExaminer)
-            : recipients.FirstOrDefault(r => r.Role == RecipientRole.ApplicantAttorney)
-              ?? recipients.FirstOrDefault(r => r.Role == RecipientRole.Patient);
+            ? parties.FirstOrDefault(r => r.Role == RecipientRole.DefenseAttorney)
+              ?? parties.FirstOrDefault(r => r.Role == RecipientRole.ClaimExaminer)
+            : parties.FirstOrDefault(r => r.Role == RecipientRole.ApplicantAttorney)
+              ?? parties.FirstOrDefault(r => r.Role == RecipientRole.Patient);
 
         if (opposingRep == null)
         {
@@ -77,19 +80,29 @@ public class ChangeRequestSideResolver : ITransientDependency
     /// </summary>
     public virtual async Task<ChangeRequestBothSidesResolution> ResolveBothSidesAsync(Guid appointmentId)
     {
-        var recipients = (await _recipientResolver.ResolveAsync(appointmentId, NotificationKind.Submitted))
-            .Where(r => !string.IsNullOrWhiteSpace(r.To))
-            .ToList();
+        var parties = NamedParties((await _recipientResolver.ResolveAsync(appointmentId, NotificationKind.Submitted))
+            .Where(r => !string.IsNullOrWhiteSpace(r.To)));
 
-        var sideA = recipients.FirstOrDefault(r => r.Role == RecipientRole.ApplicantAttorney)
-                    ?? recipients.FirstOrDefault(r => r.Role == RecipientRole.Patient);
-        var sideB = recipients.FirstOrDefault(r => r.Role == RecipientRole.DefenseAttorney)
-                    ?? recipients.FirstOrDefault(r => r.Role == RecipientRole.ClaimExaminer);
+        var sideA = parties.FirstOrDefault(r => r.Role == RecipientRole.ApplicantAttorney)
+                    ?? parties.FirstOrDefault(r => r.Role == RecipientRole.Patient);
+        var sideB = parties.FirstOrDefault(r => r.Role == RecipientRole.DefenseAttorney)
+                    ?? parties.FirstOrDefault(r => r.Role == RecipientRole.ClaimExaminer);
 
         return new ChangeRequestBothSidesResolution(
             sideA?.To, sideA?.Role,
             sideB?.To, sideB?.Role);
     }
+
+    /// <summary>
+    /// The appointment's NAMED parties: every resolver entry except the submitter's own (2026-11-04).
+    /// The resolver tags the submitter Patient so the mails treat it like a party, so matching the
+    /// submitter's email against it put EVERY non-party booker on Side A -- a defense-side paralegal
+    /// or attorney included -- before the role fallback could run; and with no patient address the
+    /// booker became the Side A consent representative. Sides and representatives come from the
+    /// named parties only; the submitter is placed by its role.
+    /// </summary>
+    private static List<SendAppointmentEmailArgs> NamedParties(IEnumerable<SendAppointmentEmailArgs> recipients) =>
+        recipients.Where(r => !AppointmentRecipientResolver.IsBookerEntry(r)).ToList();
 
     private static ChangeRequestSide? ClassifySide(RecipientRole? role) => role switch
     {
@@ -103,8 +116,9 @@ public class ChangeRequestSideResolver : ITransientDependency
     /// <summary>
     /// F-014 fallback: classify the submitter's side from their registered role name when they
     /// are not a named party on the appointment (the booker/paralegal acting on behalf). Side A
-    /// = Applicant Attorney / Patient; Side B = Defense Attorney / Claim Examiner. Returns null
-    /// for internal/neutral roles so consent stays unresolved (Staff Supervisor finalizes).
+    /// = Applicant Attorney / Applicant Paralegal / Patient; Side B = Defense Attorney / Defense
+    /// Paralegal / Claim Examiner. Returns null for internal/neutral roles so consent stays
+    /// unresolved (Staff Supervisor finalizes).
     /// </summary>
     private static ChangeRequestSide? ClassifySideFromRoles(IEnumerable<string?>? roles)
     {
@@ -119,12 +133,12 @@ public class ChangeRequestSideResolver : ITransientDependency
                 continue;
             }
             var trimmed = role.Trim();
-            if (string.Equals(trimmed, "Applicant Attorney", StringComparison.OrdinalIgnoreCase)
+            if (ExternalRoleConsts.ApplicantLawOffice.Contains(trimmed, StringComparer.OrdinalIgnoreCase)
                 || string.Equals(trimmed, "Patient", StringComparison.OrdinalIgnoreCase))
             {
                 return ChangeRequestSide.SideA;
             }
-            if (string.Equals(trimmed, "Defense Attorney", StringComparison.OrdinalIgnoreCase)
+            if (ExternalRoleConsts.DefenseLawOffice.Contains(trimmed, StringComparer.OrdinalIgnoreCase)
                 || string.Equals(trimmed, "Claim Examiner", StringComparison.OrdinalIgnoreCase))
             {
                 return ChangeRequestSide.SideB;

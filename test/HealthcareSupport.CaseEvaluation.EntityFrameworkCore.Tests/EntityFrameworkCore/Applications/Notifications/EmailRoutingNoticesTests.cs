@@ -39,6 +39,9 @@ public class EmailRoutingNoticesTests : CaseEvaluationEntityFrameworkCoreTestBas
     private const string ClaimExaminer = "TEST-notice-ce@test.local";
     private const string OfficeInbox = "TEST-notice-inbox@test.local";
 
+    /// <summary>The accessor the shared seed puts on Appointment1: a case follower since 2026-11-04.</summary>
+    private const string SeededAccessor = IdentityUsersTestData.ApplicantAttorney1Email;
+
     // Field initializers run before the base constructor, so both exist when AfterAddApplication runs.
     private readonly RecordingNotificationDispatcher _dispatcher = new();
     private readonly StubAppointmentRecipientResolver _parties = new();
@@ -69,7 +72,8 @@ public class EmailRoutingNoticesTests : CaseEvaluationEntityFrameworkCoreTestBas
         var notice = _dispatcher.Dispatches.ShouldHaveSingleItem();
         notice.TemplateCode.ShouldBe(NotificationTemplateConsts.Codes.AppointmentRescheduleRequest);
         notice.Recipients.ShouldBe(
-            new[] { ApplicantAttorney, DefenseAttorney, ClaimExaminer, OfficeInbox, intake }, ignoreOrder: true);
+            new[] { ApplicantAttorney, DefenseAttorney, ClaimExaminer, OfficeInbox, intake, SeededAccessor },
+            ignoreOrder: true);
         notice.Recipients.ShouldNotContain(PatientEmail);
         notice.Recipients.ShouldNotContain(supervisor);
         notice.Recipients.ShouldNotContain(switchedOff);
@@ -110,7 +114,7 @@ public class EmailRoutingNoticesTests : CaseEvaluationEntityFrameworkCoreTestBas
 
         var notice = _dispatcher.Dispatches.ShouldHaveSingleItem();
         notice.TemplateCode.ShouldBe(NotificationTemplateConsts.Codes.ChangeRequestConsentInfo);
-        notice.Recipients.ShouldBe(new[] { ClaimExaminer, OfficeInbox, intake }, ignoreOrder: true);
+        notice.Recipients.ShouldBe(new[] { ClaimExaminer, OfficeInbox, intake, SeededAccessor }, ignoreOrder: true);
         notice.Recipients.ShouldNotContain(PatientEmail);
         notice.Recipients.ShouldNotContain(supervisor);
         notice.Recipients.ShouldNotContain(switchedOff);
@@ -129,7 +133,8 @@ public class EmailRoutingNoticesTests : CaseEvaluationEntityFrameworkCoreTestBas
 
         await PublishOpenedAsync(changeRequestId, ApplicantAttorney, ClaimExaminer);
 
-        _dispatcher.Dispatches.ShouldHaveSingleItem().Recipients.ShouldBe(new[] { OfficeInbox, intake }, ignoreOrder: true);
+        _dispatcher.Dispatches.ShouldHaveSingleItem().Recipients.ShouldBe(
+            new[] { OfficeInbox, intake, SeededAccessor }, ignoreOrder: true);
     }
 
     /// <summary>

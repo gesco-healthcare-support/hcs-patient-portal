@@ -1,4 +1,5 @@
 using HealthcareSupport.CaseEvaluation.Appointments;
+using HealthcareSupport.CaseEvaluation.Identity;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 
@@ -14,8 +15,9 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 ///         -- all three kinds. ("Doctor" was retired as an internal persona in
 ///         IR1, 2026-06-03; re-add when a multi-doctor model lands.)</item>
 ///   <item>Patient -- the Patient packet only.</item>
-///   <item>Applicant Attorney / Defense Attorney / Claim Examiner -- the
-///         Attorney-CE packet only.</item>
+///   <item>Applicant Attorney / Defense Attorney / Claim Examiner, and since
+///         2026-11-04 the Applicant / Defense Paralegal -- the Attorney-CE packet
+///         only.</item>
 ///   <item>Anyone else -- none.</item>
 /// </list>
 /// Internal is evaluated first, so a user who somehow holds both an internal
@@ -51,8 +53,8 @@ internal static class PacketVisibility
             return PatientOnly;
         }
         if (trimmed.Any(r =>
-                string.Equals(r, "Applicant Attorney", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(r, "Defense Attorney", StringComparison.OrdinalIgnoreCase) ||
+                ExternalRoleConsts.ApplicantLawOffice.Contains(r, StringComparer.OrdinalIgnoreCase) ||
+                ExternalRoleConsts.DefenseLawOffice.Contains(r, StringComparer.OrdinalIgnoreCase) ||
                 string.Equals(r, "Claim Examiner", StringComparison.OrdinalIgnoreCase)))
         {
             return AttyCeOnly;

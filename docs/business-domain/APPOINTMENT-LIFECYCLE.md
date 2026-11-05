@@ -236,7 +236,13 @@ own eligibility gate in `AppointmentLifecycleValidators`.
 | **Reval** | `Approved`, or an attendance outcome where the source was itself a re-evaluation | A first evaluation that no-showed may NOT be re-evalled: nothing has established the need yet |
 | **ReBook** | `CancelledNoBill`, `CancelledLate`, `NoShow` or `NotSeen` | The appointment did not happen. Deliberately not `Approved`, which would strand a live appointment |
 
-**All three mint a FRESH confirmation number.** ReSubmit used to carry the source's number
+A fourth entry point, **RevalWithoutSource** (submit mode 4), books a re-evaluation whose first
+evaluation was booked the old way, before this portal existed. There is no source, so no gate
+beyond `Appointments.Create`, no link column is set, and the appointment is stamped
+`EvaluationKind.ReEvaluation` (the Case Tracker receives `RE_EVAL` with no previous or
+rescheduled-from ids).
+
+**All three source-based flows mint a FRESH confirmation number (so does RevalWithoutSource).** ReSubmit used to carry the source's number
 forward for legacy parity and could not: the unique index on
 `(TenantId, RequestConfirmationNumber)` filtered on `IsDeleted = 0` is still satisfied by the
 rejected source row, so every re-submit failed on that constraint. Changed 2026-08-22. The link

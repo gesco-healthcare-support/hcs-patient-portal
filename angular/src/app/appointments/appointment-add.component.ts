@@ -47,6 +47,27 @@ import {
   buildSubmitPrimaryInsurance,
 } from './shared/submit-payload.mapper';
 import { storedPatientDetailsAreFinal } from './shared/patient-edit-notice.util';
+import {
+  authorizedUserRoleOptions,
+  isApplicantAttorneyRole,
+  isApplicantParalegalRole,
+  isApplicantSideExternal,
+  isDefenseAttorneyRole,
+  isDefenseParalegalRole,
+  isDefenseSideExternal,
+  isParalegalRole,
+  paralegalRoleForSide,
+  type LawOfficeSide,
+} from '../shared/auth/external-user-roles';
+import {
+  EMPTY_NOTIFY_PARALEGAL,
+  NOTIFY_PARALEGAL_CONFLICT_MESSAGE,
+  notifyParalegalErrors,
+  withNotifyParalegal,
+  type NotifyParalegalState,
+} from './shared/notify-paralegal.util';
+import { bookerFollowsDisplayed, resolveFollowerFields } from './shared/case-follower.util';
+import { hasAttorneyPrefill } from './shared/attorney-prefill.util';
 import type { PrefillFailure } from './shared/booking-failure-message.util';
 import {
   AddressValidationProvider,
@@ -60,6 +81,11 @@ import { AddressChoice, AddressDiffItem } from '../shared/address/confirm-addres
 import { NgbDateStruct } from '@ng-bootstrap/ng-bootstrap';
 import type { AppointmentDto, AppointmentSubmitDto } from '../proxy/appointments/models';
 import { BookingSubmitMode } from '../proxy/enums/booking-submit-mode.enum';
+import {
+  REVAL_WITHOUT_SOURCE_SUBMIT_MODE,
+  canOfferRevalWithoutSource,
+  isRevalWithoutSource,
+} from './shared/reval-without-source.util';
 import type { AppointmentClaimExaminerDto } from '../proxy/appointment-claim-examiners/models';
 import type { AppointmentPrimaryInsuranceDto } from '../proxy/appointment-primary-insurances/models';
 import { AppointmentService } from '../proxy/appointments/appointment.service';
@@ -354,6 +380,11 @@ export class AppointmentAddComponent {
   // The source confirmation number once a prior appointment has been loaded
   // for prefill. Null until loaded; gates the reval/re-request submit path.
   sourceConfirmationNumber: string | null = null;
+  /**
+   * Reval mode only: the booker ticked "The first evaluation was not booked in this portal". The
+   * form is then an ordinary blank one and no source is required or sent.
+   */
+  revalWithoutSource = false;
   isLoadingSource = false;
   sourceLoadMessage = '';
   /**
@@ -390,7 +421,22 @@ export class AppointmentAddComponent {
    * the URL and auto-loads, so it never shows the lookup.
    */
   get showSourceLookup(): boolean {
-    return this.isReevaluation || this.isReBook;
+    return (this.isReevaluation && !this.isRevalWithoutSourceChosen) || this.isReBook;
+  }
+
+  /** The re-evaluation is anchored to nothing: the first evaluation predates this portal. */
+  get isRevalWithoutSourceChosen(): boolean {
+    return isRevalWithoutSource(this.bookingMode, this.revalWithoutSource);
+  }
+
+  /** Whether the "not booked in this portal" choice is shown (reval, nothing loaded yet). */
+  get showRevalWithoutSourceOption(): boolean {
+    return canOfferRevalWithoutSource(this.bookingMode, this.sourceConfirmationNumber);
+  }
+
+  setRevalWithoutSource(checked: boolean): void {
+    this.revalWithoutSource = checked;
+    this.sourceLoadMessage = '';
   }
 
   /**
@@ -400,7 +446,11 @@ export class AppointmentAddComponent {
    * than the submit guard silently returning with feedback rendered off-screen.
    */
   get isSourceLoadRequired(): boolean {
-    return this.bookingMode !== 'new' && !this.sourceConfirmationNumber;
+    return (
+      this.bookingMode !== 'new' &&
+      !this.sourceConfirmationNumber &&
+      !this.isRevalWithoutSourceChosen
+    );
   }
 
   /** Localization key for the page heading, by mode. */
@@ -551,6 +601,58 @@ export class AppointmentAddComponent {
   // consumes; passed into the section by reference so the modal can
   // push / splice in place.
   appointmentAuthorizedUsers: AppointmentAuthorizedUserDraft[] = [];
+  /** "Send all notifications to my paralegal" tick (attorney bookers); merged into accessors at submit. */
+  notifyParalegal: NotifyParalegalState = { ...EMPTY_NOTIFY_PARALEGAL };
+  /** True after a blocked Continue so the paralegal fields show their errors. */
+  notifyParalegalShowErrors = false;
+  /** "Add me as an Authorized User (I get every email about this case)": ticked by default. */
+  bookerFollowsCase = true;
+
+  /** The box is offered to an external booker who sees the Paralegal / Authorized User section. */
+  get showBookerFollowsOption(): boolean {
+    return !this.isInternalBooker && this.shouldShowAuthorizedUserSection();
+  }
+
+  /** The lawyer's "instead of me" tick is on (attorney bookers only), complete or not. */
+  get notifyParalegalTicked(): boolean {
+    return this.notifyParalegalSide !== null && this.notifyParalegal.enabled;
+  }
+
+  /**
+   * Ticked and complete, but the typed paralegal email is already an Authorized User with another
+   * role, so the merge would keep that role and the redirect could not apply. Submitting would
+   * leave the lawyer believing they get nothing while they get everything, so it blocks.
+   */
+  get notifyParalegalConflict(): boolean {
+    return (
+      this.notifyParalegalTicked &&
+      !this.notifyParalegalInvalid &&
+      !this.sendAttorneyMailToParalegal
+    );
+  }
+
+  /** The lawyer's "instead of me" tick is on and complete AND its paralegal is a same-side accessor. */
+  get sendAttorneyMailToParalegal(): boolean {
+    const side = this.notifyParalegalSide;
+    if (side === null || !this.notifyParalegal.enabled || this.notifyParalegalInvalid) {
+      return false;
+    }
+    // The server counts ONLY a same-side paralegal accessor in this same submit, so require one
+    // in the merged list (a typed accessor with the same email but another role would win the dedupe).
+    const paralegalRole = paralegalRoleForSide(side);
+    return withNotifyParalegal(this.appointmentAuthorizedUsers, this.notifyParalegal, side).some(
+      (u) => u.userRole === paralegalRole,
+    );
+  }
+
+  get bookerFollowsDisplayed(): boolean {
+    return bookerFollowsDisplayed(this.bookerFollowsCase, this.notifyParalegal.enabled);
+  }
+
+  /** Missing paralegal fields when the tick is on (blocks Continue on the booker's own-side step). */
+  get notifyParalegalInvalid(): boolean {
+    return notifyParalegalErrors(this.notifyParalegal).length > 0;
+  }
 
   readonly title = '::Menu:Appointments';
 
@@ -1443,14 +1545,60 @@ export class AppointmentAddComponent {
 
   /** True when current user is Applicant Attorney (hide load/select UI for them). */
   get isApplicantAttorney(): boolean {
-    const roles = this.currentUser?.roles ?? [];
-    return roles.some((r: string) => r?.toLowerCase() === 'applicant attorney');
+    return isApplicantAttorneyRole(this.currentUser?.roles);
+  }
+
+  /** Paralegal feature: the booker is a paralegal (never the attorney of record). */
+  get isParalegalBooker(): boolean {
+    return isParalegalRole(this.currentUser?.roles);
+  }
+
+  /**
+   * The booker works on the applicant side as attorney OR paralegal. The applicant-attorney
+   * section is REQUIRED for them (the question is not asked); only an attorney is prefilled.
+   */
+  get isApplicantSideBooker(): boolean {
+    return isApplicantSideExternal(this.currentUser?.roles);
+  }
+
+  /** Defense-side twin of {@link isApplicantSideBooker}. */
+  get isDefenseSideBooker(): boolean {
+    return isDefenseSideExternal(this.currentUser?.roles);
+  }
+
+  /** Which side the "send notifications to my paralegal" tick applies to (attorney bookers only). */
+  get notifyParalegalSide(): LawOfficeSide | null {
+    if (this.isItAdmin) return null;
+    if (this.isApplicantAttorney) return 'applicant';
+    return this.isDefenseAttorney ? 'defense' : null;
+  }
+
+  /**
+   * The attorney email is locked to the attorney booker's own login email on their own side
+   * (they cannot name a different "attorney" address). Locked ONLY while the field equals the
+   * login email (case-insensitive, trimmed): an empty or partly typed field, or a different value
+   * from a re-request source, stays editable. No login email known: never lock. Paralegals and
+   * staff type the attorney freely.
+   */
+  attorneyEmailLocked(role: LawOfficeSide): boolean {
+    const isOwnSide = role === 'applicant' ? this.isApplicantAttorney : this.isDefenseAttorney;
+    if (!isOwnSide || this.isItAdmin) return false;
+    const login = (this.currentUser?.email ?? '').toString().trim().toLowerCase();
+    const value = (this.form.get(role + 'AttorneyEmail')?.value ?? '')
+      .toString()
+      .trim()
+      .toLowerCase();
+    return login !== '' && value === login;
+  }
+
+  /** Role names the Paralegal / Authorized User picker offers this booker. */
+  get authorizedUserRoleOptions(): string[] {
+    return authorizedUserRoleOptions(this.currentUser?.roles, this.isInternalBooker);
   }
 
   /** True when current user is Defense Attorney. OLD parity: own email field readonly + auto-filled. */
   get isDefenseAttorney(): boolean {
-    const roles = this.currentUser?.roles ?? [];
-    return roles.some((r: string) => r?.toLowerCase() === 'defense attorney');
+    return isDefenseAttorneyRole(this.currentUser?.roles);
   }
 
   /**
@@ -1476,6 +1624,8 @@ export class AppointmentAddComponent {
     'patient',
     'applicant attorney',
     'defense attorney',
+    'applicant paralegal',
+    'defense paralegal',
     'claim examiner',
   ];
 
@@ -1525,7 +1675,7 @@ export class AppointmentAddComponent {
    * paralegal feature adds `|| this.isParalegal` here (additive).
    */
   shouldShowAuthorizedUserSection(): boolean {
-    return this.isInternalBooker || this.isApplicantAttorney || this.isDefenseAttorney;
+    return this.isInternalBooker || this.isApplicantSideBooker || this.isDefenseSideBooker;
   }
 
   /**
@@ -2008,8 +2158,8 @@ export class AppointmentAddComponent {
     if (!control) return;
     const mandatory =
       prefix === 'applicantAttorney'
-        ? this.isApplicantAttorney && !this.isItAdmin
-        : this.isDefenseAttorney && !this.isItAdmin;
+        ? this.isApplicantSideBooker && !this.isItAdmin
+        : this.isDefenseSideBooker && !this.isItAdmin;
     const enabled = present || mandatory;
     control.setValue(enabled, { emitEvent: false });
     this.applyConditionalEmailValidator(`${prefix}Email`, enabled);
@@ -2029,6 +2179,9 @@ export class AppointmentAddComponent {
     // modes previously fell through to a plain create, so they still do. Removing that guard here
     // would turn a broken navigation state into a hard refusal, which is a behaviour change this PR
     // has no reason to make. The server refuses a modeless source independently, for other callers.
+    if (this.isRevalWithoutSourceChosen && !this.sourceConfirmationNumber) {
+      return REVAL_WITHOUT_SOURCE_SUBMIT_MODE;
+    }
     if (!this.sourceConfirmationNumber) {
       return BookingSubmitMode.Create;
     }
@@ -2190,7 +2343,11 @@ export class AppointmentAddComponent {
     // server endpoints take the source confirmation # in the route). Block
     // submit until one is loaded so we never silently fall through to a plain
     // create for a re-eval/re-request.
-    if (this.bookingMode === 'new' || this.sourceConfirmationNumber) {
+    if (
+      this.bookingMode === 'new' ||
+      this.sourceConfirmationNumber ||
+      this.isRevalWithoutSourceChosen
+    ) {
       return null;
     }
     if (this.bookingMode === 'reval') {
@@ -2246,6 +2403,11 @@ export class AppointmentAddComponent {
 
   /** True when a booking-level gate refuses the submit; sets the flag and message it names. */
   private isSubmitBlockedByBookingGates(): boolean {
+    if (this.notifyParalegalConflict) {
+      this.notifyParalegalShowErrors = true;
+      this.patientLoadMessage = NOTIFY_PARALEGAL_CONFLICT_MESSAGE;
+      return true;
+    }
     if (this.form.invalid) {
       this.patientLoadMessage = 'Please complete all required fields before saving.';
       Object.keys(this.form.controls).forEach((key) => {
@@ -2359,7 +2521,19 @@ export class AppointmentAddComponent {
       primaryInsurance: buildSubmitPrimaryInsurance(rawAfter),
       claimExaminer: buildSubmitClaimExaminer(rawAfter),
       injuryDetails: buildSubmitInjuryDetails(this.injuryDrafts),
-      accessors: buildSubmitAccessors(this.appointmentAuthorizedUsers),
+      ...resolveFollowerFields({
+        showBookerOption: this.showBookerFollowsOption,
+        bookerFollows: this.bookerFollowsCase,
+        insteadTicked: this.notifyParalegalTicked,
+        insteadValid: this.sendAttorneyMailToParalegal,
+      }),
+      accessors: buildSubmitAccessors(
+        withNotifyParalegal(
+          this.appointmentAuthorizedUsers,
+          this.notifyParalegal,
+          this.notifyParalegalSide,
+        ),
+      ),
     };
   }
 
@@ -2642,8 +2816,10 @@ export class AppointmentAddComponent {
       // to "not a patient" while roles are still loading -- which is the safe way round here
       // too: the claim-language wording is correct for everyone except patients.
       isPatient: !this.isExternalUserNonPatient,
-      isApplicantAttorney: this.isApplicantAttorney,
-      isDefenseAttorney: this.isDefenseAttorney,
+      // Side-wide, not attorney-only: a paralegal is on the claim as their side's rep, so the
+      // "is there an attorney?" question is not asked of them either (the section is required).
+      isApplicantAttorney: this.isApplicantSideBooker,
+      isDefenseAttorney: this.isDefenseSideBooker,
     });
   }
 
@@ -2903,36 +3079,42 @@ export class AppointmentAddComponent {
           // appointment VIEW page). Submit still persists what they type to a
           // master row keyed by the form email. "Solo attorney retypes" is the
           // accepted trade-off (see the plan's Risks note).
-          this.form.patchValue({
-            applicantAttorneyIdentityUserId: null,
-            applicantAttorneyFirstName: null,
-            applicantAttorneyLastName: null,
-            applicantAttorneyEmail: null,
-            applicantAttorneyFirmName: null,
-            applicantAttorneyWebAddress: null,
-            applicantAttorneyPhoneNumber: null,
-            applicantAttorneyFaxNumber: null,
-            applicantAttorneyStreet: null,
-            applicantAttorneyCity: null,
-            applicantAttorneyStateId: null,
-            applicantAttorneyZipCode: null,
-            defenseAttorneyIdentityUserId: null,
-            defenseAttorneyFirstName: null,
-            defenseAttorneyLastName: null,
-            defenseAttorneyEmail: null,
-            defenseAttorneyFirmName: null,
-            defenseAttorneyWebAddress: null,
-            defenseAttorneyPhoneNumber: null,
-            defenseAttorneyFaxNumber: null,
-            defenseAttorneyStreet: null,
-            defenseAttorneyCity: null,
-            defenseAttorneyStateId: null,
-            defenseAttorneyZipCode: null,
-          });
-          this.applicantAttorneyId = null;
-          this.applicantAttorneyConcurrencyStamp = null;
-          this.defenseAttorneyId = null;
-          this.defenseAttorneyConcurrencyStamp = null;
+          // Race fix: the attorney prefill (prefillBookingAttorney), a resumed draft or a
+          // re-request prefill may have filled these before this profile call returned. Wiping
+          // them here blanked the booker's own attorney details, so only a still-blank
+          // section is reset.
+          if (!hasAttorneyPrefill(this.form.getRawValue())) {
+            this.form.patchValue({
+              applicantAttorneyIdentityUserId: null,
+              applicantAttorneyFirstName: null,
+              applicantAttorneyLastName: null,
+              applicantAttorneyEmail: null,
+              applicantAttorneyFirmName: null,
+              applicantAttorneyWebAddress: null,
+              applicantAttorneyPhoneNumber: null,
+              applicantAttorneyFaxNumber: null,
+              applicantAttorneyStreet: null,
+              applicantAttorneyCity: null,
+              applicantAttorneyStateId: null,
+              applicantAttorneyZipCode: null,
+              defenseAttorneyIdentityUserId: null,
+              defenseAttorneyFirstName: null,
+              defenseAttorneyLastName: null,
+              defenseAttorneyEmail: null,
+              defenseAttorneyFirmName: null,
+              defenseAttorneyWebAddress: null,
+              defenseAttorneyPhoneNumber: null,
+              defenseAttorneyFaxNumber: null,
+              defenseAttorneyStreet: null,
+              defenseAttorneyCity: null,
+              defenseAttorneyStateId: null,
+              defenseAttorneyZipCode: null,
+            });
+            this.applicantAttorneyId = null;
+            this.applicantAttorneyConcurrencyStamp = null;
+            this.defenseAttorneyId = null;
+            this.defenseAttorneyConcurrencyStamp = null;
+          }
         },
         // ABP's RestService already reported this failure; settle the rethrown copy.
         error: () => undefined,

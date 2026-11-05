@@ -1119,7 +1119,7 @@ describe('AppointmentWizardComponent shell', () => {
       expect(myAttorneyProfile.get).not.toHaveBeenCalled();
     });
 
-    it('fills a blank applicant section from the booker profile', () => {
+    it('fills a blank applicant section from the booker profile, email from the login', () => {
       const c = create({
         roles: ['Applicant Attorney'],
         attorneyProfile: {
@@ -1134,7 +1134,9 @@ describe('AppointmentWizardComponent shell', () => {
       c.ngOnInit();
 
       expect(c.form.get('applicantAttorneyFirstName')?.value).toBe('Grace');
-      expect(c.form.get('applicantAttorneyEmail')?.value).toBe('grace@example.test');
+      // 2026-11-04: the attorney booker's own email is their LOGIN email (the field is locked
+      // to it), not the attorney master's, which can differ.
+      expect(c.form.get('applicantAttorneyEmail')?.value).toBe('ada@example.test');
       expect(c.form.get('applicantAttorneyEnabled')?.value).toBeTrue();
     });
 

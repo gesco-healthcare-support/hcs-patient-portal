@@ -16,6 +16,10 @@
   `ceilingDays` (3 / 90) are only the fallback until it loads.
 - `shared/submit-payload.mapper.ts` -- builds the single `AppointmentSubmitDto`;
   `shared/booking-mode.ts` -- resolves the booking mode from the query string.
+- `shared/reval-without-source.util.ts` -- re-evaluation mode only: the "first evaluation was not
+  booked in this portal" choice. Ticked, no prior confirmation number is loaded or required, the
+  form stays blank, and submit sends mode 4 (`RevalWithoutSource`; declared there because the
+  generated proxy enum lacks it until the next `abp generate-proxy`).
 - `appointment/components/appointment-view.component.ts` -- view/edit page for staff
   and external roles; reads via `getRawValue()` at save time.
 - `appointment-change-logs/` -- read-only audit trail component.

@@ -53,10 +53,21 @@ public class PacketVisibilityUnitTests
     [InlineData("Applicant Attorney")]
     [InlineData("Defense Attorney")]
     [InlineData("Claim Examiner")]
+    [InlineData("Applicant Paralegal")] // 2026-11-04: a paralegal sees what its attorney sees
+    [InlineData("Defense Paralegal")]
     public void AllowedKinds_AttorneyOrClaimExaminer_ReturnsAttyCeOnly(string role)
     {
         PacketVisibility.AllowedKinds(new[] { role })
             .ShouldBe(new[] { PacketKind.AttorneyClaimExaminer });
+    }
+
+    [Fact]
+    public void AllowedKinds_PatientWhoIsAlsoAParalegal_StaysPatientOnly()
+    {
+        // Patient is checked first, so a Patient account granted a paralegal role (an
+        // Authorized User grant accumulates roles) still never sees the attorney packet.
+        var expected = new[] { "Applicant Paralegal", "Patient" };
+        PacketVisibility.AllowedKinds(expected).ShouldBe(new[] { PacketKind.Patient });
     }
 
     [Fact]

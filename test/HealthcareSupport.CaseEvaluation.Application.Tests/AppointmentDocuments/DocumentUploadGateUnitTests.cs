@@ -178,6 +178,29 @@ public class DocumentUploadGateUnitTests
             appointment, creatorId, expected));
     }
 
+    // 2026-11-04: the booking paralegal uploads the joint declaration like the booking attorney.
+    [Theory]
+    [InlineData("Applicant Paralegal")]
+    [InlineData("Defense Paralegal")]
+    public void EnsureCreatorIsAttorney_CreatorMatchAndParalegalRole_DoesNotThrow(string role)
+    {
+        var creatorId = Guid.NewGuid();
+        var appointment = NewAppointmentWithCreator(creatorId);
+
+        Should.NotThrow(() => DocumentUploadGate.EnsureCreatorIsAttorney(
+            appointment, creatorId, new[] { role }));
+    }
+
+    [Fact]
+    public void EnsureCreatorIsAttorney_ParalegalWhoDidNotBook_Throws()
+    {
+        var appointment = NewAppointmentWithCreator(Guid.NewGuid());
+        var ex = Should.Throw<BusinessException>(() =>
+            DocumentUploadGate.EnsureCreatorIsAttorney(
+                appointment, Guid.NewGuid(), new[] { "Applicant Paralegal" }));
+        ex.Code.ShouldBe(CaseEvaluationDomainErrorCodes.JdfUploaderMustBeBookingAttorney);
+    }
+
     [Fact]
     public void EnsureCreatorIsAttorney_CreatorMismatch_Throws()
     {

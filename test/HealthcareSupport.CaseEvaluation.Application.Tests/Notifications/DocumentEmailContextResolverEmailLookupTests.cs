@@ -19,7 +19,7 @@ namespace HealthcareSupport.CaseEvaluation.Notifications.Handlers;
 /// back.</para>
 ///
 /// <para><b>The result asserted is the returned address.</b> The resolver is real; only the identity
-/// user repository is substituted. The other nine constructor arguments are null because this method
+/// user repository is substituted. The other ten constructor arguments are null because this method
 /// never touches them (the constructor only stores them) -- in particular <c>IdentityUserManager</c> is
 /// not involved. Synthetic data only (HIPAA).</para>
 /// </summary>
@@ -30,7 +30,7 @@ public class DocumentEmailContextResolverEmailLookupTests
         var users = Substitute.For<IRepository<IdentityUser, Guid>>();
         users.FindAsync(Arg.Any<Guid>(), Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(stored);
         var resolver = new DocumentEmailContextResolver(
-            null!, null!, null!, null!, users, null!, null!, null!, null!, null!);
+            null!, null!, null!, null!, users, null!, null!, null!, null!, null!, null!);
         return (resolver, users);
     }
 
