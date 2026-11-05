@@ -2,7 +2,7 @@ import { followerNote } from '../../shared/case-follower.util';
 import {
   authorizedUserRoleLabel,
   authorizedUserRoleOptions,
-  isParalegalRole,
+  manageableAccessorRoles,
 } from '../../../shared/auth/external-user-roles';
 import { HttpClient } from '@angular/common/http';
 import { Directive, OnInit, inject } from '@angular/core';
@@ -291,7 +291,35 @@ export class AppointmentViewComponent implements OnInit {
   /** Role names the "Paralegal / Authorized User" modal offers: own side's paralegal; staff get both. */
   get roleOptions(): string[] {
     const roles = (this.configState.getOne('currentUser') as any)?.roles ?? [];
-    return authorizedUserRoleOptions(roles, this.isInternalUser);
+    return this.isInternalUser
+      ? authorizedUserRoleOptions(roles, true)
+      : this.manageableAccessorRoles();
+  }
+
+  /**
+   * Office decisions 3-5: the Authorized User roles THIS external caller may add or remove on THIS case --
+   * own law-office side (named attorney, booker or Authorized User) or, for a claim examiner, Claim Examiner
+   * helpers only. Empty for a Patient and for anyone not on the case. Mirrors the server rule; cosmetic.
+   */
+  manageableAccessorRoles(): string[] {
+    const user = this.configState.getOne('currentUser') as any;
+    const appt = this.appointment?.appointment;
+    const myId = user?.id;
+    return manageableAccessorRoles({
+      roles: user?.roles ?? [],
+      verifiedEmail: user?.emailVerified ? user?.email : null,
+      isBooker: !!myId && !!appt?.creatorId && appt.creatorId === myId,
+      isAuthorizedUser:
+        !!myId && this.appointmentAuthorizedUsers.some((row) => row.identityUserId === myId),
+      applicantAttorneyEmail: appt?.applicantAttorneyEmail,
+      defenseAttorneyEmail: appt?.defenseAttorneyEmail,
+      claimExaminerEmail: appt?.claimExaminerEmail,
+    });
+  }
+
+  /** May the caller remove this row? Staff any; an external caller only a row whose role they may manage. */
+  canRemoveAuthorizedUser(row: AppointmentAuthorizedUserRow): boolean {
+    return this.isInternalUser || this.manageableAccessorRoles().includes(row.userRole);
   }
   externalAuthorizedUserOptions: ExternalAuthorizedUserOption[] = [];
   appointmentAuthorizedUsers: AppointmentAuthorizedUserRow[] = [];
@@ -870,26 +898,15 @@ export class AppointmentViewComponent implements OnInit {
   }
 
   /**
-   * B (2026-06-10): may the current user add/edit/remove accessors on THIS
-   * appointment? Internal staff always; an Applicant/Defense Attorney only when
-   * they created it (reuses the canReRequest creator-compare). Cosmetic gate for
-   * the "Add" control -- the server's EnsureCanManageAccessorsAsync is the real
-   * authority. Paralegal-ready: the paralegal feature adds `|| this.isParalegal`
-   * to the attorney branch (additive).
+   * May the current user add/edit/remove accessors on THIS appointment? Internal staff always; an
+   * external caller when they may manage at least one role here (see manageableAccessorRoles). Cosmetic
+   * gate for the "Add" control -- the server's EnsureCanManageAccessorsAsync is the real authority.
    */
   canManageAccessors(): boolean {
     if (this.isInternalUser) {
       return true;
     }
-    const creatorId = this.appointment?.appointment?.creatorId;
-    const currentUserId = (this.configState.getOne('currentUser') as any)?.id;
-    return (
-      (this.isApplicantAttorney ||
-        this.isDefenseAttorney ||
-        isParalegalRole((this.configState.getOne('currentUser') as any)?.roles)) &&
-      !!creatorId &&
-      creatorId === currentUserId
-    );
+    return this.manageableAccessorRoles().length > 0;
   }
 
   /**

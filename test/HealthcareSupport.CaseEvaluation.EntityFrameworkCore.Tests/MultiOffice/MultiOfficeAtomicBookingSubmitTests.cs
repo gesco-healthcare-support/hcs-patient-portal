@@ -969,6 +969,84 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
         });
     }
 
+    /// <summary>
+    /// 2026-11-05 (review): what an Authorized User added at booking by a Patient or Claim Examiner booker
+    /// gets. A Patient manages no Authorized Users, and a claim examiner only Claim Examiner helpers; any
+    /// other row is refused INSIDE the atomic submit, which fails the WHOLE booking (the rollback itself is
+    /// proved on real SQL Server in <c>BookingAtomicitySqlServerTests</c>). The wizard therefore offers a
+    /// Patient booker no Authorized User section and a Claim Examiner booker the one role they may add.
+    /// </summary>
+    [Theory]
+    [InlineData("Patient", "Claim Examiner", 51)]
+    [InlineData("Patient", "Applicant Paralegal", 42)]
+    [InlineData("Claim Examiner", "Patient", 53)]
+    [InlineData("Claim Examiner", "Applicant Paralegal", 54)]
+    public async Task SubmitAsync_AnAuthorizedUserTheBookerMayNotManage_FailsTheWholeBooking(
+        string bookerRole, string accessorRole, int day)
+    {
+        var (office, _) = await GetSeededOfficesAsync();
+        await SeedNotificationTemplatesAsync(office);
+        var date = TestToday.AddDays(day);
+        var slotId = Guid.Empty;
+        await InOfficeAsync(office, async () =>
+            slotId = await InsertSlotAsync(office, date, new TimeOnly(13, 0), new TimeOnly(14, 0)));
+        var input = BuildSubmitDto(office, slotId, date.AddHours(13).AddMinutes(15), dayOffset: 760);
+        input.Accessors = new List<AppointmentAccessorCreateDto>
+        {
+            new() { Email = $"acc-{Guid.NewGuid():N}@example.test", Role = accessorRole },
+        };
+
+        var refused = await Should.ThrowAsync<BusinessException>(() =>
+            InOfficeAsAsync(office, Guid.NewGuid(), bookerRole, () => _appointments.SubmitAsync(input)));
+
+        refused.Code.ShouldBeOneOf(
+            CaseEvaluationDomainErrorCodes.AppointmentAccessDenied,
+            CaseEvaluationDomainErrorCodes.AppointmentAccessorOtherSideNotAllowed);
+    }
+
+    /// <summary>A Patient booking with no Authorized User (the wizard offers them no section) still submits.</summary>
+    [Fact]
+    public async Task SubmitAsync_ByAPatient_WithNoAuthorizedUsers_Books()
+    {
+        var (office, _) = await GetSeededOfficesAsync();
+        await SeedNotificationTemplatesAsync(office);
+        var date = TestToday.AddDays(58);
+        AppointmentSubmitResultDto? result = null;
+
+        await InOfficeAsAsync(office, Guid.NewGuid(), "Patient", async () =>
+        {
+            var slotId = await InsertSlotAsync(office, date, new TimeOnly(13, 0), new TimeOnly(14, 0));
+            var input = BuildSubmitDto(office, slotId, date.AddHours(13).AddMinutes(15), dayOffset: 770);
+            input.Accessors = new List<AppointmentAccessorCreateDto>();
+            result = await _appointments.SubmitAsync(input);
+        });
+
+        result.ShouldNotBeNull();
+    }
+
+    /// <summary>A Claim Examiner booker may submit a Claim Examiner helper (their assistant) with the booking.</summary>
+    [Fact]
+    public async Task SubmitAsync_ByAClaimExaminer_WithAClaimExaminerHelper_Books()
+    {
+        var (office, _) = await GetSeededOfficesAsync();
+        await SeedNotificationTemplatesAsync(office);
+        var date = TestToday.AddDays(59);
+        AppointmentSubmitResultDto? result = null;
+
+        await InOfficeAsAsync(office, Guid.NewGuid(), "Claim Examiner", async () =>
+        {
+            var slotId = await InsertSlotAsync(office, date, new TimeOnly(13, 0), new TimeOnly(14, 0));
+            var input = BuildSubmitDto(office, slotId, date.AddHours(13).AddMinutes(15), dayOffset: 780);
+            input.Accessors = new List<AppointmentAccessorCreateDto>
+            {
+                new() { Email = $"helper-{Guid.NewGuid():N}@example.test", Role = "Claim Examiner" },
+            };
+            result = await _appointments.SubmitAsync(input);
+        });
+
+        result.ShouldNotBeNull();
+    }
+
     /// <summary>The redirect is stored with its side and the lawyer's address as booked, and the booker stops following.</summary>
     [Fact]
     public async Task SubmitAsync_AnAttorneyWithASameSideParalegal_StoresTheRedirectWithTheSideAndTheLawyerAddress()

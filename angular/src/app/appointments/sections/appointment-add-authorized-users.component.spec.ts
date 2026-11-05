@@ -199,6 +199,15 @@ describe('AppointmentAddAuthorizedUsersComponent', () => {
       'Claim Examiner',
     ]);
   });
+
+  it('labels the claim examiner helper an assistant only for an external booker', () => {
+    const c = create();
+    expect(c.roleLabel('Claim Examiner')).toBe('Claim Examiner');
+    c.externalBooker = true;
+    expect(c.roleLabel('Claim Examiner')).toBe(
+      '::Appointment:AuthorizedUsers:ClaimExaminerAssistant',
+    );
+  });
 });
 
 describe('AppointmentAddAuthorizedUsersComponent booker box', () => {

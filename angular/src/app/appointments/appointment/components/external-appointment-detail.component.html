@@ -990,10 +990,28 @@
         <div class="ad-card__head">
           <span class="ic tint-slate"><app-icon name="users" [size]="18" /></span>
           <h3>Paralegal / Authorized users</h3>
+          @if (canManageAccessors()) {
+            <div class="right">
+              <button
+                class="af-btn af-btn--primary af-btn--sm"
+                type="button"
+                id="ad-add-authorized-user"
+                (click)="openAddAuthorizedUserModal()"
+              >
+                <app-icon name="plus" [size]="14" />
+                {{ '::Appointment:AuthorizedUsers:AddButton' | abpLocalization }}
+              </button>
+            </div>
+          }
         </div>
         <div class="ad-card__body">
           @if (followerNoteText) {
             <div class="ad-empty" id="follower-note">{{ followerNoteText }}</div>
+          }
+          @if (canManageAccessors()) {
+            <div class="ad-empty" id="own-side-note">
+              {{ '::Appointment:AuthorizedUsers:OwnSideNote' | abpLocalization }}
+            </div>
           }
           @if (appointmentAuthorizedUsers.length === 0) {
             <div class="ad-empty">No paralegals or additional authorized users.</div>
@@ -1005,6 +1023,11 @@
                   <th>Email</th>
                   <th>Role</th>
                   <th>Rights</th>
+                  @if (canManageAccessors()) {
+                    <th style="text-align: right">
+                      {{ '::Appointment:AuthorizedUsers:ColumnAction' | abpLocalization }}
+                    </th>
+                  }
                 </tr>
               </thead>
               <tbody>
@@ -1012,8 +1035,22 @@
                   <tr>
                     <td>{{ u.firstName }} {{ u.lastName }}</td>
                     <td>{{ u.email }}</td>
-                    <td>{{ u.userRole }}</td>
+                    <td>{{ roleLabel(u.userRole) }}</td>
                     <td>{{ u.accessTypeId === 24 ? 'View & edit' : 'View only' }}</td>
+                    @if (canManageAccessors()) {
+                      <td style="text-align: right; white-space: nowrap">
+                        @if (canRemoveAuthorizedUser(u)) {
+                          <button
+                            class="ra-rowbtn danger"
+                            type="button"
+                            [title]="'::Appointment:AuthorizedUsers:RemoveButton' | abpLocalization"
+                            (click)="removeAuthorizedUser(u)"
+                          >
+                            <app-icon name="x" [size]="14" />
+                          </button>
+                        }
+                      </td>
+                    }
                   </tr>
                 }
               </tbody>
@@ -1035,6 +1072,83 @@
         </div>
       }
     </div>
+
+    <!-- add an Authorized User to the caller's own side (decisions 3-5). Closed by its X button,
+         Cancel or Escape (onAuthorizedUserEscapeKey); no click-outside, so no div carries a
+         mouse-only handler. -->
+    @if (isAuthorizedUserModalOpen) {
+      <div class="ra-scrim">
+        <div class="ra-modal ra-modal--md" role="dialog" aria-modal="true">
+          <div class="ra-modal__head">
+            <h3>{{ '::Appointment:AuthorizedUsers:AddTitle' | abpLocalization }}</h3>
+            <button class="ext-iconbtn x" type="button" (click)="closeAuthorizedUserModal()">
+              <app-icon name="x" [size]="17" />
+            </button>
+          </div>
+          <div class="ra-modal__body" [formGroup]="authorizedUserForm">
+            <div class="ra-grid">
+              <div class="ra-field col-6">
+                <label for="ead-first-name">First name</label>
+                <input
+                  id="ead-first-name"
+                  class="ra-input"
+                  formControlName="firstName"
+                  maxlength="64"
+                />
+              </div>
+              <div class="ra-field col-6">
+                <label for="ead-last-name">Last name</label>
+                <input
+                  id="ead-last-name"
+                  class="ra-input"
+                  formControlName="lastName"
+                  maxlength="64"
+                />
+              </div>
+              <div class="ra-field col-6">
+                <label for="ead-email">
+                  Email
+                  <span class="req">*</span>
+                </label>
+                <input
+                  id="ead-email"
+                  class="ra-input"
+                  type="email"
+                  formControlName="email"
+                  maxlength="256"
+                  placeholder="name@example.com"
+                />
+              </div>
+              <div class="ra-field col-6">
+                <label for="ead-user-role">
+                  User role
+                  <span class="req">*</span>
+                </label>
+                <select id="ead-user-role" class="ra-select" formControlName="userRole">
+                  <option value="">Select role</option>
+                  @for (role of roleOptions; track role) {
+                    <option [value]="role">{{ externalRoleLabel(role) | abpLocalization }}</option>
+                  }
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="ra-modal__foot">
+            <button class="af-btn af-btn--ghost" type="button" (click)="closeAuthorizedUserModal()">
+              Cancel
+            </button>
+            <button
+              class="af-btn af-btn--primary"
+              type="button"
+              (click)="saveAuthorizedUserFromModal()"
+            >
+              <app-icon name="check" [size]="15" />
+              Save
+            </button>
+          </div>
+        </div>
+      </div>
+    }
 
     <!-- change-request modals (reused) -->
     <app-reschedule-request-modal

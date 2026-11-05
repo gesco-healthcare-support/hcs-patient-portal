@@ -475,6 +475,19 @@ describe('AppointmentAddComponent booking engine', () => {
       expect(create({ roles: ['Patient'] }).shouldShowAuthorizedUserSection()).toBeFalse();
     });
 
+    it('offers a claim examiner booker the section, with only the Claim Examiner role', () => {
+      const c = create({ roles: ['Claim Examiner'] });
+      expect(c.shouldShowAuthorizedUserSection()).toBeTrue();
+      expect(c.authorizedUserRoleOptions).toEqual(['Claim Examiner']);
+      expect(c.showBookerFollowsOption).toBeFalse();
+    });
+
+    it('offers a patient booker no Authorized User section and no roles', () => {
+      const c = create({ roles: ['Patient'] });
+      expect(c.shouldShowAuthorizedUserSection()).toBeFalse();
+      expect(c.authorizedUserRoleOptions).toEqual([]);
+    });
+
     it('disables the insurance fieldset for a claim examiner', () => {
       const c = create({ roles: ['Claim Examiner'] });
       expect(c.isInsuranceFieldsetDisabled).toBeTrue();

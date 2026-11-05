@@ -64,6 +64,12 @@ export const DEFENSE_ATTORNEY_ROLE = 'Defense Attorney';
 export const APPLICANT_PARALEGAL_ROLE = 'Applicant Paralegal';
 export const DEFENSE_PARALEGAL_ROLE = 'Defense Paralegal';
 
+const CLAIM_EXAMINER_ROLE = 'Claim Examiner';
+
+/** Localization key of the claim examiner helper's picker label (shown through `abpLocalization`). */
+export const CLAIM_EXAMINER_ASSISTANT_LABEL_KEY =
+  '::Appointment:AuthorizedUsers:ClaimExaminerAssistant';
+
 export type LawOfficeSide = 'applicant' | 'defense';
 type RoleList = ReadonlyArray<string | null | undefined> | null | undefined;
 
@@ -103,11 +109,11 @@ export function paralegalRoleForSide(side: LawOfficeSide): string {
 }
 
 /**
- * Role names offered in the "Paralegal / Authorized User" picker. Internal staff get every role.
- * An external caller may add a law-office accessor of THEIR OWN side only (the server answers
- * 400 for the other side), so a law-office booker gets Patient, Claim Examiner and their own
- * side's attorney + paralegal. Any other external caller has no side and gets Patient and
- * Claim Examiner only.
+ * Role names offered in the "Paralegal / Authorized User" picker at booking. Internal staff get every
+ * role. An external booker gets only what the server lets them add (office decisions 3-5): a law-office
+ * booker their own side's attorney + paralegal, a claim examiner booker the Claim Examiner role (their
+ * assistant), a Patient nothing (the wizard then shows no section). A Patient or Claim Examiner role is
+ * NOT offered to a law-office booker: the server refuses it, and the refusal would fail the whole booking.
  */
 export function authorizedUserRoleOptions(roles: RoleList, isInternal: boolean): string[] {
   if (isInternal) {
@@ -120,18 +126,86 @@ export function authorizedUserRoleOptions(roles: RoleList, isInternal: boolean):
       DEFENSE_PARALEGAL_ROLE,
     ];
   }
+  const options: string[] = [];
   if (isApplicantSideExternal(roles)) {
-    return ['Patient', APPLICANT_ATTORNEY_ROLE, APPLICANT_PARALEGAL_ROLE, 'Claim Examiner'];
+    options.push(APPLICANT_ATTORNEY_ROLE, APPLICANT_PARALEGAL_ROLE);
   }
   if (isDefenseSideExternal(roles)) {
-    return ['Patient', DEFENSE_ATTORNEY_ROLE, DEFENSE_PARALEGAL_ROLE, 'Claim Examiner'];
+    options.push(DEFENSE_ATTORNEY_ROLE, DEFENSE_PARALEGAL_ROLE);
   }
-  return ['Patient', 'Claim Examiner'];
+  if (options.length === 0 && holds(roles, CLAIM_EXAMINER_ROLE)) {
+    options.push(CLAIM_EXAMINER_ROLE);
+  }
+  return options;
 }
 
 /** Display text for a role in the Paralegal / Authorized User picker; the posted value stays the role string. */
-export function authorizedUserRoleLabel(role: string): string {
+export function authorizedUserRoleLabel(role: string, external = false): string {
+  // An external claim examiner's helper is an assistant; the label is a localization key.
+  if (external && role === CLAIM_EXAMINER_ROLE) return CLAIM_EXAMINER_ASSISTANT_LABEL_KEY;
   if (role === APPLICANT_PARALEGAL_ROLE) return 'Paralegal (Applicant side)';
   if (role === DEFENSE_PARALEGAL_ROLE) return 'Paralegal (Defense side)';
   return role;
+}
+
+/** What the page knows about the caller's standing on ONE case (decisions 3, 4 and 5). */
+export interface CaseStanding {
+  roles: RoleList;
+  /** The caller's verified email; leave empty when the email is not verified. */
+  verifiedEmail?: string | null;
+  isBooker: boolean;
+  isAuthorizedUser: boolean;
+  applicantAttorneyEmail?: string | null;
+  defenseAttorneyEmail?: string | null;
+  claimExaminerEmail?: string | null;
+}
+
+function sameEmail(a?: string | null, b?: string | null): boolean {
+  const x = (a ?? '').trim().toLowerCase();
+  return x.length > 0 && x === (b ?? '').trim().toLowerCase();
+}
+
+/**
+ * The Authorized User roles an EXTERNAL caller may add or remove on a case after booking, mirroring the
+ * server rule (AccessorManagementRules). A law-office side is manageable when the caller is its named
+ * attorney (verified email equals that side's attorney column AND the attorney role), or is the booker /
+ * an Authorized User holding a role of that side. A claim examiner may manage Claim Examiner helpers only
+ * (named by verified email in the claim examiner column, or the booker / an Authorized User holding that
+ * role). A Patient manages nothing. Cosmetic: the server stays authoritative.
+ */
+export function manageableAccessorRoles(s: CaseStanding): string[] {
+  const roles: string[] = [];
+  const sidePartner = (
+    holdsSide: boolean,
+    holdsAttorney: boolean,
+    column: string | null | undefined,
+    attorney: string,
+    paralegal: string,
+  ): void => {
+    const named = holdsAttorney && sameEmail(s.verifiedEmail, column);
+    if (holdsSide && (named || s.isBooker || s.isAuthorizedUser)) {
+      roles.push(attorney, paralegal);
+    }
+  };
+  sidePartner(
+    isApplicantSideExternal(s.roles),
+    isApplicantAttorneyRole(s.roles),
+    s.applicantAttorneyEmail,
+    APPLICANT_ATTORNEY_ROLE,
+    APPLICANT_PARALEGAL_ROLE,
+  );
+  sidePartner(
+    isDefenseSideExternal(s.roles),
+    isDefenseAttorneyRole(s.roles),
+    s.defenseAttorneyEmail,
+    DEFENSE_ATTORNEY_ROLE,
+    DEFENSE_PARALEGAL_ROLE,
+  );
+  if (
+    holds(s.roles, CLAIM_EXAMINER_ROLE) &&
+    (sameEmail(s.verifiedEmail, s.claimExaminerEmail) || s.isBooker || s.isAuthorizedUser)
+  ) {
+    roles.push(CLAIM_EXAMINER_ROLE);
+  }
+  return roles;
 }
