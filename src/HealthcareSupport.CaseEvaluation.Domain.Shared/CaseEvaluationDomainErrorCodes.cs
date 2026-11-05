@@ -559,6 +559,30 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:Appointment.AccessorRoleNotAllowed";
 
     /// <summary>
+    /// 2026-11-04 (office decision 2) -- "send all notifications to my paralegal" asked for by a
+    /// booker who does not hold an attorney role. Localization key
+    /// <c>CaseEvaluation:Appointment.AttorneyMailRedirectAttorneyOnly</c>. 400.
+    /// </summary>
+    public const string AppointmentAttorneyMailRedirectAttorneyOnly =
+        "CaseEvaluation:Appointment.AttorneyMailRedirectAttorneyOnly";
+
+    /// <summary>
+    /// 2026-11-04 (office decision 2) -- the redirect was asked for but the same submit carries no
+    /// Authorized User with the booker's side paralegal role. Localization key
+    /// <c>CaseEvaluation:Appointment.AttorneyMailRedirectNeedsParalegal</c>. 400.
+    /// </summary>
+    public const string AppointmentAttorneyMailRedirectNeedsParalegal =
+        "CaseEvaluation:Appointment.AttorneyMailRedirectNeedsParalegal";
+
+    /// <summary>
+    /// 2026-11-04 (office decision 3) -- an EXTERNAL caller tried to add an Authorized User with a
+    /// law-office role of the OTHER side (one side must not be able to answer consent for the other).
+    /// Localization key <c>CaseEvaluation:Appointment.AccessorOtherSideNotAllowed</c>. 400.
+    /// </summary>
+    public const string AppointmentAccessorOtherSideNotAllowed =
+        "CaseEvaluation:Appointment.AccessorOtherSideNotAllowed";
+
+    /// <summary>
     /// Phase 13 (2026-05-04) -- raised by
     /// <c>AppointmentsAppService.GetAsync / GetWithNavigationPropertiesAsync /
     /// GetByConfirmationNumberAsync</c> when the caller is an external

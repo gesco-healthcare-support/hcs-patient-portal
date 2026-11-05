@@ -259,23 +259,23 @@ public class AppointmentChangeRequestsApprovalAppService :
         // NotRequired and is auto-satisfied. Reuses the resolver the staff-initiated submit path
         // already uses -- do not write a second one.
         var bothSides = await _sideResolver.ResolveBothSidesAsync(changeRequest.AppointmentId);
-        var toNotify = new List<(string Email, RecipientRole Role, string Token)>();
+        var toNotify = new List<(string Email, RecipientRole Role, string Token, ChangeRequestSide Side)>();
         if (!string.IsNullOrWhiteSpace(bothSides.SideARepEmail))
         {
             var token = _consentManager.IssueSideConsent(round, ChangeRequestSide.SideA);
-            toNotify.Add((bothSides.SideARepEmail, bothSides.SideARepRole ?? RecipientRole.Patient, token));
+            toNotify.Add((bothSides.SideARepEmail, bothSides.SideARepRole ?? RecipientRole.Patient, token, ChangeRequestSide.SideA));
         }
         if (!string.IsNullOrWhiteSpace(bothSides.SideBRepEmail))
         {
             var token = _consentManager.IssueSideConsent(round, ChangeRequestSide.SideB);
-            toNotify.Add((bothSides.SideBRepEmail, bothSides.SideBRepRole ?? RecipientRole.ClaimExaminer, token));
+            toNotify.Add((bothSides.SideBRepEmail, bothSides.SideBRepRole ?? RecipientRole.ClaimExaminer, token, ChangeRequestSide.SideB));
         }
 
         await _consentRoundRepository.InsertAsync(round, autoSave: true);
 
-        foreach (var (email, role, token) in toNotify)
+        foreach (var (email, role, token, side) in toNotify)
         {
-            await PublishConsentRequestedAsync(changeRequest, round, email, role, token);
+            await PublishConsentRequestedAsync(changeRequest, round, email, role, token, side);
         }
 
         if (toNotify.Count > 0)
@@ -291,6 +291,7 @@ public class AppointmentChangeRequestsApprovalAppService :
                 RoundNumber = round.RoundNumber,
                 ProposedDoctorAvailabilityId = round.ProposedDoctorAvailabilityId,
                 ConsentLinkEmails = toNotify.Select(n => n.Email).ToList(),
+                ConsentLinkSides = toNotify.Select(n => n.Side).ToList(),
                 OccurredAt = DateTime.UtcNow,
             });
         }
@@ -351,19 +352,19 @@ public class AppointmentChangeRequestsApprovalAppService :
         ChangeRequestConsentRound round)
     {
         var bothSides = await _sideResolver.ResolveBothSidesAsync(changeRequest.AppointmentId);
-        var toNotify = new List<(string Email, RecipientRole Role, string Token)>();
+        var toNotify = new List<(string Email, RecipientRole Role, string Token, ChangeRequestSide Side)>();
 
         if (round.SideConsentStatus(ChangeRequestSide.SideA) == ChangeRequestConsentStatus.Pending
             && !string.IsNullOrWhiteSpace(bothSides.SideARepEmail))
         {
             var token = _consentManager.ReissueSideConsent(round, ChangeRequestSide.SideA);
-            toNotify.Add((bothSides.SideARepEmail, bothSides.SideARepRole ?? RecipientRole.Patient, token));
+            toNotify.Add((bothSides.SideARepEmail, bothSides.SideARepRole ?? RecipientRole.Patient, token, ChangeRequestSide.SideA));
         }
         if (round.SideConsentStatus(ChangeRequestSide.SideB) == ChangeRequestConsentStatus.Pending
             && !string.IsNullOrWhiteSpace(bothSides.SideBRepEmail))
         {
             var token = _consentManager.ReissueSideConsent(round, ChangeRequestSide.SideB);
-            toNotify.Add((bothSides.SideBRepEmail, bothSides.SideBRepRole ?? RecipientRole.ClaimExaminer, token));
+            toNotify.Add((bothSides.SideBRepEmail, bothSides.SideBRepRole ?? RecipientRole.ClaimExaminer, token, ChangeRequestSide.SideB));
         }
 
         // The attempt counter is what makes the outbox idempotency key distinct. Bumping it is
@@ -372,9 +373,9 @@ public class AppointmentChangeRequestsApprovalAppService :
         round.RegisterResend();
         await _consentRoundRepository.UpdateAsync(round, autoSave: true);
 
-        foreach (var (email, role, token) in toNotify)
+        foreach (var (email, role, token, side) in toNotify)
         {
-            await PublishConsentRequestedAsync(changeRequest, round, email, role, token);
+            await PublishConsentRequestedAsync(changeRequest, round, email, role, token, side);
         }
 
         _logger.LogInformation(
@@ -392,7 +393,8 @@ public class AppointmentChangeRequestsApprovalAppService :
         ChangeRequestConsentRound round,
         string recipientEmail,
         RecipientRole recipientRole,
-        string rawToken)
+        string rawToken,
+        ChangeRequestSide side)
     {
         var consentUrl = await _accountUrlBuilder.BuildChangeRequestConsentUrlAsync(
             changeRequest.TenantId!.Value, rawToken);
@@ -405,6 +407,7 @@ public class AppointmentChangeRequestsApprovalAppService :
             ChangeRequestType = changeRequest.ChangeRequestType,
             OpposingRecipientEmail = recipientEmail,
             OpposingRecipientRole = recipientRole,
+            Side = side,
             ConsentUrl = consentUrl,
             RoundNumber = round.RoundNumber,
             SendAttempt = round.SendAttempts,

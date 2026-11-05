@@ -53464,6 +53464,32 @@
           "maximum": null,
           "regex": null,
           "isNullable": true
+        },
+        {
+          "name": "BookerFollowsCase",
+          "jsonName": null,
+          "type": "System.Boolean",
+          "typeSimple": "boolean",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "AttorneyMailToParalegal",
+          "jsonName": null,
+          "type": "System.Boolean",
+          "typeSimple": "boolean",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
         }
       ]
     },
@@ -53935,6 +53961,32 @@
           "jsonName": null,
           "type": "[HealthcareSupport.CaseEvaluation.AppointmentAccessors.AppointmentAccessorCreateDto]",
           "typeSimple": "[HealthcareSupport.CaseEvaluation.AppointmentAccessors.AppointmentAccessorCreateDto]",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "BookerFollowsCase",
+          "jsonName": null,
+          "type": "System.Boolean",
+          "typeSimple": "boolean",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "SendAttorneyMailToParalegal",
+          "jsonName": null,
+          "type": "System.Boolean",
+          "typeSimple": "boolean",
           "isRequired": false,
           "minLength": null,
           "maxLength": null,

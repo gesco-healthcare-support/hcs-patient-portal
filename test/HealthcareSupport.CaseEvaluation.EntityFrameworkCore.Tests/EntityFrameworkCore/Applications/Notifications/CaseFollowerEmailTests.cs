@@ -292,7 +292,11 @@ public class CaseFollowerEmailTests : CaseEvaluationEntityFrameworkCoreTestBase
 
     // ---- Excluded handlers: the accessor is NOT copied ---------------------------------------------
 
-    /// <summary>The consent LINK stays with the side's representative: one recipient, never a follower.</summary>
+    /// <summary>
+    /// The consent LINK goes to the side's representative; an accessor gets it only when it holds a law-office
+    /// role of that side and was added by staff or that side (decision 3). This accessor holds the applicant
+    /// attorney role but its adder is unknown, so it gets nothing: the link stays with the representative.
+    /// </summary>
     [Fact]
     public async Task TheConsentLink_GoesOnlyToTheSideRepresentative()
     {
@@ -308,6 +312,7 @@ public class CaseFollowerEmailTests : CaseEvaluationEntityFrameworkCoreTestBase
                 ChangeRequestType = ChangeRequestType.Reschedule,
                 OpposingRecipientEmail = ApplicantAttorney,
                 OpposingRecipientRole = RecipientRole.ApplicantAttorney,
+                Side = ChangeRequestSide.SideA,
                 ConsentUrl = "https://test.local/consent/TEST-token",
                 RoundNumber = 1,
                 OccurredAt = When,
@@ -386,9 +391,9 @@ public class CaseFollowerEmailTests : CaseEvaluationEntityFrameworkCoreTestBase
         _dispatcher.Dispatches.ShouldHaveSingleItem().Recipients.ShouldNotContain(Accessor);
     }
 
-    /// <summary>Row 14 with the switch off (today): the accessor gets no packet. The booker rule is unchanged.</summary>
+    /// <summary>Row 14 with the switch on (office decision 4, 2026-11-04): the attorney-role accessor gets the packet too.</summary>
     [Fact]
-    public async Task TheAttorneyPacket_GoesToTheAttorneysOnly_NotTheAccessor_WhileTheSwitchIsOff()
+    public async Task TheAttorneyPacket_GoesToTheAttorneysAndTheAttorneyRoleAccessor()
     {
         await ArrangeAsync();
 
@@ -403,7 +408,7 @@ public class CaseFollowerEmailTests : CaseEvaluationEntityFrameworkCoreTestBase
             }));
 
         _dispatcher.Dispatches.SelectMany(d => d.Recipients).ShouldBe(
-            new[] { ApplicantAttorney, DefenseAttorney, ClaimExaminer }, ignoreOrder: true);
+            new[] { ApplicantAttorney, DefenseAttorney, ClaimExaminer, Accessor }, ignoreOrder: true);
     }
 
     // ---- Dedupe: one mail per person per event ------------------------------------------------------
@@ -559,7 +564,7 @@ public class CaseFollowerEmailTests : CaseEvaluationEntityFrameworkCoreTestBase
         new(email, Guid.NewGuid(), booker, CaseFollowers.IsPatientRole(roles), CaseFollowers.RoleOf(roles), roles);
 
     /// <summary>
-    /// The switch is the only gate: off (the default) gives nobody a packet; on gives it to a non-booker
+    /// The switch is the only gate: off gives nobody a packet; on (the default since 2026-11-04) gives it to a non-booker
     /// follower whose role may see the attorney packet -- not to a Patient-role accessor, and not to the booker
     /// (who has their own path).
     /// </summary>
@@ -571,7 +576,9 @@ public class CaseFollowerEmailTests : CaseEvaluationEntityFrameworkCoreTestBase
             Follower("TEST-fol-patient-acc@test.local", booker: false, "Patient"),
             Follower("TEST-fol-booker-acc@test.local", booker: true, "Applicant Attorney"));
 
-        CaseFollowers.AccessorPacketRecipients(ctx).ShouldBeEmpty();
+        CaseFollowers.AccessorsReceivePackets.ShouldBeTrue();
+        CaseFollowers.AccessorPacketRecipients(ctx).Select(r => r.Email)
+            .ShouldBe(new[] { "TEST-fol-attorney-acc@test.local" });
         CaseFollowers.AccessorPacketRecipients(ctx, enabled: false).ShouldBeEmpty();
         CaseFollowers.AccessorPacketRecipients(ctx, enabled: true).Select(r => r.Email)
             .ShouldBe(new[] { "TEST-fol-attorney-acc@test.local" });

@@ -776,6 +776,9 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
 
         var result = new AppointmentSubmitResultDto();
 
+        // 2026-11-04 (office decisions 1 and 2): refuse a bad mail choice before anything is written.
+        var mailChoices = AppointmentMailChoices.Validate(input, CurrentUser.Roles);
+
         try
         {
             await ResolvePatientForSubmitAsync(input, result);
@@ -836,6 +839,15 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             // OnCompleted runs after the transaction commits, which gives both properties: the
             // cascade describes committed data, and it cannot roll anything back.
             var appointment = await _appointmentRepository.GetAsync(created.Id);
+
+            // The booker's mail choices (default: follows, no redirect) are stored on the appointment
+            // before the commit, so the first email already honours them.
+            if (!mailChoices.BookerFollowsCase || mailChoices.RedirectSide != null)
+            {
+                AppointmentMailChoices.Apply(appointment, mailChoices, CurrentUser.GetVerifiedEmail());
+                await _appointmentRepository.UpdateAsync(appointment);
+            }
+
             CurrentUnitOfWork.OnCompleted(() => PublishAppointmentSubmittedAsync(appointment));
 
             return result;

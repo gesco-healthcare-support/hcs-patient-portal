@@ -85,6 +85,15 @@ before touching the DB -- fail fast is intentional (see dual-ctor pattern in Dom
   `InternalUserRoleGrantsTests.No_role_is_granted_the_removed_AppointmentAccessors_permission`
   fails if any role is granted the name again -- which nothing else would report, because ABP's
   `PermissionManager.SetAsync` silently ignores an undefined permission.
+- **Same-side rule for law-office Authorized Users (2026-11-04).** An EXTERNAL caller may add
+  (`CreateAsync`) or re-point (`UpdateAsync` to another account) an accessor holding a law-office
+  role (Applicant / Defense Attorney or Paralegal) only of the caller's OWN side, else 400
+  `AppointmentAccessorOtherSideNotAllowed`; staff are unrestricted, and Patient / Claim Examiner
+  accessors carry no side. The pure rule is `AppointmentAccessorRules.MayAssignLawOfficeRole`;
+  `AppointmentAccessorsAppService` enforces it, and the atomic booking submit writes its accessors
+  through that service, so the one check covers both. It is what lets
+  `ConsentSideFollowerRule` trust an accessor row's adder when the in-portal consent card decides
+  who may answer for a side.
 - `AccessType` enum values are non-sequential (`View=23`, `Edit=24`) -- legacy values. Add
   new values with explicit integer codes; do not assume zero-based ordering.
 - `Check.NotNull` on `Guid` value-type params in `CreateAsync` / `UpdateAsync` is a no-op

@@ -29,5 +29,9 @@ public class ChangeRequestConsentOpenedEto
     /// <summary>The addresses that were sent a consent link: they do not also get the information notice.</summary>
     public List<string> ConsentLinkEmails { get; set; } = new();
 
+    /// <summary>2026-11-04: the sides that were sent a consent link. The case followers who may answer for
+    /// those sides got the same link, so they do not also get the information notice.</summary>
+    public List<ChangeRequestSide> ConsentLinkSides { get; set; } = new();
+
     public DateTime OccurredAt { get; set; }
 }

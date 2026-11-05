@@ -133,9 +133,14 @@ public class AttyCEPacketEmailHandler :
                 recipients.Add(booker);
             }
 
-            // 2026-11-04: accessors get the packet only while CaseFollowers.AccessorsReceivePackets is on
-            // (off today), and then only when PacketVisibility allows one of their roles.
+            // 2026-11-04: accessors get the packet while CaseFollowers.AccessorsReceivePackets is on (office
+            // decision 4), and then only when PacketVisibility allows one of their roles.
             recipients.AddRange(CaseFollowers.AccessorPacketRecipients(ctx));
+
+            // 2026-11-04: a redirected lawyer gets no packet (his Authorized Users above do), and an
+            // opted-out booker gets none unless also a named party. The party list is built from the
+            // appointment's columns, so the exclusion is applied to the final list.
+            recipients = CaseFollowers.Exclude(recipients, ctx);
 
             recipients = recipients
                 .GroupBy(r => r.Email.Trim(), StringComparer.OrdinalIgnoreCase)

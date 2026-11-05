@@ -27,6 +27,13 @@ public class ChangeRequestConsentRequestedEto
     /// <summary>Role tag of that representative (for the email greeting/branching).</summary>
     public RecipientRole OpposingRecipientRole { get; set; }
 
+    /// <summary>
+    /// The side this consent link is FOR (2026-11-04, office decision 3). The link also goes to the case
+    /// followers who may answer for that side (<c>ConsentSideFollowerRule</c>); null on an older event, which
+    /// keeps the link with the representative alone.
+    /// </summary>
+    public ChangeRequestSide? Side { get; set; }
+
     /// <summary>Tenant-aware public consent landing URL carrying the raw token.</summary>
     public string ConsentUrl { get; set; } = string.Empty;
 

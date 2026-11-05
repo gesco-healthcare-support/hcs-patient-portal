@@ -16,7 +16,7 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.Notifications;
 /// added to each email handler's recipient list by hand, so a NEW event handler would silently miss them.
 /// This test reflects over every event handler in the Application assembly's notification and Case Tracker
 /// alert namespaces and requires each to be in exactly ONE of two explicit lists: <see cref="FollowerHandlers"/>
-/// (each names the <see cref="CaseFollowerEmailTests"/> Fact(s) that prove the accessor is copied, and those
+/// (each names the <see cref="CaseFollowerEmailTests"/> or <see cref="BookerMailChoicesEmailTests"/> Fact(s) that prove the accessor is copied, and those
 /// Facts must exist) or <see cref="ExcludedHandlers"/> (each with the reason it must not copy followers).
 /// A handler in neither list fails the build, so adding one forces the decision.
 /// </summary>
@@ -80,19 +80,22 @@ public class CaseFollowerCoverageGuardTests
         {
             nameof(CaseFollowerEmailTests.TheDueDateReminder_CopiesTheAccessor),
         },
-        // Gated by CaseFollowers.AccessorsReceivePackets (off): the Facts pin the gate, not a copy.
+        // Gated by CaseFollowers.AccessorsReceivePackets (on since 2026-11-04): the Facts pin the copy and the gate.
         [typeof(AttyCEPacketEmailHandler)] = new[]
         {
-            nameof(CaseFollowerEmailTests.TheAttorneyPacket_GoesToTheAttorneysOnly_NotTheAccessor_WhileTheSwitchIsOff),
+            nameof(CaseFollowerEmailTests.TheAttorneyPacket_GoesToTheAttorneysAndTheAttorneyRoleAccessor),
             nameof(CaseFollowerEmailTests.TheSwitchIsTheOnlyGateOnAccessorPackets),
+        },
+        // The link goes to the representative and to the same-side law-office followers (decision 3).
+        [typeof(ChangeRequestConsentRequestEmailHandler)] = new[]
+        {
+            nameof(BookerMailChoicesEmailTests.TheConsentLink_GoesToTheSideRepresentativeAndTheSameSideFollowers),
         },
     };
 
     /// <summary>Handlers that must NOT copy the case followers, each with the reason.</summary>
     private static readonly Dictionary<Type, string> ExcludedHandlers = new()
     {
-        [typeof(ChangeRequestConsentRequestEmailHandler)] =
-            "the consent LINK stays with the side's representative (TheConsentLink_GoesOnlyToTheSideRepresentative)",
         [typeof(ChangeRequestConsentDeclinedEmailHandler)] =
             "a decline goes to the office inbox and Intake only, by decision (ADecline_DoesNotCopyTheAccessor)",
         [typeof(AppointmentDayReminderEmailHandler)] =
@@ -141,7 +144,7 @@ public class CaseFollowerCoverageGuardTests
             tests.ShouldNotBeEmpty($"{handler.Name} names no behavior test");
             foreach (var test in tests)
             {
-                var method = typeof(CaseFollowerEmailTests).GetMethod(test);
+                var method = typeof(CaseFollowerEmailTests).GetMethod(test) ?? typeof(BookerMailChoicesEmailTests).GetMethod(test);
                 method.ShouldNotBeNull($"{handler.Name}: no test method {test}");
                 method!.GetCustomAttributes().Any(a => a is FactAttribute).ShouldBeTrue(
                     $"{handler.Name}: {test} is not a [Fact] or [Theory]");
