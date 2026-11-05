@@ -36,6 +36,9 @@ public class CancelRequestEmailsTests : CaseEvaluationEntityFrameworkCoreTestBas
     private const string DefenseAttorney = "TEST-cancel-da@test.local";
     private const string OfficeInbox = "TEST-cancel-inbox@test.local";
 
+    /// <summary>The accessor the shared seed puts on Appointment1: a case follower since 2026-11-04.</summary>
+    private const string SeededAccessor = IdentityUsersTestData.ApplicantAttorney1Email;
+
     // Field initializers run before the base constructor, so both exist when AfterAddApplication runs.
     private readonly RecordingNotificationDispatcher _dispatcher = new();
     private readonly StubAppointmentRecipientResolver _parties = new();
@@ -64,7 +67,8 @@ public class CancelRequestEmailsTests : CaseEvaluationEntityFrameworkCoreTestBas
 
         EmailsPerAddress().ShouldAllBe(a => a.Value == 1, string.Join(", ", EmailsPerAddress().Select(a => $"{a.Key}={a.Value}")));
         EmailsPerAddress().Keys.ShouldBe(
-            new[] { PatientEmail, ApplicantAttorney, DefenseAttorney, OfficeInbox, intake.Email },
+            // 2026-11-04: the seeded accessor of Appointment1 is a case follower, so it gets the notice too.
+            new[] { PatientEmail, ApplicantAttorney, DefenseAttorney, OfficeInbox, intake.Email, SeededAccessor },
             ignoreOrder: true);
         TemplatesFor(OfficeInbox).ShouldBe(new[] { NotificationTemplateConsts.Codes.AppointmentCancelledRequest });
         TemplatesFor(ApplicantAttorney).ShouldBe(new[] { NotificationTemplateConsts.Codes.ChangeRequestConsentRequest });
@@ -111,7 +115,7 @@ public class CancelRequestEmailsTests : CaseEvaluationEntityFrameworkCoreTestBas
         var notice = _dispatcher.Dispatches.ShouldHaveSingleItem();
         notice.TemplateCode.ShouldBe(NotificationTemplateConsts.Codes.AppointmentCancelledRequest);
         notice.Recipients.ShouldBe(
-            new[] { PatientEmail, ApplicantAttorney, DefenseAttorney, OfficeInbox },
+            new[] { PatientEmail, ApplicantAttorney, DefenseAttorney, OfficeInbox, SeededAccessor },
             ignoreOrder: true);
     }
 

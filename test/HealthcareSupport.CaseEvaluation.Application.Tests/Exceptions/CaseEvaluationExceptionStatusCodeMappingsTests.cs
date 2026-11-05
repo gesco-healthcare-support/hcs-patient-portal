@@ -138,9 +138,10 @@ public class CaseEvaluationExceptionStatusCodeMappingsTests
         options.ErrorCodeToHttpStatusCodeMappings[
             CaseEvaluationDomainErrorCodes.RegistrationFirmNameRequired
         ].ShouldBe(HttpStatusCode.BadRequest);
-        // Still exactly 25 mappings (27 until the two Responsible User codes were retired on
-        // 2026-11-02); no duplicate-key blow up.
-        options.ErrorCodeToHttpStatusCodeMappings.Count.ShouldBe(25);
+        // Exactly 28 mappings (27 until the two Responsible User codes were retired on 2026-11-02,
+        // then 25; +3 on 2026-11-04 for the booker's mail choices and the same-side Authorized User
+        // rule); no duplicate-key blow up.
+        options.ErrorCodeToHttpStatusCodeMappings.Count.ShouldBe(28);
     }
 
     /// <summary>

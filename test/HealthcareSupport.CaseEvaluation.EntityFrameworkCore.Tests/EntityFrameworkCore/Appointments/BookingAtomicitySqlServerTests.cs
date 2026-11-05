@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.AppointmentAccessors;
 using HealthcareSupport.CaseEvaluation.AppointmentBodyParts;
 using HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails;
 using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
@@ -130,6 +131,32 @@ public class BookingAtomicitySqlServerTests : IAsyncLifetime
         (await CountAppointmentsAsync(slotId)).ShouldBe(0, "a failed booking must not leave an appointment");
     }
 
+    [Theory]
+    [InlineData("Applicant Attorney", "Defense Paralegal", 41)]
+    [InlineData("Patient", "Applicant Paralegal", 42)]
+    [InlineData("Claim Examiner", "Applicant Attorney", 43)]
+    public async Task SubmitAsync_WithAnOtherSideAuthorizedUser_IsRefusedAndPersistsNothingAtAll(string bookerRole, string accessorRole, int dayOffset)
+    {
+        // Office decision 3 (2026-11-04): an applicant-side booker may not add a defense-side Authorized
+        // User. The accessors are written after the patient, the appointment and the employer detail, so
+        // those rows really exist when the refusal is raised; only a rollback accounts for their absence.
+        var marker = Guid.NewGuid().ToString("N")[..12];
+        var slotId = await InsertSlotAsync(dayOffset: dayOffset, new TimeOnly(11, 0));
+        var doomed = BuildBooking(slotId, dayOffset: dayOffset, new TimeOnly(11, 0), marker);
+        doomed.Accessors = new List<AppointmentAccessorCreateDto>
+        {
+            new() { Email = $"dp-{marker}@example.test", Role = accessorRole },
+        };
+
+        var refused = await Should.ThrowAsync<BusinessException>(
+            () => SubmitAsBookerAsync(doomed, bookerRole));
+
+        refused.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentAccessorOtherSideNotAllowed);
+        (await CountEmployerDetailsAsync(marker)).ShouldBe(0);
+        (await CountPatientsAsync(marker)).ShouldBe(0, "a refused booking must not leave an orphan patient");
+        (await CountAppointmentsAsync(slotId)).ShouldBe(0, "a refused booking must not leave an appointment");
+    }
+
     [Fact]
     public async Task SubmitAsync_WithoutTheTrigger_WritesEveryRowTheFailureTestExpectsToBeGone()
     {
@@ -162,10 +189,10 @@ public class BookingAtomicitySqlServerTests : IAsyncLifetime
     /// transaction. Wrapping the call in a test unit of work would let the service's unit of work
     /// join that one instead, and the test would be measuring the wrapper.
     /// </summary>
-    private async Task SubmitAsBookerAsync(AppointmentSubmitDto booking)
+    private async Task SubmitAsBookerAsync(AppointmentSubmitDto booking, string bookerRole = "admin")
     {
         using (Services.GetRequiredService<ICurrentTenant>().Change(OfficeId))
-        using (WithCurrentUser.Run(Services.GetRequiredService<ICurrentPrincipalAccessor>(), _databases.Seeded.BookerUserId, "admin"))
+        using (WithCurrentUser.Run(Services.GetRequiredService<ICurrentPrincipalAccessor>(), _databases.Seeded.BookerUserId, bookerRole))
         {
             await Services.GetRequiredService<IAppointmentsAppService>().SubmitAsync(booking);
         }

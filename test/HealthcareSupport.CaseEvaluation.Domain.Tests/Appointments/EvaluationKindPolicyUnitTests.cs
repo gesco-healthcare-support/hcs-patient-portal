@@ -18,6 +18,22 @@ public class EvaluationKindPolicyUnitTests
     }
 
     [Fact]
+    public void RevalWithoutSourceFlow_IsAReEvaluation()
+    {
+        // The first evaluation was booked the old way, so there is no source appointment, but the
+        // case is still a follow-up and must not be labelled as a first evaluation.
+        EvaluationKindPolicy.FromLifecycleFlow(AppointmentLifecycleFlow.RevalWithoutSource)
+            .ShouldBe(EvaluationKind.ReEvaluation);
+    }
+
+    [Fact]
+    public void ReBookFlow_IsAFirstEvaluation()
+    {
+        EvaluationKindPolicy.FromLifecycleFlow(AppointmentLifecycleFlow.ReBook)
+            .ShouldBe(EvaluationKind.Evaluation);
+    }
+
+    [Fact]
     public void StandardCreate_IsAFirstEvaluation()
     {
         // A plain CreateAsync passes no lifecycle flow.

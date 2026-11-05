@@ -295,6 +295,9 @@
             </span>
           </div>
           @if (historyOpen) {
+            @if (followerNoteText) {
+              <div class="ad-empty" id="follower-note">{{ followerNoteText }}</div>
+            }
             <div class="ad-card__body" style="padding: 0">
               @for (round of infoHistory; track round.id) {
                 @if (round.isResolved) {
@@ -1473,7 +1476,7 @@
         <section class="ad-card">
           <div class="ad-card__head">
             <span class="ic tint-slate"><app-icon name="users" [size]="18" /></span>
-            <h3>Additional authorized users</h3>
+            <h3>Paralegal / Authorized users</h3>
             @if (canManageAccessors()) {
               <div class="right">
                 <button
@@ -1531,7 +1534,7 @@
                 } @empty {
                   <tr>
                     <td colspan="5" style="text-align: center; color: var(--n-400); padding: 24px">
-                      No additional authorized users.
+                      No paralegals or additional authorized users.
                     </td>
                   </tr>
                 }
@@ -1630,7 +1633,9 @@
           <div class="ra-modal__head">
             <h3>
               {{
-                authorizedUserModalMode === 'edit' ? 'Edit authorized user' : 'Add authorized user'
+                authorizedUserModalMode === 'edit'
+                  ? 'Edit paralegal / authorized user'
+                  : 'Add paralegal / authorized user'
               }}
             </h3>
             <button class="ext-iconbtn x" type="button" (click)="closeAuthorizedUserModal()">
@@ -1679,7 +1684,7 @@
                 <select id="iad-user-role" class="ra-select" formControlName="userRole">
                   <option value="">Select role</option>
                   @for (role of roleOptions; track role) {
-                    <option [value]="role">{{ role }}</option>
+                    <option [value]="role">{{ roleLabel(role) }}</option>
                   }
                 </select>
               </div>

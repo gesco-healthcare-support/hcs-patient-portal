@@ -41,6 +41,27 @@ public class AttorneyRecipientPromotionUnitTests
             .ShouldBe("da@example.com");
     }
 
+    // 2026-11-04: a side's paralegal books on its attorney's behalf, so the mails go To that
+    // attorney exactly as when the attorney books.
+    [Theory]
+    [InlineData("Applicant Paralegal", "aa@example.com")]
+    [InlineData("Defense Paralegal", "da@example.com")]
+    [InlineData("applicant paralegal", "aa@example.com")]
+    public void ParalegalCreator_PromotesTheirSidesAttorney(string role, string expected)
+    {
+        AttorneyRecipientPromotion.ResolvePrimaryRecipientEmail(
+                new[] { role }, "aa@example.com", "da@example.com")
+            .ShouldBe(expected);
+    }
+
+    [Fact]
+    public void DefenseParalegalCreator_BlankDaEmail_DoesNotPromote()
+    {
+        AttorneyRecipientPromotion.ResolvePrimaryRecipientEmail(
+                new[] { "Defense Paralegal" }, "aa@example.com", " ")
+            .ShouldBeNull();
+    }
+
     [Fact]
     public void CreatorWithBothRoles_PrefersApplicantAttorney()
     {

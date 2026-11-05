@@ -214,8 +214,13 @@ public class BookingSubmissionEmailHandler :
         var resolverOutput = await _recipientResolver.ResolveAsync(
             eventData.AppointmentId, NotificationKind.Submitted);
         // 2026-11-03: unless the patient submitted this request, the patient hears nothing until approval.
+        // 2026-11-04: the case followers (external booker, accessors) are copied like the parties; a
+        // Patient-role accessor follows the same patient rule.
         var recipients = PatientBeforeApprovalRule.Apply(
-            resolverOutput.Where(r => !string.IsNullOrWhiteSpace(r.To)), ctx);
+            CaseFollowers.Append(
+                resolverOutput.Where(r => !string.IsNullOrWhiteSpace(r.To)), ctx, ctx.PatientIsSubmitter,
+                requestReceipt: true),
+            ctx);
 
         if (recipients.Count == 0)
         {
@@ -238,7 +243,7 @@ public class BookingSubmissionEmailHandler :
         // Build the booker name + patient name once -- both are stable
         // across all recipient variants and used by every template body.
         var patient = await _patientRepository.FindAsync(eventData.PatientId);
-        var bookerName = ResolveBookerName(ctx.BookerFullName, ctx.BookerEmail, patient);
+        var bookerName = ResolveBookerName(ctx.BookerFullName, ctx.ReceiptBookerEmail, patient);
         var patientName = ResolvePatientName(patient);
         var dateLine = appointment.AppointmentDate.ToString("MMM d, yyyy h:mm tt");
 
@@ -253,7 +258,7 @@ public class BookingSubmissionEmailHandler :
         // booker email. The promoted AA/DA email is a resolved party, so To binds
         // to it and the other parties + creator are CC'd.
         var addressing = PartitionAppointmentRequested(
-            recipients, ctx.PrimaryRecipientEmail ?? ctx.BookerEmail);
+            recipients, ctx.PrimaryRecipientEmail ?? ctx.ReceiptBookerEmail);
 
         if (addressing.To != null)
         {
@@ -292,14 +297,14 @@ public class BookingSubmissionEmailHandler :
             // Skip when the creator IS the To (solo attorney) or already CC'd.
             // Scoped to the promoted case so non-attorney bookers are unchanged.
             if (ctx.IsPromoted
-                && !string.IsNullOrWhiteSpace(ctx.CreatorEmail)
-                && !string.Equals(ctx.CreatorEmail, toRecipient.Email, StringComparison.OrdinalIgnoreCase)
-                && !ccRecipients.Any(r => string.Equals(r.Email, ctx.CreatorEmail, StringComparison.OrdinalIgnoreCase)))
+                && !string.IsNullOrWhiteSpace(ctx.ReceiptCreatorEmail)
+                && !string.Equals(ctx.ReceiptCreatorEmail, toRecipient.Email, StringComparison.OrdinalIgnoreCase)
+                && !ccRecipients.Any(r => string.Equals(r.Email, ctx.ReceiptCreatorEmail, StringComparison.OrdinalIgnoreCase)))
             {
                 // Role is CC metadata only; OfficeAdmin mirrors how the codebase
                 // tags appended non-party CC recipients.
                 ccRecipients.Add(new NotificationRecipient(
-                    email: ctx.CreatorEmail, role: RecipientRole.OfficeAdmin, isRegistered: true));
+                    email: ctx.ReceiptCreatorEmail, role: RecipientRole.OfficeAdmin, isRegistered: true));
             }
 
             await _dispatcher.DispatchToWithCcAsync(

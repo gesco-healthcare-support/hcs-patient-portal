@@ -132,18 +132,21 @@ public class AppointmentAccessorRulesUnitTests
     }
 
     [Fact]
-    public void RecognizedExternalRoles_ContainsAllFourExpectedRoles()
+    public void RecognizedExternalRoles_ContainsAllSixExpectedRoles()
     {
-        // Pin the canonical 4-role list. OLD has exactly 4 external
+        // Pin the canonical role list. OLD has exactly 4 external
         // roles per Roles.cs (Patient / Adjuster / PatientAttorney /
         // DefenseAttorney); NEW renamed Adjuster -> Claim Examiner and
-        // PatientAttorney -> Applicant Attorney. If a role is renamed
-        // in ExternalUserRoleDataSeedContributor, this test surfaces
-        // the drift immediately.
+        // PatientAttorney -> Applicant Attorney, and (2026-11-04) added a
+        // paralegal per side. If a role is renamed in
+        // ExternalUserRoleDataSeedContributor, this test surfaces the drift
+        // immediately.
         AppointmentAccessorRules.RecognizedExternalRoles.ShouldContain("Patient");
         AppointmentAccessorRules.RecognizedExternalRoles.ShouldContain("Applicant Attorney");
         AppointmentAccessorRules.RecognizedExternalRoles.ShouldContain("Defense Attorney");
         AppointmentAccessorRules.RecognizedExternalRoles.ShouldContain("Claim Examiner");
-        AppointmentAccessorRules.RecognizedExternalRoles.Count.ShouldBe(4);
+        AppointmentAccessorRules.RecognizedExternalRoles.ShouldContain("Applicant Paralegal");
+        AppointmentAccessorRules.RecognizedExternalRoles.ShouldContain("Defense Paralegal");
+        AppointmentAccessorRules.RecognizedExternalRoles.Count.ShouldBe(6);
     }
 }

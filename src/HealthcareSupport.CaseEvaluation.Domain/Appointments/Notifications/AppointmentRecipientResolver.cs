@@ -34,6 +34,17 @@ namespace HealthcareSupport.CaseEvaluation.Appointments.Notifications;
 /// </summary>
 public class AppointmentRecipientResolver : IAppointmentRecipientResolver, ITransientDependency
 {
+    /// <summary>
+    /// The context suffix of the SUBMITTER's entry (2026-11-04). It is tagged Patient only so the
+    /// mail templates treat it like a party; it is not a party, so code that picks a party by role --
+    /// the change-request side resolver -- skips it with <see cref="IsBookerEntry"/>.
+    /// </summary>
+    public const string BookerContextSuffix = "booker";
+
+    /// <summary>True for the submitter's own entry (see <see cref="BookerContextSuffix"/>).</summary>
+    public static bool IsBookerEntry(SendAppointmentEmailArgs recipient) =>
+        recipient.Context.EndsWith("/" + BookerContextSuffix, StringComparison.Ordinal);
+
     private readonly IRepository<Appointment, Guid> _appointmentRepository;
     private readonly IRepository<Patient, Guid> _patientRepository;
     private readonly IRepository<IdentityUser, Guid> _identityUserRepository;
@@ -250,7 +261,7 @@ public class AppointmentRecipientResolver : IAppointmentRecipientResolver, ITran
             if (submitter != null
                 && !AppointmentSubmitter.HoldsStaffRole(await _identityUserQueries.GetRoleNamesAsync(submitterId)))
             {
-                AddIfPresent(submitter.Email, RecipientRole.Patient, "booker");
+                AddIfPresent(submitter.Email, RecipientRole.Patient, BookerContextSuffix);
             }
         }
 

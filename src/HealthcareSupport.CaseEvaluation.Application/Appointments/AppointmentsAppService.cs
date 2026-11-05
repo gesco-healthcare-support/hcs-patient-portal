@@ -476,7 +476,8 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     /// after another as successive filters, which gave a dual-role caller the INTERSECTION -- fewer
     /// patients than either role on its own.) A Patient admits only patient records linked to its
     /// own account. A Claim Examiner is matched by email, as <see cref="GetClaimExaminerVisiblePatientIdsAsync"/>
-    /// documents. Roles this method does not name admit nothing.
+    /// documents. A paralegal (2026-11-04) admits the patients of the appointments it booked, never
+    /// by the attorney link rows. Roles this method does not name admit nothing.
     /// </summary>
     private async Task<List<Guid>> GetLookupVisiblePatientIdsAsync()
     {
@@ -492,6 +493,14 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         if (await IsClaimExaminerAsync())
         {
             visible.UnionWith(await GetClaimExaminerVisiblePatientIdsAsync());
+        }
+        if (Patients.PatientBookingReadAccess.IsParalegal(CurrentUser) && CurrentUser.Id is Guid paralegalId)
+        {
+            var booked = Patients.BookingPartyAppointments.ForParalegal(
+                    await _appointmentRepository.GetQueryableAsync(), paralegalId)
+                .Select(a => a.PatientId)
+                .Distinct();
+            visible.UnionWith(await AsyncExecuter.ToListAsync(booked));
         }
         if (CurrentUser.IsInRole("Patient") && CurrentUser.Id is Guid userId)
         {
@@ -767,6 +776,9 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
 
         var result = new AppointmentSubmitResultDto();
 
+        // 2026-11-04 (office decisions 1 and 2): refuse a bad mail choice before anything is written.
+        var mailChoices = AppointmentMailChoices.Validate(input, CurrentUser.Roles);
+
         try
         {
             await ResolvePatientForSubmitAsync(input, result);
@@ -827,6 +839,15 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             // OnCompleted runs after the transaction commits, which gives both properties: the
             // cascade describes committed data, and it cannot roll anything back.
             var appointment = await _appointmentRepository.GetAsync(created.Id);
+
+            // The booker's mail choices (default: follows, no redirect) are stored on the appointment
+            // before the commit, so the first email already honours them.
+            if (!mailChoices.BookerFollowsCase || mailChoices.RedirectSide != null)
+            {
+                AppointmentMailChoices.Apply(appointment, mailChoices, CurrentUser.GetVerifiedEmail());
+                await _appointmentRepository.UpdateAsync(appointment);
+            }
+
             CurrentUnitOfWork.OnCompleted(() => PublishAppointmentSubmittedAsync(appointment));
 
             return result;
@@ -916,6 +937,13 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         if (input.Mode == BookingSubmitMode.Create)
         {
             return new SubmitLifecycle(null, null, null, null);
+        }
+
+        if (input.Mode == BookingSubmitMode.RevalWithoutSource)
+        {
+            // No source to load, gate or link: the first evaluation predates this portal. The
+            // Appointments.Create permission on SubmitAsync is the gate, as for a plain create.
+            return new SubmitLifecycle(AppointmentLifecycleFlow.RevalWithoutSource, null, null, null);
         }
 
         if (string.IsNullOrWhiteSpace(input.SourceConfirmationNumber))
@@ -1110,6 +1138,22 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             lifecycleFlow: AppointmentLifecycleFlow.Reval,
             sourceConfirmationNumber: source.RequestConfirmationNumber,
             originalAppointmentId: source.Id);
+    }
+
+    /// <summary>
+    /// Re-evaluation whose first evaluation was booked before this portal existed, so there is no
+    /// source appointment. Same permission gate as <see cref="CreateRevalAsync"/> (there is no
+    /// source status to check), mints a fresh confirmation number, stamps
+    /// <c>EvaluationKind.ReEvaluation</c> and leaves every source link empty.
+    /// </summary>
+    [Authorize]
+    [Authorize(CaseEvaluationPermissions.Appointments.Create)]
+    public virtual Task<AppointmentDto> CreateRevalWithoutSourceAsync(AppointmentCreateDto input)
+    {
+        return CreateAppointmentInternalAsync(
+            input,
+            lifecycleFlow: AppointmentLifecycleFlow.RevalWithoutSource,
+            sourceConfirmationNumber: null);
     }
 
     /// <summary>

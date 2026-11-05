@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
+import { authorizedUserRoleLabel } from '../../shared/auth/external-user-roles';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 
 /**
@@ -76,7 +77,21 @@ export class AppointmentAddAuthorizedUsersComponent {
    * so the values must match the seeded external role names. Order
    * mirrors the external-user invite dropdown for consistency.
    */
-  readonly roleOptions = ['Patient', 'Applicant Attorney', 'Defense Attorney', 'Claim Examiner'];
+  @Input() roleOptions: readonly string[] = [
+    'Patient',
+    'Applicant Attorney',
+    'Defense Attorney',
+    'Claim Examiner',
+  ];
+
+  /** External non-patient bookers: offer "Add me as an Authorized User". */
+  @Input() showBookerFollows = false;
+  @Input() bookerFollows = true;
+  /** Forced off while the lawyer's "send my notifications to my paralegal instead" is ticked. */
+  @Input() bookerFollowsDisabled = false;
+  @Output() bookerFollowsChange = new EventEmitter<boolean>();
+
+  readonly roleLabel = authorizedUserRoleLabel;
 
   isAuthorizedUserModalOpen = false;
   authorizedUserModalMode: 'create' | 'edit' = 'create';

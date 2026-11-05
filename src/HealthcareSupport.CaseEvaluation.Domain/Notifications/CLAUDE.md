@@ -59,7 +59,7 @@ a backlog that used to be silently absorbed.
 | `../Appointments/Handlers/SlotCascadeHandler.cs` | Log-only stub; subscribes to AppointmentStatusChangedEto |
 
 Application layer counterparts (Application/Notifications/):
-NotificationDispatcher, NotificationTemplateRenderer, OfficeNotificationRecipients, PatientBeforeApprovalRule
+NotificationDispatcher, NotificationTemplateRenderer, OfficeNotificationRecipients, CaseFollowers, PatientBeforeApprovalRule
 (the patient is left off request/rejected/sent-back mail unless they submitted the request),
 EmailSubjectBuilder, TenantUrlComposer, AccountUrlBuilder, and 18+ event handlers.
 
@@ -148,6 +148,20 @@ This is the correct pattern; do not add cross-tenant queries without the scope c
   email: the office notification inbox plus the active Intake Staff, one row per address. Staff
   Supervisors get no per-event mail and the per-tenant `SystemParameter.CcEmailIds` list is no longer
   appended anywhere (the column and its screen field remain).
+- `CaseFollowers` (Application layer, 2026-11-04): the external booker and every accessor are "case
+  followers", loaded once by `DocumentEmailContextResolver` onto `DocumentEmailContext.Followers` and
+  appended by each party-mail handler BEFORE its own de-duplication and link-holder filtering (one mail per
+  person per event). Deliberately NOT followers: the decline notice, row 13b, the attendance outcomes, the
+  7/1 day reminder, the office copies and the staff mail. `CaseFollowers.AccessorsReceivePackets` (true) is
+  the one switch for accessor packets; `PacketVisibility` still decides per account. A new event handler
+  must be added to the follower or excluded list in `CaseFollowerCoverageGuardTests` or that test fails.
+- The booker's mail choices (2026-11-04), stored in `Appointment.ExtraProperties` by
+  `AppointmentMailPreferences`, applied at submit by `AppointmentMailChoices`: a booker who unticked "follow
+  the case" gets only the request receipt (`CaseFollowers.IsExcluded`, `ctx.BookerOptedOut`); while a lawyer's
+  mail is redirected to the side's paralegal Authorized User(s) (`ctx.RedirectedAddresses`) the lawyer's
+  address is cut from every mail by `CaseFollowers.Append` / `Exclude`, the To anchors on the context and the
+  document-notice To. The consent LINK goes to the side's representative and to the followers
+  `ConsentSideFollowerRule` admits (`CaseFollowers.ConsentLinkFollowers`), who are also link holders.
 
 ## Related
 

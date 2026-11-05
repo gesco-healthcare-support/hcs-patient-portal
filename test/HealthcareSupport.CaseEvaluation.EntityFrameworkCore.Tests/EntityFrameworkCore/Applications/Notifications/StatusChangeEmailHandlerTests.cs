@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.AppointmentAccessors;
 using HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
@@ -227,6 +228,16 @@ public class StatusChangeEmailHandlerTests : CaseEvaluationEntityFrameworkCoreTe
     {
         // Present but unusable: the handler drops blank addresses, which leaves no stakeholders.
         _recipients.Recipients.Add(new SendAppointmentEmailArgs { To = " ", Role = RecipientRole.Patient });
+        // 2026-11-04: the shared seed's accessor of Appointment1 is a case follower and would be mailed,
+        // so this test (about blank stakeholders) takes it off the appointment first.
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (GetRequiredService<ICurrentTenant>().Change(TenantsTestData.TenantARef))
+            {
+                await AccessorTestSeeder.RemoveAllAsync(
+                    GetRequiredService<IRepository<AppointmentAccessor, Guid>>(), AppointmentsTestData.Appointment1Id);
+            }
+        });
 
         await RaiseAsync(status);
 

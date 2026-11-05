@@ -11,14 +11,15 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 public static class EvaluationKindPolicy
 {
     /// <summary>
-    /// <see cref="AppointmentLifecycleFlow.Reval"/> is the only follow-up flow. A standard create
+    /// <see cref="AppointmentLifecycleFlow.Reval"/> and <see cref="AppointmentLifecycleFlow.RevalWithoutSource"/>
+    /// (the first evaluation predates this portal) are the follow-up flows. A standard create
     /// (null flow) and a <see cref="AppointmentLifecycleFlow.ReSubmit"/> are both FIRST evaluations:
     /// a re-submit is the same evaluation re-entered after a send-back, not a new one -- which is
     /// also why it reuses the source's confirmation number while a reval mints a fresh one.
     /// </summary>
     public static EvaluationKind FromLifecycleFlow(AppointmentLifecycleFlow? lifecycleFlow)
     {
-        return lifecycleFlow == AppointmentLifecycleFlow.Reval
+        return lifecycleFlow is AppointmentLifecycleFlow.Reval or AppointmentLifecycleFlow.RevalWithoutSource
             ? EvaluationKind.ReEvaluation
             : EvaluationKind.Evaluation;
     }

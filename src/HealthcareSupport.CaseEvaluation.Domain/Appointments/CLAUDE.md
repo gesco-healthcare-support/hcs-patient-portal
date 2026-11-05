@@ -76,7 +76,7 @@ transition diagram and rule.
    link row (takes the first result of a `maxResultCount: 10` fetch).
 
 8. **Create/Update are permission-gated at the API.** `CreateAsync` (and
-   `ReSubmitAsync`/`CreateRevalAsync`) require `Appointments.Create`; `UpdateAsync`
+   `ReSubmitAsync`/`CreateRevalAsync`/`CreateRevalWithoutSourceAsync`) require `Appointments.Create`; `UpdateAsync`
    requires `Appointments.Edit` (internal-staff only -- external parties edit via
    change-requests, matching OLD). Enforced by ABP's authorization interceptor on the
    `[Authorize(permission)]` attributes; guarded by
@@ -122,6 +122,11 @@ Access and parties:
 - `ExternalCoPartyRules` -- the pure transform behind the co-party-scoped external user lookup;
   `AppointmentParties` is one appointment's four party-email columns and `CoParty` one named
   party with its role.
+- `AppointmentMailPreferences` (2026-11-04) -- the booker's per-appointment mail choices, kept in
+  `ExtraProperties` (no migration): whether the booker follows the case, and the stored
+  `AttorneyMailRedirect` ("send the lawyer's mail to the paralegal instead"), which applies only while
+  the side's attorney column still names the lawyer and an active same-side paralegal Authorized User
+  remains. `ConsentSideFollowerRule` decides which case follower may answer consent for a side.
 
 Lifecycle and booking:
 

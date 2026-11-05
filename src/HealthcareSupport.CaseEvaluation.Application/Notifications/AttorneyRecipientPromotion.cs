@@ -1,3 +1,5 @@
+using HealthcareSupport.CaseEvaluation.Identity;
+
 namespace HealthcareSupport.CaseEvaluation.Notifications;
 
 /// <summary>
@@ -25,9 +27,11 @@ public static class AttorneyRecipientPromotion
 
     /// <summary>
     /// Resolves the promoted "To" email, or null when no promotion applies.
-    /// Applicant-Attorney takes precedence over Defense-Attorney when the creator
-    /// holds both (D9 role accumulation). A role whose matching attorney email is
-    /// blank does NOT promote -- there is no attorney address to send to.
+    /// Applicant-side takes precedence over defense-side when the creator holds both
+    /// (D9 role accumulation). A role whose matching attorney email is blank does NOT
+    /// promote -- there is no attorney address to send to. 2026-11-04: a side's
+    /// PARALEGAL promotes exactly like its attorney -- the paralegal booker is the
+    /// case this rule was written for.
     /// </summary>
     public static string? ResolvePrimaryRecipientEmail(
         IEnumerable<string>? creatorRoles,
@@ -41,12 +45,12 @@ public static class AttorneyRecipientPromotion
 
         var roles = new HashSet<string>(creatorRoles, StringComparer.OrdinalIgnoreCase);
 
-        if (roles.Contains(ApplicantAttorneyRole) && !string.IsNullOrWhiteSpace(applicantAttorneyEmail))
+        if (ExternalRoleConsts.ApplicantLawOffice.Any(roles.Contains) && !string.IsNullOrWhiteSpace(applicantAttorneyEmail))
         {
             return applicantAttorneyEmail.Trim();
         }
 
-        if (roles.Contains(DefenseAttorneyRole) && !string.IsNullOrWhiteSpace(defenseAttorneyEmail))
+        if (ExternalRoleConsts.DefenseLawOffice.Any(roles.Contains) && !string.IsNullOrWhiteSpace(defenseAttorneyEmail))
         {
             return defenseAttorneyEmail.Trim();
         }

@@ -221,6 +221,16 @@ public class AppointmentController : AbpController, IAppointmentsAppService
     }
 
     /// <summary>
+    /// Re-evaluation whose first evaluation was booked before this portal existed (no source).
+    /// </summary>
+    [HttpPost]
+    [Route("create-reval-without-source")]
+    public virtual Task<AppointmentDto> CreateRevalWithoutSourceAsync([FromBody] AppointmentCreateDto input)
+    {
+        return _appointmentsAppService.CreateRevalWithoutSourceAsync(input);
+    }
+
+    /// <summary>
     /// Item 4 (2026-08-17) -- Re-book: start a new appointment from a prior one that did NOT
     /// happen (cancelled, no-showed or not-seen).
     /// </summary>

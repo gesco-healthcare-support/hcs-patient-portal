@@ -6,6 +6,7 @@ using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
 using HealthcareSupport.CaseEvaluation.Notifications.Handlers;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Identity;
+using HealthcareSupport.CaseEvaluation.Identity;
 
 namespace HealthcareSupport.CaseEvaluation.Notifications;
 
@@ -28,8 +29,9 @@ public class AttorneyPacketBookerRecipient : ITransientDependency
 
     public virtual async Task<NotificationRecipient?> ResolveAsync(DocumentEmailContext ctx)
     {
-        // BookerUserId is already null for a staff submitter (DocumentEmailContextResolver).
-        if (ctx.BookerUserId is not { } bookerId)
+        // BookerUserId is already null for a staff submitter and for a booker who opted out of following
+        // the case (DocumentEmailContextResolver).
+        if (ctx.BookerOptedOut || ctx.BookerUserId is not { } bookerId)
         {
             return null;
         }
@@ -54,13 +56,15 @@ public class AttorneyPacketBookerRecipient : ITransientDependency
         return new NotificationRecipient(email: user.Email.Trim(), role: RoleOf(roles), isRegistered: true);
     }
 
+    // 2026-11-04: a paralegal booker is tagged with its side's attorney role (RecipientRole has
+    // no paralegal value), not the claim-examiner fallback.
     private static RecipientRole? RoleOf(System.Collections.Generic.IEnumerable<string> roles)
     {
-        if (roles.Any(r => string.Equals(r?.Trim(), "Applicant Attorney", StringComparison.OrdinalIgnoreCase)))
+        if (roles.Any(r => ExternalRoleConsts.ApplicantLawOffice.Contains((r ?? string.Empty).Trim(), StringComparer.OrdinalIgnoreCase)))
         {
             return RecipientRole.ApplicantAttorney;
         }
-        if (roles.Any(r => string.Equals(r?.Trim(), "Defense Attorney", StringComparison.OrdinalIgnoreCase)))
+        if (roles.Any(r => ExternalRoleConsts.DefenseLawOffice.Contains((r ?? string.Empty).Trim(), StringComparer.OrdinalIgnoreCase)))
         {
             return RecipientRole.DefenseAttorney;
         }

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Identity;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentAccessors;
@@ -24,7 +25,7 @@ public static class AppointmentAccessorRules
     /// single definition (#692). There is no second list to keep in step --
     /// the seeder that creates and grants these roles reads the same object,
     /// so a rename cannot desynchronise them. The role-naming reconciliation
-    /// (why there are exactly four, and why two were renamed from OLD) lives
+    /// (why there are these six, and why two were renamed from OLD) lives
     /// on that constant beside the names it explains, rather than being
     /// restated here where the two copies could drift apart.</para>
     /// </summary>
@@ -45,6 +46,27 @@ public static class AppointmentAccessorRules
         var target = requestedRole.Trim();
         return RecognizedExternalRoles.FirstOrDefault(r =>
             string.Equals(r, target, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Office decision 3 (2026-11-04), the same-side rule: may this caller put an Authorized User with
+    /// <paramref name="accessorRoles"/> on the case? A law-office role (attorney or paralegal) of side S
+    /// may be set by staff, or by an external caller whose own law-office side is S -- so one side can never
+    /// plant someone who then answers consent for the other. Roles that are not law-office roles (Patient,
+    /// Claim Examiner) carry no side and are unrestricted. An external caller with no law-office side
+    /// cannot set a law-office role at all.
+    /// </summary>
+    public static bool MayAssignLawOfficeRole(
+        bool callerIsStaff,
+        IEnumerable<string?>? callerRoles,
+        IEnumerable<string?>? accessorRoles)
+    {
+        var side = AppointmentMailPreferences.LawOfficeSideOf(accessorRoles);
+        if (side == null || callerIsStaff)
+        {
+            return true;
+        }
+        return AppointmentMailPreferences.LawOfficeSideOf(callerRoles) == side;
     }
 
     /// <summary>

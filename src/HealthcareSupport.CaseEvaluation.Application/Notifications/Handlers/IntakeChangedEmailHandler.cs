@@ -135,6 +135,11 @@ public class IntakeChangedEmailHandler :
             .ToList();
         await _officeRecipients.AppendIntakeAsync(recipients);
 
+        // 2026-11-04: the case followers (external booker, accessors) are copied like the parties; a
+        // Patient-role accessor follows the patient rule (only once Approved, or if the patient booked).
+        recipients = CaseFollowers.Append(
+            recipients, ctx, patientRoleAllowed: !IsBeforeApproval(ctx.AppointmentStatus) || ctx.PatientIsSubmitter);
+
         if (IsBeforeApproval(ctx.AppointmentStatus))
         {
             recipients = PatientBeforeApprovalRule.Apply(recipients, ctx);
