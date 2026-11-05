@@ -979,18 +979,21 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
         AppointmentSubmitResultDto? result = null;
         string? lawyer = null;
 
-        await InOfficeAsAsync(office, Guid.NewGuid(), "Applicant Attorney", async () =>
+        var slotId = Guid.Empty;
+        await InOfficeAsync(office, async () =>
+            slotId = await InsertSlotAsync(office, date, new TimeOnly(13, 0), new TimeOnly(14, 0)));
+        var input = BuildSubmitDto(office, slotId, date.AddHours(13).AddMinutes(15), dayOffset: 720);
+        input.Accessors = new List<AppointmentAccessorCreateDto>
         {
-            var slotId = await InsertSlotAsync(office, date, new TimeOnly(13, 0), new TimeOnly(14, 0));
-            var input = BuildSubmitDto(office, slotId, date.AddHours(13).AddMinutes(15), dayOffset: 720);
-            input.Accessors = new List<AppointmentAccessorCreateDto>
-            {
-                new() { Email = $"para-{Guid.NewGuid():N}@example.test", Role = "Applicant Paralegal" },
-            };
-            input.SendAttorneyMailToParalegal = true;
-            lawyer = input.ApplicantAttorneyEmail;
-            result = await _appointments.SubmitAsync(input);
-        });
+            new() { Email = $"para-{Guid.NewGuid():N}@example.test", Role = "Applicant Paralegal" },
+        };
+        input.SendAttorneyMailToParalegal = true;
+        lawyer = input.ApplicantAttorneyEmail;
+
+        // 2026-11-04: the redirect is the NAMED lawyer's choice, so the caller's verified login is the typed
+        // applicant attorney (in another case).
+        await InOfficeAsWithLoginAsync(office, Guid.NewGuid(), lawyer!.ToUpperInvariant(), "Applicant Attorney", async () =>
+            result = await _appointments.SubmitAsync(input));
 
         await InOfficeAsync(office, async () =>
         {
@@ -1007,13 +1010,15 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
     /// attorney who sends no same-side paralegal -- or only an OTHER-side one -- is refused the same way.
     /// </summary>
     [Theory]
-    [InlineData("Applicant Paralegal", "Applicant Paralegal", false, 47)]
-    [InlineData("Patient", "Applicant Paralegal", false, 48)]
-    [InlineData("admin", "Applicant Paralegal", false, 49)]
-    [InlineData("Applicant Attorney", null, true, 55)]
-    [InlineData("Applicant Attorney", "Defense Paralegal", true, 56)]
+    [InlineData("Applicant Paralegal", "Applicant Paralegal", false, 47, true)]
+    [InlineData("Patient", "Applicant Paralegal", false, 48, true)]
+    [InlineData("admin", "Applicant Paralegal", false, 49, true)]
+    [InlineData("Applicant Attorney", null, true, 55, true)]
+    [InlineData("Applicant Attorney", "Defense Paralegal", true, 56, true)]
+    // 2026-11-04: an attorney login booking for ANOTHER lawyer cannot silence that lawyer.
+    [InlineData("Applicant Attorney", "Applicant Paralegal", false, 57, false)]
     public async Task SubmitAsync_ARefusedRedirect_Throws400AndWritesNothing(
-        string callerRole, string? accessorRole, bool needsParalegal, int day)
+        string callerRole, string? accessorRole, bool needsParalegal, int day, bool callerIsTheTypedLawyer)
     {
         var (office, _) = await GetSeededOfficesAsync();
         await SeedNotificationTemplatesAsync(office);
@@ -1035,8 +1040,9 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
             };
         input.SendAttorneyMailToParalegal = true;
 
+        var login = callerIsTheTypedLawyer ? input.ApplicantAttorneyEmail! : "TEST-another-lawyer@example.test";
         var thrown = await Should.ThrowAsync<BusinessException>(
-            () => InOfficeAsAsync(office, Guid.NewGuid(), callerRole, () => _appointments.SubmitAsync(input)));
+            () => InOfficeAsWithLoginAsync(office, Guid.NewGuid(), login, callerRole, () => _appointments.SubmitAsync(input)));
 
         thrown.Code.ShouldBe(needsParalegal
             ? CaseEvaluationDomainErrorCodes.AppointmentAttorneyMailRedirectNeedsParalegal
@@ -1208,6 +1214,17 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
     /// tests need an EXTERNAL booker who is not the patient; the admin identity would be admitted as
     /// staff and prove nothing about the external path.
     /// </summary>
+    /// <summary>As <see cref="InOfficeAsAsync"/>, with a VERIFIED login email (the redirect rule reads it).</summary>
+    private Task InOfficeAsWithLoginAsync(SeededOffice office, Guid userId, string login, string role, Func<Task> body) =>
+        WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(office.OfficeId))
+            using (WithCurrentUser.RunWithEmail(_principalAccessor, userId, login, role))
+            {
+                await body();
+            }
+        }, requiresNew: true);
+
     private Task InOfficeAsAsync(SeededOffice office, Guid userId, string role, Func<Task> body) =>
         WithUnitOfWorkAsync(async () =>
         {

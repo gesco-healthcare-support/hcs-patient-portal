@@ -29,6 +29,7 @@ public class AppointmentMailChoicesTests
             BookerFollowsCase = follows,
             SendAttorneyMailToParalegal = redirect,
             ApplicantAttorneyEmail = Lawyer,
+            DefenseAttorneyEmail = Lawyer,
             Accessors = accessorRoles
                 .Select(r => new AppointmentAccessorCreateDto
                 {
@@ -74,7 +75,8 @@ public class AppointmentMailChoicesTests
     {
         var choices = AppointmentMailChoices.Validate(
             Submit(redirect: true, accessorRoles: new[] { ExternalRoleConsts.ClaimExaminer, paralegalRole }),
-            new[] { callerRole });
+            new[] { callerRole },
+            callerVerifiedEmail: Lawyer.ToUpperInvariant());
 
         choices.RedirectSide.ShouldBe(side);
         choices.BookerFollowsCase.ShouldBeFalse("the redirect implies the booker does not follow");
@@ -101,7 +103,8 @@ public class AppointmentMailChoicesTests
     {
         var thrown = Should.Throw<BusinessException>(() => AppointmentMailChoices.Validate(
             Submit(redirect: true, accessorRoles: ExternalRoleConsts.ClaimExaminer),
-            new[] { ExternalRoleConsts.ApplicantAttorney }));
+            new[] { ExternalRoleConsts.ApplicantAttorney },
+            callerVerifiedEmail: Lawyer));
 
         thrown.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentAttorneyMailRedirectNeedsParalegal);
     }
@@ -111,9 +114,40 @@ public class AppointmentMailChoicesTests
     {
         var thrown = Should.Throw<BusinessException>(() => AppointmentMailChoices.Validate(
             Submit(redirect: true, accessorRoles: ExternalRoleConsts.DefenseParalegal),
-            new[] { ExternalRoleConsts.ApplicantAttorney }));
+            new[] { ExternalRoleConsts.ApplicantAttorney },
+            callerVerifiedEmail: Lawyer));
 
         thrown.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentAttorneyMailRedirectNeedsParalegal);
+    }
+
+    // 2026-11-04: the booker types the lawyer freely, so the redirect is the named lawyer's choice only.
+    [Theory]
+    [InlineData(ExternalRoleConsts.ApplicantAttorney, ExternalRoleConsts.ApplicantParalegal)]
+    [InlineData(ExternalRoleConsts.DefenseAttorney, ExternalRoleConsts.DefenseParalegal)]
+    public void ARedirectByAnAttorneyWhoIsNotTheLawyerNamedOnTheirSide_IsRefused(string callerRole, string paralegalRole)
+    {
+        var otherLawyer = Should.Throw<BusinessException>(() => AppointmentMailChoices.Validate(
+            Submit(redirect: true, accessorRoles: paralegalRole),
+            new[] { callerRole },
+            callerVerifiedEmail: "TEST-another-lawyer@test.local"));
+        var noLogin = Should.Throw<BusinessException>(() => AppointmentMailChoices.Validate(
+            Submit(redirect: true, accessorRoles: paralegalRole),
+            new[] { callerRole },
+            callerVerifiedEmail: null));
+
+        otherLawyer.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentAttorneyMailRedirectAttorneyOnly);
+        noLogin.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentAttorneyMailRedirectAttorneyOnly);
+    }
+
+    [Fact]
+    public void ARedirectIsRefused_WhenTheOwnSideAttorneyEmailIsBlank()
+    {
+        var submit = Submit(redirect: true, accessorRoles: ExternalRoleConsts.ApplicantParalegal);
+        submit.ApplicantAttorneyEmail = "  ";
+
+        Should.Throw<BusinessException>(() => AppointmentMailChoices.Validate(
+                submit, new[] { ExternalRoleConsts.ApplicantAttorney }, callerVerifiedEmail: Lawyer))
+            .Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentAttorneyMailRedirectAttorneyOnly);
     }
 
     [Fact]
