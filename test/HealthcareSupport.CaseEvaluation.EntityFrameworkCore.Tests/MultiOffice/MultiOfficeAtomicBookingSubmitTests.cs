@@ -972,6 +972,34 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
     }
 
     /// <summary>
+    /// Office decision 3 (2026-11-04), the same-side rule at booking: an applicant-side booker may submit an
+    /// Authorized User of their own side. The refusal of an other-side one, with the whole booking rolled
+    /// back, is proved on real SQL Server in <c>BookingAtomicitySqlServerTests</c>.
+    /// </summary>
+    [Fact]
+    public async Task SubmitAsync_WithAnApplicantParalegalAccessor_ByAnApplicantAttorney_Books()
+    {
+        var (office, _) = await GetSeededOfficesAsync();
+        await SeedNotificationTemplatesAsync(office);
+        var date = TestToday.AddDays(52);
+        AppointmentSubmitResultDto? result = null;
+
+        await InOfficeAsAsync(office, Guid.NewGuid(), "Applicant Attorney", async () =>
+        {
+            var slotId = await InsertSlotAsync(office, date, new TimeOnly(14, 0), new TimeOnly(15, 0));
+            var input = BuildSubmitDto(office, slotId, date.AddHours(14).AddMinutes(15), dayOffset: 530);
+            input.Accessors = new List<AppointmentAccessorCreateDto>
+            {
+                new() { Email = $"ap-{Guid.NewGuid():N}@example.test", Role = "Applicant Paralegal" },
+            };
+            result = await _appointments.SubmitAsync(input);
+        });
+
+        result.ShouldNotBeNull();
+        result!.Accessors.ShouldBe(1);
+    }
+
+    /// <summary>
     /// The appointment view page adds an employer detail to an EXISTING appointment that has none
     /// (<c>appointment-view.component.ts</c>, a <c>POST</c> to the employer-details route). That is the
     /// one create caller outside booking, and its caller can already read the appointment, so the party
