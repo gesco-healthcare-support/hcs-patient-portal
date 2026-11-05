@@ -1,10 +1,6 @@
-import {
-  ChangeRequestSide,
-  EmailRecipientKind,
-  EmailRoutingNote,
-  EmailStopScope,
-} from './email-stops.models';
-import type { AppointmentEmailRecipientDto, EmailStopStatusDto } from './email-stops.models';
+import { ChangeRequestSide } from '../proxy/appointment-change-requests/change-request-side.enum';
+import { EmailRecipientKind, EmailRoutingNote, EmailStopScope } from '../proxy/email-stops';
+import type { AppointmentEmailRecipientDto, EmailStopStatusDto } from '../proxy/email-stops';
 import {
   distinctSides,
   isStoppedIn,

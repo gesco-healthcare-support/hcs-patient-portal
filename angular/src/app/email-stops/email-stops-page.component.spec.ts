@@ -2,9 +2,9 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ConfigStateService, LocalizationService } from '@abp/ng.core';
 import { of } from 'rxjs';
 import { EmailStopsPageComponent } from './email-stops-page.component';
-import type { EmailStopConsentImpactDto, GlobalEmailStopDto } from './email-stops.models';
-import { ChangeRequestSide } from './email-stops.models';
-import { EmailStopsService } from './email-stops.service';
+import type { EmailStopConsentImpactDto, GlobalEmailStopDto } from '../proxy/email-stops';
+import { ChangeRequestSide } from '../proxy/appointment-change-requests/change-request-side.enum';
+import { EmailStopsService } from '../proxy/email-stops';
 
 const row = (over: Partial<GlobalEmailStopDto> = {}): GlobalEmailStopDto => ({
   id: 'g1',

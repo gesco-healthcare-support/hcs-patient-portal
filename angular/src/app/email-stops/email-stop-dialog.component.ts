@@ -10,9 +10,9 @@ import {
 import { FormsModule } from '@angular/forms';
 import { LocalizationPipe } from '@abp/ng.core';
 import { EmailStopConsentWarningComponent } from './email-stop-consent-warning.component';
-import { EmailStopScope } from './email-stops.models';
-import type { EmailStopConsentImpactDto } from './email-stops.models';
-import { EmailStopsService } from './email-stops.service';
+import { EmailStopScope } from '../proxy/email-stops';
+import type { EmailStopConsentImpactDto } from '../proxy/email-stops';
+import { EmailStopsService } from '../proxy/email-stops';
 
 /**
  * "Stop emails" dialog on the case card: choose Only this case / All cases, an optional reason,

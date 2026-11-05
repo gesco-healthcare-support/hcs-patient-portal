@@ -13,8 +13,8 @@ import { Observable, concat } from 'rxjs';
 import { PacificDatePipe } from '../shared/pipes/pacific-date.pipe';
 import { EmailStopDialogComponent } from './email-stop-dialog.component';
 import { EMAIL_STOPS_POLICY } from './email-stops.models';
-import type { AppointmentEmailRecipientDto } from './email-stops.models';
-import { EmailStopsService } from './email-stops.service';
+import type { AppointmentEmailRecipientDto } from '../proxy/email-stops';
+import { EmailStopsService } from '../proxy/email-stops';
 import { kindKey, pillFor, routingNoteKey } from './email-stops.util';
 
 /**

@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { LocalizationPipe } from '@abp/ng.core';
-import type { EmailStopConsentImpactDto } from './email-stops.models';
+import type { EmailStopConsentImpactDto } from '../proxy/email-stops';
 import { distinctSides, otherCaseNumbers, sideKey } from './email-stops.util';
 
 /**

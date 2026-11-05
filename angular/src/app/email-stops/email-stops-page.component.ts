@@ -10,8 +10,8 @@ import { FormsModule } from '@angular/forms';
 import { ConfigStateService, LocalizationPipe } from '@abp/ng.core';
 import { PacificDatePipe } from '../shared/pipes/pacific-date.pipe';
 import { EmailStopConsentWarningComponent } from './email-stop-consent-warning.component';
-import type { EmailStopConsentImpactDto, GlobalEmailStopDto } from './email-stops.models';
-import { EmailStopsService } from './email-stops.service';
+import type { EmailStopConsentImpactDto, GlobalEmailStopDto } from '../proxy/email-stops';
+import { EmailStopsService } from '../proxy/email-stops';
 
 const PAGE_SIZE = 20;
 

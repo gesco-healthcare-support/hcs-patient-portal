@@ -40,7 +40,7 @@ import {
 import { StaffPartiesEditor } from './staff-parties-editor';
 import { AppointmentEmailRecipientsCardComponent } from '../../../email-stops/appointment-email-recipients-card.component';
 import { EmailStoppedTagComponent } from '../../../email-stops/email-stopped-tag.component';
-import type { AppointmentEmailRecipientDto } from '../../../email-stops/email-stops.models';
+import type { AppointmentEmailRecipientDto } from '../../../proxy/email-stops';
 import { stoppedEmailSet } from '../../../email-stops/email-stops.util';
 import {
   changedRows,

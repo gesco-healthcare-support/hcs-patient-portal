@@ -2,18 +2,14 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { LocalizationService, PermissionService, QUEUE_MANAGER } from '@abp/ng.core';
 import { of } from 'rxjs';
 import { AppointmentEmailRecipientsCardComponent } from './appointment-email-recipients-card.component';
-import {
-  ChangeRequestSide,
-  EmailRecipientKind,
-  EmailRoutingNote,
-  EmailStopScope,
-} from './email-stops.models';
+import { ChangeRequestSide } from '../proxy/appointment-change-requests/change-request-side.enum';
+import { EmailRecipientKind, EmailRoutingNote, EmailStopScope } from '../proxy/email-stops';
 import type {
   AppointmentEmailRecipientDto,
   EmailStopConsentImpactDto,
   EmailStopStatusDto,
-} from './email-stops.models';
-import { EmailStopsService } from './email-stops.service';
+} from '../proxy/email-stops';
+import { EmailStopsService } from '../proxy/email-stops';
 
 const stop = (scope: EmailStopScope, id = 'stop-1'): EmailStopStatusDto => ({
   id,

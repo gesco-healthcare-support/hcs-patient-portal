@@ -1,5 +1,6 @@
-import { ChangeRequestSide, EmailRecipientKind, EmailRoutingNote } from './email-stops.models';
-import type { AppointmentEmailRecipientDto, EmailStopConsentImpactDto } from './email-stops.models';
+import { ChangeRequestSide } from '../proxy/appointment-change-requests/change-request-side.enum';
+import { EmailRecipientKind, EmailRoutingNote } from '../proxy/email-stops';
+import type { AppointmentEmailRecipientDto, EmailStopConsentImpactDto } from '../proxy/email-stops';
 
 export type StopPill = 'allCases' | 'case' | 'active';
 
