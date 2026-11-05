@@ -295,6 +295,9 @@
             </span>
           </div>
           @if (historyOpen) {
+            @if (followerNoteText) {
+              <div class="ad-empty" id="follower-note">{{ followerNoteText }}</div>
+            }
             <div class="ad-card__body" style="padding: 0">
               @for (round of infoHistory; track round.id) {
                 @if (round.isResolved) {

@@ -26,7 +26,10 @@ import {
   isApplicantAttorneyRole,
   isDefenseAttorneyRole,
 } from '../../shared/auth/external-user-roles';
-import { notifyParalegalSummary } from '../shared/notify-paralegal.util';
+import {
+  notifyParalegalConflictSummary,
+  notifyParalegalSummary,
+} from '../shared/notify-paralegal.util';
 import { AppointmentAddCustomFieldsComponent } from '../sections/appointment-add-custom-fields.component';
 import { ConfirmAddressDialogComponent } from '../../shared/address/confirm-address-dialog.component';
 import { IconComponent } from '../../shared/ui/icon/icon.component';
@@ -411,6 +414,11 @@ export class AppointmentWizardComponent extends AppointmentAddComponent implemen
         ...this.stepErrorSummary,
         ...notifyParalegalSummary(this.notifyParalegal),
       ];
+      valid = false;
+    }
+    if (key === this.notifyParalegalSide && this.notifyParalegalConflict) {
+      this.notifyParalegalShowErrors = true;
+      this.stepErrorSummary = [...this.stepErrorSummary, notifyParalegalConflictSummary()];
       valid = false;
     }
 

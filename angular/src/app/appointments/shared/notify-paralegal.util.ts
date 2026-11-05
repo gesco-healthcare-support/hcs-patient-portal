@@ -97,3 +97,16 @@ export function notifyParalegalSummary(state: NotifyParalegalState): StepErrorFi
     message: field === 'email' ? 'Enter a valid email address' : 'Required',
   }));
 }
+
+/** Shown when the typed paralegal email is already an Authorized User with another role. */
+export const NOTIFY_PARALEGAL_CONFLICT_MESSAGE =
+  'This email is already an Authorized User with another role. Change that row to Paralegal or use another email.';
+
+/** Error-summary row for the conflict, for the wizard's "Please fix the following" banner. */
+export function notifyParalegalConflictSummary(): StepErrorField {
+  return {
+    control: 'notifyParalegal.conflict',
+    label: 'Paralegal email',
+    message: NOTIFY_PARALEGAL_CONFLICT_MESSAGE,
+  };
+}

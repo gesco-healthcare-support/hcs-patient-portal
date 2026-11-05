@@ -219,6 +219,7 @@
               idPrefix="applicant-paralegal"
               [state]="notifyParalegal"
               [showErrors]="notifyParalegalShowErrors"
+              [conflict]="notifyParalegalConflict"
               (stateChange)="notifyParalegal = $event"
             />
           }
@@ -241,6 +242,7 @@
               idPrefix="defense-paralegal"
               [state]="notifyParalegal"
               [showErrors]="notifyParalegalShowErrors"
+              [conflict]="notifyParalegalConflict"
               (stateChange)="notifyParalegal = $event"
             />
           }
@@ -598,6 +600,10 @@
             <app-appointment-add-authorized-users
               [users]="appointmentAuthorizedUsers"
               [roleOptions]="authorizedUserRoleOptions"
+              [showBookerFollows]="showBookerFollowsOption"
+              [bookerFollows]="bookerFollowsDisplayed"
+              [bookerFollowsDisabled]="notifyParalegal.enabled"
+              (bookerFollowsChange)="bookerFollowsCase = $event"
             />
           }
           <app-appointment-add-custom-fields [customFieldsArray]="customFieldsArray" />

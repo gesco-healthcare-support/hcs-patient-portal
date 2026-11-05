@@ -39,30 +39,52 @@ describe('law-office side role helpers', () => {
   });
 
   describe('authorizedUserRoleOptions', () => {
-    it('gives staff both paralegal roles', () => {
+    it('gives staff every role, both sides', () => {
       const o = authorizedUserRoleOptions(['Staff Supervisor'], true);
-      expect(o).toContain('Applicant Paralegal');
-      expect(o).toContain('Defense Paralegal');
-    });
-
-    it("gives a law-office booker only their own side's paralegal", () => {
-      expect(authorizedUserRoleOptions(['Applicant Attorney'], false)).toEqual([
+      expect(o).toEqual([
         'Patient',
         'Applicant Attorney',
         'Defense Attorney',
         'Claim Examiner',
         'Applicant Paralegal',
-      ]);
-      expect(authorizedUserRoleOptions(['Defense Paralegal'], false)).toContain(
         'Defense Paralegal',
-      );
-      expect(authorizedUserRoleOptions(['Defense Paralegal'], false)).not.toContain(
-        'Applicant Paralegal',
-      );
+      ]);
     });
 
-    it('gives other external roles no paralegal option', () => {
-      expect(authorizedUserRoleOptions(['Patient'], false).length).toBe(4);
+    it("gives a law-office booker only their own side's law-office roles", () => {
+      for (const role of ['Applicant Attorney', 'Applicant Paralegal']) {
+        expect(authorizedUserRoleOptions([role], false)).toEqual([
+          'Patient',
+          'Applicant Attorney',
+          'Applicant Paralegal',
+          'Claim Examiner',
+        ]);
+      }
+      for (const role of ['Defense Attorney', 'Defense Paralegal']) {
+        expect(authorizedUserRoleOptions([role], false)).toEqual([
+          'Patient',
+          'Defense Attorney',
+          'Defense Paralegal',
+          'Claim Examiner',
+        ]);
+      }
+    });
+
+    it('never offers an external caller the other side (the server answers 400)', () => {
+      const applicant = authorizedUserRoleOptions(['Applicant Attorney'], false);
+      expect(applicant).not.toContain('Defense Attorney');
+      expect(applicant).not.toContain('Defense Paralegal');
+      const defense = authorizedUserRoleOptions(['Defense Paralegal'], false);
+      expect(defense).not.toContain('Applicant Attorney');
+      expect(defense).not.toContain('Applicant Paralegal');
+    });
+
+    it('gives a patient or claim examiner no law-office role at all', () => {
+      expect(authorizedUserRoleOptions(['Patient'], false)).toEqual(['Patient', 'Claim Examiner']);
+      expect(authorizedUserRoleOptions(['Claim Examiner'], false)).toEqual([
+        'Patient',
+        'Claim Examiner',
+      ]);
     });
   });
 });

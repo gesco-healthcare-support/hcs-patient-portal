@@ -1,3 +1,4 @@
+import { followerNote } from '../../shared/case-follower.util';
 import {
   authorizedUserRoleLabel,
   authorizedUserRoleOptions,
@@ -281,6 +282,11 @@ export class AppointmentViewComponent implements OnInit {
   // Group J: valid accessor roles -- email is free-typed, role chosen from
   // the seeded external roles. Order mirrors the invite-user dropdown.
   readonly roleLabel = authorizedUserRoleLabel;
+
+  /** One-line note when the booker opted out of case emails or the attorney's mail was redirected. */
+  get followerNoteText(): string | null {
+    return followerNote(this.appointment?.appointment);
+  }
 
   /** Role names the "Paralegal / Authorized User" modal offers: own side's paralegal; staff get both. */
   get roleOptions(): string[] {

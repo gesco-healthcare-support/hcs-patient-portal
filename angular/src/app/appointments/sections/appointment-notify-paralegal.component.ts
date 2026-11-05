@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import {
+  NOTIFY_PARALEGAL_CONFLICT_MESSAGE,
   notifyParalegalErrors,
   type NotifyParalegalField,
   type NotifyParalegalState,
@@ -28,13 +29,18 @@ import {
             (ngModelChange)="update({ enabled: $event })"
           />
           <label class="form-check-label fw-semibold" [for]="idPrefix + '-enabled'">
-            Send all notifications to my paralegal
+            Send all notifications to my paralegal instead of me
           </label>
         </div>
         <div class="text-secondary small mt-1">
-          Your paralegal is added as an authorized user on this case. You keep receiving every email
-          too.
+          Your paralegal is added as an Authorized User and gets every email about this case. You
+          get no emails for this case, but you can still sign in to see it.
         </div>
+        @if (state.enabled && conflict) {
+          <div class="text-danger small mt-2" role="alert" id="notify-paralegal-conflict">
+            {{ conflictMessage }}
+          </div>
+        }
         @if (state.enabled) {
           <div class="row mt-3">
             <div class="col-md-4 mb-3">
@@ -83,6 +89,9 @@ export class AppointmentNotifyParalegalComponent {
   @Input() idPrefix = 'notify-paralegal';
   /** Turn on red borders after a blocked Continue. */
   @Input() showErrors = false;
+  /** The typed email is already an Authorized User with another role: the redirect cannot apply. */
+  @Input() conflict = false;
+  readonly conflictMessage = NOTIFY_PARALEGAL_CONFLICT_MESSAGE;
   @Output() stateChange = new EventEmitter<NotifyParalegalState>();
 
   invalid(field: NotifyParalegalField): boolean {

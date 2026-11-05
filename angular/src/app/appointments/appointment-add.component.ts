@@ -56,14 +56,17 @@ import {
   isDefenseParalegalRole,
   isDefenseSideExternal,
   isParalegalRole,
+  paralegalRoleForSide,
   type LawOfficeSide,
 } from '../shared/auth/external-user-roles';
 import {
   EMPTY_NOTIFY_PARALEGAL,
+  NOTIFY_PARALEGAL_CONFLICT_MESSAGE,
   notifyParalegalErrors,
   withNotifyParalegal,
   type NotifyParalegalState,
 } from './shared/notify-paralegal.util';
+import { bookerFollowsDisplayed, resolveFollowerFields } from './shared/case-follower.util';
 import { hasAttorneyPrefill } from './shared/attorney-prefill.util';
 import type { PrefillFailure } from './shared/booking-failure-message.util';
 import {
@@ -602,6 +605,49 @@ export class AppointmentAddComponent {
   notifyParalegal: NotifyParalegalState = { ...EMPTY_NOTIFY_PARALEGAL };
   /** True after a blocked Continue so the paralegal fields show their errors. */
   notifyParalegalShowErrors = false;
+  /** "Add me as an Authorized User (I get every email about this case)": ticked by default. */
+  bookerFollowsCase = true;
+
+  /** The box is offered to an external booker who sees the Paralegal / Authorized User section. */
+  get showBookerFollowsOption(): boolean {
+    return !this.isInternalBooker && this.shouldShowAuthorizedUserSection();
+  }
+
+  /** The lawyer's "instead of me" tick is on (attorney bookers only), complete or not. */
+  get notifyParalegalTicked(): boolean {
+    return this.notifyParalegalSide !== null && this.notifyParalegal.enabled;
+  }
+
+  /**
+   * Ticked and complete, but the typed paralegal email is already an Authorized User with another
+   * role, so the merge would keep that role and the redirect could not apply. Submitting would
+   * leave the lawyer believing they get nothing while they get everything, so it blocks.
+   */
+  get notifyParalegalConflict(): boolean {
+    return (
+      this.notifyParalegalTicked &&
+      !this.notifyParalegalInvalid &&
+      !this.sendAttorneyMailToParalegal
+    );
+  }
+
+  /** The lawyer's "instead of me" tick is on and complete AND its paralegal is a same-side accessor. */
+  get sendAttorneyMailToParalegal(): boolean {
+    const side = this.notifyParalegalSide;
+    if (side === null || !this.notifyParalegal.enabled || this.notifyParalegalInvalid) {
+      return false;
+    }
+    // The server counts ONLY a same-side paralegal accessor in this same submit, so require one
+    // in the merged list (a typed accessor with the same email but another role would win the dedupe).
+    const paralegalRole = paralegalRoleForSide(side);
+    return withNotifyParalegal(this.appointmentAuthorizedUsers, this.notifyParalegal, side).some(
+      (u) => u.userRole === paralegalRole,
+    );
+  }
+
+  get bookerFollowsDisplayed(): boolean {
+    return bookerFollowsDisplayed(this.bookerFollowsCase, this.notifyParalegal.enabled);
+  }
 
   /** Missing paralegal fields when the tick is on (blocks Continue on the booker's own-side step). */
   get notifyParalegalInvalid(): boolean {
@@ -2357,6 +2403,11 @@ export class AppointmentAddComponent {
 
   /** True when a booking-level gate refuses the submit; sets the flag and message it names. */
   private isSubmitBlockedByBookingGates(): boolean {
+    if (this.notifyParalegalConflict) {
+      this.notifyParalegalShowErrors = true;
+      this.patientLoadMessage = NOTIFY_PARALEGAL_CONFLICT_MESSAGE;
+      return true;
+    }
     if (this.form.invalid) {
       this.patientLoadMessage = 'Please complete all required fields before saving.';
       Object.keys(this.form.controls).forEach((key) => {
@@ -2470,6 +2521,12 @@ export class AppointmentAddComponent {
       primaryInsurance: buildSubmitPrimaryInsurance(rawAfter),
       claimExaminer: buildSubmitClaimExaminer(rawAfter),
       injuryDetails: buildSubmitInjuryDetails(this.injuryDrafts),
+      ...resolveFollowerFields({
+        showBookerOption: this.showBookerFollowsOption,
+        bookerFollows: this.bookerFollowsCase,
+        insteadTicked: this.notifyParalegalTicked,
+        insteadValid: this.sendAttorneyMailToParalegal,
+      }),
       accessors: buildSubmitAccessors(
         withNotifyParalegal(
           this.appointmentAuthorizedUsers,
