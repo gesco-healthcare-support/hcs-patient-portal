@@ -992,6 +992,9 @@
           <h3>Paralegal / Authorized users</h3>
         </div>
         <div class="ad-card__body">
+          @if (followerNoteText) {
+            <div class="ad-empty" id="follower-note">{{ followerNoteText }}</div>
+          }
           @if (appointmentAuthorizedUsers.length === 0) {
             <div class="ad-empty">No paralegals or additional authorized users.</div>
           } @else {

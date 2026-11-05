@@ -24,7 +24,7 @@ describe('AppointmentNotifyParalegalComponent', () => {
   it('shows only the checkbox until it is ticked', () => {
     const el = setup(EMPTY_NOTIFY_PARALEGAL);
 
-    expect(el.textContent).toContain('Send all notifications to my paralegal');
+    expect(el.textContent).toContain('Send all notifications to my paralegal instead of me');
     expect(el.querySelector('#applicant-paralegal-email')).toBeNull();
   });
 

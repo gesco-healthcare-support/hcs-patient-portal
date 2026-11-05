@@ -103,22 +103,30 @@ export function paralegalRoleForSide(side: LawOfficeSide): string {
 }
 
 /**
- * Role names offered in the "Paralegal / Authorized User" picker. Internal staff get both
- * sides' paralegals; a law-office booker gets only their own side's paralegal (the server
- * re-checks); everyone else gets the four party roles only.
+ * Role names offered in the "Paralegal / Authorized User" picker. Internal staff get every role.
+ * An external caller may add a law-office accessor of THEIR OWN side only (the server answers
+ * 400 for the other side), so a law-office booker gets Patient, Claim Examiner and their own
+ * side's attorney + paralegal. Any other external caller has no side and gets Patient and
+ * Claim Examiner only.
  */
 export function authorizedUserRoleOptions(roles: RoleList, isInternal: boolean): string[] {
-  const base = ['Patient', APPLICANT_ATTORNEY_ROLE, DEFENSE_ATTORNEY_ROLE, 'Claim Examiner'];
   if (isInternal) {
-    return [...base, APPLICANT_PARALEGAL_ROLE, DEFENSE_PARALEGAL_ROLE];
+    return [
+      'Patient',
+      APPLICANT_ATTORNEY_ROLE,
+      DEFENSE_ATTORNEY_ROLE,
+      'Claim Examiner',
+      APPLICANT_PARALEGAL_ROLE,
+      DEFENSE_PARALEGAL_ROLE,
+    ];
   }
   if (isApplicantSideExternal(roles)) {
-    return [...base, APPLICANT_PARALEGAL_ROLE];
+    return ['Patient', APPLICANT_ATTORNEY_ROLE, APPLICANT_PARALEGAL_ROLE, 'Claim Examiner'];
   }
   if (isDefenseSideExternal(roles)) {
-    return [...base, DEFENSE_PARALEGAL_ROLE];
+    return ['Patient', DEFENSE_ATTORNEY_ROLE, DEFENSE_PARALEGAL_ROLE, 'Claim Examiner'];
   }
-  return base;
+  return ['Patient', 'Claim Examiner'];
 }
 
 /** Display text for a role in the Paralegal / Authorized User picker; the posted value stays the role string. */

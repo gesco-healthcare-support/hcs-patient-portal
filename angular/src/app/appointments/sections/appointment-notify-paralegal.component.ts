@@ -28,12 +28,12 @@ import {
             (ngModelChange)="update({ enabled: $event })"
           />
           <label class="form-check-label fw-semibold" [for]="idPrefix + '-enabled'">
-            Send all notifications to my paralegal
+            Send all notifications to my paralegal instead of me
           </label>
         </div>
         <div class="text-secondary small mt-1">
-          Your paralegal is added as an authorized user on this case. You keep receiving every email
-          too.
+          Your paralegal is added as an Authorized User and gets every email about this case. You
+          get no emails for this case, but you can still sign in to see it.
         </div>
         @if (state.enabled) {
           <div class="row mt-3">

@@ -200,3 +200,12 @@ describe('AppointmentAddAuthorizedUsersComponent', () => {
     ]);
   });
 });
+
+describe('AppointmentAddAuthorizedUsersComponent booker box', () => {
+  it('declares the booker box inputs with the defaults the wizard relies on', () => {
+    const c = new AppointmentAddAuthorizedUsersComponent();
+    expect(c.showBookerFollows).toBeFalse();
+    expect(c.bookerFollows).toBeTrue();
+    expect(c.bookerFollowsDisabled).toBeFalse();
+  });
+});
