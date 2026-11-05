@@ -73,6 +73,7 @@ public class AccessorAddedEmailHandlerTests
         });
 
         await dispatcher.Received(1).DispatchAsync(
+            Arg.Any<NotificationCase>(),
             NotificationTemplateConsts.Codes.AccessorAppointmentAdded,
             Arg.Is<IReadOnlyCollection<NotificationRecipient>>(r => r.Any(x => x.Email == "accessor@example.test")),
             Arg.Any<IReadOnlyDictionary<string, object?>>(),
@@ -94,6 +95,7 @@ public class AccessorAddedEmailHandlerTests
         });
 
         await dispatcher.DidNotReceive().DispatchAsync(
+            Arg.Any<NotificationCase>(),
             Arg.Any<string>(),
             Arg.Any<IReadOnlyCollection<NotificationRecipient>>(),
             Arg.Any<IReadOnlyDictionary<string, object?>>(),
@@ -109,6 +111,7 @@ public class AccessorAddedEmailHandlerTests
         var dispatcher = Substitute.For<INotificationDispatcher>();
         dispatcher
             .DispatchAsync(
+                Arg.Any<NotificationCase>(),
                 Arg.Any<string>(),
                 Arg.Any<IReadOnlyCollection<NotificationRecipient>>(),
                 Arg.Any<IReadOnlyDictionary<string, object?>>(),
@@ -140,6 +143,7 @@ public class AccessorAddedEmailHandlerTests
         var dispatcher = Substitute.For<INotificationDispatcher>();
         dispatcher
             .DispatchAsync(
+                Arg.Any<NotificationCase>(),
                 Arg.Any<string>(),
                 Arg.Any<IReadOnlyCollection<NotificationRecipient>>(),
                 Arg.Any<IReadOnlyDictionary<string, object?>>(),

@@ -61,7 +61,9 @@ public class NotificationOutboxManager : DomainService
         Guid? packetId = null,
         PacketKind? packetKind = null,
         int maxAttempts = NotificationOutboxConsts.DefaultMaxAttempts,
-        IEnumerable<PacketAttachmentRef>? extraPacketRefs = null)
+        IEnumerable<PacketAttachmentRef>? extraPacketRefs = null,
+        bool? emailStopCheck = null,
+        Guid? emailStopCaseId = null)
     {
         Check.NotNullOrWhiteSpace(idempotencyKey, nameof(idempotencyKey));
 
@@ -75,6 +77,12 @@ public class NotificationOutboxManager : DomainService
         var item = new NotificationOutboxItem(
             _guidGenerator.Create(), tenantId, to, cc, subject, body, isBodyHtml, context,
             idempotencyKey, packetAppointmentId, packetId, packetKind, maxAttempts, extraPacketRefs);
+        // 2026-11-05: whether the drain re-checks this row against the staff email stops, and the case it
+        // is about (see NotificationOutboxItem.SetEmailStopCheck). Null = a caller that predates email stops.
+        if (emailStopCheck.HasValue)
+        {
+            item.SetEmailStopCheck(emailStopCheck.Value, emailStopCaseId);
+        }
         return await _outboxRepository.InsertAsync(item, autoSave: true);
     }
 

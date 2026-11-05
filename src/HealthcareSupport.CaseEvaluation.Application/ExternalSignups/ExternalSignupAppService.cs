@@ -1319,6 +1319,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             try
             {
                 await _notificationDispatcher.DispatchAsync(
+                    notificationCase: NotificationCase.None,
                     templateCode: NotificationTemplateConsts.Codes.InviteExternalUser,
                     recipients: new[]
                     {
@@ -1398,6 +1399,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             // because the caller still holds a copyable link; this flow has no such fallback, so a
             // silent failure would leave staff believing they had helped someone they had not.
             await _notificationDispatcher.DispatchAsync(
+                notificationCase: NotificationCase.None,
                 templateCode: NotificationTemplateConsts.Codes.ExternalUserPortalLink,
                 recipients: new[]
                 {
@@ -1506,6 +1508,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         try
         {
             await _notificationDispatcher.DispatchAsync(
+                notificationCase: NotificationCase.None,
                 templateCode: NotificationTemplateConsts.Codes.InviteExternalUser,
                 recipients: new[]
                 {

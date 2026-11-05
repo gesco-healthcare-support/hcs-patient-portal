@@ -20,6 +20,7 @@ public interface IPacketCopyDispatcher
     /// reference, the rest ride beside it). Empty recipients or an empty reference list is a no-op.
     /// </summary>
     Task DispatchWithPacketsAsync(
+        NotificationCase notificationCase,
         string templateCode,
         IReadOnlyCollection<NotificationRecipient> recipients,
         IReadOnlyDictionary<string, object?> variables,

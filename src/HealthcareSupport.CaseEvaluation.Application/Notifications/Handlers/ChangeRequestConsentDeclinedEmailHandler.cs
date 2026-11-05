@@ -108,6 +108,7 @@ public class ChangeRequestConsentDeclinedEmailHandler :
             try
             {
                 await _dispatcher.DispatchAsync(
+                    notificationCase: NotificationCase.Of(eventData.AppointmentId),
                     templateCode: NotificationTemplateConsts.Codes.ChangeRequestConsentDeclined,
                     recipients: recipients,
                     variables: variables,

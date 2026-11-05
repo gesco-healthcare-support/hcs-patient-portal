@@ -87,6 +87,7 @@ public class CaseEvaluationProfileAppService : ProfileAppService
             // authenticated user can change their password, so Patient is the
             // generic external tag here, consistent with the post-reset receipt.
             await _dispatcher.DispatchAsync(
+                notificationCase: NotificationCase.None,
                 templateCode: NotificationTemplateConsts.Codes.PasswordChange,
                 recipients: new[]
                 {

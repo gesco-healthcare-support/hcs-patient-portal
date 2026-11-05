@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.EmailStops;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.MultiTenancy;
 using HealthcareSupport.CaseEvaluation.Notifications;
@@ -46,6 +47,7 @@ public class CancellationRescheduleReminderJob : ITransientDependency
     private readonly ISettingProvider _settingProvider;
     private readonly ILogger<CancellationRescheduleReminderJob> _logger;
     private readonly IClock _clock;
+    private readonly IEmailStopPolicy _emailStopPolicy;
 
     public CancellationRescheduleReminderJob(
         IRepository<Appointment, Guid> appointmentRepository,
@@ -54,8 +56,10 @@ public class CancellationRescheduleReminderJob : ITransientDependency
         IBackgroundJobManager backgroundJobManager,
         ISettingProvider settingProvider,
         ILogger<CancellationRescheduleReminderJob> logger,
-        IClock clock)
+        IClock clock,
+        IEmailStopPolicy emailStopPolicy)
     {
+        _emailStopPolicy = emailStopPolicy;
         _appointmentRepository = appointmentRepository;
         _tenantWorkRunner = tenantWorkRunner;
         _recipientResolver = recipientResolver;
@@ -116,10 +120,23 @@ public class CancellationRescheduleReminderJob : ITransientDependency
             var recipients = await _recipientResolver.ResolveAsync(
                 appointment.Id,
                 NotificationKind.CancellationRescheduleReminder);
+            // 2026-11-05: this job enqueues the send job directly (no outbox), so it applies the staff email
+            // stops itself -- one lookup per appointment, over all its recipients.
+            var stops = await _emailStopPolicy.LookupAsync(recipients.Select(r => r.To), appointment.Id)
+                ?? EmailStopLookup.Empty;
             var subject = $"Reminder: cancellation/reschedule clock running for {appointment.RequestConfirmationNumber}";
             var body = $"<p>Per CCR Title 8 Sec. 34(e), the 60-day reschedule clock for confirmation #{appointment.RequestConfirmationNumber} continues. Please complete the action or extend the request.</p>";
             foreach (var args in recipients)
             {
+                if (stops.IsStopped(args.To, appointment.Id))
+                {
+                    _logger.LogInformation(
+                        "CancellationRescheduleReminderJob: email stopped by staff ({Scope}); {Address} left off appointment {AppointmentId}.",
+                        stops.ScopeOf(args.To, appointment.Id),
+                        EmailStopAddress.Mask(args.To),
+                        appointment.Id);
+                    continue;
+                }
                 args.Subject = subject;
                 args.Body = body;
                 args.IsBodyHtml = true;

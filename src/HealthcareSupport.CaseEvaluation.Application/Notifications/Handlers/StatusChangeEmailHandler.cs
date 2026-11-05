@@ -428,6 +428,7 @@ public class StatusChangeEmailHandler :
             rejectionNotes: null);
 
         await _dispatcher.DispatchAsync(
+            notificationCase: NotificationCase.Of(eventData.AppointmentId),
             templateCode: templateCode,
             recipients: staffRecipients,
             variables: vars,
@@ -533,6 +534,7 @@ public class StatusChangeEmailHandler :
         // The resolver's party set already carries the office inbox; the dispatcher
         // drops a CC equal to the To address and repeats within the CC list.
         await _dispatcher.DispatchToWithCcAsync(
+            notificationCase: NotificationCase.Of(eventData.AppointmentId),
             templateCode: NotificationTemplateConsts.Codes.PatientAppointmentInfoRequested,
             to: new NotificationRecipient(email: requesterEmail, isRegistered: true),
             cc: stakeholders,
@@ -594,6 +596,7 @@ public class StatusChangeEmailHandler :
         // and single-message dispatch were extracted to the shared
         // BookerCcDispatcher so the consolidated reminder reuses the same rule.
         return _bookerCcDispatcher.DispatchToBookerWithCcAsync(
+            notificationCase: NotificationCase.Of(ctx.AppointmentId),
             templateCode: templateCode,
             bookerEmail: ctx.PrimaryRecipientEmail ?? ctx.BookerEmail,
             stakeholders: recipients,

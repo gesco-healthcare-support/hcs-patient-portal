@@ -584,6 +584,21 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:Appointment.AccessorOtherSideNotAllowed";
 
     /// <summary>
+    /// 2026-11-05 -- staff tried to stop emails to an address that belongs to the portal itself: an internal
+    /// staff or shadow user, the office notification inbox, or a technical alert list. Only external people
+    /// can be stopped. Localization key <c>CaseEvaluation:EmailStop.InternalAddress</c>. 400.
+    /// </summary>
+    public const string EmailStopInternalAddress =
+        "CaseEvaluation:EmailStop.InternalAddress";
+
+    /// <summary>
+    /// 2026-11-05 -- the address given to "Stop emails" is not a valid email address. Localization key
+    /// <c>CaseEvaluation:EmailStop.InvalidEmail</c>. 400.
+    /// </summary>
+    public const string EmailStopInvalidEmail =
+        "CaseEvaluation:EmailStop.InvalidEmail";
+
+    /// <summary>
     /// Phase 13 (2026-05-04) -- raised by
     /// <c>AppointmentsAppService.GetAsync / GetWithNavigationPropertiesAsync /
     /// GetByConfirmationNumberAsync</c> when the caller is an external

@@ -30,6 +30,11 @@ public interface INotificationDispatcher
     /// enqueue an email + send an SMS for every recipient that has the
     /// matching channel configured.
     /// </summary>
+    /// <param name="notificationCase">
+    /// 2026-11-05: the appointment this email is about (<see cref="NotificationCase.Of"/>), or
+    /// <see cref="NotificationCase.None"/>. Staff email stops are applied to every recipient before
+    /// anything is written: a person stopped for this case or for all cases is left out.
+    /// </param>
     /// <param name="templateCode">
     /// Template-code key resolved via
     /// <c>INotificationTemplateRepository.FindByCodeAsync</c>. Throws
@@ -60,6 +65,7 @@ public interface INotificationDispatcher
     /// transport returns. Null = no attachment (normal email path).
     /// </param>
     Task DispatchAsync(
+        NotificationCase notificationCase,
         string templateCode,
         IReadOnlyCollection<NotificationRecipient> recipients,
         IReadOnlyDictionary<string, object?> variables,
@@ -77,6 +83,7 @@ public interface INotificationDispatcher
     /// shared by every recipient (so it must be non-role-aware).
     /// </summary>
     Task DispatchToWithCcAsync(
+        NotificationCase notificationCase,
         string templateCode,
         NotificationRecipient to,
         IReadOnlyCollection<NotificationRecipient> cc,

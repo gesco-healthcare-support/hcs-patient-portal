@@ -120,7 +120,7 @@ public class IntakeChangedEmailHandlerTests
     private static List<SentEmail> Sends(INotificationDispatcher dispatcher) =>
         dispatcher.ReceivedCalls()
             .Where(c => c.GetMethodInfo().Name == nameof(INotificationDispatcher.DispatchAsync))
-            .Select(c => c.GetArguments())
+            .Select(c => c.GetArguments().Skip(1).ToArray())
             .Select(a => new SentEmail(
                 (string)a[0]!,
                 (IReadOnlyCollection<NotificationRecipient>)a[1]!,
@@ -368,6 +368,7 @@ public class IntakeChangedEmailHandlerTests
             });
         rig.Dispatcher
             .DispatchAsync(
+                Arg.Any<NotificationCase>(),
                 Arg.Any<string>(), Arg.Any<IReadOnlyCollection<NotificationRecipient>>(),
                 Arg.Any<IReadOnlyDictionary<string, object?>>(), Arg.Any<string>(),
                 Arg.Any<PacketAttachmentRef?>(), Arg.Any<System.Threading.CancellationToken>())

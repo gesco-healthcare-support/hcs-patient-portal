@@ -174,7 +174,7 @@ public class AppointmentReminderEmailHandlerTests
     private static List<SentReminder> Sends(BookerCcDispatcher bookerCc) =>
         bookerCc.ReceivedCalls()
             .Where(c => c.GetMethodInfo().Name == nameof(BookerCcDispatcher.DispatchToBookerWithCcAsync))
-            .Select(c => c.GetArguments())
+            .Select(c => c.GetArguments().Skip(1).ToArray())
             .Select(a => new SentReminder(
                 (string)a[0]!,
                 (string?)a[1],

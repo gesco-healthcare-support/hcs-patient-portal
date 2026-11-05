@@ -113,7 +113,7 @@ public abstract class AccountActivationFlowTests<TStartupModule>
     private List<object?[]> Sends() =>
         _dispatcher.ReceivedCalls()
             .Where(c => c.GetMethodInfo().Name == nameof(INotificationDispatcher.DispatchAsync))
-            .Select(c => c.GetArguments())
+            .Select(c => c.GetArguments().Skip(1).ToArray())
             .ToList();
 
     // ------------------------------------------------------------------ the link
