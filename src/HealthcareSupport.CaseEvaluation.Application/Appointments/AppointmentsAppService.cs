@@ -95,8 +95,10 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     protected IPatientsAppService _patientsAppService;
     // Item B (2026-08-21): writes the child groups by delegating to their existing app services.
     protected AppointmentChildGroupWriter _childGroupWriter;
+    // 2026-11-06: who may start a re-evaluation from an earlier appointment, party or not.
+    protected ReEvaluationSourceAccess _reEvaluationSourceAccess;
 
-    public AppointmentsAppService(IAppointmentRepository appointmentRepository, AppointmentManager appointmentManager, IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid> patientRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> appointmentTypeRepository, IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> locationRepository, IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> doctorAvailabilityRepository, IRepository<HealthcareSupport.CaseEvaluation.Doctors.Doctor, Guid> doctorRepository, IApplicantAttorneyRepository applicantAttorneyRepository, IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, AppointmentApplicantAttorneyManager appointmentApplicantAttorneyManager, IDefenseAttorneyRepository defenseAttorneyRepository, IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository, DefenseAttorneyManager defenseAttorneyManager, AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager, IRepository<AppointmentInjuryDetail, Guid> appointmentInjuryDetailRepository, IRepository<AppointmentClaimExaminer, Guid> appointmentClaimExaminerRepository, ILocalEventBus localEventBus, BookingPolicyValidator bookingPolicyValidator, IRepository<AppointmentAccessor, Guid> appointmentAccessorRepository, IRepository<CustomFieldValue, Guid> customFieldValueRepository, ICustomFieldRepository customFieldRepository, AppointmentReadAccessGuard readAccessGuard, IStringLocalizer<CaseEvaluationResource> localizer, AppointmentVisibilityService appointmentVisibilityService, RequestConfirmationNumberGenerator confirmationNumberGenerator, RescheduleChainResolver rescheduleChainResolver, IPatientsAppService patientsAppService, AppointmentChildGroupWriter childGroupWriter, HealthcareSupport.CaseEvaluation.Patients.PatientBookingReadAccess patientBookingReadAccess)
+    public AppointmentsAppService(IAppointmentRepository appointmentRepository, AppointmentManager appointmentManager, IRepository<HealthcareSupport.CaseEvaluation.Patients.Patient, Guid> patientRepository, IRepository<Volo.Abp.Identity.IdentityUser, Guid> identityUserRepository, IRepository<HealthcareSupport.CaseEvaluation.AppointmentTypes.AppointmentType, Guid> appointmentTypeRepository, IRepository<HealthcareSupport.CaseEvaluation.Locations.Location, Guid> locationRepository, IRepository<HealthcareSupport.CaseEvaluation.DoctorAvailabilities.DoctorAvailability, Guid> doctorAvailabilityRepository, IRepository<HealthcareSupport.CaseEvaluation.Doctors.Doctor, Guid> doctorRepository, IApplicantAttorneyRepository applicantAttorneyRepository, IAppointmentApplicantAttorneyRepository appointmentApplicantAttorneyRepository, ApplicantAttorneyManager applicantAttorneyManager, AppointmentApplicantAttorneyManager appointmentApplicantAttorneyManager, IDefenseAttorneyRepository defenseAttorneyRepository, IAppointmentDefenseAttorneyRepository appointmentDefenseAttorneyRepository, DefenseAttorneyManager defenseAttorneyManager, AppointmentDefenseAttorneyManager appointmentDefenseAttorneyManager, IRepository<AppointmentInjuryDetail, Guid> appointmentInjuryDetailRepository, IRepository<AppointmentClaimExaminer, Guid> appointmentClaimExaminerRepository, ILocalEventBus localEventBus, BookingPolicyValidator bookingPolicyValidator, IRepository<AppointmentAccessor, Guid> appointmentAccessorRepository, IRepository<CustomFieldValue, Guid> customFieldValueRepository, ICustomFieldRepository customFieldRepository, AppointmentReadAccessGuard readAccessGuard, IStringLocalizer<CaseEvaluationResource> localizer, AppointmentVisibilityService appointmentVisibilityService, RequestConfirmationNumberGenerator confirmationNumberGenerator, RescheduleChainResolver rescheduleChainResolver, IPatientsAppService patientsAppService, AppointmentChildGroupWriter childGroupWriter, HealthcareSupport.CaseEvaluation.Patients.PatientBookingReadAccess patientBookingReadAccess, ReEvaluationSourceAccess reEvaluationSourceAccess)
     {
         _rescheduleChainResolver = rescheduleChainResolver;
         _patientBookingReadAccess = patientBookingReadAccess;
@@ -129,6 +131,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         _confirmationNumberGenerator = confirmationNumberGenerator;
         _patientsAppService = patientsAppService;
         _childGroupWriter = childGroupWriter;
+        _reEvaluationSourceAccess = reEvaluationSourceAccess;
     }
     [Authorize]
     public virtual async Task<PagedResultDto<AppointmentWithNavigationPropertiesDto>> GetListAsync(GetAppointmentsInput input)
@@ -284,21 +287,22 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
 
     /// <summary>
     /// Phase 13 (2026-05-04) -- look up by confirmation number. Same
-    /// access policy as GetWithNavigationPropertiesAsync. Returns null
-    /// when no row matches; throws BusinessException(AccessDenied)
-    /// when a row exists but the caller cannot read it (so callers
-    /// cannot probe the confirmation-number space to discover that
-    /// other tenants' rows exist).
+    /// access policy as GetWithNavigationPropertiesAsync.
+    ///
+    /// <para>2026-11-06: returns null BOTH when no row matches and when a row exists that the
+    /// caller cannot read. It used to throw AccessDenied for the second, so inside one office a
+    /// signed-in caller could tell which (sequential, guessable) numbers had been issued -- the
+    /// disclosure the submit path's <see cref="LoadReadableSourceAsync"/> was already built to
+    /// avoid. Another office's rows were never visible here (the tenant filter hides them).</para>
     /// </summary>
     [Authorize]
     public virtual async Task<AppointmentWithNavigationPropertiesDto?> GetByConfirmationNumberAsync(string requestConfirmationNumber)
     {
         var appointment = await _appointmentRepository.FindByConfirmationNumberAsync(requestConfirmationNumber);
-        if (appointment == null)
+        if (appointment == null || !await _readAccessGuard.CanReadAsync(appointment))
         {
             return null;
         }
-        await EnsureCanReadAppointmentAsync(appointment);
         var dto = ObjectMapper.Map<AppointmentWithNavigationProperties, AppointmentWithNavigationPropertiesDto>(
             (await _appointmentRepository.GetWithNavigationPropertiesAsync(appointment.Id))!);
         ExternalUserDtoFilter.MaskInternalFields(dto, IsExternalCaller());
@@ -385,17 +389,12 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     /// Extracted to <see cref="AppointmentReadAccessGuard"/> 2026-05-13
     /// (Issue #114) so the same rule is enforced uniformly across
     /// AppointmentsAppService and AppointmentDocumentsAppService. The
-    /// two private wrappers below remain to keep call-sites in this
-    /// file unchanged.
+    /// private wrapper below remains to keep call-sites in this file
+    /// unchanged.
     /// </summary>
     private async Task EnsureCanReadAsync(Guid appointmentId)
     {
         await _readAccessGuard.EnsureCanReadAsync(appointmentId);
-    }
-
-    private async Task EnsureCanReadAppointmentAsync(Appointment appointment)
-    {
-        await _readAccessGuard.EnsureCanReadAsync(appointment);
     }
 
     // T3 minimum-bar lookup scope. NOTE (2026-09-27): this comment used to justify the
@@ -781,11 +780,14 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
 
         try
         {
-            await ResolvePatientForSubmitAsync(input, result);
+            // 2026-11-06: the source is resolved FIRST. A re-evaluation proven by the patient's date
+            // of birth is what entitles a non-party to book for that patient, so the patient check
+            // below needs its answer. Neither step writes, so the order changes no outcome.
+            var lifecycle = await ResolveSubmitLifecycleAsync(input);
+
+            await ResolvePatientForSubmitAsync(input, result, lifecycle.SourcePatientIdProvenByDateOfBirth);
 
             await ApplyPatientUpdateForSubmitAsync(input, result);
-
-            var lifecycle = await ResolveSubmitLifecycleAsync(input);
 
             var created = await CreateAppointmentInternalAsync(
                 MapSubmitToCreate(input, result),
@@ -881,14 +883,22 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     /// </summary>
     private async Task ResolvePatientForSubmitAsync(
         AppointmentSubmitDto input,
-        AppointmentSubmitResultDto result)
+        AppointmentSubmitResultDto result,
+        Guid? sourcePatientIdProvenByDateOfBirth)
     {
         if (input.PatientId.HasValue && input.PatientId.Value != Guid.Empty)
         {
             // A supplied id is not entitlement: the caller must be allowed to read this patient
             // (staff, the patient's own login, or a party under the typeahead rule). Runs before
             // anything is written, so a refused id changes nothing.
-            await _patientBookingReadAccess.EnsureCanBookForAsync(input.PatientId.Value);
+            //
+            // 2026-11-06: one more way in. A re-evaluation whose earlier appointment the caller
+            // proved with the patient's date of birth entitles them to book for THAT appointment's
+            // patient, and for no other: any other id still goes through the check.
+            if (input.PatientId.Value != sourcePatientIdProvenByDateOfBirth)
+            {
+                await _patientBookingReadAccess.EnsureCanBookForAsync(input.PatientId.Value);
+            }
 
             result.PatientId = input.PatientId.Value;
             result.PatientAlreadyExisted = true;
@@ -911,12 +921,17 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     /// (<c>OriginalAppointmentId</c>), re-book on the replacement chain
     /// (<c>RescheduledFromAppointmentId</c>) -- they are NOT interchangeable, because the Case
     /// Tracker reads them differently.
+    ///
+    /// <para><c>SourcePatientIdProvenByDateOfBirth</c> (2026-11-06) is set only for a re-evaluation
+    /// whose caller is not a party to the source and proved it with the patient's date of birth:
+    /// it names the one patient that proof lets them book for.</para>
     /// </summary>
     private sealed record SubmitLifecycle(
         AppointmentLifecycleFlow? Flow,
         string? SourceConfirmationNumber,
         Guid? OriginalAppointmentId,
-        Guid? RescheduledFromAppointmentId);
+        Guid? RescheduledFromAppointmentId,
+        Guid? SourcePatientIdProvenByDateOfBirth = null);
 
     /// <summary>
     /// Resolves a submit's booking mode into the same lifecycle arguments the three standalone
@@ -951,6 +966,12 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentSubmitSourceRequired);
         }
 
+        if (input.Mode == BookingSubmitMode.Reval)
+        {
+            return await ResolveRevalSubmitLifecycleAsync(
+                input.SourceConfirmationNumber, input.SourcePatientDateOfBirth);
+        }
+
         var source = await LoadReadableSourceAsync(input.SourceConfirmationNumber);
 
         switch (input.Mode)
@@ -965,14 +986,6 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
                     null,
                     source.Id);
 
-            case BookingSubmitMode.Reval:
-                // The role is read at gate time, not request time -- mirrors CreateRevalAsync, which
-                // mirrors OLD AppointmentDomain.cs, so admin and non-admin callers get distinct
-                // refusals.
-                _appointmentManager.EnsureRevalSourceEligible(source, CurrentUser.IsInRole("IT Admin"));
-                return new SubmitLifecycle(
-                    AppointmentLifecycleFlow.Reval, source.RequestConfirmationNumber, source.Id, null);
-
             case BookingSubmitMode.ReBook:
                 await _appointmentManager.EnsureReBookSourceEligibleAsync(
                     source, BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles));
@@ -984,6 +997,41 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
                 // here, and silently dropping the chain link is the expensive kind of wrong.
                 throw new AbpException($"Unhandled {nameof(BookingSubmitMode)}: {input.Mode}.");
         }
+    }
+
+    /// <summary>
+    /// The re-evaluation half of <see cref="ResolveSubmitLifecycleAsync"/> (2026-11-06, R2c).
+    ///
+    /// <para>A party to the source is handled exactly as before: the read-access guard admits them
+    /// and the status gate gives its specific refusals. Anyone else may follow on only with the
+    /// patient's date of birth, checked HERE rather than trusted from the earlier lookup, and
+    /// throttled with it. For them every refusal -- no such number, a wrong date, a source that
+    /// cannot be re-evaluated -- is the same not-found the guard gives, so the submit is no more of
+    /// an oracle than the lookup.</para>
+    /// </summary>
+    private async Task<SubmitLifecycle> ResolveRevalSubmitLifecycleAsync(
+        string sourceConfirmationNumber,
+        DateTime? sourcePatientDateOfBirth)
+    {
+        var match = await _reEvaluationSourceAccess.FindAsync(sourceConfirmationNumber, sourcePatientDateOfBirth)
+            ?? throw new EntityNotFoundException(typeof(Appointment), sourceConfirmationNumber);
+        var source = match.Source;
+
+        if (!match.CallerIsParty)
+        {
+            return new SubmitLifecycle(
+                AppointmentLifecycleFlow.Reval,
+                source.RequestConfirmationNumber,
+                source.Id,
+                null,
+                SourcePatientIdProvenByDateOfBirth: source.PatientId);
+        }
+
+        // The role is read at gate time, not request time -- mirrors CreateRevalAsync, which
+        // mirrors OLD AppointmentDomain.cs, so admin and non-admin callers get distinct refusals.
+        _appointmentManager.EnsureRevalSourceEligible(source, CurrentUser.IsInRole("IT Admin"));
+        return new SubmitLifecycle(
+            AppointmentLifecycleFlow.Reval, source.RequestConfirmationNumber, source.Id, null);
     }
 
     /// <summary>
@@ -1804,37 +1852,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     {
         await EnsureCanReadAsync(appointmentId);
         var items = await _appointmentApplicantAttorneyRepository.GetListWithNavigationPropertiesAsync(appointmentId: appointmentId, maxResultCount: 1);
-        var item = items.FirstOrDefault();
-        // BUG-042: return the attorney as soon as the master record exists.
-        // The IdentityUser is optional -- a booked attorney who never
-        // registered has no IdentityUser, but the booked name/firm/email
-        // still live on the master and must display.
-        if (item?.ApplicantAttorney == null)
-        {
-            return null;
-        }
-
-        var a = item.ApplicantAttorney;
-        var u = item.IdentityUser;
-        return new ApplicantAttorneyDetailsDto
-        {
-            ApplicantAttorneyId = a.Id,
-            IdentityUserId = u?.Id ?? Guid.Empty,
-            // Prefer the stored (booked) name; fall back to the IdentityUser
-            // name only for legacy rows persisted before the name columns.
-            FirstName = a.FirstName ?? u?.Name ?? string.Empty,
-            LastName = a.LastName ?? u?.Surname ?? string.Empty,
-            Email = a.Email ?? u?.Email ?? string.Empty,
-            FirmName = a.FirmName,
-            WebAddress = a.WebAddress,
-            PhoneNumber = a.PhoneNumber,
-            FaxNumber = a.FaxNumber,
-            Street = a.Street,
-            City = a.City,
-            StateId = a.StateId,
-            ZipCode = a.ZipCode,
-            ConcurrencyStamp = a.ConcurrencyStamp,
-        };
+        return AppointmentAttorneyDetails.From(items.FirstOrDefault());
     }
 
     [Authorize]
@@ -2085,35 +2103,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     {
         await EnsureCanReadAsync(appointmentId);
         var items = await _appointmentDefenseAttorneyRepository.GetListWithNavigationPropertiesAsync(appointmentId: appointmentId, maxResultCount: 1);
-        var item = items.FirstOrDefault();
-        // BUG-042: return the attorney as soon as the master record exists;
-        // the IdentityUser is optional (unregistered booked attorney).
-        if (item?.DefenseAttorney == null)
-        {
-            return null;
-        }
-
-        var d = item.DefenseAttorney;
-        var u = item.IdentityUser;
-        return new DefenseAttorneyDetailsDto
-        {
-            DefenseAttorneyId = d.Id,
-            IdentityUserId = u?.Id ?? Guid.Empty,
-            // Prefer the stored (booked) name; fall back to IdentityUser
-            // only for legacy rows persisted before the name columns.
-            FirstName = d.FirstName ?? u?.Name ?? string.Empty,
-            LastName = d.LastName ?? u?.Surname ?? string.Empty,
-            Email = d.Email ?? u?.Email ?? string.Empty,
-            FirmName = d.FirmName,
-            WebAddress = d.WebAddress,
-            PhoneNumber = d.PhoneNumber,
-            FaxNumber = d.FaxNumber,
-            Street = d.Street,
-            City = d.City,
-            StateId = d.StateId,
-            ZipCode = d.ZipCode,
-            ConcurrencyStamp = d.ConcurrencyStamp,
-        };
+        return AppointmentAttorneyDetails.From(items.FirstOrDefault());
     }
 
     [Authorize]

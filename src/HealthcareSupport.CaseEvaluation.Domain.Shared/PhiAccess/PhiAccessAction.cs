@@ -36,4 +36,18 @@ public enum PhiAccessAction
     /// recorded by the server first). One row per appointment in it.
     /// </summary>
     AppointmentListCsvExported = 9,
+
+    /// <summary>
+    /// Loaded an earlier appointment to start a re-evaluation by its confirmation number and the
+    /// patient's date of birth, as someone who is NOT a party to it (2026-11-06). A party loading
+    /// its own case is recorded as <see cref="AppointmentViewed"/>.
+    /// </summary>
+    ReEvaluationSourceLoadedByDateOfBirth = 10,
+
+    /// <summary>
+    /// A re-evaluation lookup by confirmation number and date of birth that loaded nothing: no such
+    /// number, a wrong date of birth, or a case that cannot be re-evaluated (2026-11-06). Recorded
+    /// with no patient or appointment, because the refusal must not say which one was meant.
+    /// </summary>
+    ReEvaluationSourceLookupRefused = 11,
 }

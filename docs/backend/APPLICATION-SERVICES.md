@@ -126,6 +126,7 @@ authorization snapshot is not, by itself, proof of a reachable endpoint.
 | Service | What it owns |
 |---|---|
 | `AppointmentsAppService` | Booking (single transaction), reading and updating appointments, approve / reject |
+| `ReEvaluationSourcesAppService` | The earlier appointment a re-evaluation follows from, by confirmation number and patient date of birth |
 | `PatientsAppService` | Patient records, the booking-time patient lookup and create, the self-service profile, SSN reveal |
 | `DoctorAvailabilitiesAppService` | Availability slots: CRUD, bulk generation preview and save, schedule views |
 | `ExternalSignupAppService` | External self-registration and the external-user invitation lifecycle |
@@ -157,7 +158,7 @@ Pending.
 | `GetWithNavigationPropertiesAsync` | One appointment with navigation properties, behind the read-access guard, SSN-masked. |
 | `GetAppointmentCustomFieldValuesAsync` | The custom-field answers recorded for an appointment. |
 | `GetAsync` | One appointment entity, without navigation properties. |
-| `GetByConfirmationNumberAsync` | Look up an appointment by its confirmation number, with the same guard and masking. |
+| `GetByConfirmationNumberAsync` | Look up an appointment by its confirmation number, with the same guard and masking. A number the caller cannot read returns null, exactly like a number nobody issued (2026-11-06). |
 | `SubmitAsync` | **The booking entry point the SPA uses.** One transaction; see [Booking](#booking-submitasync). |
 | `CreateAsync` | Create one appointment from a create DTO, for API callers. Runs the same validation as `SubmitAsync`. |
 | `ReSubmitAsync` | Book again against a prior appointment, identified by its confirmation number (resubmit flow). |
@@ -185,14 +186,18 @@ Pending.
 `SubmitAsync` carries `[UnitOfWork]`, so a throw anywhere rolls back the patient, the appointment and every child row
 together. In order:
 
-1. **Resolve the patient** (`ResolvePatientForSubmitAsync`). It uses the supplied patient id, or
+1. **Resolve the booking mode** (`ResolveSubmitLifecycleAsync`): a plain booking, a resubmit, a re-evaluation or a
+   rebook. Every mode but plain needs a source confirmation number, and an unmapped mode throws. A re-evaluation
+   by someone who is not a party to the source must send the patient's date of birth
+   (`SourcePatientDateOfBirth`); it is checked here again (`ReEvaluationSourceAccess`), never trusted from the
+   earlier lookup.
+2. **Resolve the patient** (`ResolvePatientForSubmitAsync`). It uses the supplied patient id, or
    `PatientsAppService.GetOrCreatePatientForAppointmentBookingAsync`
-   (see [PatientsAppService](#getorcreatepatientforappointmentbookingasync)).
-2. **Apply the booker's edits** to that patient's profile (`ApplyPatientUpdateForSubmitAsync`), but only when the
+   (see [PatientsAppService](#getorcreatepatientforappointmentbookingasync)). A supplied id must be one the caller
+   may book for; a re-evaluation proven by date of birth adds exactly one: the source appointment's patient.
+3. **Apply the booker's edits** to that patient's profile (`ApplyPatientUpdateForSubmitAsync`), but only when the
    booker may edit that patient: internal staff, or the patient's own login (`PatientBookingEditAccess`). For any
    other booker the edits are skipped and the booking still goes ahead.
-3. **Resolve the booking mode** (`ResolveSubmitLifecycleAsync`): a plain booking, a resubmit, a re-evaluation or a
-   rebook. Every mode but plain needs a source confirmation number, and an unmapped mode throws.
 4. **Create the appointment** (`CreateAppointmentInternalAsync`), then flush without committing.
 5. **Upsert the applicant and defense attorneys**, then write the child rows (`AppointmentChildGroupWriter.WriteAllAsync`).
 6. **Publish events only after the commit.** Handlers run inline at publish, so they are deferred to the unit of work's
@@ -228,6 +233,26 @@ A booking does **not** change the slot's `BookingStatusId`. Capacity is the acti
 approval side effects before the attorney and child rows existed, and it bypassed the injury and claim-examiner approval
 gates. `ApproveAsync` and `RejectAsync` are this service's transitions out of Pending. After approval the appointment goes
 to the Case Tracker, which owns what happens next.
+
+### Re-evaluation by a non-party (`ReEvaluationSourcesAppService`)
+
+`POST api/app/re-evaluation-sources/lookup` (hand-written controller; the service is not auto-exposed) takes a
+confirmation number and the patient's date of birth in the body, so neither lands in a URL or an access log. It is
+open to every caller who may book (`Appointments.Create`), because the office decided patients and all external
+parties may re-evaluate (2026-11-06).
+
+- **Who gets what** (`ReEvaluationSourceAccess`): a caller who can already read the earlier appointment gets it as
+  before. Anyone else needs a matching date of birth (the patient record or the copy on the appointment) and an
+  appointment that can be re-evaluated. Every other outcome is the same `null`.
+- **What a non-party sees:** the appointment, patient, employer, injuries, claim examiner, insurance and both
+  attorneys, which is what the booking form copies. Not the Authorized Users, not the patient's or the booker's
+  login, and no Social Security number.
+- **Throttled** by `ReEvaluationLookupThrottle`, before the match: 10 an hour per account and 30 per network
+  address, shared with the submit's date-of-birth check. It fails open if the cache is down, like the account
+  throttles. Over the limit is `ReEvaluationLookupThrottled`, HTTP 429.
+- **Logged** in the PHI access log: a party's load as `AppointmentViewed`, a non-party's as
+  `ReEvaluationSourceLoadedByDateOfBirth`, and every refusal as `ReEvaluationSourceLookupRefused` with no patient or
+  appointment named.
 
 ### Confirmation numbers
 
