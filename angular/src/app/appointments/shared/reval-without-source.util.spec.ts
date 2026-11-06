@@ -1,5 +1,5 @@
 import { BookingSubmitMode } from '../../proxy/enums/booking-submit-mode.enum';
-import { canOfferRevalWithoutSource, isRevalWithoutSource } from './reval-without-source.util';
+import { isRevalWithoutSource } from './reval-without-source.util';
 
 describe('reval-without-source util', () => {
   it('uses the server wire value 4', () => {
@@ -12,12 +12,5 @@ describe('reval-without-source util', () => {
     expect(isRevalWithoutSource('reBook', true)).toBeFalse();
     expect(isRevalWithoutSource('reRequest', true)).toBeFalse();
     expect(isRevalWithoutSource('new', true)).toBeFalse();
-  });
-
-  it('offers the option only for a re-evaluation with no source loaded', () => {
-    expect(canOfferRevalWithoutSource('reval', null)).toBeTrue();
-    expect(canOfferRevalWithoutSource('reval', 'C0001')).toBeFalse();
-    expect(canOfferRevalWithoutSource('reBook', null)).toBeFalse();
-    expect(canOfferRevalWithoutSource('new', null)).toBeFalse();
   });
 });

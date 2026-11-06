@@ -80,12 +80,22 @@ import { AddressFieldMap } from '../shared/address/address-autocomplete.componen
 import { resolveStateId, StateLookupOption } from '../shared/address/state-resolver';
 import { AddressChoice, AddressDiffItem } from '../shared/address/confirm-address-dialog.component';
 import { NgbDateStruct } from '@ng-bootstrap/ng-bootstrap';
-import type { AppointmentDto, AppointmentSubmitDto } from '../proxy/appointments/models';
+import type {
+  AppointmentDto,
+  AppointmentSubmitDto,
+  ReEvaluationSourceDto,
+} from '../proxy/appointments/models';
 import { BookingSubmitMode } from '../proxy/enums/booking-submit-mode.enum';
+import { isRevalWithoutSource } from './shared/reval-without-source.util';
 import {
-  canOfferRevalWithoutSource,
-  isRevalWithoutSource,
-} from './shared/reval-without-source.util';
+  NO_SOURCE_FOUND_ADD_DOB_MESSAGE,
+  NO_SOURCE_FOUND_FOR_DOB_MESSAGE,
+  sectionsFromLookup,
+  showsSourceDateOfBirth,
+  usesDateOfBirthLookup,
+  type SourceSections,
+} from './shared/reval-lookup.util';
+import { ReEvaluationSourcesService } from '../proxy/appointments/re-evaluation-sources.service';
 import {
   REVAL_ENTRY_CARDS,
   showPrefillBanner,
@@ -190,6 +200,8 @@ export class AppointmentAddComponent {
   // G-01-07: proxy service for the reval/re-request endpoints
   // (getByConfirmationNumber + createReval + reSubmit).
   private readonly appointmentProxyService = inject(AppointmentService);
+  // 2026-11-06: a re-evaluation by someone who is not a party loads by number + patient date of birth.
+  private readonly reEvaluationSourcesService = inject(ReEvaluationSourcesService);
   private readonly appointmentApprovalService = inject(AppointmentApprovalService);
   // B1 (2026-05-05): per-AppointmentType custom-field catalog fetcher.
   private readonly customFieldsService = inject(CustomFieldsService);
@@ -389,6 +401,16 @@ export class AppointmentAddComponent {
   // for prefill. Null until loaded; gates the reval/re-request submit path.
   sourceConfirmationNumber: string | null = null;
   /**
+   * 2026-11-06: the patient date of birth (yyyy-MM-dd) that let an outside booker who is NOT a party
+   * load the source. Sent with the submit, where the server checks it again; null when the booker is
+   * a party (or staff) and the ordinary read was enough.
+   */
+  sourcePatientDateOfBirth: string | null = null;
+  /** The date-of-birth box's current text, read when "Load prior appointment" is pressed. */
+  sourceDateOfBirthInput = '';
+  /** The number box's starting text: a "Request re-evaluation" link that failed to load leaves it filled in. */
+  prefillSourceNumber = '';
+  /**
    * Reval mode only: the booker ticked "The first evaluation was not booked in this portal". The
    * form is then an ordinary blank one and no source is required or sent.
    */
@@ -460,9 +482,9 @@ export class AppointmentAddComponent {
     return isRevalWithoutSource(this.bookingMode, this.revalWithoutSource);
   }
 
-  /** Whether the "not booked in this portal" choice is shown (reval, nothing loaded yet). */
-  get showRevalWithoutSourceOption(): boolean {
-    return canOfferRevalWithoutSource(this.bookingMode, this.sourceConfirmationNumber);
+  /** The patient date-of-birth box next to the number: outside bookers in re-evaluation mode. */
+  get showSourceDateOfBirth(): boolean {
+    return showsSourceDateOfBirth(this.bookingMode, this.isInternalBooker);
   }
 
   setRevalWithoutSource(checked: boolean): void {
@@ -1030,10 +1052,7 @@ export class AppointmentAddComponent {
         ) {
           this.isAutoLoadingSource = true;
           this.isProfileLoading = false;
-          void this.loadSourceForPrefill(
-            source,
-            this.bookingMode === 'reBook' ? 'reBook' : 'reval',
-          );
+          void this.autoLoadSource(source, this.bookingMode === 'reBook' ? 'reBook' : 'reval');
         }
       }
     });
@@ -1771,7 +1790,30 @@ export class AppointmentAddComponent {
     }
     // Item 4 (2026-08-18): the same lookup control serves re-book. The method keeps its
     // reval name because the live template binds it; only the flow it requests differs.
-    void this.loadSourceForPrefill(conf, this.isReBook ? 'reBook' : 'reval');
+    void this.loadSourceForPrefill(
+      conf,
+      this.isReBook ? 'reBook' : 'reval',
+      this.sourceDateOfBirthInput,
+    );
+  }
+
+  /**
+   * The "Request re-evaluation" and "Book again" links carry the source and load it on arrival.
+   * 2026-11-06: when a re-evaluation link does not load (the case changed since, say), the booker is
+   * left where a typed lookup would leave them -- the number path chosen, the number filled in, the
+   * reason on screen -- and their own profile loads, as for any re-evaluation started by hand. The
+   * reason used to be hidden: it renders inside the lookup box, which stays closed until a path is
+   * chosen.
+   */
+  private async autoLoadSource(source: string, flow: 'reval' | 'reBook'): Promise<void> {
+    await this.loadSourceForPrefill(source, flow);
+    if (flow !== 'reval' || this.sourceConfirmationNumber) {
+      return;
+    }
+    this.revalEntryChoice = 'number';
+    this.prefillSourceNumber = source;
+    this.isAutoLoadingSource = false;
+    this.loadCurrentPatientProfile();
   }
 
   /**
@@ -1785,8 +1827,12 @@ export class AppointmentAddComponent {
   private async loadSourceForPrefill(
     confirmationNumber: string,
     flow: 'reval' | 'reRequest' | 'reBook',
+    patientDateOfBirth?: string | null,
   ): Promise<void> {
     if (this.isLoadingSource) return;
+    if (usesDateOfBirthLookup(flow, patientDateOfBirth, this.isInternalBooker)) {
+      return this.loadSourceByDateOfBirth(confirmationNumber, (patientDateOfBirth ?? '').trim());
+    }
     this.isLoadingSource = true;
     this.sourceLoadMessage = '';
     try {
@@ -1801,7 +1847,7 @@ export class AppointmentAddComponent {
       );
       const appt = source?.appointment;
       if (!appt?.id) {
-        this.sourceLoadMessage = NO_SOURCE_FOUND_MESSAGE;
+        this.sourceLoadMessage = this.notFoundMessage(flow);
         return;
       }
       const gate = this.checkSourceStatusForFlow(appt.appointmentStatus, flow);
@@ -1816,8 +1862,68 @@ export class AppointmentAddComponent {
         source.primaryInsurance ?? null,
       );
       this.sourceConfirmationNumber = confirmationNumber;
+      this.sourcePatientDateOfBirth = null;
       // #604: name any sub-resource that did not copy across instead of reporting a clean load
       // over the top of a partial one.
+      this.sourceLoadMessage =
+        sourcePrefillWarning(this.sourcePrefillFailures) ?? SOURCE_LOADED_MESSAGE;
+    } catch (err: unknown) {
+      const message = sourceLoadFailureMessage(err);
+      this.sourceLoadMessage =
+        message === NO_SOURCE_FOUND_MESSAGE ? this.notFoundMessage(flow) : message;
+    } finally {
+      this.isLoadingSource = false;
+    }
+  }
+
+  /**
+   * 2026-11-06: an outside booker re-evaluating gets told what to add (the patient's date of birth),
+   * because "not found" now also means "not yours" -- the server answers both the same way.
+   */
+  private notFoundMessage(flow: 'reval' | 'reRequest' | 'reBook'): string {
+    return flow === 'reval' && this.showSourceDateOfBirth
+      ? NO_SOURCE_FOUND_ADD_DOB_MESSAGE
+      : NO_SOURCE_FOUND_MESSAGE;
+  }
+
+  /**
+   * 2026-11-06 (R2c): the load for an outside booker who typed the patient's date of birth. One call
+   * returns everything the form copies, so a booker who is not a party to the earlier appointment
+   * (whose per-appointment reads would be refused) can still prefill. The date is kept and sent with
+   * the submit, where the server checks it again; a party's load needs no date, so none is kept.
+   */
+  private async loadSourceByDateOfBirth(
+    confirmationNumber: string,
+    patientDateOfBirth: string,
+  ): Promise<void> {
+    this.isLoadingSource = true;
+    this.sourceLoadMessage = '';
+    try {
+      const found = await firstValueFrom(
+        this.reEvaluationSourcesService.lookup(
+          { confirmationNumber, patientDateOfBirth },
+          { skipHandleError: true },
+        ),
+      );
+      const appt = found?.source?.appointment;
+      if (!found || !appt?.id) {
+        this.sourceLoadMessage = NO_SOURCE_FOUND_FOR_DOB_MESSAGE;
+        return;
+      }
+      const gate = this.checkSourceStatusForFlow(appt.appointmentStatus, 'reval');
+      if (gate) {
+        this.sourceLoadMessage = gate;
+        return;
+      }
+      await this.applySourceToForm(
+        appt,
+        found.source?.patient ?? null,
+        found.source?.claimExaminer ?? null,
+        found.source?.primaryInsurance ?? null,
+        found,
+      );
+      this.sourceConfirmationNumber = confirmationNumber;
+      this.sourcePatientDateOfBirth = found.callerIsParty ? null : patientDateOfBirth;
       this.sourceLoadMessage =
         sourcePrefillWarning(this.sourcePrefillFailures) ?? SOURCE_LOADED_MESSAGE;
     } catch (err: unknown) {
@@ -1856,28 +1962,20 @@ export class AppointmentAddComponent {
   }
 
   /** Fetch the source child intake (same endpoints the view page uses) and
-   * apply it to the form + drafts. */
+   * apply it to the form + drafts. 2026-11-06: with a re-evaluation lookup's answer, the sections
+   * come from it instead (see {@link lookupSections}). */
   private async applySourceToForm(
     appt: AppointmentDto,
     patient: PatientDto | null,
     claimExaminer: AppointmentClaimExaminerDto | null,
     primaryInsurance: AppointmentPrimaryInsuranceDto | null,
+    lookup?: ReEvaluationSourceDto,
   ): Promise<void> {
     const id = appt.id!;
     this.sourcePrefillFailures = [];
-    const [employer, applicantAttorney, defenseAttorney, injuries, accessors] = await Promise.all([
-      this.fetchSourceEmployer(id),
-      this.fetchSourceAppointmentResource(
-        `/api/app/appointments/${id}/applicant-attorney`,
-        'applicant attorney',
-      ),
-      this.fetchSourceAppointmentResource(
-        `/api/app/appointments/${id}/defense-attorney`,
-        'defense attorney',
-      ),
-      this.fetchSourceInjuries(id),
-      this.fetchSourceAccessors(id),
-    ]);
+    const { employer, applicantAttorney, defenseAttorney, injuries, accessors } = lookup
+      ? await this.lookupSections(lookup, id)
+      : await this.fetchSourceSections(id);
 
     this.applySourcePatient(patient);
 
@@ -1919,6 +2017,34 @@ export class AppointmentAddComponent {
     // slot fetch with both present). Two calls keep the ordering explicit.
     this.form.patchValue({ locationId: appt.locationId ?? null });
     this.form.patchValue({ appointmentTypeId: appt.appointmentTypeId ?? null });
+  }
+
+  /** The five per-appointment reads, for a booker who may read the earlier appointment. */
+  private async fetchSourceSections(id: string): Promise<SourceSections> {
+    const [employer, applicantAttorney, defenseAttorney, injuries, accessors] = await Promise.all([
+      this.fetchSourceEmployer(id),
+      this.fetchSourceAppointmentResource(
+        `/api/app/appointments/${id}/applicant-attorney`,
+        'applicant attorney',
+      ),
+      this.fetchSourceAppointmentResource(
+        `/api/app/appointments/${id}/defense-attorney`,
+        'defense attorney',
+      ),
+      this.fetchSourceInjuries(id),
+      this.fetchSourceAccessors(id),
+    ]);
+    return { employer, applicantAttorney, defenseAttorney, injuries, accessors };
+  }
+
+  /**
+   * 2026-11-06: the sections from the re-evaluation lookup's answer. The Authorized Users are not in
+   * it; a party still reads them as before, and a booker who is not a party gets none (the earlier
+   * case's Authorized Users are not theirs to carry forward).
+   */
+  private async lookupSections(found: ReEvaluationSourceDto, id: string): Promise<SourceSections> {
+    const accessors = found.callerIsParty ? await this.fetchSourceAccessors(id) : [];
+    return sectionsFromLookup(found, accessors);
   }
 
   /**
@@ -2501,6 +2627,9 @@ export class AppointmentAddComponent {
       // against the source before writing anything, so this is not merely a label.
       mode: this.resolveSubmitMode(),
       sourceConfirmationNumber: this.sourceConfirmationNumber ?? undefined,
+      // 2026-11-06: only when the date of birth is what let this booker load the source (they are not
+      // a party to it); the server checks it again rather than trusting the lookup.
+      sourcePatientDateOfBirth: this.sourcePatientDateOfBirth ?? undefined,
 
       // The patient, resolved or created inside the same transaction. See buildSubmitPatient for
       // why an id and a create-input are mutually exclusive here.
