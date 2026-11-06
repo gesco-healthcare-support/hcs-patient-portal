@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
+using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -346,5 +347,105 @@ public class DocumentUploadedEmailHandlerTests
         // is a new email each time (NotificationOccurrence).
         sent.ContextTag.ShouldBe(
             $"DocumentUploaded/{NotificationTemplateConsts.Codes.PatientDocumentUploaded}/{evt.AppointmentDocumentId}/t{evt.OccurredAt.Ticks}");
+    }
+
+    // ------------------------------------------------------------------ 2026-11-06 (office decision R6)
+    //
+    // Until the appointment is approved the patient gets no document email (unless the patient
+    // submitted the request), and a staff uploader is never the To: the first party is.
+
+    private const string PatientAddress = "TEST-patient@test.local";
+
+    /// <summary>A rig whose parties include the patient, on an appointment in <paramref name="status"/>.</summary>
+    private static Rig RigWithThePatientAsAParty(AppointmentStatusType status, bool patientIsSubmitter = false)
+    {
+        var rig = new Rig();
+        rig.Context.AppointmentStatus = status;
+        rig.Context.PatientIsSubmitter = patientIsSubmitter;
+        rig.Context.PatientAddresses = new[] { PatientAddress };
+        rig.Parties.Add(Party(PatientAddress.ToUpperInvariant(), RecipientRole.Patient));
+        return rig;
+    }
+
+    [Theory]
+    [InlineData(AppointmentStatusType.Pending)]
+    [InlineData(AppointmentStatusType.InfoRequested)]
+    [InlineData(AppointmentStatusType.Rejected)]
+    public async Task HandleEventAsync_BeforeApproval_TheUploadEmailLeavesThePatientOut(AppointmentStatusType status)
+    {
+        var rig = RigWithThePatientAsAParty(status);
+
+        await rig.Build().HandleEventAsync(UploadedEvent(Guid.NewGuid()));
+
+        var sent = SingleSend(rig.Dispatcher);
+        sent.Cc.ShouldNotContain(
+            r => string.Equals(r.Email, PatientAddress, StringComparison.OrdinalIgnoreCase),
+            "the patient hears nothing about a request someone else submitted until it is approved");
+        sent.Cc.Select(r => r.Email).ShouldContain("TEST-applicant-attorney@test.local", "the parties still get it");
+    }
+
+    [Fact]
+    public async Task HandleEventAsync_BeforeApproval_ThePatientWhoSubmittedTheRequestStillGetsIt()
+    {
+        var rig = RigWithThePatientAsAParty(AppointmentStatusType.Pending, patientIsSubmitter: true);
+
+        await rig.Build().HandleEventAsync(UploadedEvent(Guid.NewGuid()));
+
+        SingleSend(rig.Dispatcher).Cc.ShouldContain(
+            r => string.Equals(r.Email, PatientAddress, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task HandleEventAsync_OnceApproved_ThePatientIsCopiedAgain()
+    {
+        // The positive control for the rule: the same rig, approved, keeps the patient.
+        var rig = RigWithThePatientAsAParty(AppointmentStatusType.Approved);
+
+        await rig.Build().HandleEventAsync(UploadedEvent(Guid.NewGuid()));
+
+        SingleSend(rig.Dispatcher).Cc.ShouldContain(
+            r => string.Equals(r.Email, PatientAddress, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task HandleEventAsync_BeforeApproval_ThePatientUploaderIsNotTheTo()
+    {
+        var rig = RigWithThePatientAsAParty(AppointmentStatusType.Pending);
+        rig.ContextResolver.ResolveUploaderEmailAsync(Arg.Any<Guid?>(), Arg.Any<string?>()).Returns(PatientAddress);
+
+        await rig.Build().HandleEventAsync(UploadedEvent(Guid.NewGuid()));
+
+        var sent = SingleSend(rig.Dispatcher);
+        sent.To.Email.ShouldBe("TEST-applicant-attorney@test.local", "the first party is addressed instead");
+        sent.Cc.ShouldNotContain(r => string.Equals(r.Email, PatientAddress, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task HandleEventAsync_AStaffUploaderIsNotTheTo_TheFirstPartyIs()
+    {
+        var rig = new Rig();
+        var staffUploader = Guid.NewGuid();
+        rig.ContextResolver.IsStaffUserAsync(staffUploader).Returns(true);
+
+        await rig.Build().HandleEventAsync(UploadedEvent(staffUploader));
+
+        var sent = SingleSend(rig.Dispatcher);
+        sent.To.Email.ShouldBe("TEST-applicant-attorney@test.local");
+        sent.Cc.Select(r => r.Email).ShouldBe(new[] { "TEST-defense-attorney@test.local" });
+        sent.Cc.ShouldNotContain(r => r.Email == UploaderEmail, "staff get no notice of their own upload");
+    }
+
+    [Fact]
+    public async Task HandleEventAsync_AnExternalUploaderStaysTheTo()
+    {
+        // Control for the staff rule: the same upload by an external party addresses the uploader.
+        var rig = new Rig();
+        var uploader = Guid.NewGuid();
+        rig.ContextResolver.IsStaffUserAsync(uploader).Returns(false);
+
+        await rig.Build().HandleEventAsync(UploadedEvent(uploader));
+
+        SingleSend(rig.Dispatcher).To.Email.ShouldBe(UploaderEmail);
+        await rig.ContextResolver.Received(1).IsStaffUserAsync(uploader);
     }
 }

@@ -125,6 +125,14 @@ internal sealed class DocumentEmailFlow
             // The dispatcher dedups the To address out of the CC list. 2026-11-02: the CC is the other
             // parties + the office inbox (the resolver puts it among the parties, on accept and reject
             // too) + the Intake Staff.
+            //
+            // 2026-11-06 (office decision R6): until the appointment is approved, the patient gets no
+            // document email of any kind -- unless the patient submitted the request, as for every
+            // other before-approval email (PatientBeforeApprovalRule). Before this, an attorney's
+            // strike list uploaded with the booking told the patient about a request they had not
+            // heard of yet.
+            var patientWithheld = PatientBeforeApprovalRule.IsBeforeApproval(ctx.AppointmentStatus)
+                && !ctx.PatientIsSubmitter;
             var parties = await _recipientResolver.ResolveAsync(spec.AppointmentId, spec.Kind);
             var to = new NotificationRecipient(
                 email: uploaderEmail,
@@ -138,13 +146,22 @@ internal sealed class DocumentEmailFlow
                 .ToList();
             await _officeRecipients.AppendIntakeAsync(cc);
 
-            // 2026-11-04: the case followers (external booker, accessors) are copied like the parties;
-            // no patient rule applies to document mail.
-            cc = CaseFollowers.Append(cc, ctx, patientRoleAllowed: true);
+            // 2026-11-04: the case followers (external booker, accessors) are copied like the parties.
+            // 2026-11-06: a Patient-role follower is held back with the patient, until approval.
+            cc = CaseFollowers.Append(cc, ctx, patientRoleAllowed: !patientWithheld);
+            if (patientWithheld)
+            {
+                cc = PatientBeforeApprovalRule.Apply(cc, ctx);
+            }
 
             // 2026-11-04: an uploader who must get no mail about this appointment (the redirected lawyer, an
             // opted-out booker) is not the To; the next recipient is, so the notice still has an addressee.
-            if (CaseFollowers.IsExcluded(ctx, to.Email))
+            // 2026-11-06 (R6): the same for a STAFF uploader -- staff do not need a notice of their own
+            // upload, and the office hears through its inbox and Intake Staff; the first party becomes
+            // the To -- and for the patient while the patient is held back.
+            if (CaseFollowers.IsExcluded(ctx, to.Email)
+                || await _contextResolver.IsStaffUserAsync(uploader.UserId)
+                || (patientWithheld && PatientBeforeApprovalRule.IsPatientAddress(to.Email, ctx)))
             {
                 var next = cc.FirstOrDefault(r => (r.Role ?? RecipientRole.Patient) != RecipientRole.OfficeAdmin)
                     ?? cc.FirstOrDefault();

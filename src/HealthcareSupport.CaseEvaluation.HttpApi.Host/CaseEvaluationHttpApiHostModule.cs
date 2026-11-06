@@ -197,6 +197,8 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             // B11: the malware scan's refusals. Only this process stores uploads.
             HealthcareSupport.CaseEvaluation.Exceptions.CaseEvaluationExceptionStatusCodeMappings
                 .MapUploadScanCodes(options);
+            HealthcareSupport.CaseEvaluation.Exceptions.CaseEvaluationExceptionStatusCodeMappings
+                .MapReEvaluationLookupCodes(options);
 
             // Host-specific: InternalUserTenantMismatch + the 4
             // appointment state-machine codes below are HttpApi.Host

@@ -139,9 +139,9 @@ public class IntakeChangedEmailHandler :
         // 2026-11-04: the case followers (external booker, accessors) are copied like the parties; a
         // Patient-role accessor follows the patient rule (only once Approved, or if the patient booked).
         recipients = CaseFollowers.Append(
-            recipients, ctx, patientRoleAllowed: !IsBeforeApproval(ctx.AppointmentStatus) || ctx.PatientIsSubmitter);
+            recipients, ctx, patientRoleAllowed: !PatientBeforeApprovalRule.IsBeforeApproval(ctx.AppointmentStatus) || ctx.PatientIsSubmitter);
 
-        if (IsBeforeApproval(ctx.AppointmentStatus))
+        if (PatientBeforeApprovalRule.IsBeforeApproval(ctx.AppointmentStatus))
         {
             recipients = PatientBeforeApprovalRule.Apply(recipients, ctx);
         }
@@ -200,12 +200,6 @@ public class IntakeChangedEmailHandler :
                 eventData.AppointmentId);
         }
     }
-
-    /// <summary>Statuses before the office has approved the request (a refused request counts as before).</summary>
-    private static bool IsBeforeApproval(AppointmentStatusType status) =>
-        status is AppointmentStatusType.Pending
-            or AppointmentStatusType.InfoRequested
-            or AppointmentStatusType.Rejected;
 
     private static string BuildDiffTable(IReadOnlyList<IntakeChangedField> fields)
     {
