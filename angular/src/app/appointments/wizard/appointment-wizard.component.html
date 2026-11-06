@@ -176,9 +176,25 @@
                   class="ra-input"
                   type="text"
                   placeholder="e.g. A00004"
+                  [value]="prefillSourceNumber"
                   [disabled]="isLoadingSource"
                 />
               </div>
+              <!-- 2026-11-06 (R2c): someone not on the earlier case proves it with the patient's date of birth. -->
+              @if (showSourceDateOfBirth) {
+                <div class="ra-field">
+                  <label for="wiz-prior-patient-dob">Patient date of birth</label>
+                  <input
+                    id="wiz-prior-patient-dob"
+                    class="ra-input"
+                    type="date"
+                    aria-describedby="wiz-prior-patient-dob-hint"
+                    [value]="sourceDateOfBirthInput"
+                    (input)="sourceDateOfBirthInput = $any($event.target).value"
+                    [disabled]="isLoadingSource"
+                  />
+                </div>
+              }
               <button
                 class="ap-btn ap-btn--primary"
                 type="button"
@@ -191,6 +207,12 @@
                   {{ '::LoadPriorAppointment' | abpLocalization }}
                 }
               </button>
+              @if (showSourceDateOfBirth) {
+                <div class="ra-hint ra-reval__note" id="wiz-prior-patient-dob-hint">
+                  Not on the earlier case (for example, you are new to the firm)? Enter the
+                  patient's date of birth with the number.
+                </div>
+              }
               @if (sourceLoadMessage) {
                 <div class="ra-reval__msg">{{ sourceLoadMessage }}</div>
               }
