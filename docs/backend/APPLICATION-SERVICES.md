@@ -127,6 +127,7 @@ authorization snapshot is not, by itself, proof of a reachable endpoint.
 |---|---|
 | `AppointmentsAppService` | Booking (single transaction), reading and updating appointments, approve / reject |
 | `ReEvaluationSourcesAppService` | The earlier appointment a re-evaluation follows from, by confirmation number and patient date of birth |
+| `ConfirmationNumberLookupsAppService` | "I don't know the confirmation number": emails it to the asker's own verified login |
 | `PatientsAppService` | Patient records, the booking-time patient lookup and create, the self-service profile, SSN reveal |
 | `DoctorAvailabilitiesAppService` | Availability slots: CRUD, bulk generation preview and save, schedule views |
 | `ExternalSignupAppService` | External self-registration and the external-user invitation lifecycle |
@@ -253,6 +254,28 @@ parties may re-evaluate (2026-11-06).
 - **Logged** in the PHI access log: a party's load as `AppointmentViewed`, a non-party's as
   `ReEvaluationSourceLoadedByDateOfBirth`, and every refusal as `ReEvaluationSourceLookupRefused` with no patient or
   appointment named.
+
+### "I don't know the confirmation number" (`ConfirmationNumberLookupsAppService`)
+
+`POST api/app/confirmation-number-lookups` (hand-written controller; the service is not auto-exposed) takes the
+patient's first and last name, date of birth and a claim number in the body. It is open to every caller who may book
+(`Appointments.Create`): the office decided patients and all external parties may use it (2026-11-06). It works like
+forgot-password: the number is never shown on screen, it is emailed.
+
+- **The match** (`ConfirmationNumberLookupMatcher`): the names compare trimmed, case-insensitive, with a hyphen read as
+  a space; the date of birth is the exact day; the claim number is any injury row's, ignoring case, spaces and dashes.
+  Only appointments that `AppointmentLifecycleValidators.CanCreateReval` accepts count, the same rule the
+  re-evaluation form applies, so a number is never sent that the form would then refuse. Several cases of ONE patient
+  resolve to the latest; cases of more than one patient are ambiguous and nothing is sent.
+- **Who gets it:** only the caller's own VERIFIED login email. An unverified login is treated as no match. The office
+  inbox gets a staff-only copy naming who received the number (templates `ConfirmationNumberLookup` and
+  `ConfirmationNumberLookupOffice`, seeded by the migrator). Each request sends again.
+- **One answer:** an empty success for every outcome after the throttle, so the endpoint never says whether a patient,
+  a case or a claim exists.
+- **Throttled** by `ReEvaluationLookupThrottle` with its own budget, before the match: 5 an hour per account and 20
+  per network address. Over the limit is `ReEvaluationLookupThrottled`, HTTP 429.
+- **Logged** in the PHI access log: a sent number as `ConfirmationNumberLookupMatched` with its case, anything else as
+  `ConfirmationNumberLookupNotMatched` with nothing named.
 
 ### Confirmation numbers
 

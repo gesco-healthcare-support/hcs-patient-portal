@@ -1,18 +1,26 @@
 import { BookingMode } from './booking-mode';
 
 /** How a re-evaluation identifies its first evaluation (the radio cards at the top of the form). */
-export type RevalEntryChoice = 'number' | 'before';
+export type RevalEntryChoice = 'number' | 'lookup' | 'before';
 
-/** The two radio cards, in display order. A third ("I don't know the number") drops in later. */
-export const REVAL_ENTRY_CARDS: readonly {
+/** One radio card at the top of a re-evaluation. */
+export interface RevalEntryCard {
   value: RevalEntryChoice;
   title: string;
   hint: string;
-}[] = [
+}
+
+/** The three radio cards, in display order. */
+export const REVAL_ENTRY_CARDS: readonly RevalEntryCard[] = [
   {
     value: 'number',
     title: 'I have the confirmation number',
     hint: 'Enter it and we fill in the form from the earlier evaluation.',
+  },
+  {
+    value: 'lookup',
+    title: "I don't know the confirmation number",
+    hint: "Give the patient's name, date of birth and claim number, and we email the number to you.",
   },
   {
     value: 'before',
@@ -20,6 +28,14 @@ export const REVAL_ENTRY_CARDS: readonly {
     hint: 'There is nothing to load. Fill in every section as for a new request.',
   },
 ];
+
+/**
+ * 2026-11-06 (R3): staff can open any case in their office, so the "I don't know it" card is for
+ * outside bookers only; staff see the other two.
+ */
+export const STAFF_REVAL_ENTRY_CARDS: readonly RevalEntryCard[] = REVAL_ENTRY_CARDS.filter(
+  (c) => c.value !== 'lookup',
+);
 
 /**
  * The choice is offered while a re-evaluation has no source loaded. Once a source is loaded

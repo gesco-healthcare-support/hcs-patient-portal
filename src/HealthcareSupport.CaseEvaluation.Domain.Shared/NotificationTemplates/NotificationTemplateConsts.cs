@@ -326,7 +326,19 @@ public static class NotificationTemplateConsts
         public const string AppointmentDayReminder = "AppointmentDayReminder";
 
         /// <summary>
-        /// All 79 codes in seed order (count asserted by
+        /// 2026-11-06 (R3) -- "I don't know the confirmation number": the number, emailed to the asking
+        /// account's own verified login after the patient's name, date of birth and claim number matched.
+        /// </summary>
+        public const string ConfirmationNumberLookup = "ConfirmationNumberLookup";
+
+        /// <summary>
+        /// 2026-11-06 (R3) -- the office inbox's notice that a confirmation number was emailed, and to whom.
+        /// Clinic staff only.
+        /// </summary>
+        public const string ConfirmationNumberLookupOffice = "ConfirmationNumberLookupOffice";
+
+        /// <summary>
+        /// All 81 codes in seed order (count asserted by
         /// <c>NotificationTemplatesValidatorUnitTests.Codes_All_Has64Codes</c> -- keep both in step;
         /// this comment had drifted by one before 2026-07-28). Used by
         /// <c>NotificationTemplateDataSeedContributor</c> to ensure each
@@ -406,6 +418,9 @@ public static class NotificationTemplateConsts
             // 2026-11-03 -- email routing v2 notices (B2a).
             ChangeRequestConsentInfo, ChangeRequestConsentDeclined,
             PatientAppointmentNotSeen, AppointmentDayReminder,
+
+            // 2026-11-06 -- "I don't know the confirmation number" (R3).
+            ConfirmationNumberLookup, ConfirmationNumberLookupOffice,
         };
 
         /// <summary>

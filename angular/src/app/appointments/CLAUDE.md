@@ -20,9 +20,14 @@
   booked in this portal" choice. Ticked, no prior confirmation number is loaded or required, the
   form stays blank, and submit sends mode 4 (`BookingSubmitMode.RevalWithoutSource`, from the
   generated proxy enum).
-- `shared/reval-entry.util.ts` -- re-evaluation entry: the two radio cards (confirmation number /
-  first exam before this portal; no default), when the number box and the "filled in from the
-  earlier evaluation" banner show, and when `?source=` auto-loads (re-evaluation and re-book).
+- `shared/reval-entry.util.ts` -- re-evaluation entry: the radio cards (confirmation number / "I
+  don't know the confirmation number" / first exam before this portal; no default; staff do not get
+  the middle one), when the number box and the "filled in from the earlier evaluation" banner show,
+  and when `?source=` auto-loads (re-evaluation and re-book).
+- `wizard/confirmation-number-request.component.ts` -- 2026-11-06 (R3): the "I don't know it" card's
+  form (patient name, date of birth, claim number). Calls `ConfirmationNumberLookupsService.request`;
+  the server emails the number to the booker's own verified login, so the screen shows the same
+  answer whatever happened. "I have the number now" switches to the number card.
   `shared/exam-date-passed.util.ts` -- Pacific-calendar "exam day has passed" for the
   Request re-evaluation button (Approved + passed). Staff reach re-evaluation from the
   `new-appointment-menu` component (New evaluation / Re-evaluation), which sets `?type=` before the

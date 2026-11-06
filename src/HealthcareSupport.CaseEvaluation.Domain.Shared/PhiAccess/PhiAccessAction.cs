@@ -50,4 +50,16 @@ public enum PhiAccessAction
     /// with no patient or appointment, because the refusal must not say which one was meant.
     /// </summary>
     ReEvaluationSourceLookupRefused = 11,
+
+    /// <summary>
+    /// "I don't know the confirmation number" (2026-11-06): the patient's name, date of birth and claim
+    /// number matched one case, and its confirmation number was emailed to the caller's own login.
+    /// </summary>
+    ConfirmationNumberLookupMatched = 12,
+
+    /// <summary>
+    /// A confirmation-number lookup that sent nothing: no match, several patients matched, or the
+    /// caller has no verified email. Recorded with no patient or appointment named.
+    /// </summary>
+    ConfirmationNumberLookupNotMatched = 13,
 }

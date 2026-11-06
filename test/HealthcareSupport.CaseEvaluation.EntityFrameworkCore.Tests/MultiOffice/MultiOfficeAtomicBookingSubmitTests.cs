@@ -55,7 +55,7 @@ namespace HealthcareSupport.CaseEvaluation.EntityFrameworkCore.MultiOffice;
 /// with no practice and host-context booking therefore throws.</para>
 /// </summary>
 [Collection(MultiOfficeCollection.Name)]
-public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTestBase
+public partial class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTestBase
 {
     private readonly IAppointmentsAppService _appointments;
     private readonly IPatientsAppService _patients;
@@ -1067,7 +1067,7 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
         var stranger = Guid.NewGuid();
         var guess = Lookup("NOPE-LIMIT", new DateTime(1980, 1, 1));
 
-        for (var attempt = 0; attempt < ReEvaluationLookupThrottle.MaxPerUserPerHour; attempt++)
+        for (var attempt = 0; attempt < LookupThrottleBudget.ReEvaluationSource.MaxPerUserPerHour; attempt++)
         {
             await InOfficeAsAsync(office, stranger, "Applicant Attorney", async () =>
                 (await _reEvaluationSources.LookupAsync(guess)).ShouldBeNull());

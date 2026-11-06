@@ -147,7 +147,7 @@ describe('AppointmentWizardComponent re-evaluation entry (rendered)', () => {
 
   afterEach(() => TestBed.resetTestingModule());
 
-  it('offers two unselected radio cards at the top of a re-evaluation', () => {
+  it('offers staff two unselected radio cards at the top of a re-evaluation', () => {
     const f = render({ type: '2' });
     const radios = (f.nativeElement as HTMLElement).querySelectorAll<HTMLInputElement>(
       'input[name="wiz-reval-entry"]',
@@ -155,6 +155,35 @@ describe('AppointmentWizardComponent re-evaluation entry (rendered)', () => {
     expect(radios.length).toBe(2);
     expect(Array.from(radios).some((r) => r.checked)).toBeFalse();
     expect(q(f, '#wiz-prior-confirmation-number')).toBeNull();
+  });
+
+  it('offers an outside booker a third card for a forgotten confirmation number (R3)', () => {
+    const f = render({ type: '2' }, ['Applicant Paralegal']);
+    const values = Array.from(
+      (f.nativeElement as HTMLElement).querySelectorAll<HTMLInputElement>(
+        'input[name="wiz-reval-entry"]',
+      ),
+    ).map((r) => r.value);
+    expect(values).toEqual(['number', 'lookup', 'before']);
+
+    (q(f, '#wiz-reval-entry-lookup') as HTMLInputElement).click();
+    f.detectChanges();
+    expect(q(f, 'app-confirmation-number-request')).not.toBeNull();
+    expect(q(f, '#wiz-prior-confirmation-number')).toBeNull();
+    expect(wiz(f).revalWithoutSource).toBeFalse();
+  });
+
+  it('moves to the number card when the booker says the number has arrived', () => {
+    const f = render({ type: '2' }, ['Applicant Paralegal']);
+    (q(f, '#wiz-reval-entry-lookup') as HTMLInputElement).click();
+    f.detectChanges();
+
+    q(f, 'app-confirmation-number-request')!.dispatchEvent(new Event('haveNumber'));
+    f.detectChanges();
+
+    expect(wiz(f).revalEntryChoice).toBe('number');
+    expect(q(f, 'app-confirmation-number-request')).toBeNull();
+    expect(q(f, '#wiz-prior-confirmation-number')).not.toBeNull();
   });
 
   it('shows no cards in a new request', () => {
