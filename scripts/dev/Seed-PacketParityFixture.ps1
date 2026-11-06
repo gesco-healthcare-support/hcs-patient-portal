@@ -41,7 +41,8 @@ param(
     [string]$TenantHost  = "falkinstein.localhost",
     [string]$AuthPort    = "44368",
     [string]$Username    = "staff@falkinstein.test",
-    [string]$Password    = "1q2w3E*r",
+    [Parameter(Mandatory = $true)]
+    [string]$Password,
     [string]$OutRoot     = "tmp/packet-parity-output",
     [int]   $PollMaxSec  = 60,
     [int]   $PollIntervalSec = 3
