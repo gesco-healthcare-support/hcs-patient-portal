@@ -938,12 +938,15 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
     // a caller the whole earlier case, so each refusal is the same null, the attempts are capped, and
     // the submit checks the date again rather than trusting the lookup.
 
+    // Every MultiOffice class writes slots into ONE shared database under a unique (office, location, day, from, to)
+    // key, so these tests use evening hours nobody else books (18:00 sources, 19:00 re-evaluations), each on its own day.
+
     /// <summary>An earlier appointment booked by staff, with the patient's id and date of birth.</summary>
     private async Task<(Guid Id, string Number, Guid PatientId, DateTime DateOfBirth)> CreateReEvaluationSourceAsync(
         SeededOffice office, int day, int dayOffset, AppointmentStatusType status = AppointmentStatusType.Approved)
     {
         var source = await CreateSourceAppointmentAsync(
-            office, TestToday.AddDays(day), new TimeOnly(9, 0), status, dayOffset);
+            office, TestToday.AddDays(day), new TimeOnly(18, 0), status, dayOffset);
         var patientId = Guid.Empty;
         await InOfficeAsync(office, async () =>
             patientId = (await _appointmentRepository.GetAsync(source.Id)).PatientId);
@@ -1090,8 +1093,8 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
 
         await InOfficeAsAsync(office, Guid.NewGuid(), "Applicant Attorney", async () =>
         {
-            var slotId = await InsertSlotAsync(office, date, new TimeOnly(9, 0), new TimeOnly(10, 0));
-            var input = BuildSubmitDto(office, slotId, date.AddHours(9).AddMinutes(15), dayOffset: 950);
+            var slotId = await InsertSlotAsync(office, date, new TimeOnly(19, 0), new TimeOnly(20, 0));
+            var input = BuildSubmitDto(office, slotId, date.AddHours(19).AddMinutes(15), dayOffset: 950);
             input.Mode = BookingSubmitMode.Reval;
             input.SourceConfirmationNumber = source.Number;
             input.SourcePatientDateOfBirth = source.DateOfBirth;
@@ -1121,9 +1124,9 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
         var date = TestToday.AddDays(bookingDay);
         var slotId = Guid.Empty;
         await InOfficeAsync(office, async () =>
-            slotId = await InsertSlotAsync(office, date, new TimeOnly(9, 0), new TimeOnly(10, 0)));
+            slotId = await InsertSlotAsync(office, date, new TimeOnly(19, 0), new TimeOnly(20, 0)));
 
-        var input = BuildSubmitDto(office, slotId, date.AddHours(9).AddMinutes(15), dayOffset: dayOffset + 1);
+        var input = BuildSubmitDto(office, slotId, date.AddHours(19).AddMinutes(15), dayOffset: dayOffset + 1);
         input.Mode = BookingSubmitMode.Reval;
         input.SourceConfirmationNumber = source.Number;
         input.SourcePatientDateOfBirth = sendsADate ? source.DateOfBirth.AddYears(1) : null;
@@ -1156,9 +1159,9 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
         var date = TestToday.AddDays(49);
         var slotId = Guid.Empty;
         await InOfficeAsync(office, async () =>
-            slotId = await InsertSlotAsync(office, date, new TimeOnly(9, 0), new TimeOnly(10, 0)));
+            slotId = await InsertSlotAsync(office, date, new TimeOnly(19, 0), new TimeOnly(20, 0)));
 
-        var input = BuildSubmitDto(office, slotId, date.AddHours(9).AddMinutes(15), dayOffset: 986);
+        var input = BuildSubmitDto(office, slotId, date.AddHours(19).AddMinutes(15), dayOffset: 986);
         input.Mode = BookingSubmitMode.Reval;
         input.SourceConfirmationNumber = source.Number;
         input.SourcePatientDateOfBirth = source.DateOfBirth;
@@ -1187,9 +1190,9 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
         var date = TestToday.AddDays(48);
         var slotId = Guid.Empty;
         await InOfficeAsync(office, async () =>
-            slotId = await InsertSlotAsync(office, date, new TimeOnly(9, 0), new TimeOnly(10, 0)));
+            slotId = await InsertSlotAsync(office, date, new TimeOnly(19, 0), new TimeOnly(20, 0)));
 
-        var input = BuildSubmitDto(office, slotId, date.AddHours(9).AddMinutes(15), dayOffset: 990);
+        var input = BuildSubmitDto(office, slotId, date.AddHours(19).AddMinutes(15), dayOffset: 990);
         input.Mode = BookingSubmitMode.Reval;
         input.SourceConfirmationNumber = source.Number;
         input.SourcePatientDateOfBirth = source.DateOfBirth;
