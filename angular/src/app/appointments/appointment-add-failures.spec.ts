@@ -6,6 +6,7 @@ import { ConfirmationService, ToasterService } from '@abp/ng.theme.shared';
 
 import { AppointmentAddComponent } from './appointment-add.component';
 import { AppointmentService } from '../proxy/appointments/appointment.service';
+import { ReEvaluationSourcesService } from '../proxy/appointments/re-evaluation-sources.service';
 import { AppointmentApprovalService } from '../proxy/appointments/appointment-approval.service';
 import { CustomFieldsService } from '../proxy/custom-fields-controllers/custom-fields.service';
 import { AddressValidationProvider } from '../shared/address/address-validation.provider';
@@ -15,6 +16,7 @@ import {
   NO_SOURCE_FOUND_MESSAGE,
   SOURCE_LOADED_MESSAGE,
 } from './shared/booking-failure-message.util';
+import { NO_SOURCE_FOUND_FOR_DOB_MESSAGE } from './shared/reval-lookup.util';
 
 /**
  * Drives the booking wizard's failure paths end to end (#604).
@@ -40,7 +42,17 @@ describe('AppointmentAddComponent failure reporting (#604)', () => {
     sourceLoadMessage: string;
     patientLoadMessage: string;
     form: { get(path: string): { setValue(v: unknown): void } | null };
-    loadSourceForPrefill(conf: string, flow: 'reval' | 'reRequest' | 'reBook'): Promise<void>;
+    loadSourceForPrefill(
+      conf: string,
+      flow: 'reval' | 'reRequest' | 'reBook',
+      dateOfBirth?: string | null,
+    ): Promise<void>;
+    sourceConfirmationNumber: string | null;
+    sourcePatientDateOfBirth: string | null;
+    revalEntryChoice: string | null;
+    prefillSourceNumber: string;
+    appointmentAuthorizedUsers: unknown[];
+    buildSubmitPayload(): { sourcePatientDateOfBirth?: string };
     loadPatientByEmail(): Promise<void>;
     standardizeAddressesBeforeSubmit(): Promise<void>;
   }
@@ -49,13 +61,19 @@ describe('AppointmentAddComponent failure reporting (#604)', () => {
     failing?: Failing[];
     sourceStatus?: 'throw403' | 'throw404' | 'empty';
     validateThrows?: boolean;
+    /** The booking route's query string, e.g. a "Request re-evaluation" link. */
+    query?: Record<string, string>;
+    /** The re-evaluation lookup's answer (2026-11-06); null = nothing matched. */
+    lookup?: { callerIsParty: boolean } | null;
   }) {
     // Mutable so a test can heal the failure and load a second time on the same instance.
     const failing: Failing[] = [...(options.failing ?? [])];
     const warn = jasmine.createSpy('warn');
+    const urls: string[] = [];
 
     const rest = {
       request: (req: { method: string; url: string }): Observable<unknown> => {
+        urls.push(req.url);
         const hit = failing.find((f) => req.url.includes(f.urlPart));
         if (hit) {
           return throwError(() => ({ status: hit.status }));
@@ -103,13 +121,50 @@ describe('AppointmentAddComponent failure reporting (#604)', () => {
       },
     };
 
+    const lookup = jasmine.createSpy('lookup').and.callFake(() =>
+      of(
+        options.lookup
+          ? {
+              callerIsParty: options.lookup.callerIsParty,
+              source: {
+                appointment: {
+                  id: 'a1',
+                  appointmentStatus: AppointmentStatusType.Approved,
+                  locationId: null,
+                  appointmentTypeId: null,
+                },
+                patient: {
+                  id: 'p1',
+                  firstName: 'TEST-First',
+                  lastName: 'TEST-Last',
+                  email: 'test-patient@test.local',
+                  dateOfBirth: '1985-04-12T00:00:00',
+                },
+                claimExaminer: null,
+                primaryInsurance: null,
+                appointmentEmployerDetail: {
+                  appointmentEmployerDetail: { employerName: 'TEST-Employer' },
+                },
+                appointmentInjuryDetails: [],
+              },
+              applicantAttorney: null,
+              defenseAttorney: null,
+            }
+          : null,
+      ),
+    );
+
     TestBed.configureTestingModule({
       providers: [
         { provide: RestService, useValue: rest },
         { provide: AppointmentService, useValue: appointmentService },
+        { provide: ReEvaluationSourcesService, useValue: { lookup } },
         { provide: AppointmentApprovalService, useValue: { approveAppointment: () => of(null) } },
         { provide: CustomFieldsService, useValue: { getByAppointmentTypeId: () => of([]) } },
-        { provide: ActivatedRoute, useValue: { queryParamMap: of(convertToParamMap({})) } },
+        {
+          provide: ActivatedRoute,
+          useValue: { queryParamMap: of(convertToParamMap(options.query ?? {})) },
+        },
         {
           provide: Router,
           useValue: { navigateByUrl: () => undefined, navigate: () => undefined },
@@ -135,8 +190,11 @@ describe('AppointmentAddComponent failure reporting (#604)', () => {
     const component = TestBed.runInInjectionContext(
       () => new AppointmentAddComponent(),
     ) as unknown as Probe;
-    return { component, warn, failing };
+    return { component, warn, failing, lookup, urls };
   }
+
+  /** Lets the constructor's fire-and-forget source load finish. */
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
   afterEach(() => TestBed.resetTestingModule());
 
@@ -214,6 +272,85 @@ describe('AppointmentAddComponent failure reporting (#604)', () => {
       failing.length = 0;
       await component.loadSourceForPrefill('C2', 'reval');
       expect(component.sourceLoadMessage).toBe(SOURCE_LOADED_MESSAGE);
+    });
+  });
+
+  describe('re-evaluation by confirmation number and date of birth (2026-11-06)', () => {
+    it('sends an outside booker who typed a date through the lookup, not the ordinary read', async () => {
+      const { component, lookup, urls } = build({ lookup: { callerIsParty: false } });
+      await component.loadSourceForPrefill('A00009', 'reval', '1985-04-12');
+
+      expect(lookup).toHaveBeenCalledWith(
+        { confirmationNumber: 'A00009', patientDateOfBirth: '1985-04-12' },
+        { skipHandleError: true },
+      );
+      expect(component.sourceConfirmationNumber).toBe('A00009');
+      expect(component.sourceLoadMessage).toBe(SOURCE_LOADED_MESSAGE);
+      // Everything came in the one answer: none of the per-appointment reads a non-party is refused.
+      const perAppointmentReads = [
+        '/api/app/appointment-employer-details',
+        '/api/app/appointments/a1/',
+        '/api/app/appointment-injury-details/by-appointment/',
+        '/api/app/appointment-accessors',
+      ];
+      expect(urls.filter((u) => perAppointmentReads.some((r) => u.includes(r)))).toEqual([]);
+    });
+
+    it('keeps the date for the submit when the booker is not a party, and carries no Authorized Users', async () => {
+      const { component } = build({ lookup: { callerIsParty: false } });
+      await component.loadSourceForPrefill('A00009', 'reval', '1985-04-12');
+
+      expect(component.sourcePatientDateOfBirth).toBe('1985-04-12');
+      expect(component.appointmentAuthorizedUsers).toEqual([]);
+      expect(component.buildSubmitPayload().sourcePatientDateOfBirth).toBe('1985-04-12');
+    });
+
+    it('keeps no date for a party, who still reads the Authorized Users as before', async () => {
+      const { component, urls } = build({ lookup: { callerIsParty: true } });
+      await component.loadSourceForPrefill('A00009', 'reval', '1985-04-12');
+
+      expect(component.sourcePatientDateOfBirth).toBeNull();
+      expect(component.buildSubmitPayload().sourcePatientDateOfBirth).toBeUndefined();
+      expect(urls).toContain('/api/app/appointment-accessors');
+    });
+
+    it('says the number and date did not match when the lookup finds nothing', async () => {
+      const { component } = build({ lookup: null });
+      await component.loadSourceForPrefill('A00009', 'reval', '1985-04-12');
+
+      expect(component.sourceLoadMessage).toBe(NO_SOURCE_FOUND_FOR_DOB_MESSAGE);
+      expect(component.sourceConfirmationNumber).toBeNull();
+    });
+
+    it('uses the ordinary read when no date was typed, so a party loads exactly as before', async () => {
+      const { component, lookup } = build({ lookup: { callerIsParty: false } });
+      await component.loadSourceForPrefill('C1', 'reval', '');
+
+      expect(lookup).not.toHaveBeenCalled();
+      expect(component.sourceLoadMessage).toBe(SOURCE_LOADED_MESSAGE);
+    });
+  });
+
+  describe('a "Request re-evaluation" link that does not load (2026-11-06)', () => {
+    it('opens the number path with the number filled in and the reason shown', async () => {
+      const { component } = build({
+        sourceStatus: 'empty',
+        query: { type: '2', source: 'A00009' },
+      });
+      await settle();
+
+      expect(component.revalEntryChoice).toBe('number');
+      expect(component.prefillSourceNumber).toBe('A00009');
+      expect(component.sourceLoadMessage).toContain('No appointment was found');
+    });
+
+    it('leaves a link that did load alone', async () => {
+      const { component } = build({ query: { type: '2', source: 'A00009' } });
+      await settle();
+
+      expect(component.sourceConfirmationNumber).toBe('A00009');
+      expect(component.revalEntryChoice).toBeNull();
+      expect(component.prefillSourceNumber).toBe('');
     });
   });
 

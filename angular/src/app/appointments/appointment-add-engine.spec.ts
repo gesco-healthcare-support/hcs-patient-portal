@@ -258,7 +258,7 @@ describe('AppointmentAddComponent booking engine', () => {
 
     it('hides the lookup and the source requirement once "not booked in this portal" is ticked', () => {
       const c = create({ queryParams: { type: '2' } });
-      expect(c.showRevalWithoutSourceOption).toBeTrue();
+      expect(c.showRevalEntryChoice).toBeTrue();
       c.chooseRevalEntry('before');
       expect(c.showSourceLookup).toBeFalse();
       expect(c.isSourceLoadRequired).toBeFalse();
@@ -374,7 +374,17 @@ describe('AppointmentAddComponent booking engine', () => {
       const c = create({ queryParams: { type: '2' } });
       const load = spyOn<any>(c, 'loadSourceForPrefill');
       c.loadRevalSource('C0001');
-      expect(load).toHaveBeenCalledWith('C0001', 'reval');
+      // The third argument is whatever the date-of-birth box holds (empty here); see the
+      // date-of-birth tests in appointment-add-failures.spec.ts for what it changes.
+      expect(load).toHaveBeenCalledWith('C0001', 'reval', '');
+    });
+
+    it('passes the typed patient date of birth with the number (2026-11-06)', () => {
+      const c = create({ queryParams: { type: '2' } });
+      const load = spyOn<any>(c, 'loadSourceForPrefill');
+      c.sourceDateOfBirthInput = '1985-04-12';
+      c.loadRevalSource('A00009');
+      expect(load).toHaveBeenCalledWith('A00009', 'reval', '1985-04-12');
     });
 
     it('sends the re-book flow from the same control', () => {
@@ -382,7 +392,7 @@ describe('AppointmentAddComponent booking engine', () => {
       const c = create({ queryParams: { type: '3' } });
       const load = spyOn<any>(c, 'loadSourceForPrefill');
       c.loadRevalSource(' C0002 ');
-      expect(load).toHaveBeenCalledWith('C0002', 'reBook');
+      expect(load).toHaveBeenCalledWith('C0002', 'reBook', '');
     });
   });
 
@@ -2356,7 +2366,7 @@ describe('AppointmentAddComponent booking engine', () => {
 
       await c.onSubmit();
 
-      expect(c.showRevalWithoutSourceOption).toBeFalse();
+      expect(c.showRevalEntryChoice).toBeFalse();
       expect(c.sourceLoadMessage).toContain('book again');
       expect(submit).not.toHaveBeenCalled();
     });

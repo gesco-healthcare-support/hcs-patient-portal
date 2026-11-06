@@ -120,6 +120,7 @@ export interface AppointmentStatusCountDto {
 export interface AppointmentSubmitDto {
   mode?: BookingSubmitMode;
   sourceConfirmationNumber?: string | null;
+  sourcePatientDateOfBirth?: string | null;
   patientId?: string | null;
   patient?: CreatePatientForAppointmentBookingInput | null;
   patientUpdate?: PatientUpdateDto | null;
@@ -235,6 +236,18 @@ export interface GetAppointmentsInput extends PagedAndSortedResultRequestDto {
   patientId?: string | null;
   appointmentStatus?: AppointmentStatusType | null;
   appointmentStatuses?: AppointmentStatusType[] | null;
+}
+
+export interface ReEvaluationSourceDto {
+  source?: AppointmentWithNavigationPropertiesDto;
+  applicantAttorney?: ApplicantAttorneyDetailsDto | null;
+  defenseAttorney?: DefenseAttorneyDetailsDto | null;
+  callerIsParty?: boolean;
+}
+
+export interface ReEvaluationSourceLookupDto {
+  confirmationNumber: string;
+  patientDateOfBirth?: string;
 }
 
 export interface RecordAppointmentListExportInput {

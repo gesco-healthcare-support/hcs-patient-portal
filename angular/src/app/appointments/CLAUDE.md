@@ -27,6 +27,12 @@
   Request re-evaluation button (Approved + passed). Staff reach re-evaluation from the
   `new-appointment-menu` component (New evaluation / Re-evaluation), which sets `?type=` before the
   wizard opens.
+- `shared/reval-lookup.util.ts` -- 2026-11-06: outside bookers re-evaluating also see a patient
+  date-of-birth box. With a date the source loads through `ReEvaluationSourcesService.lookup` (one
+  answer with every section, so a booker who is NOT a party to the earlier appointment can prefill),
+  and the date is sent with the submit (`sourcePatientDateOfBirth`), where the server checks it
+  again. Without a date, a party loads through the ordinary read as before. A non-party carries no
+  Authorized Users forward.
 - `appointment/components/appointment-view.component.ts` -- view/edit page for staff
   and external roles; reads via `getRawValue()` at save time.
 - `appointment-change-logs/` -- read-only audit trail component.

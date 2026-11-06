@@ -4,6 +4,7 @@ import {
   ElementRef,
   HostListener,
   Input,
+  ViewChild,
   inject,
   signal,
 } from '@angular/core';
@@ -24,6 +25,10 @@ export function newAppointmentQueryParams(kind: NewAppointmentKind): { type: num
  * The choice is made BEFORE the booking form opens: the form reads its mode once in its constructor
  * and Angular reuses the component on a query-param change, so an in-page toggle would leave the
  * mode and draft state stale. Escape and a click outside close the menu.
+ *
+ * 2026-11-06: a disclosure (a button that shows two more buttons), not an ARIA menu. `role="menu"`
+ * promises arrow-key navigation, which two plain buttons do not need; Tab reaches them in order.
+ * Escape also puts focus back on the trigger, so a keyboard user is not left on a removed button.
  */
 @Component({
   selector: 'app-new-appointment-menu',
@@ -33,9 +38,10 @@ export function newAppointmentQueryParams(kind: NewAppointmentKind): { type: num
   template: `
     <span class="nam">
       <button
+        #trigger
         type="button"
         [class]="buttonClass"
-        aria-haspopup="menu"
+        aria-controls="nam-choices"
         [attr.aria-expanded]="open()"
         (click)="toggle()"
       >
@@ -43,12 +49,12 @@ export function newAppointmentQueryParams(kind: NewAppointmentKind): { type: num
         New appointment
       </button>
       @if (open()) {
-        <div class="nam__menu" role="menu" aria-label="New appointment">
-          <button type="button" role="menuitem" id="nam-new" (click)="go('new')">
+        <div class="nam__menu" id="nam-choices">
+          <button type="button" id="nam-new" (click)="go('new')">
             <b>New evaluation</b>
             <span>The first evaluation of a patient.</span>
           </button>
-          <button type="button" role="menuitem" id="nam-reeval" (click)="go('reeval')">
+          <button type="button" id="nam-reeval" (click)="go('reeval')">
             <b>Re-evaluation</b>
             <span>A follow-up to an earlier evaluation.</span>
           </button>
@@ -103,6 +109,8 @@ export class NewAppointmentMenuComponent {
   private readonly router = inject(Router);
   private readonly host = inject(ElementRef<HTMLElement>);
 
+  @ViewChild('trigger') private trigger?: ElementRef<HTMLButtonElement>;
+
   /** CSS classes for the trigger, so each page keeps its own button look. */
   @Input() buttonClass = 'ap-btn ap-btn--primary';
 
@@ -121,7 +129,11 @@ export class NewAppointmentMenuComponent {
 
   @HostListener('document:keydown.escape')
   protected onEscape(): void {
+    if (!this.open()) {
+      return;
+    }
     this.open.set(false);
+    this.trigger?.nativeElement.focus();
   }
 
   @HostListener('document:click', ['$event'])
