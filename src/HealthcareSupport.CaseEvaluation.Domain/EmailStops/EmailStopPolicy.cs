@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
+using Volo.Abp.Linq;
 using Volo.Abp.MultiTenancy;
 
 namespace HealthcareSupport.CaseEvaluation.EmailStops;
@@ -43,15 +44,18 @@ public class EmailStopPolicy : IEmailStopPolicy, ITransientDependency
     private readonly IRepository<GlobalEmailStop, Guid> _globalStops;
     private readonly IRepository<AppointmentEmailStop, Guid> _caseStops;
     private readonly ICurrentTenant _currentTenant;
+    private readonly IAsyncQueryableExecuter _asyncExecuter;
 
     public EmailStopPolicy(
         IRepository<GlobalEmailStop, Guid> globalStops,
         IRepository<AppointmentEmailStop, Guid> caseStops,
-        ICurrentTenant currentTenant)
+        ICurrentTenant currentTenant,
+        IAsyncQueryableExecuter asyncExecuter)
     {
         _globalStops = globalStops;
         _caseStops = caseStops;
         _currentTenant = currentTenant;
+        _asyncExecuter = asyncExecuter;
     }
 
     public static bool IsNeverStopped(string? templateCode) =>
@@ -83,10 +87,9 @@ public class EmailStopPolicy : IEmailStopPolicy, ITransientDependency
         using (_currentTenant.Change(null))
         {
             var global = await _globalStops.GetQueryableAsync();
-            allCases = global
+            allCases = await _asyncExecuter.ToListAsync(global
                 .Where(x => normalized.Contains(x.NormalizedEmail))
-                .Select(x => x.NormalizedEmail)
-                .ToList();
+                .Select(x => x.NormalizedEmail));
         }
 
         var appointmentIds = list
@@ -98,10 +101,10 @@ public class EmailStopPolicy : IEmailStopPolicy, ITransientDependency
         if (appointmentIds.Count > 0)
         {
             var cases = await _caseStops.GetQueryableAsync();
-            caseStops = cases
+            var rows = await _asyncExecuter.ToListAsync(cases
                 .Where(x => appointmentIds.Contains(x.AppointmentId) && normalized.Contains(x.NormalizedEmail))
-                .Select(x => new { x.AppointmentId, x.NormalizedEmail })
-                .ToList()
+                .Select(x => new { x.AppointmentId, x.NormalizedEmail }));
+            caseStops = rows
                 .Select(x => (x.AppointmentId, x.NormalizedEmail))
                 .ToList();
         }

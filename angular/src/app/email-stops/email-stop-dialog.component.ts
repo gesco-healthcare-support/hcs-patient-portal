@@ -50,7 +50,10 @@ export class EmailStopDialogComponent implements OnInit {
 
   @HostListener('document:keydown.escape')
   protected onEscape(): void {
-    this.closed.emit();
+    // Same rule as the Cancel button: once a save is running the dialog stays open until it answers.
+    if (!this.busy()) {
+      this.closed.emit();
+    }
   }
 
   protected chooseScope(scope: EmailStopScope): void {
