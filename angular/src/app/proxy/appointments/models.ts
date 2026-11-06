@@ -207,6 +207,13 @@ export interface ApproveAppointmentInput {
   internalUserComments?: string | null;
 }
 
+export interface ConfirmationNumberLookupDto {
+  patientFirstName: string;
+  patientLastName: string;
+  patientDateOfBirth?: string;
+  claimNumber: string;
+}
+
 export interface DefenseAttorneyDetailsDto {
   defenseAttorneyId?: string | null;
   identityUserId?: string;

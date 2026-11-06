@@ -31,6 +31,40 @@ public class RoutingNoticeTemplateTests
         seed.Subject.ShouldContain("##AppointmentRequestConfirmationNumber##");
     }
 
+    [Theory]
+    [InlineData(NotificationTemplateConsts.Codes.ConfirmationNumberLookup)]
+    [InlineData(NotificationTemplateConsts.Codes.ConfirmationNumberLookupOffice)]
+    public void The_confirmation_number_lookup_codes_are_registered_with_a_real_body(string code)
+    {
+        NotificationTemplateConsts.Codes.All.ShouldContain(code);
+        EmailSubjects.ByCode.ShouldContainKey(code);
+        NotificationTemplateConsts.Codes.HostScoped.ShouldNotContain(code, "both are sent inside an office");
+        var seed = Seed(code);
+        seed.BodyEmail.ShouldNotContain("Stub body");
+        seed.BodyEmail.ShouldContain("##AppointmentRequestConfirmationNumber##");
+    }
+
+    [Fact]
+    public void The_number_sent_to_the_asker_carries_no_patient_detail_in_its_subject()
+    {
+        // A subject is shown in inbox lists and notifications; the number and the patient stay in the body.
+        var seed = Seed(NotificationTemplateConsts.Codes.ConfirmationNumberLookup);
+
+        seed.Subject.ShouldNotContain("##");
+        seed.BodyEmail.ShouldContain("If you did not ask for this");
+    }
+
+    [Fact]
+    public void The_office_notice_names_who_received_the_number_and_is_for_staff_only()
+    {
+        var body = Seed(NotificationTemplateConsts.Codes.ConfirmationNumberLookupOffice).BodyEmail;
+
+        body.ShouldContain("##RequesterName##");
+        body.ShouldContain("##RequesterEmail##");
+        body.ShouldContain("clinic staff only");
+        body.ShouldNotContain("##PortalUrl##");
+    }
+
     [Fact]
     public void The_reschedule_request_notice_is_neutral_not_voiced_for_the_requester()
     {

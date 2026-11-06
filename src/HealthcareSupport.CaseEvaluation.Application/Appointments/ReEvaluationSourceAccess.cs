@@ -66,7 +66,7 @@ public class ReEvaluationSourceAccess : ITransientDependency
         }
 
         // Counted whether the number exists or not, so the limit does not tell the two apart.
-        await _throttle.EnsureAllowedAndStampAsync();
+        await _throttle.EnsureAllowedAndStampAsync(LookupThrottleBudget.ReEvaluationSource);
 
         if (source == null
             || !AppointmentLifecycleValidators.CanCreateReval(

@@ -54,6 +54,7 @@ public class DtoDateTimeWireTests : CaseEvaluationEntityFrameworkCoreTestBase
         "AppointmentChangeRequests.AppointmentChangeRequestDto.CurrentRoundProposedDate",
         // 2026-11-06 (R2c): the patient date of birth a re-evaluation is proven with.
         "Appointments.AppointmentSubmitDto.SourcePatientDateOfBirth",
+        "Appointments.ConfirmationNumberLookupDto.PatientDateOfBirth",
         "Appointments.ReEvaluationSourceLookupDto.PatientDateOfBirth",
     };
 
