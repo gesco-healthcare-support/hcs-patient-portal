@@ -1,3 +1,4 @@
+using HealthcareSupport.CaseEvaluation.EmailStops;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -64,7 +65,7 @@ public class NotificationDispatcherCcUnitTests
         uowManager.Current.Returns((IUnitOfWork?)null);
 
         var dispatcher = new NotificationDispatcher(
-            renderer, jobs, tenant, outboxManager, uowManager, NullLogger<NotificationDispatcher>.Instance);
+            renderer, jobs, tenant, outboxManager, uowManager, NullLogger<NotificationDispatcher>.Instance, Substitute.For<IEmailStopPolicy>());
         return new Fixture { Dispatcher = dispatcher, Rows = rows };
     }
 
@@ -82,6 +83,7 @@ public class NotificationDispatcherCcUnitTests
         };
 
         await f.Dispatcher.DispatchToWithCcAsync(
+            NotificationCase.None,
             "AppointmentRequested", to, cc, new Dictionary<string, object?>(), "ctx/1");
 
         var row = f.Rows.ShouldHaveSingleItem();
@@ -102,6 +104,7 @@ public class NotificationDispatcherCcUnitTests
         var to = new NotificationRecipient(string.Empty, role: RecipientRole.Patient);
 
         await f.Dispatcher.DispatchToWithCcAsync(
+            NotificationCase.None,
             "AppointmentRequested", to, Array.Empty<NotificationRecipient>(),
             new Dictionary<string, object?>(), "ctx/1");
 

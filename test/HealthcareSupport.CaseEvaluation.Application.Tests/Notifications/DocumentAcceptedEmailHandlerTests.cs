@@ -160,7 +160,7 @@ public class DocumentAcceptedEmailHandlerTests
             .Where(c => c.GetMethodInfo().Name == nameof(INotificationDispatcher.DispatchToWithCcAsync))
             .ToList();
         calls.Count.ShouldBe(1, "exactly one To+CC email is expected for one accepted document");
-        var args = calls[0].GetArguments();
+        var args = calls[0].GetArguments().Skip(1).ToArray();
         return new SentEmail(
             (string)args[0]!,
             (NotificationRecipient)args[1]!,

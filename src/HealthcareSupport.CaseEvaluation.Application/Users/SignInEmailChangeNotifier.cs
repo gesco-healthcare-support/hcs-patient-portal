@@ -73,6 +73,7 @@ public class SignInEmailChangeNotifier : ITransientDependency
         }
 
         await _notificationDispatcher.DispatchAsync(
+            notificationCase: NotificationCase.None,
             templateCode: NotificationTemplateConsts.Codes.AccountEmailChanged,
             recipients: new[]
             {

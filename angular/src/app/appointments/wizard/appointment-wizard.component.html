@@ -600,6 +600,7 @@
             <app-appointment-add-authorized-users
               [users]="appointmentAuthorizedUsers"
               [roleOptions]="authorizedUserRoleOptions"
+              [externalBooker]="!isInternalBooker"
               [showBookerFollows]="showBookerFollowsOption"
               [bookerFollows]="bookerFollowsDisplayed"
               [bookerFollowsDisabled]="notifyParalegal.enabled"

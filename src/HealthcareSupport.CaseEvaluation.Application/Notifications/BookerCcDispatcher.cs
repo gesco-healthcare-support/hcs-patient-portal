@@ -35,6 +35,7 @@ public class BookerCcDispatcher : ITransientDependency
     /// (logs) when no To recipient can be resolved.
     /// </summary>
     public virtual async Task DispatchToBookerWithCcAsync(
+        NotificationCase notificationCase,
         string templateCode,
         string? bookerEmail,
         IReadOnlyCollection<NotificationRecipient> stakeholders,
@@ -55,6 +56,7 @@ public class BookerCcDispatcher : ITransientDependency
         // SystemParameter.CcEmailIds list is no longer appended (2026-11-02): callers add the
         // office inbox / Intake Staff to the stakeholders themselves.
         await _dispatcher.DispatchToWithCcAsync(
+            notificationCase: notificationCase,
             templateCode: templateCode,
             to: to,
             cc: cc,

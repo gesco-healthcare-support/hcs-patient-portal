@@ -1,3 +1,4 @@
+using HealthcareSupport.CaseEvaluation.EmailStops;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications.Jobs;
@@ -38,7 +39,7 @@ public class CancellationRescheduleReminderJobTests
                 CaseEvaluationSettings.RemindersPolicy.Sec34eElapsedDayAnchors,
                 "45,55"),
             NullLogger<CancellationRescheduleReminderJob>.Instance,
-            ReminderJobTestHarness.Clock());
+            ReminderJobTestHarness.Clock(), Substitute.For<IEmailStopPolicy>());
 
         return (job, resolver);
     }

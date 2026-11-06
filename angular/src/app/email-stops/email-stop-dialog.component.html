@@ -1,0 +1,63 @@
+<div class="ra-scrim">
+  <div class="ra-modal ra-modal--md" role="dialog" aria-modal="true">
+    <div class="ra-modal__head">
+      <h3>{{ '::EmailStops:Dialog:Title' | abpLocalization: email() }}</h3>
+    </div>
+    <div class="ra-modal__body">
+      <p class="es-q">{{ '::EmailStops:Dialog:Question' | abpLocalization }}</p>
+      <div class="es-choices">
+        <button
+          type="button"
+          class="es-choice"
+          data-testid="scope-case"
+          [attr.data-on]="scope() === scopes.Case ? 'true' : null"
+          (click)="chooseScope(scopes.Case)"
+        >
+          <strong>{{ '::EmailStops:Dialog:OnlyThisCase' | abpLocalization }}</strong>
+          <span>{{ '::EmailStops:Dialog:OnlyThisCaseHelp' | abpLocalization }}</span>
+        </button>
+        <button
+          type="button"
+          class="es-choice"
+          data-testid="scope-all"
+          [attr.data-on]="scope() === scopes.AllCases ? 'true' : null"
+          (click)="chooseScope(scopes.AllCases)"
+        >
+          <strong>{{ '::EmailStops:Dialog:AllCases' | abpLocalization }}</strong>
+          <span>{{ '::EmailStops:Dialog:AllCasesHelp' | abpLocalization }}</span>
+        </button>
+      </div>
+      <div class="ra-field">
+        <label for="es-note">{{ '::EmailStops:Dialog:Reason' | abpLocalization }}</label>
+        <textarea
+          id="es-note"
+          class="ra-input"
+          rows="2"
+          maxlength="256"
+          [ngModel]="note()"
+          (ngModelChange)="note.set($event)"
+        ></textarea>
+      </div>
+      <app-email-stop-consent-warning [impact]="impact()" [email]="email()" />
+    </div>
+    <div class="ra-modal__foot">
+      <button
+        class="af-btn af-btn--ghost"
+        type="button"
+        [disabled]="busy()"
+        (click)="closed.emit()"
+      >
+        {{ '::EmailStops:Dialog:Cancel' | abpLocalization }}
+      </button>
+      <button
+        class="af-btn af-btn--primary"
+        type="button"
+        data-testid="confirm-stop"
+        [disabled]="busy() || !impactReady()"
+        (click)="save()"
+      >
+        {{ '::EmailStops:StopButton' | abpLocalization }}
+      </button>
+    </div>
+  </div>
+</div>

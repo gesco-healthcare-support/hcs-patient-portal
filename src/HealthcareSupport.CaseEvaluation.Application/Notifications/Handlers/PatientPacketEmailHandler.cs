@@ -156,6 +156,7 @@ public class PatientPacketEmailHandler :
             };
 
             await _dispatcher.DispatchAsync(
+                notificationCase: NotificationCase.Of(eventData.AppointmentId),
                 templateCode: NotificationTemplateConsts.Codes.AppointmentDocumentAddWithAttachment,
                 recipients: recipients,
                 variables: withUrl,

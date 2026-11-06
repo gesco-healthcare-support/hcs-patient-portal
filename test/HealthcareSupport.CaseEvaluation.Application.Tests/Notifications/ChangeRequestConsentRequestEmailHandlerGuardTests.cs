@@ -65,7 +65,7 @@ public class ChangeRequestConsentRequestEmailHandlerGuardTests
         public List<object?[]> Dispatches() =>
             Dispatcher.ReceivedCalls()
                 .Where(c => c.GetMethodInfo().Name == nameof(INotificationDispatcher.DispatchAsync))
-                .Select(c => c.GetArguments())
+                .Select(c => c.GetArguments().Skip(1).ToArray())
                 .ToList();
     }
 
@@ -143,7 +143,7 @@ public class ChangeRequestConsentRequestEmailHandlerGuardTests
     public async Task HandleEventAsync_TheTemplateIsMissing_IsSwallowedAfterTheAttempt()
     {
         var rig = new Rig();
-        rig.Dispatcher.DispatchAsync(default!, default!, default!, default!, default, default)
+        rig.Dispatcher.DispatchAsync(default, default!, default!, default!, default!, default, default)
             .ReturnsForAnyArgs(Task.FromException(new BusinessException(CaseEvaluationDomainErrorCodes.NotificationTemplateNotFound)));
 
         await Should.NotThrowAsync(() => rig.Build().HandleEventAsync(ConsentRequested()));
@@ -159,7 +159,7 @@ public class ChangeRequestConsentRequestEmailHandlerGuardTests
     public async Task HandleEventAsync_AnyOtherBusinessError_StillPropagates()
     {
         var rig = new Rig();
-        rig.Dispatcher.DispatchAsync(default!, default!, default!, default!, default, default)
+        rig.Dispatcher.DispatchAsync(default, default!, default!, default!, default!, default, default)
             .ReturnsForAnyArgs(Task.FromException(new BusinessException("TEST:SomeOtherFailure")));
 
         var thrown = await Should.ThrowAsync<BusinessException>(() => rig.Build().HandleEventAsync(ConsentRequested()));

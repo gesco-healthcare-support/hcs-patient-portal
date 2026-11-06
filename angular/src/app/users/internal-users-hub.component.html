@@ -32,6 +32,11 @@
       <router-outlet />
     }
 
+    <!-- ============ Stopped emails ============ -->
+    @if (section() === 'emailStops') {
+      <app-email-stops-page />
+    }
+
     <!-- ============ Invite External ============ -->
     @if (section() === 'invite') {
       <div class="ra-card">

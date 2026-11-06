@@ -127,6 +127,7 @@ public class AppointmentDayReminderEmailHandler :
             try
             {
                 await _dispatcher.DispatchAsync(
+                    notificationCase: NotificationCase.Of(eventData.AppointmentId),
                     templateCode: NotificationTemplateConsts.Codes.AppointmentDayReminder,
                     recipients: recipients,
                     variables: vars,

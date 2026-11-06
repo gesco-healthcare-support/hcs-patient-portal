@@ -1,3 +1,4 @@
+using HealthcareSupport.CaseEvaluation.EmailStops;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -52,7 +53,7 @@ public class NotificationDispatcherPacketCopyUnitTests
 
         var dispatcher = new NotificationDispatcher(
             renderer, jobs, tenant, new NotificationOutboxManager(repo, SimpleGuidGenerator.Instance),
-            uowManager, NullLogger<NotificationDispatcher>.Instance);
+            uowManager, NullLogger<NotificationDispatcher>.Instance, Substitute.For<IEmailStopPolicy>());
         return (dispatcher, rows, jobs);
     }
 
@@ -67,6 +68,7 @@ public class NotificationDispatcherPacketCopyUnitTests
         var patient = Packet(PacketKind.Patient);
 
         await dispatcher.DispatchWithPacketsAsync(
+            NotificationCase.None,
             "OfficePacketCopy",
             new[] { new NotificationRecipient("TEST-inbox@test.local", role: RecipientRole.OfficeAdmin) },
             new Dictionary<string, object?>(),
@@ -91,9 +93,9 @@ public class NotificationDispatcherPacketCopyUnitTests
         var refs = new[] { Packet(PacketKind.AttorneyClaimExaminer), Packet(PacketKind.Patient) };
         var to = new[] { new NotificationRecipient("TEST-inbox@test.local", role: RecipientRole.OfficeAdmin) };
 
-        await dispatcher.DispatchWithPacketsAsync("OfficePacketCopy", to, new Dictionary<string, object?>(), "OfficePacketCopy/x/v0", refs);
-        await dispatcher.DispatchWithPacketsAsync("OfficePacketCopy", to, new Dictionary<string, object?>(), "OfficePacketCopy/x/v0", refs);
-        await dispatcher.DispatchWithPacketsAsync("OfficePacketCopy", to, new Dictionary<string, object?>(), "OfficePacketCopy/x/v1", refs);
+        await dispatcher.DispatchWithPacketsAsync(NotificationCase.None, "OfficePacketCopy", to, new Dictionary<string, object?>(), "OfficePacketCopy/x/v0", refs);
+        await dispatcher.DispatchWithPacketsAsync(NotificationCase.None, "OfficePacketCopy", to, new Dictionary<string, object?>(), "OfficePacketCopy/x/v0", refs);
+        await dispatcher.DispatchWithPacketsAsync(NotificationCase.None, "OfficePacketCopy", to, new Dictionary<string, object?>(), "OfficePacketCopy/x/v1", refs);
 
         rows.Count.ShouldBe(2, "the repeat of v0 collapses; the re-rendered v1 is a new copy");
     }
@@ -104,9 +106,11 @@ public class NotificationDispatcherPacketCopyUnitTests
         var (dispatcher, rows, _) = Build();
 
         await dispatcher.DispatchWithPacketsAsync(
+            NotificationCase.None,
             "OfficePacketCopy", Array.Empty<NotificationRecipient>(), new Dictionary<string, object?>(),
             "OfficePacketCopy/x/v0", new[] { Packet(PacketKind.Patient) });
         await dispatcher.DispatchWithPacketsAsync(
+            NotificationCase.None,
             "OfficePacketCopy",
             new[] { new NotificationRecipient("TEST-inbox@test.local", role: RecipientRole.OfficeAdmin) },
             new Dictionary<string, object?>(), "OfficePacketCopy/x/v0", Array.Empty<PacketAttachmentRef>());

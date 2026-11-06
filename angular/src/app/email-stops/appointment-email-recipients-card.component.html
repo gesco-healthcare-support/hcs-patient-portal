@@ -1,0 +1,124 @@
+<section class="ad-card" *abpPermission="policy" data-testid="email-recipients-card">
+  <div class="ad-card__head">
+    <h3>{{ '::EmailStops:Card:Title' | abpLocalization }}</h3>
+  </div>
+  <div class="ad-card__body">
+    <p class="es-hint">
+      {{ '::EmailStops:Card:Hint' | abpLocalization }}
+      {{ '::EmailStops:Card:HintPassword' | abpLocalization }}
+    </p>
+    @if (loaded() && items().length === 0) {
+      <p class="es-empty">{{ '::EmailStops:Card:Empty' | abpLocalization }}</p>
+    }
+    @for (r of items(); track r.email) {
+      <div class="es-row" data-testid="recipient-row">
+        <div class="es-who">
+          <strong>{{ r.name || r.email }}</strong>
+          @if (r.name) {
+            <span class="es-mail">{{ r.email }}</span>
+          }
+          <span class="es-kinds">
+            @for (k of r.kinds; track k; let last = $last) {
+              {{ kindKey(k) | abpLocalization }}{{ last ? '' : ', ' }}
+            }
+          </span>
+          @if (noteKey(r.routingNote); as nk) {
+            <span class="es-note" data-testid="routing-note">{{ nk | abpLocalization }}</span>
+          }
+        </div>
+        <div class="es-state">
+          @switch (pillFor(r)) {
+            @case ('allCases') {
+              <span class="es-pill es-pill--red" data-testid="pill">
+                {{ '::EmailStops:Pill:AllCases' | abpLocalization }}
+              </span>
+            }
+            @case ('case') {
+              <span class="es-pill es-pill--amber" data-testid="pill">
+                {{ '::EmailStops:Pill:Case' | abpLocalization }}
+              </span>
+            }
+            @default {
+              <span class="es-pill es-pill--green" data-testid="pill">
+                {{ '::EmailStops:Pill:Active' | abpLocalization }}
+              </span>
+            }
+          }
+          @if (r.allCasesStop ?? r.caseStop; as s) {
+            <span class="es-by" data-testid="stopped-by">
+              {{
+                '::EmailStops:Card:StoppedBy'
+                  | abpLocalization
+                    : s.stoppedByName || ('::EmailStops:Card:Someone' | abpLocalization)
+                    : (s.stoppedAt | pacificDate: 'mediumDate')
+              }}
+              @if (s.note) {
+                <em>{{ s.note }}</em>
+              }
+            </span>
+          }
+        </div>
+        <div class="es-action">
+          @if (pillFor(r) === 'active') {
+            <button
+              class="af-btn af-btn--ghost af-btn--sm"
+              type="button"
+              data-testid="stop-btn"
+              [disabled]="busy()"
+              (click)="stop(r)"
+            >
+              {{ '::EmailStops:StopButton' | abpLocalization }}
+            </button>
+          } @else {
+            <button
+              class="af-btn af-btn--primary af-btn--sm"
+              type="button"
+              data-testid="resume-btn"
+              [disabled]="busy()"
+              (click)="turnOn(r)"
+            >
+              {{ '::EmailStops:TurnOnButton' | abpLocalization }}
+            </button>
+          }
+        </div>
+      </div>
+    }
+  </div>
+</section>
+
+@if (stopTarget(); as email) {
+  <app-email-stop-dialog
+    [appointmentId]="appointmentId()!"
+    [email]="email"
+    (closed)="stopTarget.set(null)"
+    (stopped)="onStopped()"
+  />
+}
+
+@if (confirmAll(); as target) {
+  <div class="ra-scrim">
+    <div class="ra-modal ra-modal--sm" role="dialog" aria-modal="true">
+      <div class="ra-modal__head">
+        <h3>{{ '::EmailStops:TurnOnButton' | abpLocalization }}</h3>
+      </div>
+      <div class="ra-modal__body">
+        <p data-testid="confirm-all-text">
+          {{ '::EmailStops:Confirm:AllCases' | abpLocalization }}
+        </p>
+      </div>
+      <div class="ra-modal__foot">
+        <button class="af-btn af-btn--ghost" type="button" (click)="confirmAll.set(null)">
+          {{ '::EmailStops:Dialog:Cancel' | abpLocalization }}
+        </button>
+        <button
+          class="af-btn af-btn--primary"
+          type="button"
+          data-testid="confirm-resume"
+          (click)="resume(target)"
+        >
+          {{ '::EmailStops:TurnOnButton' | abpLocalization }}
+        </button>
+      </div>
+    </div>
+  </div>
+}

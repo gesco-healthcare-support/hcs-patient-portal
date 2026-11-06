@@ -135,6 +135,7 @@ public class ChangeRequestConsentInfoEmailHandler :
             try
             {
                 await _dispatcher.DispatchAsync(
+                    notificationCase: NotificationCase.Of(eventData.AppointmentId),
                     templateCode: NotificationTemplateConsts.Codes.ChangeRequestConsentInfo,
                     recipients: recipients,
                     variables: variables,

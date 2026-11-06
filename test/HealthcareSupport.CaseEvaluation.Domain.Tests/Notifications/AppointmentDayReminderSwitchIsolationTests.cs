@@ -1,3 +1,4 @@
+using HealthcareSupport.CaseEvaluation.EmailStops;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications.Jobs;
@@ -53,7 +54,7 @@ public class AppointmentDayReminderSwitchIsolationTests
             Substitute.For<IBackgroundJobManager>(),
             Settings(globalOn),
             NullLogger<CancellationRescheduleReminderJob>.Instance,
-            ReminderJobTestHarness.Clock());
+            ReminderJobTestHarness.Clock(), Substitute.For<IEmailStopPolicy>());
 
         await job.ExecuteAsync();
 
@@ -77,7 +78,7 @@ public class AppointmentDayReminderSwitchIsolationTests
             Substitute.For<IBackgroundJobManager>(),
             Settings(globalOn),
             NullLogger<RequestSchedulingReminderJob>.Instance,
-            ReminderJobTestHarness.Clock());
+            ReminderJobTestHarness.Clock(), Substitute.For<IEmailStopPolicy>());
 
         await job.ExecuteAsync();
 

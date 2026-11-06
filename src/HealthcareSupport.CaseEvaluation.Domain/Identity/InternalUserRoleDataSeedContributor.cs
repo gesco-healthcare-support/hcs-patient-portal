@@ -413,6 +413,9 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return "LanguageManagement.Languages.ChangeDefault";
         yield return "LanguageManagement.LanguageTexts";
         yield return "LanguageManagement.LanguageTexts.Edit";
+
+        // 2026-11-05 -- stop emails to an external person (one case or all cases) and turn them back on.
+        yield return $"{Group}.EmailStops";
     }
 
     /// <summary>
@@ -475,6 +478,9 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         // gates nothing on the host side any more.
         yield return $"{Group}.CaseTrackerIntegration";
         yield return $"{Group}.Appointments.ViewIntegrationDeadLetters";
+
+        // 2026-11-05 -- stop emails to an external person (one case or all cases) and turn them back on.
+        yield return $"{Group}.EmailStops";
     }
 
     /// <summary>
@@ -649,6 +655,9 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         // server gate is the same permission for all three.
         yield return Default("UserManagement");
         yield return $"{Group}.UserManagement.InviteExternalUser";
+
+        // 2026-11-05 -- stop emails to an external person (one case or all cases) and turn them back on.
+        yield return $"{Group}.EmailStops";
     }
 
     /// <summary>
@@ -771,6 +780,9 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         // NOT InternalUsers (2026-10-20). Internal users are host operators, managed from the host
         // alone, and the permission is now MultiTenancySides.Host, so ABP refuses to grant it in an
         // office: this pass would throw. InternalUserRoleGrantsTests pins its absence.
+
+        // 2026-11-05 -- stop emails to an external person (one case or all cases) and turn them back on.
+        yield return $"{Group}.EmailStops";
     }
 
 }

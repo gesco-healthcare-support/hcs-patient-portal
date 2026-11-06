@@ -248,6 +248,13 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
             L("Permission:InternalUsers.Edit"),
             MultiTenancySides.Host);
 
+        // 2026-11-05: staff stop emails to an external person, for one case or for all cases. Both sides:
+        // office staff use it on the case page, host staff on the "Stopped emails" list. Never external.
+        usersAndAccess.AddPermission(
+            CaseEvaluationPermissions.EmailStops.Default,
+            L("Permission:EmailStops"),
+            MultiTenancySides.Both);
+
         // Phase A (2026-05-05) -- per-user signature upload (internal staff only).
         var userSignaturesPermission = usersAndAccess.AddPermission(
             CaseEvaluationPermissions.UserSignatures.Default,

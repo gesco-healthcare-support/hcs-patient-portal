@@ -111,6 +111,7 @@ public class AccountActivationSender : IAccountActivationSender, ITransientDepen
         {
             var url = await CreateLinkAsync(user);
             await _dispatcher.DispatchAsync(
+                notificationCase: NotificationCase.None,
                 templateCode: NotificationTemplateConsts.Codes.AccountActivation,
                 recipients: new[]
                 {
