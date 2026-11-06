@@ -1,4 +1,5 @@
 import { Component, HostListener, computed, inject, signal } from '@angular/core';
+import { roleDisplayLabel } from '../shared/auth/external-user-roles';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink, RouterOutlet } from '@angular/router';
@@ -148,6 +149,7 @@ export class InternalUsersHubComponent {
   protected readonly onStaffSite = !this.configState.getDeep('currentTenant.id');
   protected readonly roleChipClass = roleChipClass;
   protected readonly initials = initials;
+  protected readonly roleLabel = roleDisplayLabel;
   protected readonly avatarColor = avatarColor;
 
   protected readonly section = signal<UsersSectionKey>('invite');

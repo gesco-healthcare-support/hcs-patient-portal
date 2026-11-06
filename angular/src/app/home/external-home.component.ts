@@ -9,6 +9,10 @@ import {
   DestroyRef,
 } from '@angular/core';
 import { DatePipe } from '@angular/common';
+import {
+  APPLICANT_PARALEGAL_LABEL,
+  DEFENSE_PARALEGAL_LABEL,
+} from '../shared/auth/external-user-roles';
 import { FormsModule } from '@angular/forms';
 import { ConfigStateService, ListService, RestService } from '@abp/ng.core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -116,7 +120,7 @@ const ROLE_CONFIGS: { match: string; config: RoleConfig }[] = [
   {
     match: 'applicant paralegal',
     config: {
-      label: 'Paralegal (Applicant side)',
+      label: APPLICANT_PARALEGAL_LABEL,
       canBook: true,
       canReeval: true,
       showPatientCol: true,
@@ -130,7 +134,7 @@ const ROLE_CONFIGS: { match: string; config: RoleConfig }[] = [
   {
     match: 'defense paralegal',
     config: {
-      label: 'Paralegal (Defense side)',
+      label: DEFENSE_PARALEGAL_LABEL,
       canBook: true,
       canReeval: true,
       showPatientCol: true,

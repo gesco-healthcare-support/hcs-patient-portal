@@ -1500,7 +1500,7 @@
         <section class="ad-card">
           <div class="ad-card__head">
             <span class="ic tint-slate"><app-icon name="users" [size]="18" /></span>
-            <h3>Paralegal / Authorized users</h3>
+            <h3>Paralegal / Case Manager / Authorized users</h3>
             @if (canManageAccessors()) {
               <div class="right">
                 <button
@@ -1533,7 +1533,7 @@
                       {{ row.email }}
                       <app-email-stopped-tag [email]="row.email" [stoppedSet]="stoppedEmails()" />
                     </td>
-                    <td>{{ row.userRole }}</td>
+                    <td>{{ roleLabel(row.userRole) }}</td>
                     <td>{{ getAccessTypeLabel(row.accessTypeId) }}</td>
                     <td style="text-align: right; white-space: nowrap">
                       @if (canManageAccessors()) {
@@ -1561,7 +1561,7 @@
                 } @empty {
                   <tr>
                     <td colspan="5" style="text-align: center; color: var(--n-400); padding: 24px">
-                      No paralegals or additional authorized users.
+                      No paralegals / case managers or additional authorized users.
                     </td>
                   </tr>
                 }
@@ -1666,8 +1666,8 @@
             <h3>
               {{
                 authorizedUserModalMode === 'edit'
-                  ? 'Edit paralegal / authorized user'
-                  : 'Add paralegal / authorized user'
+                  ? 'Edit paralegal / case manager / authorized user'
+                  : 'Add paralegal / case manager / authorized user'
               }}
             </h3>
             <button class="ext-iconbtn x" type="button" (click)="closeAuthorizedUserModal()">

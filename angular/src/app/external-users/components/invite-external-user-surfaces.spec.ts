@@ -91,9 +91,9 @@ describe('InviteExternalUserComponent surfaces', () => {
       expect(c.roleOptions.map((o: { label: string }) => o.label)).toEqual([
         'Patient',
         'Attorney (Applicant side)',
-        'Paralegal (Applicant side)',
+        'Paralegal / Case Manager (Applicant side)',
         'Attorney (Defense side)',
-        'Paralegal (Defense side)',
+        'Paralegal / Case Manager (Defense side)',
         'Claim Examiner',
       ]);
     });
@@ -112,8 +112,8 @@ describe('InviteExternalUserComponent surfaces', () => {
       expect(byLabel.get('Claim Examiner')).toBe(2);
       expect(byLabel.get('Attorney (Applicant side)')).toBe(3);
       expect(byLabel.get('Attorney (Defense side)')).toBe(4);
-      expect(byLabel.get('Paralegal (Applicant side)')).toBe(5);
-      expect(byLabel.get('Paralegal (Defense side)')).toBe(6);
+      expect(byLabel.get('Paralegal / Case Manager (Applicant side)')).toBe(5);
+      expect(byLabel.get('Paralegal / Case Manager (Defense side)')).toBe(6);
     });
 
     it('defaults to Patient', () => {

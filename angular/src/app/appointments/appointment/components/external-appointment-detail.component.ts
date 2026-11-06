@@ -30,7 +30,10 @@ import { RescheduleChainNoteComponent } from './reschedule-chain-note.component'
 import { SkeletonComponent } from '../../../shared/ui/skeleton/skeleton.component';
 import { ExternalNavbarComponent } from '../../../shared/components/external-navbar/external-navbar.component';
 import { SubmitQueryModalComponent } from '../../../user-queries/submit-query-modal.component';
-import { authorizedUserRoleLabel } from '../../../shared/auth/external-user-roles';
+import {
+  authorizedUserRoleLabel,
+  roleDisplayLabel,
+} from '../../../shared/auth/external-user-roles';
 import { performFullLogout } from '../../../shared/auth/full-logout';
 import { resolveExternalUserDisplayName } from '../../../shared/auth/external-user-display-name';
 import { appointmentStatusToPill } from '../../../shared/ui/status-pill/appointment-status.util';
@@ -353,6 +356,17 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
     });
   }
 
+  /** Same override rationale as reBook above: shellRouter only because the parent's `router` is private. */
+  override requestReEvaluation(): void {
+    const conf = this.appointment?.appointment?.requestConfirmationNumber;
+    if (!conf) {
+      return;
+    }
+    void this.shellRouter.navigate(['/appointments/request'], {
+      queryParams: { type: 2, source: conf },
+    });
+  }
+
   private loadNavName(): void {
     const u = this.shellConfig.getOne('currentUser') as {
       name?: string;
@@ -364,7 +378,7 @@ export class ExternalAppointmentDetailComponent extends AppointmentViewComponent
     const t = this.shellConfig.getOne('currentTenant') as { name?: string } | null;
     this.navClinicName = t?.name || 'Appointment Portal';
     this.navUserEmailText = u?.email || u?.userName || '';
-    this.navRoleLabelText = u?.roles?.[0] ?? '';
+    this.navRoleLabelText = roleDisplayLabel(u?.roles?.[0]);
     this.navDisplayName = resolveExternalUserDisplayName(u?.name, u?.surname, '', u?.userName);
     this.shellRest
       .request<
