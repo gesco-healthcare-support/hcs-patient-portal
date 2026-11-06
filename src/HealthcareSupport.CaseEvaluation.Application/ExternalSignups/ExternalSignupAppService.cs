@@ -1626,7 +1626,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     /// "Hi First Last," when a name is present and falls back to "Hello," when
     /// blank (fixes the OBS-27 empty "Hi ," greeting).
     /// </summary>
-    private static Dictionary<string, object?> BuildInvitationVariables(
+    internal static Dictionary<string, object?> BuildInvitationVariables(
         string tenantName, string roleName, string inviteUrl, DateTime expiresAtUtc,
         string? firstName = null, string? lastName = null)
     {
@@ -1643,7 +1643,9 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         return new Dictionary<string, object?>(StringComparer.Ordinal)
         {
             ["TenantName"] = tenantName,
-            ["RoleName"] = roleName,
+            // 2026-11-06 (R5): the display label, so a paralegal reads "Paralegal / Case Manager
+            // (Applicant side)" as the screens say it. The role NAME stays unchanged everywhere else.
+            ["RoleName"] = ToRoleDisplayLabel(roleName),
             ["URL"] = inviteUrl,
             ["ExpiresAt"] = expiresAtLabel,
             ["Greeting"] = greeting,
@@ -1729,6 +1731,19 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             _ => throw new UserFriendlyException("Invalid user type."),
         };
     }
+
+    /// <summary>
+    /// 2026-11-06 (R5) -- how a role reads in an email. Some firms call the paralegal a case manager,
+    /// so the two paralegal roles show as "Paralegal / Case Manager" with their side, matching the
+    /// invite and sign-up screens. Every other role reads as its name. Display text only: the role
+    /// names, the user types and the grants stay keyed on the names.
+    /// </summary>
+    internal static string ToRoleDisplayLabel(string roleName) => roleName switch
+    {
+        ExternalRoleConsts.ApplicantParalegal => "Paralegal / Case Manager (Applicant side)",
+        ExternalRoleConsts.DefenseParalegal => "Paralegal / Case Manager (Defense side)",
+        _ => roleName,
+    };
 
     /// <summary>
     /// True for the two attorney roles. <c>FirmName</c> + <c>FirmEmail</c>

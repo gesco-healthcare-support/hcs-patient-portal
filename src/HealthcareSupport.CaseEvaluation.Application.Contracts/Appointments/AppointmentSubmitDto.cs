@@ -10,6 +10,8 @@ using HealthcareSupport.CaseEvaluation.Patients;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using Volo.Abp.Auditing;
+using Volo.Abp.Timing;
 
 namespace HealthcareSupport.CaseEvaluation.Appointments;
 
@@ -45,6 +47,17 @@ public class AppointmentSubmitDto
     /// </summary>
     [StringLength(AppointmentConsts.RequestConfirmationNumberMaxLength)]
     public string? SourceConfirmationNumber { get; set; }
+
+    /// <summary>
+    /// 2026-11-06 -- the patient's date of birth, for a re-evaluation booked by someone who is NOT a
+    /// party to the earlier appointment (a new paralegal at the same firm, say). Only read when
+    /// <see cref="Mode"/> is <see cref="BookingSubmitMode.Reval"/> and the caller cannot read the
+    /// source: it is checked again here, never trusted from the earlier lookup, and the same refusal
+    /// answers a wrong number and a wrong date. A calendar date, so it is not shifted to UTC.
+    /// </summary>
+    [DisableDateTimeNormalization]
+    [DisableAuditing]
+    public DateTime? SourcePatientDateOfBirth { get; set; }
 
     /// <summary>
     /// An already-resolved patient. Supply this OR <see cref="Patient"/>. When both are present

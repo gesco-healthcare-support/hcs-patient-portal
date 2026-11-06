@@ -1448,4 +1448,12 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string UploadScanUnavailable =
         "CaseEvaluation:Upload.ScanUnavailable";
+
+    /// <summary>
+    /// 2026-11-06 -- too many re-evaluation lookups by confirmation number and patient date of
+    /// birth from one account or one address in the last hour. The lookup hands a non-party the
+    /// whole earlier case, so the number of guesses is capped; mapped to HTTP 429.
+    /// </summary>
+    public const string ReEvaluationLookupThrottled =
+        "CaseEvaluation:Appointment.ReEvaluationLookupThrottled";
 }

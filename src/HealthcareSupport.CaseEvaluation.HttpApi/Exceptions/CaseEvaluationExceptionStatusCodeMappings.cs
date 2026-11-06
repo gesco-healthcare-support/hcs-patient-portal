@@ -164,4 +164,16 @@ public static class CaseEvaluationExceptionStatusCodeMappings
             CaseEvaluationDomainErrorCodes.UploadScanUnavailable,
             HttpStatusCode.ServiceUnavailable);
     }
+
+    /// <summary>
+    /// 2026-11-06 -- too many re-evaluation lookups by confirmation number and date of birth is a
+    /// 429, like the other throttles, so the booking form can say "try again later" rather than show
+    /// the nothing an unmapped 403 gets. HttpApi.Host only; the AuthServer has no booking routes.
+    /// </summary>
+    public static void MapReEvaluationLookupCodes(AbpExceptionHttpStatusCodeOptions options)
+    {
+        options.Map(
+            CaseEvaluationDomainErrorCodes.ReEvaluationLookupThrottled,
+            HttpStatusCode.TooManyRequests);
+    }
 }

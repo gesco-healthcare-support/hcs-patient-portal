@@ -2391,4 +2391,39 @@ public abstract class AppointmentsAppServiceTests<TStartupModule> : CaseEvaluati
             }
         });
     }
+
+    [Fact]
+    public async Task GetByConfirmationNumberAsync_ForAnInOfficeAppointmentTheCallerCannotRead_ReportsNotFound()
+    {
+        // 2026-11-06: the same rule INSIDE one office. This used to throw AccessDenied for a number
+        // that exists but is not the caller's, and null for one nobody issued, so any signed-in
+        // caller could tell which sequential numbers had been issued. Both are now null.
+        var token = Guid.NewGuid().ToString("N")[..8];
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                var confirmationNumber = await SeedAppointmentForConfirmationLookupAsync(
+                    token, TenantsTestData.TenantARef, "AB1234CD9");
+
+                // Control: the number is real and readable in this harness, so the null below is
+                // the access rule answering, not a lookup that missed.
+                (await _appointmentsAppService.GetByConfirmationNumberAsync(confirmationNumber))
+                    .ShouldNotBeNull();
+
+                using (WithCurrentUser.Run(
+                           _currentPrincipalAccessor,
+                           UnlinkedCallerUserId,
+                           IdentityUsersTestData.PatientRoleName))
+                {
+                    var result = await _appointmentsAppService.GetByConfirmationNumberAsync(confirmationNumber);
+
+                    result.ShouldBeNull(
+                        "a number the caller cannot read must answer exactly like a number nobody "
+                        + "issued; an AccessDenied here tells them the appointment exists.");
+                }
+            }
+        });
+    }
 }

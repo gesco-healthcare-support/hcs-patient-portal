@@ -15,10 +15,12 @@ using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
 using HealthcareSupport.CaseEvaluation.Patients;
+using HealthcareSupport.CaseEvaluation.PhiAccess;
 using HealthcareSupport.CaseEvaluation.Security;
 using Shouldly;
 using Volo.Abp;
 using Volo.Abp.Authorization;
+using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Guids;
 using Volo.Abp.MultiTenancy;
@@ -74,6 +76,8 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
     private readonly INotificationTemplateRepository _templateRepository;
     private readonly IRepository<NotificationTemplateType, Guid> _templateTypeRepository;
     private readonly IGuidGenerator _guidGenerator;
+    private readonly IReEvaluationSourcesAppService _reEvaluationSources;
+    private readonly IRepository<PhiAccessLogEntry, Guid> _phiAccessLog;
 
     // Any Guid will do; it just has to be stable across the seeded rows.
     private static readonly Guid EmailTypeId = Guid.Parse("c0000001-0000-4000-9000-000000000001");
@@ -99,6 +103,8 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
         _templateRepository = GetRequiredService<INotificationTemplateRepository>();
         _templateTypeRepository = GetRequiredService<IRepository<NotificationTemplateType, Guid>>();
         _guidGenerator = GetRequiredService<IGuidGenerator>();
+        _reEvaluationSources = GetRequiredService<IReEvaluationSourcesAppService>();
+        _phiAccessLog = GetRequiredService<IRepository<PhiAccessLogEntry, Guid>>();
     }
 
     [Fact]
@@ -923,6 +929,279 @@ public class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOfficeTest
                 }
             }
         }, requiresNew: true);
+    }
+
+    // ------------------------------------------------------------------ R2c (2026-11-06)
+    //
+    // A re-evaluation by someone who is NOT a party to the earlier appointment (a new paralegal at the
+    // same firm, say): the confirmation number plus the patient's date of birth. The lookup hands such
+    // a caller the whole earlier case, so each refusal is the same null, the attempts are capped, and
+    // the submit checks the date again rather than trusting the lookup.
+
+    // Every MultiOffice class writes slots into ONE shared database under a unique (office, location, day, from, to)
+    // key, so these tests use evening hours nobody else books (18:00 sources, 19:00 re-evaluations), each on its own day.
+
+    /// <summary>An earlier appointment booked by staff, with the patient's id and date of birth.</summary>
+    private async Task<(Guid Id, string Number, Guid PatientId, DateTime DateOfBirth)> CreateReEvaluationSourceAsync(
+        SeededOffice office, int day, int dayOffset, AppointmentStatusType status = AppointmentStatusType.Approved)
+    {
+        var source = await CreateSourceAppointmentAsync(
+            office, TestToday.AddDays(day), new TimeOnly(18, 0), status, dayOffset);
+        var patientId = Guid.Empty;
+        await InOfficeAsync(office, async () =>
+            patientId = (await _appointmentRepository.GetAsync(source.Id)).PatientId);
+
+        // BuildSubmitDto's patient date of birth for this offset.
+        return (source.Id, source.Number, patientId, new DateTime(1985, 4, 12).AddDays(dayOffset));
+    }
+
+    private static ReEvaluationSourceLookupDto Lookup(string number, DateTime dateOfBirth) => new()
+    {
+        ConfirmationNumber = number,
+        PatientDateOfBirth = dateOfBirth,
+    };
+
+    private async Task<List<PhiAccessLogEntry>> PhiRowsForAsync(SeededOffice office, Guid userId)
+    {
+        var rows = new List<PhiAccessLogEntry>();
+        await InOfficeAsync(office, async () =>
+            rows.AddRange(await _phiAccessLog.GetListAsync(e => e.UserId == userId)));
+        return rows;
+    }
+
+    [Fact]
+    public async Task ReEvaluationLookup_ByANonPartyWithTheDateOfBirth_ReturnsTheCaseWithoutWhatOnlyPartiesSee()
+    {
+        var (office, _) = await GetSeededOfficesAsync();
+        await SeedNotificationTemplatesAsync(office);
+        var source = await CreateReEvaluationSourceAsync(office, day: 62, dayOffset: 900);
+        var stranger = Guid.NewGuid();
+        ReEvaluationSourceDto? found = null;
+
+        await InOfficeAsAsync(office, stranger, "Applicant Paralegal", async () =>
+            found = await _reEvaluationSources.LookupAsync(Lookup(source.Number, source.DateOfBirth)));
+
+        found.ShouldNotBeNull("the confirmation number and date of birth match an approved case");
+        found!.CallerIsParty.ShouldBeFalse();
+        found.Source.Appointment.Id.ShouldBe(source.Id);
+        found.Source.Patient!.Id.ShouldBe(source.PatientId);
+        found.Source.AppointmentInjuryDetails.Count.ShouldBe(2, "the form copies the injuries");
+        found.Source.ClaimExaminer.ShouldNotBeNull();
+        found.ApplicantAttorney!.FirmName.ShouldBe("Applicant Law Group");
+        found.DefenseAttorney!.FirmName.ShouldBe("Defense Partners LLP");
+
+        found.Source.AppointmentAccessors.ShouldBeEmpty("a non-party does not learn who else may see the case");
+        found.Source.Patient.SocialSecurityNumber.ShouldBeNull("the form never prefills it");
+        found.Source.IdentityUser.ShouldBeNull();
+        found.Source.BookedByUser.ShouldBeNull();
+
+        var row = (await PhiRowsForAsync(office, stranger)).ShouldHaveSingleItem();
+        row.Action.ShouldBe(PhiAccessAction.ReEvaluationSourceLoadedByDateOfBirth);
+        row.AppointmentId.ShouldBe(source.Id);
+        row.PatientId.ShouldBe(source.PatientId);
+    }
+
+    [Fact]
+    public async Task ReEvaluationLookup_ByStaff_IsAPartyAndKeepsTheAuthorizedUsers()
+    {
+        // The control for the test above: the same case through the same call keeps what the non-party
+        // lost, so those empty values are the rule at work and not a graph that never loaded.
+        var (office, _) = await GetSeededOfficesAsync();
+        await SeedNotificationTemplatesAsync(office);
+        var source = await CreateReEvaluationSourceAsync(office, day: 63, dayOffset: 910);
+        ReEvaluationSourceDto? found = null;
+
+        await InOfficeAsync(office, async () =>
+            found = await _reEvaluationSources.LookupAsync(Lookup(source.Number, source.DateOfBirth)));
+
+        found.ShouldNotBeNull();
+        found!.CallerIsParty.ShouldBeTrue();
+        found.Source.AppointmentAccessors.Count.ShouldBe(2);
+        found.Source.Patient!.SocialSecurityNumber.ShouldNotBeNullOrEmpty("a party sees the last four");
+    }
+
+    [Fact]
+    public async Task ReEvaluationLookup_AWrongDateOfBirthAndAnUnknownNumber_GetTheSameNull_AndAreLogged()
+    {
+        var (office, _) = await GetSeededOfficesAsync();
+        await SeedNotificationTemplatesAsync(office);
+        var source = await CreateReEvaluationSourceAsync(office, day: 64, dayOffset: 920);
+        var stranger = Guid.NewGuid();
+        ReEvaluationSourceDto? wrongDate = new();
+        ReEvaluationSourceDto? unknownNumber = new();
+
+        await InOfficeAsAsync(office, stranger, "Applicant Attorney", async () =>
+        {
+            wrongDate = await _reEvaluationSources.LookupAsync(Lookup(source.Number, source.DateOfBirth.AddDays(1)));
+            unknownNumber = await _reEvaluationSources.LookupAsync(Lookup("NOPE-UNKNOWN", source.DateOfBirth));
+        });
+
+        wrongDate.ShouldBeNull();
+        unknownNumber.ShouldBeNull("the same answer, so the lookup never confirms a number exists");
+
+        var rows = await PhiRowsForAsync(office, stranger);
+        rows.Count.ShouldBe(2);
+        rows.ShouldAllBe(r => r.Action == PhiAccessAction.ReEvaluationSourceLookupRefused);
+        rows.ShouldAllBe(r => r.AppointmentId == null && r.PatientId == null, "a refusal names nobody");
+    }
+
+    [Fact]
+    public async Task ReEvaluationLookup_ByANonPartyForACaseThatCannotBeReEvaluated_ReturnsNull()
+    {
+        var (office, _) = await GetSeededOfficesAsync();
+        await SeedNotificationTemplatesAsync(office);
+        var source = await CreateReEvaluationSourceAsync(
+            office, day: 65, dayOffset: 930, status: AppointmentStatusType.Pending);
+        ReEvaluationSourceDto? found = new();
+
+        await InOfficeAsAsync(office, Guid.NewGuid(), "Applicant Attorney", async () =>
+            found = await _reEvaluationSources.LookupAsync(Lookup(source.Number, source.DateOfBirth)));
+
+        found.ShouldBeNull("a right date of birth does not open a case that cannot be re-evaluated");
+    }
+
+    [Fact]
+    public async Task ReEvaluationLookup_IsRefusedAfterTheHourlyLimitForOneAccount()
+    {
+        var (office, _) = await GetSeededOfficesAsync();
+        var stranger = Guid.NewGuid();
+        var guess = Lookup("NOPE-LIMIT", new DateTime(1980, 1, 1));
+
+        for (var attempt = 0; attempt < ReEvaluationLookupThrottle.MaxPerUserPerHour; attempt++)
+        {
+            await InOfficeAsAsync(office, stranger, "Applicant Attorney", async () =>
+                (await _reEvaluationSources.LookupAsync(guess)).ShouldBeNull());
+        }
+
+        var refused = await Should.ThrowAsync<BusinessException>(() =>
+            InOfficeAsAsync(office, stranger, "Applicant Attorney", () => _reEvaluationSources.LookupAsync(guess)));
+        refused.Code.ShouldBe(CaseEvaluationDomainErrorCodes.ReEvaluationLookupThrottled);
+
+        // Another account is not held back by this one's guesses.
+        await InOfficeAsAsync(office, Guid.NewGuid(), "Applicant Attorney", async () =>
+            (await _reEvaluationSources.LookupAsync(guess)).ShouldBeNull());
+    }
+
+    [Fact]
+    public async Task SubmitAsync_RevalByANonPartyWithTheDateOfBirth_BooksForTheEarlierCasesPatient()
+    {
+        var (office, _) = await GetSeededOfficesAsync();
+        await SeedNotificationTemplatesAsync(office);
+        var source = await CreateReEvaluationSourceAsync(office, day: 66, dayOffset: 940);
+        var date = TestToday.AddDays(44);
+        AppointmentSubmitResultDto? result = null;
+
+        await InOfficeAsAsync(office, Guid.NewGuid(), "Applicant Attorney", async () =>
+        {
+            var slotId = await InsertSlotAsync(office, date, new TimeOnly(19, 0), new TimeOnly(20, 0));
+            var input = BuildSubmitDto(office, slotId, date.AddHours(19).AddMinutes(15), dayOffset: 950);
+            input.Mode = BookingSubmitMode.Reval;
+            input.SourceConfirmationNumber = source.Number;
+            input.SourcePatientDateOfBirth = source.DateOfBirth;
+            input.Patient = null;
+            input.PatientId = source.PatientId;
+            input.Accessors = new List<AppointmentAccessorCreateDto>();
+            result = await _appointments.SubmitAsync(input);
+        });
+
+        await InOfficeAsync(office, async () =>
+        {
+            var created = await _appointmentRepository.GetAsync(result!.AppointmentId);
+            created.OriginalAppointmentId.ShouldBe(source.Id, "reval links on the re-eval chain");
+            created.PatientId.ShouldBe(source.PatientId, "the proof entitles them to book for that patient");
+        });
+    }
+
+    [Theory]
+    [InlineData(false, 67, 960, 45)]
+    [InlineData(true, 68, 970, 47)]
+    public async Task SubmitAsync_RevalByANonPartyWithoutAMatchingDateOfBirth_IsRefusedAsNotFound(
+        bool sendsADate, int sourceDay, int dayOffset, int bookingDay)
+    {
+        var (office, _) = await GetSeededOfficesAsync();
+        await SeedNotificationTemplatesAsync(office);
+        var source = await CreateReEvaluationSourceAsync(office, day: sourceDay, dayOffset: dayOffset);
+        var date = TestToday.AddDays(bookingDay);
+        var slotId = Guid.Empty;
+        await InOfficeAsync(office, async () =>
+            slotId = await InsertSlotAsync(office, date, new TimeOnly(19, 0), new TimeOnly(20, 0)));
+
+        var input = BuildSubmitDto(office, slotId, date.AddHours(19).AddMinutes(15), dayOffset: dayOffset + 1);
+        input.Mode = BookingSubmitMode.Reval;
+        input.SourceConfirmationNumber = source.Number;
+        input.SourcePatientDateOfBirth = sendsADate ? source.DateOfBirth.AddYears(1) : null;
+        input.Patient = null;
+        input.PatientId = source.PatientId;
+        input.Accessors = new List<AppointmentAccessorCreateDto>();
+
+        // SubmitAsync reports any uncoded failure as AppointmentSubmitFailed ("nothing was saved");
+        // inside is the guard's not-found, the same one a number nobody issued gets.
+        var refused = await Should.ThrowAsync<BusinessException>(() =>
+            InOfficeAsAsync(office, Guid.NewGuid(), "Applicant Attorney", () => _appointments.SubmitAsync(input)));
+
+        refused.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentSubmitFailed);
+        var notFound = refused.InnerException.ShouldBeOfType<EntityNotFoundException>();
+        notFound.EntityType.ShouldBe(typeof(Appointment));
+        notFound.Id.ShouldBe(source.Number, "the same not-found a number nobody issued gets");
+        await InOfficeAsync(office, async () =>
+            (await _appointmentRepository.CountAsync(x => x.DoctorAvailabilityId == slotId)).ShouldBe(0));
+    }
+
+    [Fact]
+    public async Task SubmitAsync_RevalByANonPartyForACaseThatCannotBeReEvaluated_IsRefusedAsNotFound()
+    {
+        // The lookup re-applies the status rule itself, so only the submit proves the access rule's
+        // own status gate: a right date of birth must not chain a re-evaluation off a Pending case.
+        var (office, _) = await GetSeededOfficesAsync();
+        await SeedNotificationTemplatesAsync(office);
+        var source = await CreateReEvaluationSourceAsync(
+            office, day: 70, dayOffset: 985, status: AppointmentStatusType.Pending);
+        var date = TestToday.AddDays(49);
+        var slotId = Guid.Empty;
+        await InOfficeAsync(office, async () =>
+            slotId = await InsertSlotAsync(office, date, new TimeOnly(19, 0), new TimeOnly(20, 0)));
+
+        var input = BuildSubmitDto(office, slotId, date.AddHours(19).AddMinutes(15), dayOffset: 986);
+        input.Mode = BookingSubmitMode.Reval;
+        input.SourceConfirmationNumber = source.Number;
+        input.SourcePatientDateOfBirth = source.DateOfBirth;
+        input.Patient = null;
+        input.PatientId = source.PatientId;
+        input.Accessors = new List<AppointmentAccessorCreateDto>();
+
+        var refused = await Should.ThrowAsync<BusinessException>(() =>
+            InOfficeAsAsync(office, Guid.NewGuid(), "Applicant Attorney", () => _appointments.SubmitAsync(input)));
+
+        refused.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentSubmitFailed);
+        refused.InnerException.ShouldBeOfType<EntityNotFoundException>()
+            .Id.ShouldBe(source.Number, "not the status-specific refusal a party gets");
+    }
+
+    [Fact]
+    public async Task SubmitAsync_RevalProvenByDateOfBirth_DoesNotEntitleTheCallerToAnotherPatient()
+    {
+        var (office, _) = await GetSeededOfficesAsync();
+        await SeedNotificationTemplatesAsync(office);
+        var source = await CreateReEvaluationSourceAsync(office, day: 69, dayOffset: 980);
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        Patient? someoneElse = null;
+        await InOfficeAsync(office, async () =>
+            someoneElse = await InsertPatientAsync(office, identityUserId: null, suffix));
+        var date = TestToday.AddDays(48);
+        var slotId = Guid.Empty;
+        await InOfficeAsync(office, async () =>
+            slotId = await InsertSlotAsync(office, date, new TimeOnly(19, 0), new TimeOnly(20, 0)));
+
+        var input = BuildSubmitDto(office, slotId, date.AddHours(19).AddMinutes(15), dayOffset: 990);
+        input.Mode = BookingSubmitMode.Reval;
+        input.SourceConfirmationNumber = source.Number;
+        input.SourcePatientDateOfBirth = source.DateOfBirth;
+        input.Patient = null;
+        input.PatientId = someoneElse!.Id;
+        input.Accessors = new List<AppointmentAccessorCreateDto>();
+
+        await Should.ThrowAsync<AbpAuthorizationException>(() =>
+            InOfficeAsAsync(office, Guid.NewGuid(), "Applicant Attorney", () => _appointments.SubmitAsync(input)));
     }
 
     // ------------------------------------------------------------------ mail choices (2026-11-04)
