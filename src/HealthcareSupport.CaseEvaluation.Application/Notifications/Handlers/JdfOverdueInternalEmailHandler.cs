@@ -107,6 +107,7 @@ public class JdfOverdueInternalEmailHandler :
                 portalUrl: await _accountUrlBuilder.BuildPortalRootUrlAsync(null));
 
             await _dispatcher.DispatchAsync(
+                notificationCase: NotificationCase.Of(eventData.AppointmentId),
                 templateCode: NotificationTemplateConsts.Codes.AppointmentJointDeclarationOverdueInternal,
                 recipients: recipients,
                 variables: variables,

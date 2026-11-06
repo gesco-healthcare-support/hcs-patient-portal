@@ -375,6 +375,16 @@ public static class CaseEvaluationPermissions
     /// (<see cref="UserManagement.InviteExternalUser"/>); IT Admin
     /// self-creation is rejected (IT Admin accounts are seeded only).
     /// </summary>
+    /// <summary>
+    /// 2026-11-05 -- stop emails to an external person (one case, or all cases at every practice), and turn
+    /// them back on. Office: Intake Staff, Staff Supervisor, admin. Host: Staff Supervisor, IT Admin, admin.
+    /// Never an external role.
+    /// </summary>
+    public static class EmailStops
+    {
+        public const string Default = GroupName + ".EmailStops";
+    }
+
     public static class InternalUsers
     {
         public const string Default = GroupName + ".InternalUsers";

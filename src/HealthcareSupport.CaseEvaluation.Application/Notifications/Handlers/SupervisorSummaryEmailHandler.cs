@@ -81,6 +81,7 @@ public class SupervisorSummaryEmailHandler :
             };
 
             await _dispatcher.DispatchAsync(
+                notificationCase: NotificationCase.None,
                 templateCode: NotificationTemplateConsts.Codes.SupervisorDailySummary,
                 recipients: recipients,
                 variables: variables,

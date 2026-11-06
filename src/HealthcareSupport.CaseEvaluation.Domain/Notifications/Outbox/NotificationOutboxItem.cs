@@ -36,6 +36,8 @@ namespace HealthcareSupport.CaseEvaluation.Notifications.Outbox;
 public class NotificationOutboxItem : FullAuditedAggregateRoot<Guid>, IMultiTenant
 {
     private const string ExtraPacketRefsKey = "ExtraPacketRefs";
+    private const string EmailStopCheckKey = "EmailStopCheck";
+    private const string EmailStopCaseIdKey = "EmailStopCaseId";
     private const string CcSeparator = "\n";
 
     public virtual Guid? TenantId { get; set; }
@@ -159,6 +161,86 @@ public class NotificationOutboxItem : FullAuditedAggregateRoot<Guid>, IMultiTena
             return;
         }
         ExtraProperties[ExtraPacketRefsKey] = System.Text.Json.JsonSerializer.Serialize(list);
+    }
+
+    /// <summary>
+    /// 2026-11-05 email stops: records whether the drain re-checks this row against the staff email stops
+    /// (false only for self-service account mail, which is never stopped) and the appointment it is about,
+    /// so a stop saved after the row was written still holds. Kept in <c>ExtraProperties</c> -- no schema
+    /// change. A row written before email stops existed carries neither key and is not re-checked: no stop
+    /// can predate it.
+    /// </summary>
+    public virtual void SetEmailStopCheck(bool check, Guid? caseAppointmentId)
+    {
+        ExtraProperties[EmailStopCheckKey] = check;
+        if (caseAppointmentId.HasValue)
+        {
+            ExtraProperties[EmailStopCaseIdKey] = caseAppointmentId.Value.ToString("D");
+        }
+        else
+        {
+            ExtraProperties.Remove(EmailStopCaseIdKey);
+        }
+    }
+
+    /// <summary>True when the drain must re-check this row against the staff email stops.</summary>
+    public virtual bool RequiresEmailStopCheck()
+    {
+        if (!ExtraProperties.TryGetValue(EmailStopCheckKey, out var raw) || raw == null)
+        {
+            return false;
+        }
+        return raw switch
+        {
+            bool b => b,
+            System.Text.Json.JsonElement { ValueKind: System.Text.Json.JsonValueKind.True } => true,
+            System.Text.Json.JsonElement { ValueKind: System.Text.Json.JsonValueKind.String } element =>
+                bool.TryParse(element.GetString(), out var parsed) && parsed,
+            _ => bool.TryParse(raw.ToString(), out var text) && text,
+        };
+    }
+
+    /// <summary>The appointment this row is about, as recorded at write time (null when none).</summary>
+    public virtual Guid? GetEmailStopCaseId()
+    {
+        if (!ExtraProperties.TryGetValue(EmailStopCaseIdKey, out var raw) || raw == null)
+        {
+            return null;
+        }
+        var text = raw is System.Text.Json.JsonElement element && element.ValueKind == System.Text.Json.JsonValueKind.String
+            ? element.GetString()
+            : raw.ToString();
+        return Guid.TryParse(text, out var id) ? id : null;
+    }
+
+    /// <summary>
+    /// 2026-11-05: re-addresses a Pending row after a staff email stop removed some of its addresses (the
+    /// first remaining CC becomes the To). Only before delivery.
+    /// </summary>
+    public virtual void ReplaceRecipients(string to, IEnumerable<string>? cc)
+    {
+        if (Status != NotificationOutboxStatus.Pending)
+        {
+            throw new InvalidOperationException("Only a Pending outbox row can be re-addressed.");
+        }
+        To = Check.NotNullOrWhiteSpace(to, nameof(to), NotificationOutboxConsts.ToMaxLength);
+        Cc = JoinCc(cc);
+    }
+
+    /// <summary>
+    /// 2026-11-05: every address on this row had its emails stopped by staff after it was written. Terminal;
+    /// the row is never sent. A Sent row stays Sent.
+    /// </summary>
+    public virtual void MarkStopped(DateTime nowUtc)
+    {
+        if (Status == NotificationOutboxStatus.Sent)
+        {
+            return;
+        }
+        Status = NotificationOutboxStatus.Stopped;
+        LockedUntil = null;
+        NextAttemptAt = null;
+        LastError = "Stopped: every recipient had emails turned off by staff (" + nowUtc.ToString("O") + ").";
     }
 
     /// <summary>Reads <see cref="Cc"/> back as a list (empty when none).</summary>

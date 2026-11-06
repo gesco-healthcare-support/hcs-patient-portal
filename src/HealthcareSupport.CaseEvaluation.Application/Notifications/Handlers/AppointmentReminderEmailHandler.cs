@@ -140,6 +140,7 @@ public class AppointmentReminderEmailHandler :
             }
 
             await _bookerCcDispatcher.DispatchToBookerWithCcAsync(
+                notificationCase: NotificationCase.Of(eventData.AppointmentId),
                 templateCode: NotificationTemplateConsts.Codes.AppointmentDueDateReminder,
                 bookerEmail: ctx.PrimaryRecipientEmail ?? ctx.BookerEmail,
                 stakeholders: reminderRecipients,

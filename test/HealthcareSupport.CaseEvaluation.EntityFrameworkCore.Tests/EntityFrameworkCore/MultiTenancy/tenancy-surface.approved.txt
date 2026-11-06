@@ -36,6 +36,8 @@ HealthcareSupport.CaseEvaluation.Doctors.Doctor -> IMultiTenant=yes CaseEvaluati
 HealthcareSupport.CaseEvaluation.Doctors.DoctorAppointmentType -> IMultiTenant=no CaseEvaluationDbContext=mapped CaseEvaluationTenantDbContext=mapped
 HealthcareSupport.CaseEvaluation.Doctors.DoctorLocation -> IMultiTenant=no CaseEvaluationDbContext=mapped CaseEvaluationTenantDbContext=mapped
 HealthcareSupport.CaseEvaluation.Documents.Document -> IMultiTenant=yes CaseEvaluationDbContext=mapped CaseEvaluationTenantDbContext=mapped
+HealthcareSupport.CaseEvaluation.EmailStops.AppointmentEmailStop -> IMultiTenant=yes CaseEvaluationDbContext=mapped CaseEvaluationTenantDbContext=mapped
+HealthcareSupport.CaseEvaluation.EmailStops.GlobalEmailStop -> IMultiTenant=no CaseEvaluationDbContext=mapped CaseEvaluationTenantDbContext=absent
 HealthcareSupport.CaseEvaluation.HostOperators.IntakeOfficeAssignment -> IMultiTenant=no CaseEvaluationDbContext=mapped CaseEvaluationTenantDbContext=absent
 HealthcareSupport.CaseEvaluation.Integration.CaseTracker.CaseTrackerFeedState -> IMultiTenant=yes CaseEvaluationDbContext=mapped CaseEvaluationTenantDbContext=mapped
 HealthcareSupport.CaseEvaluation.Integration.CaseTracker.IntegrationOutboxItem -> IMultiTenant=yes CaseEvaluationDbContext=mapped CaseEvaluationTenantDbContext=mapped

@@ -117,7 +117,7 @@ public class ChangeRequestSubmittedEmailHandlerGuardTests
     {
         var args = rig.Dispatcher.ReceivedCalls()
             .Where(c => c.GetMethodInfo().Name == nameof(INotificationDispatcher.DispatchAsync))
-            .ShouldHaveSingleItem().GetArguments();
+            .ShouldHaveSingleItem().GetArguments().Skip(1).ToArray();
         return ((string)args[0]!, (IReadOnlyCollection<NotificationRecipient>)args[1]!, (IReadOnlyDictionary<string, object?>)args[2]!);
     }
 
@@ -231,6 +231,7 @@ public class ChangeRequestSubmittedEmailHandlerGuardTests
         var rig = type == ChangeRequestType.Reschedule ? RescheduleRig() : new Rig();
         rig.Dispatcher
             .DispatchAsync(
+                Arg.Any<NotificationCase>(),
                 Arg.Any<string>(), Arg.Any<IReadOnlyCollection<NotificationRecipient>>(),
                 Arg.Any<IReadOnlyDictionary<string, object?>>(), Arg.Any<string>(),
                 Arg.Any<PacketAttachmentRef?>(), Arg.Any<CancellationToken>())
@@ -270,7 +271,7 @@ public class ChangeRequestSubmittedEmailHandlerGuardTests
 
         var args = rig.Dispatcher.ReceivedCalls()
             .Where(c => c.GetMethodInfo().Name == nameof(INotificationDispatcher.DispatchAsync))
-            .ShouldHaveSingleItem().GetArguments();
+            .ShouldHaveSingleItem().GetArguments().Skip(1).ToArray();
         args[0].ShouldBe(NotificationTemplateConsts.Codes.AppointmentCancelledRequest);
         ((IReadOnlyDictionary<string, object?>)args[2]!)["CancellationReason"].ShouldBe("TEST-reason: moving away");
     }
@@ -287,7 +288,7 @@ public class ChangeRequestSubmittedEmailHandlerGuardTests
 
         var recipients = (IReadOnlyCollection<NotificationRecipient>)rig.Dispatcher.ReceivedCalls()
             .Where(c => c.GetMethodInfo().Name == nameof(INotificationDispatcher.DispatchAsync))
-            .ShouldHaveSingleItem().GetArguments()[1]!;
+            .ShouldHaveSingleItem().GetArguments().Skip(1).ToArray()[1]!;
         recipients.Select(r => r.Email).ShouldBe(new[] { "TEST-aa@test.local", "TEST-intake-1@test.local" });
     }
 
@@ -341,7 +342,7 @@ public class ChangeRequestSubmittedEmailHandlerGuardTests
 
         var recipients = (IReadOnlyCollection<NotificationRecipient>)rig.Dispatcher.ReceivedCalls()
             .Where(c => c.GetMethodInfo().Name == nameof(INotificationDispatcher.DispatchAsync))
-            .ShouldHaveSingleItem().GetArguments()[1]!;
+            .ShouldHaveSingleItem().GetArguments().Skip(1).ToArray()[1]!;
         recipients.Select(r => r.Email).ShouldBe(new[] { "TEST-intake-1@test.local" });
     }
 

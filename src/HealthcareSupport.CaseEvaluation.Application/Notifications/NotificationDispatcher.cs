@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments;
+using HealthcareSupport.CaseEvaluation.EmailStops;
 using HealthcareSupport.CaseEvaluation.Notifications.Outbox;
 using Microsoft.Extensions.Logging;
 using Volo.Abp;
@@ -31,6 +32,13 @@ namespace HealthcareSupport.CaseEvaluation.Notifications;
 /// output via <see cref="INotificationTemplateRenderer"/> directly if
 /// they need to emit SMS through a future impl.</para>
 ///
+/// <para>2026-11-05 email stops: every dispatch first asks <see cref="EmailStopPolicy"/> -- ONE lookup per
+/// call, over every address it would write -- and leaves out anyone staff stopped for this case or for all
+/// cases, CC lines included. A stopped To hands the email to the first remaining CC; when nobody is left,
+/// nothing is written. Each row also records whether the outbox drain must re-check it, so a stop saved
+/// after the row was written still holds. Self-service account templates
+/// (<see cref="EmailStopPolicy.NeverStoppedTemplateCodes"/>) are never stopped.</para>
+///
 /// <para>Fault tolerance:</para>
 /// <list type="bullet">
 ///   <item>Empty recipient list -> early return without rendering. Zero
@@ -52,6 +60,7 @@ public class NotificationDispatcher : INotificationDispatcher, IPacketCopyDispat
     private readonly NotificationOutboxManager _outboxManager;
     private readonly IUnitOfWorkManager _unitOfWorkManager;
     private readonly ILogger<NotificationDispatcher> _logger;
+    private readonly IEmailStopPolicy _emailStopPolicy;
 
     public NotificationDispatcher(
         INotificationTemplateRenderer renderer,
@@ -59,7 +68,8 @@ public class NotificationDispatcher : INotificationDispatcher, IPacketCopyDispat
         ICurrentTenant currentTenant,
         NotificationOutboxManager outboxManager,
         IUnitOfWorkManager unitOfWorkManager,
-        ILogger<NotificationDispatcher> logger)
+        ILogger<NotificationDispatcher> logger,
+        IEmailStopPolicy emailStopPolicy)
     {
         _renderer = renderer;
         _backgroundJobManager = backgroundJobManager;
@@ -67,9 +77,11 @@ public class NotificationDispatcher : INotificationDispatcher, IPacketCopyDispat
         _outboxManager = outboxManager;
         _unitOfWorkManager = unitOfWorkManager;
         _logger = logger;
+        _emailStopPolicy = emailStopPolicy;
     }
 
     public virtual async Task DispatchAsync(
+        NotificationCase notificationCase,
         string templateCode,
         IReadOnlyCollection<NotificationRecipient> recipients,
         IReadOnlyDictionary<string, object?> variables,
@@ -84,18 +96,24 @@ public class NotificationDispatcher : INotificationDispatcher, IPacketCopyDispat
         if (recipients.Count == 0)
         {
             _logger.LogDebug(
-                "NotificationDispatcher: zero recipients for template {TemplateCode} ({Context}); short-circuiting.",
-                templateCode,
+                "NotificationDispatcher: zero recipients ({Context}); short-circuiting.",
                 contextTag);
+            return;
+        }
+
+        var remaining = await WithoutStoppedAsync(notificationCase, templateCode, recipients, contextTag);
+        if (remaining.Count == 0)
+        {
             return;
         }
 
         var rendered = await _renderer.RenderAsync(templateCode, variables, cancellationToken);
 
         var wroteAny = false;
-        foreach (var recipient in recipients)
+        foreach (var recipient in remaining)
         {
-            wroteAny |= await WriteRecipientRowAsync(recipient, rendered, contextTag, templateCode, packetRef);
+            wroteAny |= await WriteRecipientRowAsync(
+                recipient, rendered, contextTag, templateCode, packetRef, notificationCase);
         }
         if (wroteAny)
         {
@@ -104,6 +122,7 @@ public class NotificationDispatcher : INotificationDispatcher, IPacketCopyDispat
     }
 
     public virtual async Task DispatchWithPacketsAsync(
+        NotificationCase notificationCase,
         string templateCode,
         IReadOnlyCollection<NotificationRecipient> recipients,
         IReadOnlyDictionary<string, object?> variables,
@@ -121,19 +140,24 @@ public class NotificationDispatcher : INotificationDispatcher, IPacketCopyDispat
             return;
         }
 
+        var remaining = await WithoutStoppedAsync(notificationCase, templateCode, recipients, contextTag);
+        if (remaining.Count == 0)
+        {
+            return;
+        }
+
         var rendered = await _renderer.RenderAsync(templateCode, variables, cancellationToken);
         var primary = packetRefs[0];
         var extras = packetRefs.Skip(1).ToList();
 
         var wroteAny = false;
         var tenantId = _currentTenant.Id;
-        foreach (var recipient in recipients)
+        foreach (var recipient in remaining)
         {
             if (string.IsNullOrWhiteSpace(recipient.Email))
             {
                 _logger.LogWarning(
-                    "NotificationDispatcher: skipping recipient with empty email for template {TemplateCode} ({Context}).",
-                    templateCode,
+                    "NotificationDispatcher: skipping a recipient with an empty email ({Context}).",
                     contextTag);
                 continue;
             }
@@ -149,7 +173,9 @@ public class NotificationDispatcher : INotificationDispatcher, IPacketCopyDispat
                 primary.AppointmentId,
                 primary.PacketId,
                 primary.Kind,
-                extraPacketRefs: extras);
+                extraPacketRefs: extras,
+                emailStopCheck: !EmailStopPolicy.IsNeverStopped(templateCode),
+                emailStopCaseId: notificationCase.AppointmentId);
             wroteAny = true;
         }
         if (wroteAny)
@@ -159,6 +185,7 @@ public class NotificationDispatcher : INotificationDispatcher, IPacketCopyDispat
     }
 
     public virtual async Task DispatchToWithCcAsync(
+        NotificationCase notificationCase,
         string templateCode,
         NotificationRecipient to,
         IReadOnlyCollection<NotificationRecipient> cc,
@@ -174,13 +201,10 @@ public class NotificationDispatcher : INotificationDispatcher, IPacketCopyDispat
         if (string.IsNullOrWhiteSpace(to.Email))
         {
             _logger.LogWarning(
-                "NotificationDispatcher: DispatchToWithCc skipped -- empty To for template {TemplateCode} ({Context}).",
-                templateCode,
+                "NotificationDispatcher: DispatchToWithCc skipped -- empty To ({Context}).",
                 contextTag);
             return;
         }
-
-        var rendered = await _renderer.RenderAsync(templateCode, variables, cancellationToken);
 
         // Drop empty + the To address itself (case-insensitive), then de-dup.
         var ccEmails = (cc ?? Array.Empty<NotificationRecipient>())
@@ -191,19 +215,37 @@ public class NotificationDispatcher : INotificationDispatcher, IPacketCopyDispat
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
+        // 2026-11-05: a stopped To hands the email to the first remaining CC; a stopped CC is left off; when
+        // nobody is left the email is not written. One lookup covers the To and every CC.
+        var stops = await LookupStopsAsync(notificationCase, templateCode, ccEmails.Prepend(to.Email));
+        var addressing = EmailStopAddressing.Apply(to.Email, ccEmails, stops, notificationCase.AppointmentId);
+        foreach (var dropped in addressing.Dropped)
+        {
+            LogStopped(stops, dropped, notificationCase, contextTag);
+        }
+        if (addressing.IsDropped)
+        {
+            return;
+        }
+
+        var rendered = await _renderer.RenderAsync(templateCode, variables, cancellationToken);
+
         var tenantId = _currentTenant.Id;
+        var toEmail = addressing.To!;
         await _outboxManager.EnqueueAsync(
             tenantId,
-            to.Email,
-            ccEmails,
+            toEmail,
+            addressing.Cc,
             rendered.Subject,
             rendered.BodyEmail,
             isBodyHtml: true,
             contextTag,
-            SendAppointmentEmailArgs.BuildIdempotencyKey(tenantId, to.Email, contextTag, packetRef?.Kind),
+            SendAppointmentEmailArgs.BuildIdempotencyKey(tenantId, toEmail, contextTag, packetRef?.Kind),
             packetRef?.AppointmentId,
             packetRef?.PacketId,
-            packetRef?.Kind);
+            packetRef?.Kind,
+            emailStopCheck: !EmailStopPolicy.IsNeverStopped(templateCode),
+            emailStopCaseId: notificationCase.AppointmentId);
         await ScheduleDrainAsync(tenantId);
     }
 
@@ -211,19 +253,19 @@ public class NotificationDispatcher : INotificationDispatcher, IPacketCopyDispat
     // instead of enqueueing SendAppointmentEmailJob directly. Returns false when
     // the recipient has no email (nothing written). The originating tenant is
     // stamped on the row so the drain re-enters it before a packet-attachment
-    // fetch (the 2026-05-11 Bug A fix, now carried by the row's TenantId).
+    // fetch (the 2026-05-11 Bug A fix, now carried by the row TenantId).
     private async Task<bool> WriteRecipientRowAsync(
         NotificationRecipient recipient,
         RenderedNotification rendered,
         string contextTag,
         string templateCode,
-        PacketAttachmentRef? packetRef)
+        PacketAttachmentRef? packetRef,
+        NotificationCase notificationCase)
     {
         if (string.IsNullOrWhiteSpace(recipient.Email))
         {
             _logger.LogWarning(
-                "NotificationDispatcher: skipping recipient with empty email for template {TemplateCode} ({Context}).",
-                templateCode,
+                "NotificationDispatcher: skipping a recipient with an empty email ({Context}).",
                 contextTag);
             return false;
         }
@@ -239,8 +281,59 @@ public class NotificationDispatcher : INotificationDispatcher, IPacketCopyDispat
             SendAppointmentEmailArgs.BuildIdempotencyKey(tenantId, recipient.Email, contextTag, packetRef?.Kind),
             packetRef?.AppointmentId,
             packetRef?.PacketId,
-            packetRef?.Kind);
+            packetRef?.Kind,
+            emailStopCheck: !EmailStopPolicy.IsNeverStopped(templateCode),
+            emailStopCaseId: notificationCase.AppointmentId);
         return true;
+    }
+
+    // 2026-11-05: the recipients left after the staff email stops, from ONE lookup for the whole call.
+    private async Task<List<NotificationRecipient>> WithoutStoppedAsync(
+        NotificationCase notificationCase,
+        string templateCode,
+        IReadOnlyCollection<NotificationRecipient> recipients,
+        string contextTag)
+    {
+        var stops = await LookupStopsAsync(notificationCase, templateCode, recipients.Select(r => r.Email));
+        if (stops.IsEmpty)
+        {
+            return recipients.ToList();
+        }
+        var remaining = new List<NotificationRecipient>();
+        foreach (var recipient in recipients)
+        {
+            if (stops.IsStopped(recipient.Email, notificationCase.AppointmentId))
+            {
+                LogStopped(stops, recipient.Email, notificationCase, contextTag);
+                continue;
+            }
+            remaining.Add(recipient);
+        }
+        return remaining;
+    }
+
+    // 2026-11-05: ONE stop lookup per dispatch call, over every address it would write (never one per
+    // recipient). The self-service account templates are never stopped, so they skip the lookup.
+    private Task<EmailStopLookup> LookupStopsAsync(
+        NotificationCase notificationCase, string templateCode, IEnumerable<string?> addresses)
+    {
+        if (EmailStopPolicy.IsNeverStopped(templateCode))
+        {
+            return Task.FromResult(EmailStopLookup.Empty);
+        }
+        return LookupOrEmptyAsync(addresses, notificationCase.AppointmentId);
+    }
+
+    private async Task<EmailStopLookup> LookupOrEmptyAsync(IEnumerable<string?> addresses, Guid? appointmentId) =>
+        await _emailStopPolicy.LookupAsync(addresses, appointmentId) ?? EmailStopLookup.Empty;
+
+    // No address and no template code in the line: only the scope and the context tag.
+    private void LogStopped(EmailStopLookup stops, string? email, NotificationCase notificationCase, string contextTag)
+    {
+        _logger.LogInformation(
+            "NotificationDispatcher: email stopped by staff ({Scope}); 1 recipient left off ({Context}).",
+            stops.ScopeOf(email, notificationCase.AppointmentId),
+            contextTag);
     }
 
     // Kicks a drain of this office's outbox on UoW commit so the rows just

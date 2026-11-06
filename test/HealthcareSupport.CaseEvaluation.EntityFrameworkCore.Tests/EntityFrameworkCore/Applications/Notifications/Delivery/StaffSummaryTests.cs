@@ -265,6 +265,7 @@ public class StaffSummaryTests : CaseEvaluationEntityFrameworkCoreTestBase
         public void Clear() => _sent.Clear();
 
         public Task DispatchAsync(
+            NotificationCase notificationCase,
             string templateCode,
             IReadOnlyCollection<NotificationRecipient> recipients,
             IReadOnlyDictionary<string, object?> variables,
@@ -277,6 +278,7 @@ public class StaffSummaryTests : CaseEvaluationEntityFrameworkCoreTestBase
         }
 
         public Task DispatchToWithCcAsync(
+            NotificationCase notificationCase,
             string templateCode,
             NotificationRecipient to,
             IReadOnlyCollection<NotificationRecipient> cc,

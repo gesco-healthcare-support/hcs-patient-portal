@@ -47,6 +47,7 @@ public sealed class RecordingNotificationDispatcher : INotificationDispatcher
     public void Clear() => _dispatches.Clear();
 
     public Task DispatchAsync(
+        NotificationCase notificationCase,
         string templateCode,
         IReadOnlyCollection<NotificationRecipient> recipients,
         IReadOnlyDictionary<string, object?> variables,
@@ -61,6 +62,7 @@ public sealed class RecordingNotificationDispatcher : INotificationDispatcher
     }
 
     public Task DispatchToWithCcAsync(
+        NotificationCase notificationCase,
         string templateCode,
         NotificationRecipient to,
         IReadOnlyCollection<NotificationRecipient> cc,

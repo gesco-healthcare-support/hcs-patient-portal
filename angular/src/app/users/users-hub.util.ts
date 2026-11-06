@@ -2,7 +2,7 @@ import { ExternalUserType } from '../proxy/external-signups/external-user-type.e
 import { InvitationStatus } from '../proxy/invitations/invitation-status.enum';
 
 /** The sections of the Users & Access hub, in rail order. */
-export type UsersSectionKey = 'invite' | 'pending' | 'all' | 'staff' | 'tenants';
+export type UsersSectionKey = 'invite' | 'pending' | 'all' | 'emailStops' | 'staff' | 'tenants';
 
 /** Rail metadata for one section: label, icon, deep-link route, and gating policy. */
 export interface UsersSection {
@@ -48,6 +48,14 @@ export const USERS_SECTIONS: UsersSection[] = [
     icon: 'users',
     route: '/users/all',
     policy: 'AbpIdentity.Users',
+  },
+  {
+    // Addresses that get no emails from any practice. Staff site and inside a practice.
+    key: 'emailStops',
+    label: 'Stopped emails',
+    icon: 'bell',
+    route: '/users/email-stops',
+    policy: 'CaseEvaluation.EmailStops',
   },
   {
     key: 'staff',

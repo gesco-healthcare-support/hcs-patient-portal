@@ -111,6 +111,7 @@ public abstract class ExternalSignupInviteIssueTests<TStartupModule>
         {
             var wall = await Should.ThrowAsync<BusinessException>(
                 () => _notificationDispatcher.DispatchAsync(
+                    notificationCase: NotificationCase.None,
                     templateCode: NotificationTemplateConsts.Codes.InviteExternalUser,
                     recipients: new[]
                     {

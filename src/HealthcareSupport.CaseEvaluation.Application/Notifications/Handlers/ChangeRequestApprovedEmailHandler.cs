@@ -155,6 +155,7 @@ public class ChangeRequestApprovedEmailHandler :
             }
 
             await _dispatcher.DispatchAsync(
+                notificationCase: NotificationCase.Of(eventData.AppointmentId),
                 templateCode: templateCode,
                 recipients: recipients,
                 variables: variables,

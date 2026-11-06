@@ -202,6 +202,7 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
         try
         {
             await _dispatcher.DispatchAsync(
+                notificationCase: NotificationCase.None,
                 templateCode: NotificationTemplateConsts.Codes.ResetPassword,
                 recipients: new[]
                 {
@@ -315,6 +316,7 @@ public class ExternalAccountAppService : CaseEvaluationAppService, IExternalAcco
         try
         {
             await _dispatcher.DispatchAsync(
+                notificationCase: NotificationCase.None,
                 templateCode: NotificationTemplateConsts.Codes.PasswordChange,
                 recipients: new[]
                 {

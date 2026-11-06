@@ -1,3 +1,4 @@
+using HealthcareSupport.CaseEvaluation.EmailStops;
 using System.Collections.Generic;
 using System.Linq;
 using HealthcareSupport.CaseEvaluation.Appointments;
@@ -71,7 +72,7 @@ public class ReminderJobEnqueueTests
             h.Jobs,
             ReminderJobTestHarness.Settings(true, CaseEvaluationSettings.RemindersPolicy.Sec34eElapsedDayAnchors, "45,55"),
             NullLogger<CancellationRescheduleReminderJob>.Instance,
-            ReminderJobTestHarness.Clock());
+            ReminderJobTestHarness.Clock(), Substitute.For<IEmailStopPolicy>());
 
         await job.ExecuteAsync();
 
@@ -99,7 +100,7 @@ public class ReminderJobEnqueueTests
             h.Jobs,
             ReminderJobTestHarness.Settings(true, CaseEvaluationSettings.RemindersPolicy.Sec31_5ElapsedDayAnchors, "30,60,75,85,90"),
             NullLogger<RequestSchedulingReminderJob>.Instance,
-            ReminderJobTestHarness.Clock());
+            ReminderJobTestHarness.Clock(), Substitute.For<IEmailStopPolicy>());
 
         await job.ExecuteAsync();
 

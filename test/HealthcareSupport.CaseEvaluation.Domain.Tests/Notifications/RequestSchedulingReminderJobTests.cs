@@ -1,3 +1,4 @@
+using HealthcareSupport.CaseEvaluation.EmailStops;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications.Jobs;
@@ -38,7 +39,7 @@ public class RequestSchedulingReminderJobTests
                 CaseEvaluationSettings.RemindersPolicy.Sec31_5ElapsedDayAnchors,
                 "30,60,75,85,90"),
             NullLogger<RequestSchedulingReminderJob>.Instance,
-            ReminderJobTestHarness.Clock());
+            ReminderJobTestHarness.Clock(), Substitute.For<IEmailStopPolicy>());
 
         return (job, resolver);
     }

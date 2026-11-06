@@ -98,6 +98,7 @@ public class CaseTrackerPushFailedEmailHandler :
             var templateCode = TemplateCodeFor(eventData.Kind);
 
             await _dispatcher.DispatchAsync(
+                notificationCase: NotificationCase.None,
                 templateCode: templateCode,
                 recipients: recipients,
                 variables: variables,

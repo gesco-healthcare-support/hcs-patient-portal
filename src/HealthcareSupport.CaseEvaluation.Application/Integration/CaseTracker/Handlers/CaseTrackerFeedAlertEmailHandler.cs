@@ -80,6 +80,7 @@ public class CaseTrackerFeedAlertEmailHandler :
             };
 
             await _dispatcher.DispatchAsync(
+                notificationCase: NotificationCase.None,
                 templateCode: NotificationTemplateConsts.Codes.CaseTrackerFeedAlert,
                 recipients: recipients,
                 variables: variables,

@@ -142,6 +142,7 @@ public class OfficePacketCopyEmailHandler :
             };
 
             await _dispatcher.DispatchWithPacketsAsync(
+                notificationCase: NotificationCase.Of(eventData.AppointmentId),
                 templateCode: NotificationTemplateConsts.Codes.OfficePacketCopy,
                 recipients: inbox,
                 variables: variables,
