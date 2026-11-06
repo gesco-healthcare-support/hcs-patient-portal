@@ -106,6 +106,12 @@
               Re-request
             </button>
           }
+          @if (canRequestReEvaluation) {
+            <button class="ap-btn ap-btn--primary" type="button" (click)="requestReEvaluation()">
+              <app-icon name="refresh" [size]="15" />
+              Request re-evaluation
+            </button>
+          }
           @if (canReBook) {
             <button class="ap-btn ap-btn--primary" type="button" (click)="reBook()">
               <app-icon name="refresh" [size]="15" />
@@ -989,7 +995,7 @@
       <div class="ad-card" id="ad-sec-users">
         <div class="ad-card__head">
           <span class="ic tint-slate"><app-icon name="users" [size]="18" /></span>
-          <h3>Paralegal / Authorized users</h3>
+          <h3>Paralegal / Case Manager / Authorized users</h3>
           @if (canManageAccessors()) {
             <div class="right">
               <button
@@ -1014,7 +1020,9 @@
             </div>
           }
           @if (appointmentAuthorizedUsers.length === 0) {
-            <div class="ad-empty">No paralegals or additional authorized users.</div>
+            <div class="ad-empty">
+              No paralegals / case managers or additional authorized users.
+            </div>
           } @else {
             <table class="ad-table">
               <thead>

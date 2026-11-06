@@ -8,6 +8,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { NewAppointmentMenuComponent } from '../new-appointment-menu/new-appointment-menu.component';
 import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { Title } from '@angular/platform-browser';
 import { ConfigStateService, PermissionService } from '@abp/ng.core';
@@ -75,7 +76,14 @@ interface ShellTenant {
 @Component({
   selector: 'app-internal-shell-layout',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, IconComponent, OfficeNamePipe, NotificationBellComponent],
+  imports: [
+    RouterOutlet,
+    RouterLink,
+    IconComponent,
+    OfficeNamePipe,
+    NotificationBellComponent,
+    NewAppointmentMenuComponent,
+  ],
   templateUrl: './internal-shell-layout.component.html',
   // Default (not OnPush) on purpose: the shell hosts legacy default-CD pages
   // (appointment detail/add extend AppointmentViewComponent/AppointmentAddComponent,

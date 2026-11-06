@@ -1,5 +1,8 @@
 import {
+  APPLICANT_PARALEGAL_ROLE,
+  DEFENSE_PARALEGAL_ROLE,
   authorizedUserRoleLabel,
+  roleDisplayLabel,
   authorizedUserRoleOptions,
   hasOnlyExternalRoles,
   isApplicantSideExternal,
@@ -83,10 +86,30 @@ describe('law-office side role helpers', () => {
   });
 });
 
+describe('roleDisplayLabel', () => {
+  it('maps only the two paralegal role names, case-insensitively, and leaves the rest', () => {
+    expect(roleDisplayLabel('Applicant Paralegal')).toBe(
+      'Paralegal / Case Manager (Applicant side)',
+    );
+    expect(roleDisplayLabel('defense paralegal')).toBe('Paralegal / Case Manager (Defense side)');
+    expect(roleDisplayLabel('Applicant Attorney')).toBe('Applicant Attorney');
+    expect(roleDisplayLabel(undefined)).toBe('');
+  });
+
+  it('never changes the role NAME constants the server matches on', () => {
+    expect(APPLICANT_PARALEGAL_ROLE).toBe('Applicant Paralegal');
+    expect(DEFENSE_PARALEGAL_ROLE).toBe('Defense Paralegal');
+  });
+});
+
 describe('authorizedUserRoleLabel', () => {
   it('shows paralegals by side and leaves other roles as they are', () => {
-    expect(authorizedUserRoleLabel('Applicant Paralegal')).toBe('Paralegal (Applicant side)');
-    expect(authorizedUserRoleLabel('Defense Paralegal')).toBe('Paralegal (Defense side)');
+    expect(authorizedUserRoleLabel('Applicant Paralegal')).toBe(
+      'Paralegal / Case Manager (Applicant side)',
+    );
+    expect(authorizedUserRoleLabel('Defense Paralegal')).toBe(
+      'Paralegal / Case Manager (Defense side)',
+    );
     expect(authorizedUserRoleLabel('Patient')).toBe('Patient');
   });
 

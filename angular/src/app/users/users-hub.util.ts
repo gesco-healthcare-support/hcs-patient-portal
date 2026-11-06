@@ -1,3 +1,7 @@
+import {
+  APPLICANT_PARALEGAL_LABEL,
+  DEFENSE_PARALEGAL_LABEL,
+} from '../shared/auth/external-user-roles';
 import { ExternalUserType } from '../proxy/external-signups/external-user-type.enum';
 import { InvitationStatus } from '../proxy/invitations/invitation-status.enum';
 
@@ -89,9 +93,9 @@ export const INVITE_ROLE_OPTIONS: InviteRoleOption[] = [
   { value: ExternalUserType.ApplicantAttorney, label: 'Attorney (Applicant side)' },
   // Paralegal roles: ExternalUserType 5 / 6 on the server. Numeric casts until the generated proxy
   // enum (which is not hand-edited) is regenerated with the backend change.
-  { value: 5 as ExternalUserType, label: 'Paralegal (Applicant side)' },
+  { value: 5 as ExternalUserType, label: APPLICANT_PARALEGAL_LABEL },
   { value: ExternalUserType.DefenseAttorney, label: 'Attorney (Defense side)' },
-  { value: 6 as ExternalUserType, label: 'Paralegal (Defense side)' },
+  { value: 6 as ExternalUserType, label: DEFENSE_PARALEGAL_LABEL },
   { value: ExternalUserType.ClaimExaminer, label: 'Claim Examiner' },
 ];
 

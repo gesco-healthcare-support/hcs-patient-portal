@@ -48,6 +48,7 @@ import { AppointmentChangeRequestService } from '../../../proxy/appointment-chan
 import { changeRequestConsentView, type CrConsentView } from '../../change-requests/cr-inbox.util';
 import { wireAttorneySectionToggle } from '../../shared/attorney-section-validators';
 import { isReBookEligibleStatus } from '../../shared/rebook-eligibility';
+import { isExamDatePassed } from '../../shared/exam-date-passed.util';
 import { resolveExternalUserDisplayName } from '../../../shared/auth/external-user-display-name';
 import { formatDateOfBirthForApi } from '../../../shared/date-of-birth.util';
 
@@ -886,6 +887,30 @@ export class AppointmentViewComponent implements OnInit {
    */
   get canReBook(): boolean {
     return isReBookEligibleStatus(this.currentStatus);
+  }
+
+  /**
+   * 2026-11-06: "Request re-evaluation" on a finished case. Approved only (NoShow / NotSeen are
+   * attendance outcomes, and the server allows a re-evaluation from them only when they were
+   * themselves a re-evaluation) AND the exam's Pacific calendar day has passed. Reschedule and
+   * Cancel keep their own rules; this gate does not touch them.
+   */
+  get canRequestReEvaluation(): boolean {
+    return (
+      this.currentStatus === AppointmentStatusType.Approved &&
+      isExamDatePassed(this.appointment?.appointment?.appointmentDate)
+    );
+  }
+
+  /** Opens the booking form in re-evaluation mode with this case loaded as the source. */
+  requestReEvaluation(): void {
+    const conf = this.appointment?.appointment?.requestConfirmationNumber;
+    if (!conf) {
+      return;
+    }
+    this.router.navigate(['/appointments/request'], {
+      queryParams: { type: 2, source: conf },
+    });
   }
 
   /**

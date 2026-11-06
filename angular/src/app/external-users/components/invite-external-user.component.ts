@@ -7,6 +7,11 @@ import { firstValueFrom } from 'rxjs';
 import { LocalizationPipe, RestService } from '@abp/ng.core';
 import { ToasterService } from '@abp/ng.theme.shared';
 
+import {
+  APPLICANT_PARALEGAL_LABEL,
+  DEFENSE_PARALEGAL_LABEL,
+  roleDisplayLabel,
+} from '../../shared/auth/external-user-roles';
 import { PacificDatePipe } from '../../shared/pipes/pacific-date.pipe';
 import {
   INVITE_EMAIL_NOT_SENT_MESSAGE,
@@ -47,14 +52,15 @@ export class InviteExternalUserComponent {
   // ExternalUserType enum values: Patient=1, ClaimExaminer=2,
   // ApplicantAttorney=3, DefenseAttorney=4, ApplicantParalegal=5, DefenseParalegal=6. Order kept stable with the
   // proxy enum so the numeric values flow through to the backend.
+  protected readonly roleLabel = roleDisplayLabel;
   readonly roleOptions = [
     { value: 1, label: 'Patient' },
     { value: 3, label: 'Attorney (Applicant side)' },
     // A paralegal belongs to one side and is NOT an attorney of record: the invite carries only
     // name + email + role (this form has no firm or attorney-master fields).
-    { value: 5, label: 'Paralegal (Applicant side)' },
+    { value: 5, label: APPLICANT_PARALEGAL_LABEL },
     { value: 4, label: 'Attorney (Defense side)' },
-    { value: 6, label: 'Paralegal (Defense side)' },
+    { value: 6, label: DEFENSE_PARALEGAL_LABEL },
     { value: 2, label: 'Claim Examiner' },
   ];
 

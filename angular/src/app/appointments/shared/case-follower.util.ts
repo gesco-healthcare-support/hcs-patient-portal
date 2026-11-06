@@ -52,7 +52,7 @@ export function bookerFollowsDisplayed(bookerFollows: boolean, insteadTicked: bo
 export function followerNote(dto: unknown): string | null {
   const d = (dto ?? {}) as { bookerFollowsCase?: boolean; attorneyMailToParalegal?: boolean };
   if (d.attorneyMailToParalegal === true) {
-    return "The attorney's case emails go to the paralegal instead; the attorney can still sign in to see this case.";
+    return "The attorney's case emails go to the paralegal / case manager instead; the attorney can still sign in to see this case.";
   }
   if (d.bookerFollowsCase === false) {
     return 'The person who booked this case gets only the request receipt, not later case emails.';
