@@ -1,0 +1,128 @@
+using System;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
+using HealthcareSupport.CaseEvaluation.Enums;
+using HealthcareSupport.CaseEvaluation.Patients;
+using Volo.Abp.DependencyInjection;
+using Volo.Abp.Domain.Repositories;
+using Volo.Abp.Linq;
+
+namespace HealthcareSupport.CaseEvaluation.Appointments;
+
+/// <summary>
+/// 2026-11-06 (R3) -- finds the one earlier appointment a booker means when they do not know its
+/// confirmation number. The office decided the match: the patient's full name, date of birth and a
+/// claim number on that appointment.
+///
+/// <para><b>Matching rule.</b> Names compare trimmed, case-insensitive, with inner spaces collapsed
+/// and a hyphen treated as a space ("Garcia-Lopez" = "garcia lopez"); the middle name is ignored. The
+/// date of birth is the exact calendar day. The claim number is any injury row's claim number, ignoring
+/// case, spaces and dashes. Only cases that can be re-evaluated count (approved, or a re-evaluation
+/// that was a no-show / not seen). The office filter keeps it to the current office.</para>
+///
+/// <para><b>One answer.</b> Several cases of the SAME patient (an earlier re-evaluation under the same
+/// claim, say) resolve to the latest exam, which is the one to follow on from. Cases of more than one
+/// patient are ambiguous and return null, so nothing is sent.</para>
+/// </summary>
+public class ConfirmationNumberLookupMatcher : ITransientDependency
+{
+    private readonly IRepository<Patient, Guid> _patientRepository;
+    private readonly IAppointmentRepository _appointmentRepository;
+    private readonly IRepository<AppointmentInjuryDetail, Guid> _injuryRepository;
+    private readonly IAsyncQueryableExecuter _asyncExecuter;
+
+    public ConfirmationNumberLookupMatcher(
+        IRepository<Patient, Guid> patientRepository,
+        IAppointmentRepository appointmentRepository,
+        IRepository<AppointmentInjuryDetail, Guid> injuryRepository,
+        IAsyncQueryableExecuter asyncExecuter)
+    {
+        _patientRepository = patientRepository;
+        _appointmentRepository = appointmentRepository;
+        _injuryRepository = injuryRepository;
+        _asyncExecuter = asyncExecuter;
+    }
+
+    /// <summary>The matching appointment, or null for no match and for an ambiguous one.</summary>
+    public virtual async Task<Appointment?> FindAsync(ConfirmationNumberLookupDto input)
+    {
+        var dateOfBirth = input.PatientDateOfBirth.Date;
+        var firstName = NormalizeName(input.PatientFirstName);
+        var lastName = NormalizeName(input.PatientLastName);
+        var claimNumber = NormalizeClaimNumber(input.ClaimNumber);
+        if (dateOfBirth == DateTime.MinValue.Date || firstName.Length == 0 || lastName.Length == 0
+            || claimNumber.Length == 0)
+        {
+            return null;
+        }
+
+        var nextDay = dateOfBirth.AddDays(1);
+        var bornThatDay = await _asyncExecuter.ToListAsync((await _patientRepository.GetQueryableAsync())
+            .Where(p => p.DateOfBirth >= dateOfBirth && p.DateOfBirth < nextDay)
+            .Select(p => new { p.Id, p.FirstName, p.LastName }));
+        var patientIds = bornThatDay
+            .Where(p => NormalizeName(p.FirstName) == firstName && NormalizeName(p.LastName) == lastName)
+            .Select(p => p.Id)
+            .ToList();
+        if (patientIds.Count == 0)
+        {
+            return null;
+        }
+
+        var candidates = (await _asyncExecuter.ToListAsync((await _appointmentRepository.GetQueryableAsync())
+                .Where(a => patientIds.Contains(a.PatientId)
+                    && (a.AppointmentStatus == AppointmentStatusType.Approved
+                        || a.AppointmentStatus == AppointmentStatusType.NoShow
+                        || a.AppointmentStatus == AppointmentStatusType.NotSeen))))
+            .Where(a => AppointmentLifecycleValidators.CanCreateReval(
+                a.AppointmentStatus, a.EvaluationKind, callerIsItAdmin: false))
+            .ToList();
+        if (candidates.Count == 0)
+        {
+            return null;
+        }
+
+        var candidateIds = candidates.Select(a => a.Id).ToList();
+        var claims = await _asyncExecuter.ToListAsync((await _injuryRepository.GetQueryableAsync())
+            .Where(i => candidateIds.Contains(i.AppointmentId))
+            .Select(i => new { i.AppointmentId, i.ClaimNumber }));
+        var withTheClaim = claims
+            .Where(c => NormalizeClaimNumber(c.ClaimNumber) == claimNumber)
+            .Select(c => c.AppointmentId)
+            .ToHashSet();
+        var matched = candidates.Where(a => withTheClaim.Contains(a.Id)).ToList();
+
+        if (matched.Select(a => a.PatientId).Distinct().Count() != 1)
+        {
+            return null;
+        }
+
+        return matched.OrderByDescending(a => a.AppointmentDate).First();
+    }
+
+    /// <summary>Trimmed, lower-case, a hyphen read as a space, runs of spaces collapsed to one.</summary>
+    internal static string NormalizeName(string? name)
+    {
+        var words = (name ?? string.Empty)
+            .Replace('-', ' ')
+            .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        return string.Join(' ', words).ToLowerInvariant();
+    }
+
+    /// <summary>Upper-case with every space and dash removed.</summary>
+    internal static string NormalizeClaimNumber(string? claimNumber)
+    {
+        var builder = new StringBuilder();
+        foreach (var c in claimNumber ?? string.Empty)
+        {
+            if (!char.IsWhiteSpace(c) && c != '-')
+            {
+                builder.Append(char.ToUpperInvariant(c));
+            }
+        }
+
+        return builder.ToString();
+    }
+}

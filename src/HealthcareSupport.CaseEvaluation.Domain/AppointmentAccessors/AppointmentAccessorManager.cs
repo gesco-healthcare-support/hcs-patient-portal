@@ -220,12 +220,23 @@ public class AppointmentAccessorManager : DomainService
     /// the default ABP password policy. Keeping the helper internal
     /// so it can be substituted in tests if needed.
     /// </summary>
-    private static string GenerateTempPassword()
+    internal static string GenerateTempPassword()
     {
         // Deterministic shape: at least 8 chars, with upper, lower,
         // digit, and symbol. Random suffix so concurrent invitations
         // do not collide. Cite ABP Identity password options:
         // https://abp.io/docs/latest/modules/identity#identity-options
-        return string.Concat("Acc!", Guid.NewGuid().ToString("N").AsSpan(0, 12));
+        return string.Concat(TempPasswordPrefix, Guid.NewGuid().ToString("N").AsSpan(0, 12));
     }
+
+    /// <summary>
+    /// The fixed start of every temp password. On its own it holds an upper-case letter, a
+    /// lower-case letter, a symbol and a digit, so no random suffix can leave one out.
+    ///
+    /// <para>2026-11-06: the digit is new. It used to come only from the random hex, and twelve
+    /// hex characters are all a-f about once in 130,000 -- a password with no digit, which
+    /// Identity refuses, so the invite failed ("Passwords must have at least one digit"). Seen
+    /// once, as a CI flake.</para>
+    /// </summary>
+    internal const string TempPasswordPrefix = "Acc!7";
 }
