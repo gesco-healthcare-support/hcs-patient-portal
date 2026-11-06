@@ -54,7 +54,10 @@ describe('AppointmentWizardComponent re-evaluation entry (rendered)', () => {
     return of({ items: [], totalCount: 0 });
   }
 
-  function render(query: Record<string, string>): ComponentFixture<AppointmentWizardComponent> {
+  function render(
+    query: Record<string, string>,
+    roles: string[] = ['Staff Supervisor'],
+  ): ComponentFixture<AppointmentWizardComponent> {
     TestBed.configureTestingModule({
       providers: [
         FormBuilder,
@@ -79,7 +82,7 @@ describe('AppointmentWizardComponent re-evaluation entry (rendered)', () => {
                     name: 'Ada',
                     surname: 'Lovelace',
                     email: LOGIN,
-                    roles: ['Staff Supervisor'],
+                    roles,
                   }
                 : null,
             getAll: () => ({}),
@@ -134,6 +137,7 @@ describe('AppointmentWizardComponent re-evaluation entry (rendered)', () => {
     sourceConfirmationNumber: string | null;
     revalWithoutSource: boolean;
     revalEntryChoice: string | null;
+    sourceDateOfBirthInput: string;
     resolveSubmitMode(): number;
   };
   const wiz = (f: ComponentFixture<AppointmentWizardComponent>): Wizard =>
@@ -165,6 +169,30 @@ describe('AppointmentWizardComponent re-evaluation entry (rendered)', () => {
     const box = q(f, '#wiz-prior-confirmation-number') as HTMLInputElement;
     expect(box).not.toBeNull();
     expect(box.placeholder).toBe('e.g. A00004');
+  });
+
+  it('asks an outside booker for the patient date of birth beside the number (2026-11-06)', () => {
+    const f = render({ type: '2' }, ['Applicant Paralegal']);
+    (q(f, '#wiz-reval-entry-number') as HTMLInputElement).click();
+    f.detectChanges();
+
+    const dob = q(f, '#wiz-prior-patient-dob') as HTMLInputElement;
+    expect(dob).not.toBeNull();
+    expect(dob.type).toBe('date');
+    expect(q(f, '#wiz-prior-patient-dob-hint')?.textContent).toContain('date of birth');
+
+    dob.value = '1985-04-12';
+    dob.dispatchEvent(new Event('input'));
+    expect(wiz(f).sourceDateOfBirthInput).toBe('1985-04-12');
+  });
+
+  it('never asks staff for a date of birth: they can load any case in their office', () => {
+    const f = render({ type: '2' });
+    (q(f, '#wiz-reval-entry-number') as HTMLInputElement).click();
+    f.detectChanges();
+
+    expect(q(f, '#wiz-prior-confirmation-number')).not.toBeNull();
+    expect(q(f, '#wiz-prior-patient-dob')).toBeNull();
   });
 
   it('sends the re-evaluation without a source (mode 4) on the before-this-portal card', () => {
