@@ -10,10 +10,7 @@
     <p>{{ totalCount() }} appointment{{ totalCount() === 1 ? '' : 's' }}</p>
   </div>
   @if (canCreate) {
-    <button class="af-btn af-btn--primary" type="button" (click)="newAppointment()">
-      <app-icon name="plus" [size]="16" />
-      New appointment
-    </button>
+    <app-new-appointment-menu buttonClass="af-btn af-btn--primary" />
   }
 </div>
 

@@ -137,10 +137,7 @@
       }
 
       @if (!hostScope()) {
-        <a class="ap-btn ap-btn--primary" routerLink="/appointments/request">
-          <app-icon name="plus" [size]="15" />
-          New appointment
-        </a>
+        <app-new-appointment-menu buttonClass="ap-btn ap-btn--primary" />
       }
 
       <div class="in-acctwrap">

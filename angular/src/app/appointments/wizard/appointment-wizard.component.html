@@ -91,6 +91,19 @@
         </div>
       }
 
+      <!-- 2026-11-06: the form holds data copied from an earlier case; say so on EVERY step. -->
+      @if (showPrefillBanner) {
+        <div
+          class="ra-note ra-note--prefill"
+          role="status"
+          aria-live="polite"
+          id="wiz-prefill-banner"
+        >
+          <span class="i"><app-icon name="alert" [size]="18" /></span>
+          <span>{{ '::ReEvalPrefillBanner' | abpLocalization }}</span>
+        </div>
+      }
+
       <!-- Item 5 (2026-08-18): re-openable from every step the answer governs. Someone
            reaching the Defense step and not recognising the name should be able to say so
            there, not restart the booking. -->
@@ -122,36 +135,47 @@
 
       @switch (currentStep.key) {
         @case ('schedule') {
-          @if (showRevalWithoutSourceOption) {
-            <div class="ra-field">
-              <label class="ra-check" for="wiz-reval-without-source">
-                <input
-                  id="wiz-reval-without-source"
-                  type="checkbox"
-                  [checked]="revalWithoutSource"
-                  (change)="setRevalWithoutSource($any($event.target).checked)"
-                />
-                The first evaluation was not booked in this portal
-              </label>
-              @if (revalWithoutSource) {
-                <div class="ra-reval__msg">
-                  No prior appointment to load. Fill in every section as for a new request.
-                </div>
+          @if (showRevalEntryChoice) {
+            <fieldset class="ra-field ra-reval-entry" id="wiz-reval-entry">
+              <legend>How do we find the first evaluation?</legend>
+              @for (card of revalEntryCards; track card.value) {
+                <label
+                  class="ra-reval-entry__card"
+                  [class.is-selected]="revalEntryChoice === card.value"
+                  [for]="'wiz-reval-entry-' + card.value"
+                >
+                  <input
+                    type="radio"
+                    name="wiz-reval-entry"
+                    [id]="'wiz-reval-entry-' + card.value"
+                    [value]="card.value"
+                    [checked]="revalEntryChoice === card.value"
+                    (change)="chooseRevalEntry(card.value)"
+                  />
+                  <span class="ra-reval-entry__tx">
+                    <b>{{ card.title }}</b>
+                    <span>{{ card.hint }}</span>
+                  </span>
+                </label>
               }
-            </div>
+            </fieldset>
           }
           @if (showSourceLookup) {
             <div class="ra-reval">
               <div class="ra-field">
                 <label for="wiz-prior-confirmation-number">
-                  {{ isReBook ? 'Confirmation number to book again' : 'Prior confirmation number' }}
+                  @if (isReBook) {
+                    Confirmation number to book again
+                  } @else {
+                    {{ '::PriorConfirmationNumber' | abpLocalization }}
+                  }
                 </label>
                 <input
                   id="wiz-prior-confirmation-number"
                   #revalConf
                   class="ra-input"
                   type="text"
-                  placeholder="e.g. PQ-24817"
+                  placeholder="e.g. A00004"
                   [disabled]="isLoadingSource"
                 />
               </div>
@@ -161,7 +185,11 @@
                 [disabled]="isLoadingSource"
                 (click)="loadRevalSource(revalConf.value)"
               >
-                {{ isReBook ? 'Load appointment' : 'Load prior appointment' }}
+                @if (isReBook) {
+                  Load appointment
+                } @else {
+                  {{ '::LoadPriorAppointment' | abpLocalization }}
+                }
               </button>
               @if (sourceLoadMessage) {
                 <div class="ra-reval__msg">{{ sourceLoadMessage }}</div>
@@ -316,6 +344,12 @@
             </div>
             @if (isSourceLoadRequired) {
               <div class="ra-reval__msg" role="alert">{{ sourceLookupBanner }}</div>
+            }
+            @if (showPrefillBanner) {
+              <div class="ra-note ra-note--prefill" id="wiz-prefill-banner-review">
+                <span class="i"><app-icon name="alert" [size]="18" /></span>
+                <span>{{ '::ReEvalPrefillBanner' | abpLocalization }}</span>
+              </div>
             }
             <div class="ra-card__body">
               <div class="ra-review">

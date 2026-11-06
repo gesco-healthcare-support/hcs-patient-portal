@@ -52,7 +52,7 @@
               <tr>
                 <td>{{ row.firstName }} {{ row.lastName }}</td>
                 <td>{{ row.email }}</td>
-                <td>{{ row.userRole }}</td>
+                <td>{{ roleLabel(row.userRole) }}</td>
                 <td>{{ getAccessTypeLabel(row.accessTypeId) }}</td>
                 <td>
                   <button

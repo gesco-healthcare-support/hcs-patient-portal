@@ -236,7 +236,11 @@ describe('AppointmentAddComponent booking engine', () => {
        * A re-request has a source too, but it rides in the URL and auto-loads, so showing
        * the lookup there would ask for a number the booker never has to know.
        */
-      expect(create({ queryParams: { type: '2' } }).showSourceLookup).toBeTrue();
+      // A re-evaluation shows the box only after the booker picks the number card.
+      const reval = create({ queryParams: { type: '2' } });
+      expect(reval.showSourceLookup).toBeFalse();
+      reval.chooseRevalEntry('number');
+      expect(reval.showSourceLookup).toBeTrue();
       TestBed.resetTestingModule();
       expect(create({ queryParams: { type: '3' } }).showSourceLookup).toBeTrue();
       TestBed.resetTestingModule();
@@ -255,13 +259,14 @@ describe('AppointmentAddComponent booking engine', () => {
     it('hides the lookup and the source requirement once "not booked in this portal" is ticked', () => {
       const c = create({ queryParams: { type: '2' } });
       expect(c.showRevalWithoutSourceOption).toBeTrue();
-      c.setRevalWithoutSource(true);
+      c.chooseRevalEntry('before');
       expect(c.showSourceLookup).toBeFalse();
       expect(c.isSourceLoadRequired).toBeFalse();
       expect(c.resolveSubmitMode() as number).toBe(4);
-      c.setRevalWithoutSource(false);
+      c.chooseRevalEntry('number');
       expect(c.showSourceLookup).toBeTrue();
       expect(c.isSourceLoadRequired).toBeTrue();
+      expect(c.resolveSubmitMode() as number).not.toBe(4);
     });
 
     it('never requires a source for a new booking', () => {
@@ -310,6 +315,18 @@ describe('AppointmentAddComponent booking engine', () => {
     it('auto-loads a re-book source when one arrives from Book again', () => {
       const c = create({ queryParams: { type: '3', source: 'C0001' } });
       expect(c.isAutoLoadingSource).toBeTrue();
+    });
+
+    it('auto-loads a re-evaluation source from the URL (Request re-evaluation on a finished case)', () => {
+      const c = create({ queryParams: { type: '2', source: 'A00004' } });
+      expect(c.isAutoLoadingSource).toBeTrue();
+      expect(c.isProfileLoading).toBeFalse();
+    });
+
+    it('does not auto-load for a bare re-evaluation or a plain request', () => {
+      expect(create({ queryParams: { type: '2' } }).isAutoLoadingSource).toBeFalse();
+      TestBed.resetTestingModule();
+      expect(create({ queryParams: { source: 'A00004' } }).isAutoLoadingSource).toBeFalse();
     });
 
     it('loads the booker profile for a re-book typed in by hand', () => {

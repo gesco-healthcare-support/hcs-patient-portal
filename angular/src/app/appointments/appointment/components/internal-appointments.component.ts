@@ -7,6 +7,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { NewAppointmentMenuComponent } from '../../../shared/components/new-appointment-menu/new-appointment-menu.component';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -79,6 +80,7 @@ const PAGE_SIZES = [10, 25, 50] as const;
   selector: 'app-internal-appointments',
   standalone: true,
   imports: [
+    NewAppointmentMenuComponent,
     CalendarDatePipe,
     DatePipe,
     FormsModule,
@@ -157,10 +159,6 @@ export class InternalAppointmentsComponent implements OnInit {
   protected readonly canCreate = this.permissionService.getGrantedPolicy(
     'CaseEvaluation.Appointments.Create',
   );
-
-  protected newAppointment(): void {
-    void this.router.navigateByUrl('/appointments/request');
-  }
 
   protected readonly totalPages = computed(() =>
     Math.max(1, Math.ceil(this.totalCount() / this.pageSize())),

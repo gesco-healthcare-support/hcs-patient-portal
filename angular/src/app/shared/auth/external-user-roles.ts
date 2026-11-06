@@ -143,9 +143,25 @@ export function authorizedUserRoleOptions(roles: RoleList, isInternal: boolean):
 export function authorizedUserRoleLabel(role: string, external = false): string {
   // An external claim examiner's helper is an assistant; the label is a localization key.
   if (external && role === CLAIM_EXAMINER_ROLE) return CLAIM_EXAMINER_ASSISTANT_LABEL_KEY;
-  if (role === APPLICANT_PARALEGAL_ROLE) return 'Paralegal (Applicant side)';
-  if (role === DEFENSE_PARALEGAL_ROLE) return 'Paralegal (Defense side)';
-  return role;
+  return roleDisplayLabel(role);
+}
+
+/** Display text for the applicant-side paralegal (the role NAME "Applicant Paralegal" never changes). */
+export const APPLICANT_PARALEGAL_LABEL = 'Paralegal / Case Manager (Applicant side)';
+/** Display text for the defense-side paralegal (the role NAME "Defense Paralegal" never changes). */
+export const DEFENSE_PARALEGAL_LABEL = 'Paralegal / Case Manager (Defense side)';
+
+/**
+ * The one place a role NAME becomes display text for the paralegal roles. Every screen that renders a
+ * role name to a person goes through here; any other role comes back unchanged. Display only: role
+ * names, ExternalUserType values, grants and invite keys are identifiers and stay as they are.
+ */
+export function roleDisplayLabel(role: string | null | undefined): string {
+  const name = (role ?? '').trim();
+  const key = name.toLowerCase();
+  if (key === APPLICANT_PARALEGAL_ROLE.toLowerCase()) return APPLICANT_PARALEGAL_LABEL;
+  if (key === DEFENSE_PARALEGAL_ROLE.toLowerCase()) return DEFENSE_PARALEGAL_LABEL;
+  return name;
 }
 
 /** What the page knows about the caller's standing on ONE case (decisions 3, 4 and 5). */
