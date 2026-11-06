@@ -33,7 +33,8 @@ param(
     [string]$AuthPort    = "44368",
     [string]$AdminUser   = "admin@falkinstein.test",
     [string]$StaffUser   = "staff@falkinstein.test",
-    [string]$Password    = "1q2w3E*r",
+    [Parameter(Mandatory = $true)]
+    [string]$Password,
     [string]$OutRoot     = "tmp/packet-parity-output",
     [int]   $PollMaxSec  = 90,
     [int]   $PollIntervalSec = 3
