@@ -3,7 +3,7 @@ import { LocalizationService } from '@abp/ng.core';
 import { Subject } from 'rxjs';
 import { EmailStopDialogComponent } from './email-stop-dialog.component';
 import { EmailStopsService } from '../proxy/email-stops';
-import type { EmailStopConsentImpactDto } from '../proxy/email-stops';
+import type { EmailStopConsentImpactDto, EmailStopStatusDto } from '../proxy/email-stops';
 
 const NO_IMPACT: EmailStopConsentImpactDto = {
   hasImpact: false,
@@ -83,6 +83,25 @@ describe('EmailStopDialogComponent', () => {
   it('closes on Escape', () => {
     let closed = 0;
     fixture.componentInstance.closed.subscribe(() => closed++);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(closed).toBe(1);
+  });
+
+  it('stays open on Escape while the stop is saving, and closes again once it answers', () => {
+    const saving = new Subject<EmailStopStatusDto>();
+    service.stopForAppointment.and.returnValue(saving);
+    pending[0].next(NO_IMPACT);
+    fixture.detectChanges();
+    let closed = 0;
+    fixture.componentInstance.closed.subscribe(() => closed++);
+    click('[data-testid="confirm-stop"]');
+    expect(service.stopForAppointment).toHaveBeenCalledTimes(1);
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(closed).toBe(0);
+
+    saving.error(new Error('boom'));
+    fixture.detectChanges();
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     expect(closed).toBe(1);
   });
