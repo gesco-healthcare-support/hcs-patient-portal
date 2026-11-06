@@ -257,6 +257,36 @@ public class ExternalSignupValidatorUnitTests
     }
 
     // ------------------------------------------------------------------
+    // 2026-11-06 (R5) -- how a role reads in the invite email
+    // ------------------------------------------------------------------
+
+    [Theory]
+    [InlineData(ExternalUserType.ApplicantParalegal, "Paralegal / Case Manager (Applicant side)")]
+    [InlineData(ExternalUserType.DefenseParalegal, "Paralegal / Case Manager (Defense side)")]
+    [InlineData(ExternalUserType.ApplicantAttorney, "Applicant Attorney")]
+    [InlineData(ExternalUserType.Patient, "Patient")]
+    public void TheInviteEmail_ShowsTheRolesDisplayLabel(ExternalUserType userType, string expected)
+    {
+        var variables = ExternalSignupAppService.BuildInvitationVariables(
+            tenantName: "TEST-office",
+            roleName: ExternalSignupAppService.ToRoleName(userType),
+            inviteUrl: "https://test.local/invite",
+            expiresAtUtc: new DateTime(2026, 11, 13, 20, 0, 0, DateTimeKind.Utc));
+
+        variables["RoleName"].ShouldBe(expected);
+    }
+
+    [Fact]
+    public void TheDisplayLabel_LeavesTheRoleNameItselfUnchanged()
+    {
+        // The label is display text only: the role NAME the invite stores and signs the user up
+        // under is still the seeded name.
+        ExternalSignupAppService.ToRoleName(ExternalUserType.ApplicantParalegal).ShouldBe("Applicant Paralegal");
+        ExternalSignupAppService.ToRoleDisplayLabel("Applicant Paralegal")
+            .ShouldBe("Paralegal / Case Manager (Applicant side)");
+    }
+
+    // ------------------------------------------------------------------
     // DeriveFirmEmail -- OLD UserDomain.cs:106 parity
     // ------------------------------------------------------------------
 

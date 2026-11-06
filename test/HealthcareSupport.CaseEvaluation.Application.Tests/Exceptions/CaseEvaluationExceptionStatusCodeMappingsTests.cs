@@ -163,4 +163,21 @@ public class CaseEvaluationExceptionStatusCodeMappingsTests
         ].ShouldBe(HttpStatusCode.ServiceUnavailable);
         options.ErrorCodeToHttpStatusCodeMappings.Count.ShouldBe(2);
     }
+
+    /// <summary>
+    /// 2026-11-06 -- the re-evaluation lookup throttle answers 429, so the booking form can say to
+    /// try later instead of showing nothing for an unmapped 403.
+    /// </summary>
+    [Fact]
+    public void MapReEvaluationLookupCodes_ThrottleIs429()
+    {
+        var options = new AbpExceptionHttpStatusCodeOptions();
+
+        CaseEvaluationExceptionStatusCodeMappings.MapReEvaluationLookupCodes(options);
+
+        options.ErrorCodeToHttpStatusCodeMappings[
+            CaseEvaluationDomainErrorCodes.ReEvaluationLookupThrottled
+        ].ShouldBe(HttpStatusCode.TooManyRequests);
+        options.ErrorCodeToHttpStatusCodeMappings.Count.ShouldBe(1);
+    }
 }

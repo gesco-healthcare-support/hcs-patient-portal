@@ -172,6 +172,7 @@ HealthcareSupport.CaseEvaluation.Appointments.AppointmentsAppService.SubmitAsync
 HealthcareSupport.CaseEvaluation.Appointments.AppointmentsAppService.UpdateAsync(Guid, AppointmentUpdateDto) -> class=(authenticated) method=(authenticated) + CaseEvaluation.Appointments.Edit
 HealthcareSupport.CaseEvaluation.Appointments.AppointmentsAppService.UpsertApplicantAttorneyForAppointmentAsync(Guid, ApplicantAttorneyDetailsDto) -> class=(authenticated) method=(authenticated)
 HealthcareSupport.CaseEvaluation.Appointments.AppointmentsAppService.UpsertDefenseAttorneyForAppointmentAsync(Guid, DefenseAttorneyDetailsDto) -> class=(authenticated) method=(authenticated)
+HealthcareSupport.CaseEvaluation.Appointments.ReEvaluationSourcesAppService.LookupAsync(ReEvaluationSourceLookupDto) -> class=CaseEvaluation.Appointments.Create method=-
 HealthcareSupport.CaseEvaluation.Branding.BrandingAppService.DownloadLogoAsync() -> class=(authenticated) method=(anonymous)
 HealthcareSupport.CaseEvaluation.Branding.BrandingAppService.DownloadLogoForOfficeAsync(Guid) -> class=(authenticated) method=CaseEvaluation.Branding
 HealthcareSupport.CaseEvaluation.Branding.BrandingAppService.GetBrandingAsync() -> class=(authenticated) method=(anonymous)

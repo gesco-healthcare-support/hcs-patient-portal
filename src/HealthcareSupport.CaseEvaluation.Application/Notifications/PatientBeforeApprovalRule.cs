@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
+using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Notifications.Handlers;
 
 namespace HealthcareSupport.CaseEvaluation.Notifications;
@@ -59,7 +60,17 @@ public static class PatientBeforeApprovalRule
         (ctx.PatientIdentityUserId is { } login && login == userId)
         || IsPatientAddress(confirmedEmail, ctx);
 
-    private static bool IsPatientAddress(string? email, DocumentEmailContext ctx) =>
+    /// <summary>
+    /// The statuses before the office has approved the request. A refused request counts as before:
+    /// the patient was never told about it.
+    /// </summary>
+    public static bool IsBeforeApproval(AppointmentStatusType status) =>
+        status is AppointmentStatusType.Pending
+            or AppointmentStatusType.InfoRequested
+            or AppointmentStatusType.Rejected;
+
+    /// <summary>True when <paramref name="email"/> is one of the patient's addresses (case-insensitive).</summary>
+    public static bool IsPatientAddress(string? email, DocumentEmailContext ctx) =>
         !string.IsNullOrWhiteSpace(email)
         && ctx.PatientAddresses.Any(a => string.Equals(a, email.Trim(), StringComparison.OrdinalIgnoreCase));
 }
