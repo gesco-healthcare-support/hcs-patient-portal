@@ -15090,6 +15090,78 @@
             }
           }
         },
+        "HealthcareSupport.CaseEvaluation.Controllers.Appointments.ReEvaluationSourcesController": {
+          "controllerName": "ReEvaluationSources",
+          "controllerGroupName": "ReEvaluationSource",
+          "isRemoteService": true,
+          "isIntegrationService": false,
+          "apiVersion": null,
+          "type": "HealthcareSupport.CaseEvaluation.Controllers.Appointments.ReEvaluationSourcesController",
+          "interfaces": [
+            {
+              "type": "HealthcareSupport.CaseEvaluation.Appointments.IReEvaluationSourcesAppService",
+              "name": "IReEvaluationSourcesAppService",
+              "methods": [
+                {
+                  "name": "LookupAsync",
+                  "parametersOnMethod": [
+                    {
+                      "name": "input",
+                      "typeAsString": "HealthcareSupport.CaseEvaluation.Appointments.ReEvaluationSourceLookupDto, HealthcareSupport.CaseEvaluation.Application.Contracts",
+                      "type": "HealthcareSupport.CaseEvaluation.Appointments.ReEvaluationSourceLookupDto",
+                      "typeSimple": "HealthcareSupport.CaseEvaluation.Appointments.ReEvaluationSourceLookupDto",
+                      "isOptional": false,
+                      "defaultValue": null
+                    }
+                  ],
+                  "returnValue": {
+                    "type": "HealthcareSupport.CaseEvaluation.Appointments.ReEvaluationSourceDto",
+                    "typeSimple": "HealthcareSupport.CaseEvaluation.Appointments.ReEvaluationSourceDto"
+                  }
+                }
+              ]
+            }
+          ],
+          "actions": {
+            "LookupAsyncByInput": {
+              "uniqueName": "LookupAsyncByInput",
+              "name": "LookupAsync",
+              "httpMethod": "POST",
+              "url": "api/app/re-evaluation-sources/lookup",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "input",
+                  "typeAsString": "HealthcareSupport.CaseEvaluation.Appointments.ReEvaluationSourceLookupDto, HealthcareSupport.CaseEvaluation.Application.Contracts",
+                  "type": "HealthcareSupport.CaseEvaluation.Appointments.ReEvaluationSourceLookupDto",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.Appointments.ReEvaluationSourceLookupDto",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "input",
+                  "name": "input",
+                  "jsonName": null,
+                  "type": "HealthcareSupport.CaseEvaluation.Appointments.ReEvaluationSourceLookupDto",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.Appointments.ReEvaluationSourceLookupDto",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Body",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "HealthcareSupport.CaseEvaluation.Appointments.ReEvaluationSourceDto",
+                "typeSimple": "HealthcareSupport.CaseEvaluation.Appointments.ReEvaluationSourceDto"
+              },
+              "allowAnonymous": false,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.Appointments.IReEvaluationSourcesAppService"
+            }
+          }
+        },
         "HealthcareSupport.CaseEvaluation.Controllers.AppointmentStatuses.AppointmentStatusController": {
           "controllerName": "AppointmentStatus",
           "controllerGroupName": "AppointmentStatus",
@@ -54256,6 +54328,19 @@
           "isNullable": true
         },
         {
+          "name": "SourcePatientDateOfBirth",
+          "jsonName": null,
+          "type": "System.DateTime?",
+          "typeSimple": "string?",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
           "name": "PatientId",
           "jsonName": null,
           "type": "System.Guid?",
@@ -55587,6 +55672,102 @@
           "isRequired": true,
           "minLength": 1,
           "maxLength": 500,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.Appointments.ReEvaluationSourceDto": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "Source",
+          "jsonName": null,
+          "type": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentWithNavigationPropertiesDto",
+          "typeSimple": "HealthcareSupport.CaseEvaluation.Appointments.AppointmentWithNavigationPropertiesDto",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "ApplicantAttorney",
+          "jsonName": null,
+          "type": "HealthcareSupport.CaseEvaluation.Appointments.ApplicantAttorneyDetailsDto",
+          "typeSimple": "HealthcareSupport.CaseEvaluation.Appointments.ApplicantAttorneyDetailsDto",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "DefenseAttorney",
+          "jsonName": null,
+          "type": "HealthcareSupport.CaseEvaluation.Appointments.DefenseAttorneyDetailsDto",
+          "typeSimple": "HealthcareSupport.CaseEvaluation.Appointments.DefenseAttorneyDetailsDto",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": true
+        },
+        {
+          "name": "CallerIsParty",
+          "jsonName": null,
+          "type": "System.Boolean",
+          "typeSimple": "boolean",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.Appointments.ReEvaluationSourceLookupDto": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "ConfirmationNumber",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": true,
+          "minLength": 0,
+          "maxLength": 50,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "PatientDateOfBirth",
+          "jsonName": null,
+          "type": "System.DateTime",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
           "minimum": null,
           "maximum": null,
           "regex": null,
