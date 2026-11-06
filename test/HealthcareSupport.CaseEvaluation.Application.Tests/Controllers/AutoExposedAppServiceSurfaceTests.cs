@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Reflection;
 using HealthcareSupport.CaseEvaluation.AppointmentDrafts;
+using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.ExternalAccount;
 using HealthcareSupport.CaseEvaluation.HostOperators;
 using HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
@@ -50,6 +51,8 @@ public class AutoExposedAppServiceSurfaceTests
         typeof(MyAttorneyProfileAppService),
         typeof(MyClaimExaminerProfileAppService),
         typeof(AppNotificationAppService),
+        // 2026-11-06: born without an auto route (R2c re-evaluation lookup).
+        typeof(ReEvaluationSourcesAppService),
     };
 
     [Theory]
@@ -88,6 +91,9 @@ public class AutoExposedAppServiceSurfaceTests
         { "GET", "api/app/intake-assignments/my-office-metrics", null, null },
         { "GET", "api/app/intake-assignments/switchable-offices", null, null },
         { "GET", "api/app/intake-assignments/impersonator-info", null, null },
+
+        // 2026-11-06: the re-evaluation lookup, a POST so the date of birth stays out of URLs.
+        { "POST", "api/app/re-evaluation-sources/lookup", "input", "Body" },
 
         // Literal-string caller (admin/case-tracker-missing-intakes.component.ts); the controller already existed.
         { "GET", "api/app/case-tracker/missing-intakes", null, null },

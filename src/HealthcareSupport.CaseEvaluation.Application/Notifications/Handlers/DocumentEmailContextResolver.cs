@@ -372,6 +372,17 @@ public class DocumentEmailContextResolver : ITransientDependency
     }
 
     /// <summary>
+    /// 2026-11-06 -- true when the account holds an office staff role. A staff uploader is never the
+    /// addressee of a document email (the office hears through its inbox and Intake Staff); the first
+    /// party is. False for no account, an unknown one and an external one.
+    /// </summary>
+    public virtual async Task<bool> IsStaffUserAsync(Guid? userId)
+    {
+        var (_, roles) = await ResolveCreatorAsync(userId);
+        return AppointmentSubmitter.HoldsStaffRole(roles);
+    }
+
+    /// <summary>
     /// Phase 4 / D5: greeting name for the promoted attorney -- the master AA/DA
     /// row's name (typed at booking), falling back through firm name to the email
     /// via the shared <see cref="ExternalUserDisplayName"/> helper. The side is the

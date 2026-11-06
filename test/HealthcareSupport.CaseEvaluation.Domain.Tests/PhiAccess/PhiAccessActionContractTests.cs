@@ -25,6 +25,8 @@ public class PhiAccessActionContractTests
         ["ReportCsvExported"] = 7,
         ["DemographicsExported"] = 8,
         ["AppointmentListCsvExported"] = 9,
+        ["ReEvaluationSourceLoadedByDateOfBirth"] = 10,
+        ["ReEvaluationSourceLookupRefused"] = 11,
     };
 
     [Fact]
