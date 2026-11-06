@@ -15090,6 +15090,78 @@
             }
           }
         },
+        "HealthcareSupport.CaseEvaluation.Controllers.Appointments.ConfirmationNumberLookupsController": {
+          "controllerName": "ConfirmationNumberLookups",
+          "controllerGroupName": "ConfirmationNumberLookup",
+          "isRemoteService": true,
+          "isIntegrationService": false,
+          "apiVersion": null,
+          "type": "HealthcareSupport.CaseEvaluation.Controllers.Appointments.ConfirmationNumberLookupsController",
+          "interfaces": [
+            {
+              "type": "HealthcareSupport.CaseEvaluation.Appointments.IConfirmationNumberLookupsAppService",
+              "name": "IConfirmationNumberLookupsAppService",
+              "methods": [
+                {
+                  "name": "RequestAsync",
+                  "parametersOnMethod": [
+                    {
+                      "name": "input",
+                      "typeAsString": "HealthcareSupport.CaseEvaluation.Appointments.ConfirmationNumberLookupDto, HealthcareSupport.CaseEvaluation.Application.Contracts",
+                      "type": "HealthcareSupport.CaseEvaluation.Appointments.ConfirmationNumberLookupDto",
+                      "typeSimple": "HealthcareSupport.CaseEvaluation.Appointments.ConfirmationNumberLookupDto",
+                      "isOptional": false,
+                      "defaultValue": null
+                    }
+                  ],
+                  "returnValue": {
+                    "type": "System.Void",
+                    "typeSimple": "System.Void"
+                  }
+                }
+              ]
+            }
+          ],
+          "actions": {
+            "RequestAsyncByInput": {
+              "uniqueName": "RequestAsyncByInput",
+              "name": "RequestAsync",
+              "httpMethod": "POST",
+              "url": "api/app/confirmation-number-lookups",
+              "supportedVersions": [],
+              "parametersOnMethod": [
+                {
+                  "name": "input",
+                  "typeAsString": "HealthcareSupport.CaseEvaluation.Appointments.ConfirmationNumberLookupDto, HealthcareSupport.CaseEvaluation.Application.Contracts",
+                  "type": "HealthcareSupport.CaseEvaluation.Appointments.ConfirmationNumberLookupDto",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.Appointments.ConfirmationNumberLookupDto",
+                  "isOptional": false,
+                  "defaultValue": null
+                }
+              ],
+              "parameters": [
+                {
+                  "nameOnMethod": "input",
+                  "name": "input",
+                  "jsonName": null,
+                  "type": "HealthcareSupport.CaseEvaluation.Appointments.ConfirmationNumberLookupDto",
+                  "typeSimple": "HealthcareSupport.CaseEvaluation.Appointments.ConfirmationNumberLookupDto",
+                  "isOptional": false,
+                  "defaultValue": null,
+                  "constraintTypes": null,
+                  "bindingSourceId": "Body",
+                  "descriptorName": ""
+                }
+              ],
+              "returnValue": {
+                "type": "System.Void",
+                "typeSimple": "System.Void"
+              },
+              "allowAnonymous": false,
+              "implementFrom": "HealthcareSupport.CaseEvaluation.Appointments.IConfirmationNumberLookupsAppService"
+            }
+          }
+        },
         "HealthcareSupport.CaseEvaluation.Controllers.Appointments.ReEvaluationSourcesController": {
           "controllerName": "ReEvaluationSources",
           "controllerGroupName": "ReEvaluationSource",
@@ -55311,6 +55383,67 @@
           "maximum": null,
           "regex": null,
           "isNullable": true
+        }
+      ]
+    },
+    "HealthcareSupport.CaseEvaluation.Appointments.ConfirmationNumberLookupDto": {
+      "baseType": null,
+      "isEnum": false,
+      "enumNames": null,
+      "enumValues": null,
+      "genericArguments": null,
+      "properties": [
+        {
+          "name": "PatientFirstName",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": true,
+          "minLength": 0,
+          "maxLength": 50,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "PatientLastName",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": true,
+          "minLength": 0,
+          "maxLength": 50,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "PatientDateOfBirth",
+          "jsonName": null,
+          "type": "System.DateTime",
+          "typeSimple": "string",
+          "isRequired": false,
+          "minLength": null,
+          "maxLength": null,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
+        },
+        {
+          "name": "ClaimNumber",
+          "jsonName": null,
+          "type": "System.String",
+          "typeSimple": "string",
+          "isRequired": true,
+          "minLength": 0,
+          "maxLength": 50,
+          "minimum": null,
+          "maximum": null,
+          "regex": null,
+          "isNullable": false
         }
       ]
     },

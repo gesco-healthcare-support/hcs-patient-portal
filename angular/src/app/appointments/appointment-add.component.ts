@@ -97,11 +97,12 @@ import {
 } from './shared/reval-lookup.util';
 import { ReEvaluationSourcesService } from '../proxy/appointments/re-evaluation-sources.service';
 import {
-  REVAL_ENTRY_CARDS,
+  revalEntryCardsFor,
   showPrefillBanner,
   showRevalEntryChoice,
   showSourceLookupFor,
   shouldAutoLoadSource,
+  type RevalEntryCard,
   type RevalEntryChoice,
 } from './shared/reval-entry.util';
 import type { AppointmentClaimExaminerDto } from '../proxy/appointment-claim-examiners/models';
@@ -460,7 +461,10 @@ export class AppointmentAddComponent {
 
   /** Which way into a re-evaluation the booker picked; null until they choose (no default). */
   revalEntryChoice: RevalEntryChoice | null = null;
-  readonly revalEntryCards = REVAL_ENTRY_CARDS;
+  /** Staff do not get the "I don't know the number" card (R3); outside bookers get all three. */
+  get revalEntryCards(): readonly RevalEntryCard[] {
+    return revalEntryCardsFor(this.isInternalBooker);
+  }
 
   /** The radio cards show while a re-evaluation has no source loaded. */
   get showRevalEntryChoice(): boolean {
