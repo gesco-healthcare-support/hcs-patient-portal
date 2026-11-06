@@ -18,8 +18,15 @@
   `shared/booking-mode.ts` -- resolves the booking mode from the query string.
 - `shared/reval-without-source.util.ts` -- re-evaluation mode only: the "first evaluation was not
   booked in this portal" choice. Ticked, no prior confirmation number is loaded or required, the
-  form stays blank, and submit sends mode 4 (`RevalWithoutSource`; declared there because the
-  generated proxy enum lacks it until the next `abp generate-proxy`).
+  form stays blank, and submit sends mode 4 (`BookingSubmitMode.RevalWithoutSource`, from the
+  generated proxy enum).
+- `shared/reval-entry.util.ts` -- re-evaluation entry: the two radio cards (confirmation number /
+  first exam before this portal; no default), when the number box and the "filled in from the
+  earlier evaluation" banner show, and when `?source=` auto-loads (re-evaluation and re-book).
+  `shared/exam-date-passed.util.ts` -- Pacific-calendar "exam day has passed" for the
+  Request re-evaluation button (Approved + passed). Staff reach re-evaluation from the
+  `new-appointment-menu` component (New evaluation / Re-evaluation), which sets `?type=` before the
+  wizard opens.
 - `appointment/components/appointment-view.component.ts` -- view/edit page for staff
   and external roles; reads via `getRawValue()` at save time.
 - `appointment-change-logs/` -- read-only audit trail component.

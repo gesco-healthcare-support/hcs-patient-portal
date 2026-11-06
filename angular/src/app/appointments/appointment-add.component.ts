@@ -57,6 +57,7 @@ import {
   isDefenseSideExternal,
   isParalegalRole,
   paralegalRoleForSide,
+  roleDisplayLabel,
   type LawOfficeSide,
 } from '../shared/auth/external-user-roles';
 import {
@@ -82,10 +83,17 @@ import { NgbDateStruct } from '@ng-bootstrap/ng-bootstrap';
 import type { AppointmentDto, AppointmentSubmitDto } from '../proxy/appointments/models';
 import { BookingSubmitMode } from '../proxy/enums/booking-submit-mode.enum';
 import {
-  REVAL_WITHOUT_SOURCE_SUBMIT_MODE,
   canOfferRevalWithoutSource,
   isRevalWithoutSource,
 } from './shared/reval-without-source.util';
+import {
+  REVAL_ENTRY_CARDS,
+  showPrefillBanner,
+  showRevalEntryChoice,
+  showSourceLookupFor,
+  shouldAutoLoadSource,
+  type RevalEntryChoice,
+} from './shared/reval-entry.util';
 import type { AppointmentClaimExaminerDto } from '../proxy/appointment-claim-examiners/models';
 import type { AppointmentPrimaryInsuranceDto } from '../proxy/appointment-primary-insurances/models';
 import { AppointmentService } from '../proxy/appointments/appointment.service';
@@ -421,7 +429,30 @@ export class AppointmentAddComponent {
    * the URL and auto-loads, so it never shows the lookup.
    */
   get showSourceLookup(): boolean {
-    return (this.isReevaluation && !this.isRevalWithoutSourceChosen) || this.isReBook;
+    return showSourceLookupFor(
+      this.bookingMode,
+      this.revalEntryChoice,
+      this.sourceConfirmationNumber,
+    );
+  }
+
+  /** Which way into a re-evaluation the booker picked; null until they choose (no default). */
+  revalEntryChoice: RevalEntryChoice | null = null;
+  readonly revalEntryCards = REVAL_ENTRY_CARDS;
+
+  /** The radio cards show while a re-evaluation has no source loaded. */
+  get showRevalEntryChoice(): boolean {
+    return showRevalEntryChoice(this.bookingMode, this.sourceConfirmationNumber);
+  }
+
+  chooseRevalEntry(choice: RevalEntryChoice): void {
+    this.revalEntryChoice = choice;
+    this.setRevalWithoutSource(choice === 'before');
+  }
+
+  /** True while the form holds data copied from an earlier case (drives the review-every-section banner). */
+  get showPrefillBanner(): boolean {
+    return showPrefillBanner(this.bookingMode, this.sourceConfirmationNumber);
   }
 
   /** The re-evaluation is anchored to nothing: the first evaluation predates this portal. */
@@ -990,13 +1021,19 @@ export class AppointmentAddComponent {
         // makes it behave exactly like re-request -- including the profile-load race
         // below. Typed in by hand at plain `?type=3` there is no source yet, so the
         // booker's own profile SHOULD load, exactly as it does for reval.
-        if (this.bookingMode === 'reBook') {
-          const source = (params.get('source') ?? '').trim();
-          if (source && this.sourceConfirmationNumber !== source) {
-            this.isAutoLoadingSource = true;
-            this.isProfileLoading = false;
-            void this.loadSourceForPrefill(source, 'reBook');
-          }
+        // 2026-11-06: a re-evaluation launched from a finished case ("Request re-evaluation")
+        // carries the source the same way and loads it without the entry choice.
+        const source = (params.get('source') ?? '').trim();
+        if (
+          shouldAutoLoadSource(this.bookingMode, source) &&
+          this.sourceConfirmationNumber !== source
+        ) {
+          this.isAutoLoadingSource = true;
+          this.isProfileLoading = false;
+          void this.loadSourceForPrefill(
+            source,
+            this.bookingMode === 'reBook' ? 'reBook' : 'reval',
+          );
         }
       }
     });
@@ -1518,7 +1555,7 @@ export class AppointmentAddComponent {
   }
 
   get displayRoleName(): string {
-    return this.currentUser?.roles?.[0] || 'Patient';
+    return roleDisplayLabel(this.currentUser?.roles?.[0]) || 'Patient';
   }
 
   /**
@@ -2185,7 +2222,7 @@ export class AppointmentAddComponent {
     // would turn a broken navigation state into a hard refusal, which is a behaviour change this PR
     // has no reason to make. The server refuses a modeless source independently, for other callers.
     if (this.isRevalWithoutSourceChosen && !this.sourceConfirmationNumber) {
-      return REVAL_WITHOUT_SOURCE_SUBMIT_MODE;
+      return BookingSubmitMode.RevalWithoutSource;
     }
     if (!this.sourceConfirmationNumber) {
       return BookingSubmitMode.Create;
@@ -2356,7 +2393,7 @@ export class AppointmentAddComponent {
       return null;
     }
     if (this.bookingMode === 'reval') {
-      return 'Look up the prior approved appointment by confirmation number before submitting.';
+      return 'Look up the prior approved appointment by confirmation number, or choose that the first exam was before this portal, before submitting.';
     }
     if (this.bookingMode === 'reBook') {
       return 'Look up the appointment you want to book again by confirmation number before submitting.';

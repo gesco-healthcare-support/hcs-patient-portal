@@ -84,9 +84,9 @@ export function withNotifyParalegal(
 }
 
 const FIELD_LABELS: Record<NotifyParalegalField, string> = {
-  firstName: 'Paralegal first name',
-  lastName: 'Paralegal last name',
-  email: 'Paralegal email',
+  firstName: 'Paralegal / case manager first name',
+  lastName: 'Paralegal / case manager last name',
+  email: 'Paralegal / case manager email',
 };
 
 /** Error-summary rows for the wizard's "Please fix the following" banner. */
@@ -100,13 +100,13 @@ export function notifyParalegalSummary(state: NotifyParalegalState): StepErrorFi
 
 /** Shown when the typed paralegal email is already an Authorized User with another role. */
 export const NOTIFY_PARALEGAL_CONFLICT_MESSAGE =
-  'This email is already an Authorized User with another role. Change that row to Paralegal or use another email.';
+  'This email is already an Authorized User with another role. Change that row to Paralegal / Case Manager or use another email.';
 
 /** Error-summary row for the conflict, for the wizard's "Please fix the following" banner. */
 export function notifyParalegalConflictSummary(): StepErrorField {
   return {
     control: 'notifyParalegal.conflict',
-    label: 'Paralegal email',
+    label: 'Paralegal / case manager email',
     message: NOTIFY_PARALEGAL_CONFLICT_MESSAGE,
   };
 }

@@ -904,12 +904,6 @@ describe('InternalAppointmentsComponent', () => {
       expect(c.canDelete).toBeFalse();
       expect(c.canCreate).toBeFalse();
     });
-
-    it('navigates to the booking wizard for a new appointment', () => {
-      const c = create({ policies: ['CaseEvaluation.Appointments.Create'] });
-      c.newAppointment();
-      expect(router.navigateByUrl).toHaveBeenCalledWith('/appointments/request');
-    });
   });
 
   describe('CSV export', () => {

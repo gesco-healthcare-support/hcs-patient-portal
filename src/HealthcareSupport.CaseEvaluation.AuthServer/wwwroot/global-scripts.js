@@ -33,9 +33,9 @@
   const externalUserRoles = [
     { value: 1, label: 'Patient', roleName: 'Patient' },
     { value: 3, label: 'Attorney (Applicant side)', roleName: 'Applicant Attorney' },
-    { value: 5, label: 'Paralegal (Applicant side)', roleName: 'Applicant Paralegal' },
+    { value: 5, label: 'Paralegal / Case Manager (Applicant side)', roleName: 'Applicant Paralegal' },
     { value: 4, label: 'Attorney (Defense side)', roleName: 'Defense Attorney' },
-    { value: 6, label: 'Paralegal (Defense side)', roleName: 'Defense Paralegal' },
+    { value: 6, label: 'Paralegal / Case Manager (Defense side)', roleName: 'Defense Paralegal' },
     { value: 2, label: 'Claim Examiner', roleName: 'Claim Examiner' },
   ];
 
