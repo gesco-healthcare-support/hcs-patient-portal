@@ -16,7 +16,7 @@ public class AccessorTempPasswordTests
     public void The_fixed_prefix_alone_has_a_digit_an_upper_a_lower_and_a_symbol()
     {
         // Checked on the constant, not on a sample, so the answer never depends on a random draw.
-        const string prefix = AppointmentAccessorManager.TempPasswordPrefix;
+        const string prefix = AppointmentAccessorManager.PolicyCharactersPrefix;
 
         prefix.Any(char.IsDigit).ShouldBeTrue();
         prefix.Any(char.IsUpper).ShouldBeTrue();
@@ -31,7 +31,7 @@ public class AccessorTempPasswordTests
             .Select(_ => AppointmentAccessorManager.GenerateTempPassword())
             .ToList();
 
-        samples.ShouldAllBe(p => p.StartsWith(AppointmentAccessorManager.TempPasswordPrefix));
+        samples.ShouldAllBe(p => p.StartsWith(AppointmentAccessorManager.PolicyCharactersPrefix));
         samples.ShouldAllBe(p => p.Length >= 8);
     }
 

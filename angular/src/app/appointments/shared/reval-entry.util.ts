@@ -33,11 +33,9 @@ export const REVAL_ENTRY_CARDS: readonly RevalEntryCard[] = [
  * 2026-11-06 (R3): staff can open any case in their office, so the "I don't know it" card is for
  * outside bookers only; staff see the other two.
  */
-export function revalEntryCardsFor(isInternalBooker: boolean): readonly RevalEntryCard[] {
-  return isInternalBooker
-    ? REVAL_ENTRY_CARDS.filter((c) => c.value !== 'lookup')
-    : REVAL_ENTRY_CARDS;
-}
+export const STAFF_REVAL_ENTRY_CARDS: readonly RevalEntryCard[] = REVAL_ENTRY_CARDS.filter(
+  (c) => c.value !== 'lookup',
+);
 
 /**
  * The choice is offered while a re-evaluation has no source loaded. Once a source is loaded

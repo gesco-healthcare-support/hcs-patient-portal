@@ -97,7 +97,8 @@ import {
 } from './shared/reval-lookup.util';
 import { ReEvaluationSourcesService } from '../proxy/appointments/re-evaluation-sources.service';
 import {
-  revalEntryCardsFor,
+  REVAL_ENTRY_CARDS,
+  STAFF_REVAL_ENTRY_CARDS,
   showPrefillBanner,
   showRevalEntryChoice,
   showSourceLookupFor,
@@ -463,7 +464,7 @@ export class AppointmentAddComponent {
   revalEntryChoice: RevalEntryChoice | null = null;
   /** Staff do not get the "I don't know the number" card (R3); outside bookers get all three. */
   get revalEntryCards(): readonly RevalEntryCard[] {
-    return revalEntryCardsFor(this.isInternalBooker);
+    return this.isInternalBooker ? STAFF_REVAL_ENTRY_CARDS : REVAL_ENTRY_CARDS;
   }
 
   /** The radio cards show while a re-evaluation has no source loaded. */

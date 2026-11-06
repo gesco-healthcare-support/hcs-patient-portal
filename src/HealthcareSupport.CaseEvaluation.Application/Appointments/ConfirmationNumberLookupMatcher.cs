@@ -1,6 +1,5 @@
 using System;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
 using HealthcareSupport.CaseEvaluation.Enums;
@@ -114,15 +113,8 @@ public class ConfirmationNumberLookupMatcher : ITransientDependency
     /// <summary>Upper-case with every space and dash removed.</summary>
     internal static string NormalizeClaimNumber(string? claimNumber)
     {
-        var builder = new StringBuilder();
-        foreach (var c in claimNumber ?? string.Empty)
-        {
-            if (!char.IsWhiteSpace(c) && c != '-')
-            {
-                builder.Append(char.ToUpperInvariant(c));
-            }
-        }
-
-        return builder.ToString();
+        return string.Concat((claimNumber ?? string.Empty)
+            .Where(c => !char.IsWhiteSpace(c) && c != '-')
+            .Select(char.ToUpperInvariant));
     }
 }

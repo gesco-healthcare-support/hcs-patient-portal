@@ -1,6 +1,6 @@
 import {
   REVAL_ENTRY_CARDS,
-  revalEntryCardsFor,
+  STAFF_REVAL_ENTRY_CARDS,
   shouldAutoLoadSource,
   showPrefillBanner,
   showRevalEntryChoice,
@@ -13,8 +13,8 @@ describe('reval-entry util', () => {
   });
 
   it('gives outside bookers all three cards and staff the two without the lookup (R3)', () => {
-    expect(revalEntryCardsFor(false).map((c) => c.value)).toEqual(['number', 'lookup', 'before']);
-    expect(revalEntryCardsFor(true).map((c) => c.value)).toEqual(['number', 'before']);
+    expect(REVAL_ENTRY_CARDS.map((c) => c.value)).toEqual(['number', 'lookup', 'before']);
+    expect(STAFF_REVAL_ENTRY_CARDS.map((c) => c.value)).toEqual(['number', 'before']);
   });
 
   it('shows the choice only for a re-evaluation with nothing loaded', () => {
