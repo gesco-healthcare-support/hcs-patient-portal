@@ -76,7 +76,7 @@ describe('case-follower.util', () => {
 
     it('explains the redirect, which wins over the booker note', () => {
       const note = followerNote({ bookerFollowsCase: false, attorneyMailToParalegal: true });
-      expect(note).toContain('go to the paralegal instead');
+      expect(note).toContain('go to the paralegal / case manager instead');
     });
   });
 });

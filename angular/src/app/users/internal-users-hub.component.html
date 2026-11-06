@@ -188,9 +188,9 @@
               @if (res.existingRoleName && res.existingRoleName !== res.roleName) {
                 <p class="ra-hint">
                   You invited them as
-                  <b>{{ res.roleName }}</b>
+                  <b>{{ roleLabel(res.roleName) }}</b>
                   , but the existing account is
-                  <b>{{ res.existingRoleName }}</b>
+                  <b>{{ roleLabel(res.existingRoleName) }}</b>
                   . Changing a role is a separate step; sending the sign-in link does not change it.
                 </p>
               }
@@ -239,7 +239,7 @@
                 </div>
                 <div>
                   <div class="k">Role</div>
-                  <div class="v">{{ res.roleName }}</div>
+                  <div class="v">{{ roleLabel(res.roleName) }}</div>
                 </div>
                 <div>
                   <div class="k">Expires</div>
@@ -279,7 +279,9 @@
         emptyText="No invitations yet."
       >
         <b *managedTableCell="'email'; let inv">{{ inv.email }}</b>
-        <span class="ux-role" *managedTableCell="'roleName'; let inv">{{ inv.roleName }}</span>
+        <span class="ux-role" *managedTableCell="'roleName'; let inv">
+          {{ roleLabel(inv.roleName) }}
+        </span>
         <span class="ia-sub" *managedTableCell="'invitedByName'; let inv">
           {{ inv.invitedByName || '--' }}
         </span>
@@ -428,7 +430,7 @@
               </div>
               <div>
                 <div class="k">Role</div>
-                <div class="v">{{ res.roleName }}</div>
+                <div class="v">{{ roleLabel(res.roleName) }}</div>
               </div>
               <div>
                 <div class="k">First sign-in</div>

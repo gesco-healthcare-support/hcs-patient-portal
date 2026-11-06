@@ -1,12 +1,9 @@
-import {
-  REVAL_WITHOUT_SOURCE_SUBMIT_MODE,
-  canOfferRevalWithoutSource,
-  isRevalWithoutSource,
-} from './reval-without-source.util';
+import { BookingSubmitMode } from '../../proxy/enums/booking-submit-mode.enum';
+import { canOfferRevalWithoutSource, isRevalWithoutSource } from './reval-without-source.util';
 
 describe('reval-without-source util', () => {
   it('uses the server wire value 4', () => {
-    expect(REVAL_WITHOUT_SOURCE_SUBMIT_MODE as number).toBe(4);
+    expect(BookingSubmitMode.RevalWithoutSource as number).toBe(4);
   });
 
   it('applies only to a ticked re-evaluation', () => {

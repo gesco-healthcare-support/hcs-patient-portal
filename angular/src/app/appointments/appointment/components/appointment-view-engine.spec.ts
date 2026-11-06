@@ -534,6 +534,60 @@ describe('AppointmentViewComponent engine', () => {
     });
   });
 
+  describe('request re-evaluation (finished case)', () => {
+    const PAST = '2020-01-15T09:00:00';
+    const FUTURE = '2099-01-15T09:00:00';
+
+    it('is offered on an Approved case whose exam day has passed', () => {
+      const c = create({ roles: ['Applicant Attorney'] });
+      withLoaded(c, { appointmentStatus: AppointmentStatusType.Approved, appointmentDate: PAST });
+      expect(c.canRequestReEvaluation).toBeTrue();
+    });
+
+    it('is hidden before the exam day', () => {
+      const c = create({ roles: ['Applicant Attorney'] });
+      withLoaded(c, { appointmentStatus: AppointmentStatusType.Approved, appointmentDate: FUTURE });
+      expect(c.canRequestReEvaluation).toBeFalse();
+    });
+
+    it('is hidden for every status but Approved, even after the exam day', () => {
+      const c = create({ roles: ['Applicant Attorney'] });
+      for (const status of [
+        AppointmentStatusType.Pending,
+        AppointmentStatusType.Rejected,
+        AppointmentStatusType.NoShow,
+        AppointmentStatusType.NotSeen,
+        AppointmentStatusType.CancelledNoBill,
+        AppointmentStatusType.RescheduleRequested,
+      ]) {
+        withLoaded(c, { appointmentStatus: status, appointmentDate: PAST });
+        expect(c.canRequestReEvaluation).withContext(AppointmentStatusType[status]).toBeFalse();
+      }
+    });
+
+    it('navigates to re-evaluation mode carrying the confirmation number', () => {
+      const c = create();
+      withLoaded(c, { requestConfirmationNumber: 'A00004' });
+      c.requestReEvaluation();
+      expect(router.navigate).toHaveBeenCalledWith(['/appointments/request'], {
+        queryParams: { type: 2, source: 'A00004' },
+      });
+    });
+
+    it('does not navigate without a confirmation number', () => {
+      const c = create();
+      withLoaded(c, { requestConfirmationNumber: null });
+      c.requestReEvaluation();
+      expect(router.navigate).not.toHaveBeenCalled();
+    });
+
+    it('leaves Reschedule and Cancel visible after the exam day', () => {
+      const c = create({ roles: ['Patient'] });
+      withLoaded(c, { appointmentStatus: AppointmentStatusType.Approved, appointmentDate: PAST });
+      expect(c.canRequestChange).toBeTrue();
+    });
+  });
+
   describe('change requests', () => {
     it('offers the request buttons to an external viewer on an approved appointment', () => {
       const c = create({ roles: ['Patient'] });
