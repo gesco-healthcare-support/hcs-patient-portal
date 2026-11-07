@@ -53,6 +53,7 @@ public class AutoExposedAppServiceSurfaceTests
         typeof(AppNotificationAppService),
         // 2026-11-06: born without an auto route (R2c re-evaluation lookup).
         typeof(ReEvaluationSourcesAppService),
+        typeof(ConfirmationNumberLookupsAppService),
     };
 
     [Theory]
@@ -94,6 +95,7 @@ public class AutoExposedAppServiceSurfaceTests
 
         // 2026-11-06: the re-evaluation lookup, a POST so the date of birth stays out of URLs.
         { "POST", "api/app/re-evaluation-sources/lookup", "input", "Body" },
+        { "POST", "api/app/confirmation-number-lookups", "input", "Body" },
 
         // Literal-string caller (admin/case-tracker-missing-intakes.component.ts); the controller already existed.
         { "GET", "api/app/case-tracker/missing-intakes", null, null },

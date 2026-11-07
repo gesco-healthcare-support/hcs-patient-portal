@@ -1,5 +1,6 @@
 import {
   REVAL_ENTRY_CARDS,
+  STAFF_REVAL_ENTRY_CARDS,
   shouldAutoLoadSource,
   showPrefillBanner,
   showRevalEntryChoice,
@@ -7,8 +8,13 @@ import {
 } from './reval-entry.util';
 
 describe('reval-entry util', () => {
-  it('offers exactly the number and before-this-portal cards, in that order', () => {
-    expect(REVAL_ENTRY_CARDS.map((c) => c.value)).toEqual(['number', 'before']);
+  it('offers the number, the I-do-not-know-it and the before-this-portal cards, in that order', () => {
+    expect(REVAL_ENTRY_CARDS.map((c) => c.value)).toEqual(['number', 'lookup', 'before']);
+  });
+
+  it('gives outside bookers all three cards and staff the two without the lookup (R3)', () => {
+    expect(REVAL_ENTRY_CARDS.map((c) => c.value)).toEqual(['number', 'lookup', 'before']);
+    expect(STAFF_REVAL_ENTRY_CARDS.map((c) => c.value)).toEqual(['number', 'before']);
   });
 
   it('shows the choice only for a re-evaluation with nothing loaded', () => {
@@ -21,6 +27,7 @@ describe('reval-entry util', () => {
   it('shows the number box after the number card is picked, or once a source is loaded', () => {
     expect(showSourceLookupFor('reval', null, null)).toBeFalse();
     expect(showSourceLookupFor('reval', 'before', null)).toBeFalse();
+    expect(showSourceLookupFor('reval', 'lookup', null)).toBeFalse();
     expect(showSourceLookupFor('reval', 'number', null)).toBeTrue();
     expect(showSourceLookupFor('reval', null, 'A00004')).toBeTrue();
     expect(showSourceLookupFor('reBook', null, null)).toBeTrue();
