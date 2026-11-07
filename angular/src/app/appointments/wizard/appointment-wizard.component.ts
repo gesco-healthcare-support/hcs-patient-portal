@@ -47,6 +47,7 @@ import {
   collectStepErrors,
 } from './step-errors.util';
 import { PrefillPickerModalComponent } from '../shared/prefill-picker-modal.component';
+import { ConfirmationNumberRequestComponent } from './confirmation-number-request.component';
 import { PREFILL_SECTIONS, type PrefillSelection } from '../shared/prefill-sections';
 import { AppointmentDraftService } from '../../proxy/appointment-drafts/appointment-draft.service';
 import type { AppointmentDraftDto } from '../../proxy/appointment-drafts/models';
@@ -108,6 +109,7 @@ const STEPS: WizardStep[] = [
     AppointmentAddCustomFieldsComponent,
     ConfirmAddressDialogComponent,
     PrefillPickerModalComponent,
+    ConfirmationNumberRequestComponent,
     SsnMaskPipe,
     LocalizationPipe,
   ],

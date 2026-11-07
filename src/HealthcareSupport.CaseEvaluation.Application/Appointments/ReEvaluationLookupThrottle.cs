@@ -14,6 +14,25 @@ using Volo.Abp.Users;
 namespace HealthcareSupport.CaseEvaluation.Appointments;
 
 /// <summary>
+/// One lookup's hourly allowance: per account and per network address. Each lookup has its own budget
+/// (its own cache keys), so using one does not spend the other.
+/// </summary>
+public sealed record LookupThrottleBudget(string Name, int MaxPerUserPerHour, int MaxPerAddressPerHour)
+{
+    /// <summary>
+    /// Confirmation number + patient date of birth (R2c), shared by the lookup and the booking submit's
+    /// re-check. A party loading its own case never reaches it.
+    /// </summary>
+    public static readonly LookupThrottleBudget ReEvaluationSource = new("reeval-source-lookup", 10, 30);
+
+    /// <summary>
+    /// "I don't know the confirmation number" (R3): name + date of birth + claim number. Lower, because
+    /// a booker needs it once or twice and each try may send an email.
+    /// </summary>
+    public static readonly LookupThrottleBudget ConfirmationNumber = new("confirmation-number-lookup", 5, 20);
+}
+
+/// <summary>
 /// 2026-11-06 -- caps how many times one account, and one network address, may try a confirmation
 /// number with a patient's date of birth. A match hands a non-party the whole earlier case, and a
 /// date of birth is not a secret, so the number of guesses is what keeps the check meaningful.
@@ -27,16 +46,12 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 ///
 /// <para>Cache-backed (Redis in production, in-memory in tests). A cache failure fails OPEN with a
 /// warning, like the account throttles: a Redis outage must not stop a booking.</para>
+///
+/// <para>The "I don't know the number" lookup (R3) uses the same mechanism with its own
+/// <see cref="LookupThrottleBudget"/>.</para>
 /// </summary>
 public class ReEvaluationLookupThrottle : ITransientDependency
 {
-    /// <summary>Per account per hour. A party loading its own case never reaches this.</summary>
-    public const int MaxPerUserPerHour = 10;
-
-    /// <summary>Per network address per hour, so several accounts behind one address share a cap.</summary>
-    public const int MaxPerAddressPerHour = 30;
-
-    private const string KeyPrefix = "reeval-source-lookup";
     private static readonly TimeSpan Window = TimeSpan.FromHours(1);
 
     private readonly IDistributedCache _cache;
@@ -57,18 +72,20 @@ public class ReEvaluationLookupThrottle : ITransientDependency
     }
 
     /// <summary>
-    /// Refuses when either budget is spent, otherwise counts this attempt against both.
+    /// Refuses when either allowance of <paramref name="budget"/> is spent, otherwise counts this attempt
+    /// against both.
     /// </summary>
-    public virtual async Task EnsureAllowedAndStampAsync()
+    public virtual async Task EnsureAllowedAndStampAsync(LookupThrottleBudget budget)
     {
-        var counters = Counters();
+        var counters = Counters(budget);
 
         foreach (var (key, max) in counters)
         {
             if (await ReadCountAsync(key) >= max)
             {
                 _logger.LogInformation(
-                    "ReEvaluationLookupThrottle: refused a re-evaluation lookup for user {UserId}; hourly limit reached.",
+                    "ReEvaluationLookupThrottle: refused a {Lookup} for user {UserId}; hourly limit reached.",
+                    budget.Name,
                     _currentUser.Id);
                 throw new BusinessException(CaseEvaluationDomainErrorCodes.ReEvaluationLookupThrottled);
             }
@@ -80,12 +97,12 @@ public class ReEvaluationLookupThrottle : ITransientDependency
         }
     }
 
-    private List<(string Key, int Max)> Counters()
+    private List<(string Key, int Max)> Counters(LookupThrottleBudget budget)
     {
         var counters = new List<(string Key, int Max)>();
         if (_currentUser.Id is { } userId)
         {
-            counters.Add(($"{KeyPrefix}:user:{userId:N}", MaxPerUserPerHour));
+            counters.Add(($"{budget.Name}:user:{userId:N}", budget.MaxPerUserPerHour));
         }
 
         // The address is hashed so the cache never holds a raw IP. Forwarded headers are applied
@@ -94,7 +111,7 @@ public class ReEvaluationLookupThrottle : ITransientDependency
         var address = _httpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString();
         if (!string.IsNullOrEmpty(address))
         {
-            counters.Add(($"{KeyPrefix}:address:{Digest(address)}", MaxPerAddressPerHour));
+            counters.Add(($"{budget.Name}:address:{Digest(address)}", budget.MaxPerAddressPerHour));
         }
 
         return counters;

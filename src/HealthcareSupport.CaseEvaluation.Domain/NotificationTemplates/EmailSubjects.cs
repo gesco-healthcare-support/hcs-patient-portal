@@ -367,6 +367,14 @@ internal static class EmailSubjects
     public const string AppointmentDayReminder =
         "Appointment Portal - Reminder: appointment ##AppointmentRequestConfirmationNumber## on ##AppointmentDate##";
 
+    /// <summary>2026-11-06 (R3) -- the confirmation number a booker asked for.</summary>
+    public const string ConfirmationNumberLookup =
+        "Appointment Portal - The confirmation number you asked for";
+
+    /// <summary>2026-11-06 (R3) -- office inbox: a confirmation number was emailed.</summary>
+    public const string ConfirmationNumberLookupOffice =
+        "Appointment Portal - Appointment ##AppointmentRequestConfirmationNumber## - confirmation number sent by email";
+
     /// <summary>Group D (2026-06-09) -- opposing-side consent request subject.</summary>
     public const string ChangeRequestConsentRequest =
         "Appointment Portal - Your agreement is needed on appointment ##AppointmentRequestConfirmationNumber##";
@@ -477,6 +485,8 @@ internal static class EmailSubjects
             [NotificationTemplateConsts.Codes.ChangeRequestConsentDeclined] = ChangeRequestConsentDeclined,
             [NotificationTemplateConsts.Codes.PatientAppointmentNotSeen] = PatientAppointmentNotSeen,
             [NotificationTemplateConsts.Codes.AppointmentDayReminder] = AppointmentDayReminder,
+            [NotificationTemplateConsts.Codes.ConfirmationNumberLookup] = ConfirmationNumberLookup,
+            [NotificationTemplateConsts.Codes.ConfirmationNumberLookupOffice] = ConfirmationNumberLookupOffice,
             [NotificationTemplateConsts.Codes.ChangeRequestConsentRequest] = ChangeRequestConsentRequest,
 
             // QA item M (2026-06-29): two wired codes that were shipping stub

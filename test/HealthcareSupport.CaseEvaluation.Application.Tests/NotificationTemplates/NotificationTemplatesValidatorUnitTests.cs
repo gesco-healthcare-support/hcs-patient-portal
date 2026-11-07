@@ -234,7 +234,9 @@ public class NotificationTemplatesValidatorUnitTests
         // 2026-11-03 added OfficePacketCopy, the office inbox's one email with both packets (+1 -> 75).
         // 2026-11-03 email routing v2 added ChangeRequestConsentInfo, ChangeRequestConsentDeclined,
         // PatientAppointmentNotSeen and AppointmentDayReminder (+4 -> 79).
-        NotificationTemplateConsts.Codes.All.Length.ShouldBe(79);
+        // 2026-11-06 added ConfirmationNumberLookup and ConfirmationNumberLookupOffice, the "I don't know
+        // the confirmation number" emails to the asker and the office inbox (+2 -> 81).
+        NotificationTemplateConsts.Codes.All.Length.ShouldBe(81);
     }
 
     [Fact]
