@@ -1,3 +1,4 @@
+import { TestBed } from '@angular/core/testing';
 import { FormControl, FormGroup } from '@angular/forms';
 
 import { AppointmentAddScheduleComponent } from './appointment-add-schedule.component';
@@ -25,7 +26,9 @@ describe('AppointmentAddScheduleComponent', () => {
   }
 
   function create(date: string | null = null): Probe {
-    const c = new AppointmentAddScheduleComponent() as unknown as Probe;
+    const c = TestBed.runInInjectionContext(
+      () => new AppointmentAddScheduleComponent(),
+    ) as unknown as Probe;
     c.form = new FormGroup({
       appointmentDate: new FormControl<string | null>(date),
       appointmentTime: new FormControl<string | null>(null),
@@ -72,6 +75,35 @@ describe('AppointmentAddScheduleComponent', () => {
       c.onSlotSelected({ date: '2026-11-03', time: '09:00', doctorAvailabilityId: 'slot-1' });
 
       expect(events).toEqual(['appointmentDate']);
+    });
+  });
+
+  describe('a date the parent refuses', () => {
+    function withCalendar(c: Probe): jasmine.Spy {
+      const reset = jasmine.createSpy('reset');
+      (c as unknown as { calendar: () => unknown }).calendar = () => ({ reset });
+      return reset;
+    }
+
+    it('resets the calendar when the parent clears the value as it is written', () => {
+      const c = create();
+      const reset = withCalendar(c);
+      c.form.get('appointmentDate')!.valueChanges.subscribe(() => {
+        c.form.patchValue({ appointmentDate: null }, { emitEvent: false });
+      });
+
+      c.onSlotSelected({ date: '2027-03-01', time: null, doctorAvailabilityId: null });
+
+      expect(reset).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves the calendar alone when the date is kept', () => {
+      const c = create();
+      const reset = withCalendar(c);
+
+      c.onSlotSelected({ date: '2026-11-03', time: null, doctorAvailabilityId: null });
+
+      expect(reset).not.toHaveBeenCalled();
     });
   });
 });

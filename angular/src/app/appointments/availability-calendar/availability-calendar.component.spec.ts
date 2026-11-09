@@ -279,6 +279,57 @@ describe('AvailabilityCalendarComponent', () => {
     expect(input.value).toBe(expected);
   });
 
+  /**
+   * 2026-11-09: two picker defects. (1) A host that refuses the picked date and clears its own value
+   * in the same tick never changes the `[selectedDate]` binding, so the widgets kept the refused
+   * date and its times; the host now calls `reset()`. (2) ngb builds an open month once, so a popup
+   * opened before the availability lookup returned kept every day disabled.
+   */
+  it('reset() empties the displayed date and offers no times', async () => {
+    await loadFor('loc-1');
+    component.selectedDate = bookableKey;
+    component.ngOnChanges({ selectedDate: new SimpleChange(null, bookableKey, false) });
+    fixture.detectChanges();
+    const input = fixture.nativeElement.querySelector('input[ngbDatepicker]') as HTMLInputElement;
+    expect(input.value).withContext('precondition: the date is shown').not.toBe('');
+    expect(fixture.nativeElement.querySelectorAll('select option').length).toBe(3);
+
+    component.reset();
+    fixture.detectChanges();
+
+    expect(input.value).toBe('');
+    expect(fixture.nativeElement.querySelectorAll('select option').length).toBe(1);
+  });
+
+  it('enables an available day in a month that was already open before the lookup landed', async () => {
+    const pending = new Subject<unknown[]>();
+    lookup.and.returnValue(pending);
+    await loadFor('loc-1');
+
+    const input = fixture.nativeElement.querySelector('input[ngbDatepicker]') as HTMLInputElement;
+    input.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const availableEnabled = (): number =>
+      Array.from(fixture.nativeElement.querySelectorAll('.ngb-dp-day')).filter(
+        (cell) =>
+          !(cell as HTMLElement).classList.contains('disabled') &&
+          (cell as HTMLElement).querySelector('.available-day'),
+      ).length;
+    expect(availableEnabled()).withContext('nothing is available yet').toBe(0);
+
+    pending.next([
+      { id: 'slot-9am', availableDate: `${bookableKey}T00:00:00Z`, fromTime: '09:00' },
+    ]);
+    pending.complete();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(availableEnabled()).toBe(1);
+  });
+
   // ---- The contract test: real DOM, not just our helpers ----
   it('RENDERS the datepicker and disables days that have no availability', async () => {
     await loadFor('loc-1');
