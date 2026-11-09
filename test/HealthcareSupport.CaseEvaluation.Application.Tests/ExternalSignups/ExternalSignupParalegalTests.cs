@@ -194,7 +194,9 @@ public abstract class ExternalSignupParalegalTests<TStartupModule>
         {
             var validated = await _signups.ValidateInviteAsync(rawToken);
             validated.UserType.ShouldBe(ExternalUserType.ApplicantParalegal);
-            validated.RoleName.ShouldBe("Applicant Paralegal");
+            // 2026-11-09: the register page shows the role's label (R5), not its name; the page
+            // locks the role from UserType.
+            validated.RoleName.ShouldBe("Paralegal / Case Manager (Applicant side)");
             validated.FirmName.ShouldBe("TEST Invited Firm");
         }
     }

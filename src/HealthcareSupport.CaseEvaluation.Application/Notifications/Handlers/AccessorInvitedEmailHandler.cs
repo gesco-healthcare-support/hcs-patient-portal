@@ -4,6 +4,7 @@ using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
+using HealthcareSupport.CaseEvaluation.Branding;
 using HealthcareSupport.CaseEvaluation.ExternalAccount;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
@@ -60,7 +61,7 @@ public class AccessorInvitedEmailHandler :
     private readonly IdentityUserManager _userManager;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<AccessorInvitedEmailHandler> _logger;
-    private readonly ITenantStore _tenantStore;
+    private readonly IOfficeDisplayNameResolver _officeDisplayNames;
     private readonly IAccountActivationSender _activationSender;
 
     public AccessorInvitedEmailHandler(
@@ -69,7 +70,7 @@ public class AccessorInvitedEmailHandler :
         IdentityUserManager userManager,
         ICurrentTenant currentTenant,
         ILogger<AccessorInvitedEmailHandler> logger,
-        ITenantStore tenantStore,
+        IOfficeDisplayNameResolver officeDisplayNames,
         IAccountActivationSender activationSender)
     {
         _dispatcher = dispatcher;
@@ -77,7 +78,7 @@ public class AccessorInvitedEmailHandler :
         _userManager = userManager;
         _currentTenant = currentTenant;
         _logger = logger;
-        _tenantStore = tenantStore;
+        _officeDisplayNames = officeDisplayNames;
         _activationSender = activationSender;
     }
 
@@ -125,15 +126,14 @@ public class AccessorInvitedEmailHandler :
                     isRegistered: false),
             };
 
-            // The practice name for the template's "... at {ClinicName}" line.
-            // Resolve it from the tenant store (the same source AccountUrlBuilder
-            // uses): inside the _currentTenant.Change(TenantId) scope
-            // ICurrentTenant.Name is null, so passing it rendered "... at ."
-            // with an empty location (2026-07-10 QA fix).
-            var tenantConfig = await _tenantStore.FindAsync(eventData.TenantId!.Value);
+            // The practice name for the template's "... at {ClinicName}" line. Inside the
+            // _currentTenant.Change(TenantId) scope ICurrentTenant.Name is null, so passing it rendered
+            // "... at ." with an empty location (2026-07-10 QA fix). 2026-11-09: the office's display
+            // (practice) name, no longer the tenant store's name, which is the web-address slug.
+            var officeNames = await _officeDisplayNames.ResolveCurrentAsync();
 
             var variables = BuildAccessorEmailVariables(
-                ctx, tenantConfig?.Name, setupUrl, eventData.Email);
+                ctx, officeNames.PracticeName, setupUrl, eventData.Email);
 
             await _dispatcher.DispatchAsync(
                 notificationCase: NotificationCase.Of(eventData.AppointmentId),

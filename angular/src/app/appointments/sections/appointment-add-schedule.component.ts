@@ -1,5 +1,12 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  EventEmitter,
+  Input,
+  Output,
+  viewChild,
+} from '@angular/core';
 import { FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { LocalizationPipe, PagedResultDto } from '@abp/ng.core';
 import { AppLookupSelectComponent } from '../../shared/components/app-lookup-select.component';
@@ -99,6 +106,8 @@ export class AppointmentAddScheduleComponent {
   // the office's own number for this type, not a fixed 60/90.
   @Output() bookingWindowChange = new EventEmitter<BookingWindowDto>();
 
+  private readonly calendar = viewChild(AvailabilityCalendarComponent);
+
   /** `YYYY-MM-DD` for the calendar, from whatever shape the form control holds. */
   protected get selectedDateKey(): string | null {
     const raw = this.form.get('appointmentDate')?.value as string | null;
@@ -120,5 +129,12 @@ export class AppointmentAddScheduleComponent {
       { emitEvent: false },
     );
     this.form.patchValue({ appointmentDate: selection.date });
+
+    // The patch above is synchronous and the parent's horizon check may clear the value inside it
+    // (date beyond the online window). The [selectedDate] binding then never changes, so the
+    // calendar would keep showing the refused date and its times. Reset it explicitly.
+    if (selection.date && this.selectedDateKey !== selection.date) {
+      this.calendar()?.reset();
+    }
   }
 }

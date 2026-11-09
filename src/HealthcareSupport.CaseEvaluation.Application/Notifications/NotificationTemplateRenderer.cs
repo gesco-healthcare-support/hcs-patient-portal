@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using HealthcareSupport.CaseEvaluation.Branding;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
 using Volo.Abp;
 using Volo.Abp.DependencyInjection;
@@ -27,6 +28,10 @@ namespace HealthcareSupport.CaseEvaluation.Notifications;
 /// <c>Change(id)</c> sets only the id and leaves the name null, so every office-scoped email went out
 /// with a blank office name. Resolving it here, once, covers every handler, including ones that never
 /// passed the key.</para>
+///
+/// <para>2026-11-09: the name is the office's PRACTICE name (<see cref="IOfficeDisplayNameResolver"/>:
+/// the letterhead's practice name, else its doctor), with the tenant store's name -- the web-address
+/// slug, e.g. "falkinstein" -- only as the last resort.</para>
 /// </summary>
 public class NotificationTemplateRenderer : INotificationTemplateRenderer, ITransientDependency
 {
@@ -36,16 +41,16 @@ public class NotificationTemplateRenderer : INotificationTemplateRenderer, ITran
     private const string ClinicNamePlaceholder = "##" + ClinicNameVariable + "##";
 
     private readonly INotificationTemplateRepository _templateRepository;
-    private readonly ITenantStore _tenantStore;
+    private readonly IOfficeDisplayNameResolver _officeDisplayNames;
     private readonly ICurrentTenant _currentTenant;
 
     public NotificationTemplateRenderer(
         INotificationTemplateRepository templateRepository,
-        ITenantStore tenantStore,
+        IOfficeDisplayNameResolver officeDisplayNames,
         ICurrentTenant currentTenant)
     {
         _templateRepository = templateRepository;
-        _tenantStore = tenantStore;
+        _officeDisplayNames = officeDisplayNames;
         _currentTenant = currentTenant;
     }
 
@@ -75,11 +80,11 @@ public class NotificationTemplateRenderer : INotificationTemplateRenderer, ITran
     }
 
     /// <summary>
-    /// Returns <paramref name="variables"/> with <c>ClinicName</c> set to the current office's name from
-    /// the tenant store. A non-empty name the caller passed wins; a template without the placeholder
-    /// skips the store lookup entirely. Outside an office scope, or for an office the store does not
-    /// know, the name is empty -- the same blank the substitutor gives a missing key, never an
-    /// exception, because a missing office name must not stop the email.
+    /// Returns <paramref name="variables"/> with <c>ClinicName</c> set to the current office's practice
+    /// name. A non-empty name the caller passed wins; a template without the placeholder skips the
+    /// lookup entirely. Outside an office scope, or for an office with no name at all, the name is
+    /// empty -- the same blank the substitutor gives a missing key, never an exception, because a
+    /// missing office name must not stop the email.
     /// </summary>
     private async Task<IReadOnlyDictionary<string, object?>> WithClinicNameAsync(
         NotificationTemplate template,
@@ -97,8 +102,8 @@ public class NotificationTemplateRenderer : INotificationTemplateRenderer, ITran
             return variables;
         }
 
-        var officeName = _currentTenant.Id is { } officeId
-            ? (await _tenantStore.FindAsync(officeId))?.Name ?? string.Empty
+        var officeName = _currentTenant.Id.HasValue
+            ? (await _officeDisplayNames.ResolveCurrentAsync()).PracticeName
             : string.Empty;
 
         return new Dictionary<string, object?>(variables, StringComparer.Ordinal)

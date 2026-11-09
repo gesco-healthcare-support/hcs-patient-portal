@@ -133,8 +133,12 @@ public class OfficePacketCopyOutboxTests : CaseEvaluationEntityFrameworkCoreTest
             }
         });
 
-        subjects[TenantsTestData.TenantAName].ShouldBe($"Appointment Portal - {TenantsTestData.TenantAName} - Morning summary");
-        subjects[TenantsTestData.TenantBName].ShouldBe($"Appointment Portal - {TenantsTestData.TenantBName} - Morning summary");
+        // 2026-11-09: the office's practice name, not its web-address slug. The rig stores no
+        // letterhead, so each office reads as its own seeded doctor.
+        subjects[TenantsTestData.TenantAName].ShouldBe(
+            $"Appointment Portal - Dr. {DoctorsTestData.Doctor1FirstName} {DoctorsTestData.Doctor1LastName} - Morning summary");
+        subjects[TenantsTestData.TenantBName].ShouldBe(
+            $"Appointment Portal - Dr. {DoctorsTestData.Doctor2FirstName} {DoctorsTestData.Doctor2LastName} - Morning summary");
         supervisorSubject.ShouldBe("Appointment Portal - Afternoon summary, all offices");
     }
 
