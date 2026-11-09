@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
+using HealthcareSupport.CaseEvaluation.Branding;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using Microsoft.Extensions.Logging;
@@ -32,20 +33,20 @@ public class AccessorAddedEmailHandler :
     private readonly DocumentEmailContextResolver _contextResolver;
     private readonly ICurrentTenant _currentTenant;
     private readonly ILogger<AccessorAddedEmailHandler> _logger;
-    private readonly ITenantStore _tenantStore;
+    private readonly IOfficeDisplayNameResolver _officeDisplayNames;
 
     public AccessorAddedEmailHandler(
         INotificationDispatcher dispatcher,
         DocumentEmailContextResolver contextResolver,
         ICurrentTenant currentTenant,
         ILogger<AccessorAddedEmailHandler> logger,
-        ITenantStore tenantStore)
+        IOfficeDisplayNameResolver officeDisplayNames)
     {
         _dispatcher = dispatcher;
         _contextResolver = contextResolver;
         _currentTenant = currentTenant;
         _logger = logger;
-        _tenantStore = tenantStore;
+        _officeDisplayNames = officeDisplayNames;
     }
 
     [UnitOfWork]
@@ -67,11 +68,11 @@ public class AccessorAddedEmailHandler :
                 return;
             }
 
-            // The practice name for the template's "... at {ClinicName}" line. Resolved
-            // from the tenant store because ICurrentTenant.Name is null inside the
-            // Change(TenantId) scope (same fix as AccessorInvitedEmailHandler).
+            // The practice name for the template's "... at {ClinicName}" line. 2026-11-09: the office's
+            // display (practice) name, resolved inside the Change(TenantId) scope -- it used to be the
+            // tenant store's name, which is the web-address slug ("falkinstein").
             var practiceName = eventData.TenantId.HasValue
-                ? (await _tenantStore.FindAsync(eventData.TenantId.Value))?.Name
+                ? (await _officeDisplayNames.ResolveCurrentAsync()).PracticeName
                 : null;
 
             var recipients = new[]

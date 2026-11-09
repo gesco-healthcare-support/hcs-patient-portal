@@ -268,7 +268,7 @@ public class ExternalSignupValidatorUnitTests
     public void TheInviteEmail_ShowsTheRolesDisplayLabel(ExternalUserType userType, string expected)
     {
         var variables = ExternalSignupAppService.BuildInvitationVariables(
-            tenantName: "TEST-office",
+            invitingOfficeName: "TEST-office",
             roleName: ExternalSignupAppService.ToRoleName(userType),
             inviteUrl: "https://test.local/invite",
             expiresAtUtc: new DateTime(2026, 11, 13, 20, 0, 0, DateTimeKind.Utc));

@@ -216,6 +216,12 @@ resolves it first and refuses to proceed if it comes back blank, rather than sen
 naming nobody. The general lesson is broader than tenancy: where a test substitutes an ambient
 contextual service, ask what that service actually returns in production before believing the test.
 
+The tenant store's name is the office's web-address slug, so it is an identifier, not a name to show
+people. Since 2026-11-09 the office name in emails and on the register page comes from
+`Domain/Branding/OfficeDisplayNameResolver`: the practice name for `##ClinicName##`, and "doctor
+(practice)" for who an invitation is from. Both come from the office's letterhead, with the slug only as
+the last resort. Keep the slug for `Change(id, name)`, URLs and resolvers.
+
 ## What this design does not give you
 
 Worth stating so nobody assumes more than is there.

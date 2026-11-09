@@ -44,6 +44,10 @@ public class AccessorInvitedEmailHandlerTests : CaseEvaluationEntityFrameworkCor
         var url = (string)sent.Variables["URL"]!;
         url.ShouldContain($"/Account/ActivateAccount?userId={IdentityUsersTestData.ApplicantAttorney1UserId}&token=");
         url.ShouldNotContain("/Account/ResetPassword");
+
+        // 2026-11-09: "... at {ClinicName}" names the office's practice (its seeded doctor on this rig,
+        // which stores no letterhead), not the web-address slug.
+        sent.Variables["ClinicName"].ShouldBe($"Dr. {DoctorsTestData.Doctor1FirstName} {DoctorsTestData.Doctor1LastName}");
     }
 
     [Fact]

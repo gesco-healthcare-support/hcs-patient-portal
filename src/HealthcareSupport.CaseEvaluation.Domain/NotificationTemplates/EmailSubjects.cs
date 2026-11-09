@@ -302,12 +302,13 @@ internal static class EmailSubjects
         "Appointment Portal - ##EmailSubjectIdentity## - Appointment request has been cancelled";
 
     /// <summary>
-    /// 2026-05-15 -- admin-issued invite email. ##TenantName## is the
-    /// per-tenant clinic display name; the dispatcher substitutes it
-    /// in both subject and body before send.
+    /// 2026-05-15 -- admin-issued invite email. ##TenantName## is who the invitation is from;
+    /// the dispatcher substitutes it in both subject and body before send. 2026-11-09: it is the
+    /// office's display name, doctor and practice ("Yuri Falkinstein, M.D. (West Coast Spine
+    /// Institute)"), so the hard-coded "Dr. " went: it printed "Dr. falkinstein" from the slug.
     /// </summary>
     public const string InviteExternalUser =
-        "You have been invited to register at Dr. ##TenantName##.";
+        "You have been invited to register with ##TenantName##.";
 
     /// <summary>
     /// 2026-05-15 -- welcome email for a newly-created internal user.
