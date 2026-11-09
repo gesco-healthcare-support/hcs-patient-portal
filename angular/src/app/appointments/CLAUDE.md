@@ -36,8 +36,12 @@
   date-of-birth box. With a date the source loads through `ReEvaluationSourcesService.lookup` (one
   answer with every section, so a booker who is NOT a party to the earlier appointment can prefill),
   and the date is sent with the submit (`sourcePatientDateOfBirth`), where the server checks it
-  again. Without a date, a party loads through the ordinary read as before. A non-party carries no
-  Authorized Users forward.
+  again. A non-party carries no Authorized Users forward. 2026-11-08 (W2): EVERY re-evaluation loads
+  through the lookup (`loadsThroughSourceLookup`), staff and parties included, with the date only when
+  typed, because only the lookup walks to the NEWEST case in the chain. When that is not the typed
+  case the form shows `newerSourceNote` and submits the newest case's number; a party's own case
+  that cannot be re-evaluated comes back with `canBeReEvaluated` false for the specific refusal.
+  Re-request and re-book keep the ordinary read.
 - `appointment/components/appointment-view.component.ts` -- view/edit page for staff
   and external roles; reads via `getRawValue()` at save time.
 - `appointment-change-logs/` -- read-only audit trail component.

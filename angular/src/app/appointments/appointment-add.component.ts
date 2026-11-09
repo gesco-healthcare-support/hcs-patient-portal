@@ -90,9 +90,11 @@ import { isRevalWithoutSource } from './shared/reval-without-source.util';
 import {
   NO_SOURCE_FOUND_ADD_DOB_MESSAGE,
   NO_SOURCE_FOUND_FOR_DOB_MESSAGE,
+  REVAL_SOURCE_NOT_ELIGIBLE_MESSAGE,
+  loadsThroughSourceLookup,
+  newerSourceNote,
   sectionsFromLookup,
   showsSourceDateOfBirth,
-  usesDateOfBirthLookup,
   type SourceSections,
 } from './shared/reval-lookup.util';
 import { ReEvaluationSourcesService } from '../proxy/appointments/re-evaluation-sources.service';
@@ -421,6 +423,11 @@ export class AppointmentAddComponent {
   isLoadingSource = false;
   sourceLoadMessage = '';
   /**
+   * 2026-11-08 (W2): set when the form was filled from a later case than the one whose number was
+   * typed (the lookup walks to the newest case in the chain), so the booker knows which case it is.
+   */
+  sourceNewerNote: string | null = null;
+  /**
    * Sub-resources that failed to load during the last prefill (#604). Cleared at the start of
    * every `applySourceToForm` and read once by `loadSourceForPrefill` to build the message, so
    * a partial prefill is never reported as a clean one.
@@ -496,6 +503,7 @@ export class AppointmentAddComponent {
   setRevalWithoutSource(checked: boolean): void {
     this.revalWithoutSource = checked;
     this.sourceLoadMessage = '';
+    this.sourceNewerNote = null;
   }
 
   /**
@@ -1836,11 +1844,12 @@ export class AppointmentAddComponent {
     patientDateOfBirth?: string | null,
   ): Promise<void> {
     if (this.isLoadingSource) return;
-    if (usesDateOfBirthLookup(flow, patientDateOfBirth, this.isInternalBooker)) {
-      return this.loadSourceByDateOfBirth(confirmationNumber, (patientDateOfBirth ?? '').trim());
+    if (loadsThroughSourceLookup(flow)) {
+      return this.loadSourceThroughLookup(confirmationNumber, (patientDateOfBirth ?? '').trim());
     }
     this.isLoadingSource = true;
     this.sourceLoadMessage = '';
+    this.sourceNewerNote = null;
     try {
       // skipHandleError (#604): ABP renders a full-screen error card for 401/403/404/500 with
       // hideCloseIcon set (`app.config.ts:164-172`), so a mistyped confirmation number used to
@@ -1893,32 +1902,42 @@ export class AppointmentAddComponent {
   }
 
   /**
-   * 2026-11-06 (R2c): the load for an outside booker who typed the patient's date of birth. One call
-   * returns everything the form copies, so a booker who is not a party to the earlier appointment
-   * (whose per-appointment reads would be refused) can still prefill. The date is kept and sent with
-   * the submit, where the server checks it again; a party's load needs no date, so none is kept.
+   * 2026-11-06 (R2c): one call returns everything the form copies, so a booker who is not a party to
+   * the earlier appointment (whose per-appointment reads would be refused) can still prefill. The date
+   * is kept and sent with the submit, where the server checks it again; a party's load needs no date,
+   * so none is kept.
+   *
+   * <p>2026-11-08 (W2): every re-evaluation loads this way, staff and parties included, with the date
+   * only when one was typed. The answer is the NEWEST case in the chain the number belongs to; the form
+   * says so when that is not the typed one, and the submit names that newest case.</p>
    */
-  private async loadSourceByDateOfBirth(
+  private async loadSourceThroughLookup(
     confirmationNumber: string,
     patientDateOfBirth: string,
   ): Promise<void> {
     this.isLoadingSource = true;
     this.sourceLoadMessage = '';
+    this.sourceNewerNote = null;
     try {
       const found = await firstValueFrom(
         this.reEvaluationSourcesService.lookup(
-          { confirmationNumber, patientDateOfBirth },
+          patientDateOfBirth ? { confirmationNumber, patientDateOfBirth } : { confirmationNumber },
           { skipHandleError: true },
         ),
       );
       const appt = found?.source?.appointment;
       if (!found || !appt?.id) {
-        this.sourceLoadMessage = NO_SOURCE_FOUND_FOR_DOB_MESSAGE;
+        this.sourceLoadMessage = patientDateOfBirth
+          ? NO_SOURCE_FOUND_FOR_DOB_MESSAGE
+          : this.notFoundMessage('reval');
         return;
       }
-      const gate = this.checkSourceStatusForFlow(appt.appointmentStatus, 'reval');
-      if (gate) {
-        this.sourceLoadMessage = gate;
+      // The server decides (a re-evaluation that was a no-show counts, which the status alone cannot
+      // show); a party gets its own not-yet-approved case back so this can say why.
+      if (!found.canBeReEvaluated) {
+        this.sourceLoadMessage =
+          this.checkSourceStatusForFlow(appt.appointmentStatus, 'reval') ??
+          REVAL_SOURCE_NOT_ELIGIBLE_MESSAGE;
         return;
       }
       await this.applySourceToForm(
@@ -1928,8 +1947,11 @@ export class AppointmentAddComponent {
         found.source?.primaryInsurance ?? null,
         found,
       );
-      this.sourceConfirmationNumber = confirmationNumber;
-      this.sourcePatientDateOfBirth = found.callerIsParty ? null : patientDateOfBirth;
+      // The newest case's own number, so the review shows the case actually used; the server walks
+      // again from it, which also catches a newer case approved between this load and the submit.
+      this.sourceConfirmationNumber = appt.requestConfirmationNumber || confirmationNumber;
+      this.sourcePatientDateOfBirth = found.callerIsParty ? null : patientDateOfBirth || null;
+      this.sourceNewerNote = newerSourceNote(found);
       this.sourceLoadMessage =
         sourcePrefillWarning(this.sourcePrefillFailures) ?? SOURCE_LOADED_MESSAGE;
     } catch (err: unknown) {
@@ -1953,7 +1975,7 @@ export class AppointmentAddComponent {
     flow: 'reval' | 'reRequest' | 'reBook',
   ): string | null {
     if (flow === 'reval' && status !== AppointmentStatusType.Approved) {
-      return 'You can re-evaluate only an approved appointment.';
+      return REVAL_SOURCE_NOT_ELIGIBLE_MESSAGE;
     }
     if (flow === 'reRequest' && status !== AppointmentStatusType.Rejected) {
       return 'You can re-request only a rejected appointment.';

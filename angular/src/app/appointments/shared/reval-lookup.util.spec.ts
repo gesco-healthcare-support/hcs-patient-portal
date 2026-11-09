@@ -1,8 +1,9 @@
 import type { ReEvaluationSourceDto } from '../../proxy/appointments/models';
 import {
+  loadsThroughSourceLookup,
+  newerSourceNote,
   sectionsFromLookup,
   showsSourceDateOfBirth,
-  usesDateOfBirthLookup,
 } from './reval-lookup.util';
 
 describe('reval-lookup util (2026-11-06)', () => {
@@ -48,12 +49,26 @@ describe('reval-lookup util (2026-11-06)', () => {
     expect(showsSourceDateOfBirth('new', false)).toBeFalse();
   });
 
-  it('uses the date-of-birth lookup only for an outside re-evaluation with a date typed', () => {
-    expect(usesDateOfBirthLookup('reval', '1985-04-12', false)).toBeTrue();
-    expect(usesDateOfBirthLookup('reval', '  ', false)).toBeFalse();
-    expect(usesDateOfBirthLookup('reval', null, false)).toBeFalse();
-    expect(usesDateOfBirthLookup('reval', '1985-04-12', true)).toBeFalse();
-    expect(usesDateOfBirthLookup('reBook', '1985-04-12', false)).toBeFalse();
-    expect(usesDateOfBirthLookup('reRequest', '1985-04-12', false)).toBeFalse();
+  it('loads every re-evaluation through the lookup, and re-request / re-book through the ordinary read', () => {
+    // 2026-11-08 (W2): only the lookup walks to the newest case in the chain.
+    expect(loadsThroughSourceLookup('reval')).toBeTrue();
+    expect(loadsThroughSourceLookup('reBook')).toBeFalse();
+    expect(loadsThroughSourceLookup('reRequest')).toBeFalse();
+  });
+
+  it('names the newer case when the form was filled from it, and says nothing otherwise', () => {
+    expect(
+      newerSourceNote({
+        filledFromNewer: true,
+        source: { appointment: { requestConfirmationNumber: 'A00012' } },
+      }),
+    ).toBe('A newer evaluation exists for this case (A00012); we filled the form from that one.');
+    expect(
+      newerSourceNote({
+        filledFromNewer: false,
+        source: { appointment: { requestConfirmationNumber: 'A00004' } },
+      }),
+    ).toBeNull();
+    expect(newerSourceNote({ filledFromNewer: true, source: { appointment: null } })).toBeNull();
   });
 });

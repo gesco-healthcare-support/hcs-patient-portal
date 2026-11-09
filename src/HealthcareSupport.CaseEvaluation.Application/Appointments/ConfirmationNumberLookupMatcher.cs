@@ -2,7 +2,6 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
-using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Patients;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Repositories;
@@ -18,12 +17,17 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 /// <para><b>Matching rule.</b> Names compare trimmed, case-insensitive, with inner spaces collapsed
 /// and a hyphen treated as a space ("Garcia-Lopez" = "garcia lopez"); the middle name is ignored. The
 /// date of birth is the exact calendar day. The claim number is any injury row's claim number, ignoring
-/// case, spaces and dashes. Only cases that can be re-evaluated count (approved, or a re-evaluation
-/// that was a no-show / not seen). The office filter keeps it to the current office.</para>
+/// case, spaces and dashes. The office filter keeps it to the current office.</para>
 ///
-/// <para><b>One answer.</b> Several cases of the SAME patient (an earlier re-evaluation under the same
-/// claim, say) resolve to the latest exam, which is the one to follow on from. Cases of more than one
-/// patient are ambiguous and return null, so nothing is sent.</para>
+/// <para><b>The newest case in the chain (2026-11-08, W2).</b> The claim may match ANY of the patient's
+/// cases, whatever its status, so a claim number that changed in a later re-evaluation still finds the
+/// chain. From every matching case the walk goes forward (<see cref="ReEvaluationChain"/>), and the case
+/// sent is the newest one that can be re-evaluated (approved, or a re-evaluation that was a no-show /
+/// not seen) among them all. A patient's separate chains under a different claim are not reached.</para>
+///
+/// <para><b>One answer.</b> Several cases of the SAME patient resolve to that one newest case. Cases of
+/// more than one patient are ambiguous and return null, so nothing is sent; so does a chain with
+/// nothing that can be re-evaluated.</para>
 /// </summary>
 public class ConfirmationNumberLookupMatcher : ITransientDependency
 {
@@ -70,35 +74,31 @@ public class ConfirmationNumberLookupMatcher : ITransientDependency
             return null;
         }
 
-        var candidates = (await _asyncExecuter.ToListAsync((await _appointmentRepository.GetQueryableAsync())
-                .Where(a => patientIds.Contains(a.PatientId)
-                    && (a.AppointmentStatus == AppointmentStatusType.Approved
-                        || a.AppointmentStatus == AppointmentStatusType.NoShow
-                        || a.AppointmentStatus == AppointmentStatusType.NotSeen))))
-            .Where(a => AppointmentLifecycleValidators.CanCreateReval(
-                a.AppointmentStatus, a.EvaluationKind, callerIsItAdmin: false))
-            .ToList();
-        if (candidates.Count == 0)
+        // Every case of those patients, whatever its status: the claim may sit on an older one.
+        var cases = await _asyncExecuter.ToListAsync((await _appointmentRepository.GetQueryableAsync())
+            .Where(a => patientIds.Contains(a.PatientId)));
+        if (cases.Count == 0)
         {
             return null;
         }
 
-        var candidateIds = candidates.Select(a => a.Id).ToList();
+        var caseIds = cases.Select(a => a.Id).ToList();
         var claims = await _asyncExecuter.ToListAsync((await _injuryRepository.GetQueryableAsync())
-            .Where(i => candidateIds.Contains(i.AppointmentId))
+            .Where(i => caseIds.Contains(i.AppointmentId))
             .Select(i => new { i.AppointmentId, i.ClaimNumber }));
         var withTheClaim = claims
             .Where(c => NormalizeClaimNumber(c.ClaimNumber) == claimNumber)
             .Select(c => c.AppointmentId)
             .ToHashSet();
-        var matched = candidates.Where(a => withTheClaim.Contains(a.Id)).ToList();
+        var matched = cases.Where(a => withTheClaim.Contains(a.Id)).ToList();
 
         if (matched.Select(a => a.PatientId).Distinct().Count() != 1)
         {
             return null;
         }
 
-        return matched.OrderByDescending(a => a.AppointmentDate).First();
+        var patientId = matched[0].PatientId;
+        return ReEvaluationChain.NewestEligible(cases.Where(a => a.PatientId == patientId).ToList(), matched);
     }
 
     /// <summary>Trimmed, lower-case, a hyphen read as a space, runs of spaces collapsed to one.</summary>
