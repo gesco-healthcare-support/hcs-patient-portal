@@ -16,7 +16,11 @@ import {
   NO_SOURCE_FOUND_MESSAGE,
   SOURCE_LOADED_MESSAGE,
 } from './shared/booking-failure-message.util';
-import { NO_SOURCE_FOUND_FOR_DOB_MESSAGE } from './shared/reval-lookup.util';
+import {
+  NO_SOURCE_FOUND_ADD_DOB_MESSAGE,
+  NO_SOURCE_FOUND_FOR_DOB_MESSAGE,
+  REVAL_SOURCE_NOT_ELIGIBLE_MESSAGE,
+} from './shared/reval-lookup.util';
 
 /**
  * Drives the booking wizard's failure paths end to end (#604).
@@ -49,10 +53,11 @@ describe('AppointmentAddComponent failure reporting (#604)', () => {
     ): Promise<void>;
     sourceConfirmationNumber: string | null;
     sourcePatientDateOfBirth: string | null;
+    sourceNewerNote: string | null;
     revalEntryChoice: string | null;
     prefillSourceNumber: string;
     appointmentAuthorizedUsers: unknown[];
-    buildSubmitPayload(): { sourcePatientDateOfBirth?: string };
+    buildSubmitPayload(): { sourcePatientDateOfBirth?: string; sourceConfirmationNumber?: string };
     loadPatientByEmail(): Promise<void>;
     standardizeAddressesBeforeSubmit(): Promise<void>;
   }
@@ -60,11 +65,24 @@ describe('AppointmentAddComponent failure reporting (#604)', () => {
   function build(options: {
     failing?: Failing[];
     sourceStatus?: 'throw403' | 'throw404' | 'empty';
+    /** The ordinary read's appointment status; Approved unless a test needs another flow's gate. */
+    sourceAppointmentStatus?: AppointmentStatusType;
     validateThrows?: boolean;
     /** The booking route's query string, e.g. a "Request re-evaluation" link. */
     query?: Record<string, string>;
-    /** The re-evaluation lookup's answer (2026-11-06); null = nothing matched. */
-    lookup?: { callerIsParty: boolean } | null;
+    /**
+     * The re-evaluation lookup's answer (2026-11-06); null or absent = nothing matched. 2026-11-08 (W2):
+     * the answer may be a newer case than the typed one (`newerNumber`), and says whether it can be
+     * re-evaluated (a party gets its own case back even when it cannot).
+     */
+    lookup?: {
+      callerIsParty: boolean;
+      newerNumber?: string;
+      canBeReEvaluated?: boolean;
+      status?: AppointmentStatusType;
+    } | null;
+    /** The lookup itself fails with this HTTP status. */
+    lookupThrows?: number;
   }) {
     // Mutable so a test can heal the failure and load a second time on the same instance.
     const failing: Failing[] = [...(options.failing ?? [])];
@@ -108,9 +126,9 @@ describe('AppointmentAddComponent failure reporting (#604)', () => {
         return of({
           appointment: {
             id: 'a1',
-            // Reval's client-side gate requires Approved; anything else short-circuits
-            // before the prefill runs and this suite would be testing the gate instead.
-            appointmentStatus: AppointmentStatusType.Approved,
+            // Each flow's client-side gate wants its own status (re-request: Rejected); anything
+            // else short-circuits before the prefill runs and this suite would test the gate instead.
+            appointmentStatus: options.sourceAppointmentStatus ?? AppointmentStatusType.Approved,
             locationId: null,
             appointmentTypeId: null,
           },
@@ -121,38 +139,47 @@ describe('AppointmentAddComponent failure reporting (#604)', () => {
       },
     };
 
-    const lookup = jasmine.createSpy('lookup').and.callFake(() =>
-      of(
-        options.lookup
-          ? {
-              callerIsParty: options.lookup.callerIsParty,
-              source: {
-                appointment: {
-                  id: 'a1',
-                  appointmentStatus: AppointmentStatusType.Approved,
-                  locationId: null,
-                  appointmentTypeId: null,
-                },
-                patient: {
-                  id: 'p1',
-                  firstName: 'TEST-First',
-                  lastName: 'TEST-Last',
-                  email: 'test-patient@test.local',
-                  dateOfBirth: '1985-04-12T00:00:00',
-                },
-                claimExaminer: null,
-                primaryInsurance: null,
-                appointmentEmployerDetail: {
-                  appointmentEmployerDetail: { employerName: 'TEST-Employer' },
-                },
-                appointmentInjuryDetails: [],
-              },
-              applicantAttorney: null,
-              defenseAttorney: null,
-            }
-          : null,
-      ),
-    );
+    const lookup = jasmine
+      .createSpy('lookup')
+      .and.callFake((input: { confirmationNumber: string }) =>
+        options.lookupThrows
+          ? throwError(() => ({ status: options.lookupThrows }))
+          : of(
+              options.lookup
+                ? {
+                    callerIsParty: options.lookup.callerIsParty,
+                    filledFromNewer: !!options.lookup.newerNumber,
+                    canBeReEvaluated: options.lookup.canBeReEvaluated ?? true,
+                    requestedConfirmationNumber: input.confirmationNumber,
+                    source: {
+                      appointment: {
+                        id: 'a1',
+                        requestConfirmationNumber:
+                          options.lookup.newerNumber ?? input.confirmationNumber,
+                        appointmentStatus: options.lookup.status ?? AppointmentStatusType.Approved,
+                        locationId: null,
+                        appointmentTypeId: null,
+                      },
+                      patient: {
+                        id: 'p1',
+                        firstName: 'TEST-First',
+                        lastName: 'TEST-Last',
+                        email: 'test-patient@test.local',
+                        dateOfBirth: '1985-04-12T00:00:00',
+                      },
+                      claimExaminer: null,
+                      primaryInsurance: null,
+                      appointmentEmployerDetail: {
+                        appointmentEmployerDetail: { employerName: 'TEST-Employer' },
+                      },
+                      appointmentInjuryDetails: [],
+                    },
+                    applicantAttorney: null,
+                    defenseAttorney: null,
+                  }
+                : null,
+            ),
+      );
 
     TestBed.configureTestingModule({
       providers: [
@@ -198,10 +225,14 @@ describe('AppointmentAddComponent failure reporting (#604)', () => {
 
   afterEach(() => TestBed.resetTestingModule());
 
-  describe('re-evaluation prefill', () => {
+  // 2026-11-08 (W2): a re-evaluation now loads through the lookup's one answer, so the per-appointment
+  // reads below -- and their failure reporting -- run for a re-request (and a re-book).
+  describe('prefill through the per-appointment reads (re-request)', () => {
+    const rejected = AppointmentStatusType.Rejected;
+
     it('reports a clean load when every sub-resource came back', async () => {
-      const { component } = build({});
-      await component.loadSourceForPrefill('C1', 'reval');
+      const { component } = build({ sourceAppointmentStatus: rejected });
+      await component.loadSourceForPrefill('C1', 'reRequest');
       expect(component.sourceLoadMessage).toBe(SOURCE_LOADED_MESSAGE);
     });
 
@@ -209,43 +240,52 @@ describe('AppointmentAddComponent failure reporting (#604)', () => {
       // The only one of the five behind a named permission. This used to prefill a
       // re-evaluation with zero injuries and still say "Prior appointment loaded".
       const { component } = build({
+        sourceAppointmentStatus: rejected,
         failing: [{ urlPart: 'appointment-injury-details', status: 403 }],
       });
-      await component.loadSourceForPrefill('C1', 'reval');
+      await component.loadSourceForPrefill('C1', 'reRequest');
       expect(component.sourceLoadMessage).toContain('injuries');
       expect(component.sourceLoadMessage).toContain('do not have permission');
     });
 
     it('names injuries and offers a retry when the server failed', async () => {
       const { component } = build({
+        sourceAppointmentStatus: rejected,
         failing: [{ urlPart: 'appointment-injury-details', status: 500 }],
       });
-      await component.loadSourceForPrefill('C1', 'reval');
+      await component.loadSourceForPrefill('C1', 'reRequest');
       expect(component.sourceLoadMessage).toContain('injuries');
       expect(component.sourceLoadMessage).toContain('retry');
     });
 
     it('names every section that failed, not just the first', async () => {
       const { component } = build({
+        sourceAppointmentStatus: rejected,
         failing: [
           { urlPart: 'appointment-employer-details', status: 500 },
           { urlPart: 'appointment-injury-details', status: 500 },
         ],
       });
-      await component.loadSourceForPrefill('C1', 'reval');
+      await component.loadSourceForPrefill('C1', 'reRequest');
       expect(component.sourceLoadMessage).toContain('employer details');
       expect(component.sourceLoadMessage).toContain('injuries');
     });
 
     it('names the attorney section when its GET rejects', async () => {
-      const { component } = build({ failing: [{ urlPart: 'applicant-attorney', status: 500 }] });
-      await component.loadSourceForPrefill('C1', 'reval');
+      const { component } = build({
+        sourceAppointmentStatus: rejected,
+        failing: [{ urlPart: 'applicant-attorney', status: 500 }],
+      });
+      await component.loadSourceForPrefill('C1', 'reRequest');
       expect(component.sourceLoadMessage).toContain('applicant attorney');
     });
 
     it('names authorized users when the accessors page rejects', async () => {
-      const { component } = build({ failing: [{ urlPart: 'appointment-accessors', status: 500 }] });
-      await component.loadSourceForPrefill('C1', 'reval');
+      const { component } = build({
+        sourceAppointmentStatus: rejected,
+        failing: [{ urlPart: 'appointment-accessors', status: 500 }],
+      });
+      await component.loadSourceForPrefill('C1', 'reRequest');
       expect(component.sourceLoadMessage).toContain('authorized users');
     });
 
@@ -253,9 +293,10 @@ describe('AppointmentAddComponent failure reporting (#604)', () => {
       // The failure is reported, not raised: a booker who can see everything except
       // injuries must still be able to book, entering the injuries by hand.
       const { component } = build({
+        sourceAppointmentStatus: rejected,
         failing: [{ urlPart: 'appointment-injury-details', status: 403 }],
       });
-      await component.loadSourceForPrefill('C1', 'reval');
+      await component.loadSourceForPrefill('C1', 'reRequest');
       expect(component.sourceLoadMessage).not.toContain('Unable to load');
       expect(component.sourceLoadMessage).toContain('Prior appointment loaded');
     });
@@ -264,13 +305,14 @@ describe('AppointmentAddComponent failure reporting (#604)', () => {
       // Without the reset in applySourceToForm the warning would be sticky: every later
       // load on the same instance would keep naming a section that has since loaded fine.
       const { component, failing } = build({
+        sourceAppointmentStatus: rejected,
         failing: [{ urlPart: 'appointment-injury-details', status: 500 }],
       });
-      await component.loadSourceForPrefill('C1', 'reval');
+      await component.loadSourceForPrefill('C1', 'reRequest');
       expect(component.sourceLoadMessage).toContain('injuries');
 
       failing.length = 0;
-      await component.loadSourceForPrefill('C2', 'reval');
+      await component.loadSourceForPrefill('C2', 'reRequest');
       expect(component.sourceLoadMessage).toBe(SOURCE_LOADED_MESSAGE);
     });
   });
@@ -322,12 +364,53 @@ describe('AppointmentAddComponent failure reporting (#604)', () => {
       expect(component.sourceConfirmationNumber).toBeNull();
     });
 
-    it('uses the ordinary read when no date was typed, so a party loads exactly as before', async () => {
-      const { component, lookup } = build({ lookup: { callerIsParty: false } });
+    it('loads through the lookup without a date too, so a party gets the newest case (W2)', async () => {
+      const { component, lookup } = build({ lookup: { callerIsParty: true } });
       await component.loadSourceForPrefill('C1', 'reval', '');
 
-      expect(lookup).not.toHaveBeenCalled();
+      expect(lookup).toHaveBeenCalledWith({ confirmationNumber: 'C1' }, { skipHandleError: true });
       expect(component.sourceLoadMessage).toBe(SOURCE_LOADED_MESSAGE);
+      expect(component.sourceNewerNote).toBeNull();
+    });
+
+    it('names the newer case it filled from, and submits that case (W2)', async () => {
+      const { component } = build({ lookup: { callerIsParty: true, newerNumber: 'A00012' } });
+      await component.loadSourceForPrefill('A00004', 'reval', '');
+
+      expect(component.sourceNewerNote).toBe(
+        'A newer evaluation exists for this case (A00012); we filled the form from that one.',
+      );
+      expect(component.sourceConfirmationNumber).toBe('A00012');
+      expect(component.buildSubmitPayload().sourceConfirmationNumber).toBe('A00012');
+    });
+
+    it('gives a party the specific refusal for its own case that cannot be re-evaluated (W2)', async () => {
+      const { component } = build({
+        lookup: {
+          callerIsParty: true,
+          canBeReEvaluated: false,
+          status: AppointmentStatusType.Pending,
+        },
+      });
+      await component.loadSourceForPrefill('A00004', 'reval', '');
+
+      expect(component.sourceLoadMessage).toBe(REVAL_SOURCE_NOT_ELIGIBLE_MESSAGE);
+      expect(component.sourceConfirmationNumber).toBeNull();
+    });
+
+    it('asks an outside booker for the date when nothing was found without one (W2)', async () => {
+      const { component } = build({ lookup: null, query: { type: '2' } });
+      await settle();
+      await component.loadSourceForPrefill('A00004', 'reval', '');
+
+      expect(component.sourceLoadMessage).toBe(NO_SOURCE_FOUND_ADD_DOB_MESSAGE);
+    });
+
+    it('reports a failed lookup the way the ordinary read did', async () => {
+      const { component } = build({ lookupThrows: 403 });
+      await component.loadSourceForPrefill('A00004', 'reval', '');
+
+      expect(component.sourceLoadMessage).toContain('do not have permission');
     });
   });
 
@@ -345,7 +428,10 @@ describe('AppointmentAddComponent failure reporting (#604)', () => {
     });
 
     it('leaves a link that did load alone', async () => {
-      const { component } = build({ query: { type: '2', source: 'A00009' } });
+      const { component } = build({
+        query: { type: '2', source: 'A00009' },
+        lookup: { callerIsParty: true },
+      });
       await settle();
 
       expect(component.sourceConfirmationNumber).toBe('A00009');
@@ -354,17 +440,17 @@ describe('AppointmentAddComponent failure reporting (#604)', () => {
     });
   });
 
-  describe('source lookup itself', () => {
+  describe('source lookup itself (the ordinary read: re-request and re-book)', () => {
     it('sends a refused booker to a supervisor instead of back to the number', async () => {
       const { component } = build({ sourceStatus: 'throw403' });
-      await component.loadSourceForPrefill('C1', 'reval');
+      await component.loadSourceForPrefill('C1', 'reRequest');
       expect(component.sourceLoadMessage).toContain('do not have permission');
       expect(component.sourceLoadMessage).not.toContain('confirmation number');
     });
 
     it('reuses the not-found wording for a 404', async () => {
       const { component } = build({ sourceStatus: 'throw404' });
-      await component.loadSourceForPrefill('C1', 'reval');
+      await component.loadSourceForPrefill('C1', 'reRequest');
       expect(component.sourceLoadMessage).toBe(NO_SOURCE_FOUND_MESSAGE);
     });
 
@@ -372,7 +458,7 @@ describe('AppointmentAddComponent failure reporting (#604)', () => {
       // The in-band branch and the 404 catch must not drift apart: an unknown confirmation
       // number reads identically whichever way the server chose to express it.
       const { component } = build({ sourceStatus: 'empty' });
-      await component.loadSourceForPrefill('C1', 'reval');
+      await component.loadSourceForPrefill('C1', 'reRequest');
       expect(component.sourceLoadMessage).toBe(NO_SOURCE_FOUND_MESSAGE);
     });
   });

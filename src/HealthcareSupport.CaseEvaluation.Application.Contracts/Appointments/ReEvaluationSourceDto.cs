@@ -26,4 +26,22 @@ public class ReEvaluationSourceDto
     /// when the confirmation number and date of birth are what let them load it.
     /// </summary>
     public bool CallerIsParty { get; set; }
+
+    /// <summary>
+    /// 2026-11-08 (W2) -- the confirmation number the booker typed. <see cref="Source"/> is the newest
+    /// re-evaluable case in that case's chain, which may be a later one (a re-evaluation of it, or a
+    /// rescheduled replacement); <see cref="FilledFromNewer"/> says when it is.
+    /// </summary>
+    public string RequestedConfirmationNumber { get; set; } = null!;
+
+    /// <summary>True when <see cref="Source"/> is a later case than the one whose number was typed.</summary>
+    public bool FilledFromNewer { get; set; }
+
+    /// <summary>
+    /// 2026-11-08 (W2) -- whether a re-evaluation may follow on from <see cref="Source"/> (approved, or a
+    /// re-evaluation the patient did not attend). Always true for a caller who is not a party; a party
+    /// gets its own case back even when it cannot be, so the form can say why rather than "not found".
+    /// The submit checks again.
+    /// </summary>
+    public bool CanBeReEvaluated { get; set; }
 }

@@ -250,11 +250,14 @@ export interface ReEvaluationSourceDto {
   applicantAttorney?: ApplicantAttorneyDetailsDto | null;
   defenseAttorney?: DefenseAttorneyDetailsDto | null;
   callerIsParty?: boolean;
+  requestedConfirmationNumber?: string;
+  filledFromNewer?: boolean;
+  canBeReEvaluated?: boolean;
 }
 
 export interface ReEvaluationSourceLookupDto {
   confirmationNumber: string;
-  patientDateOfBirth?: string;
+  patientDateOfBirth?: string | null;
 }
 
 export interface RecordAppointmentListExportInput {
