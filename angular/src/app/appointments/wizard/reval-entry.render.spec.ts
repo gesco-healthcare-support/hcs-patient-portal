@@ -186,6 +186,18 @@ describe('AppointmentWizardComponent re-evaluation entry (rendered)', () => {
     expect(q(f, '#wiz-prior-confirmation-number')).not.toBeNull();
   });
 
+  it('switches to the before-this-portal card from the lookup box', () => {
+    const f = render({ type: '2' }, ['Applicant Paralegal']);
+    (q(f, '#wiz-reval-entry-lookup') as HTMLInputElement).click();
+    f.detectChanges();
+
+    q(f, 'app-confirmation-number-request')!.dispatchEvent(new Event('beforePortal'));
+    f.detectChanges();
+
+    expect(wiz(f).revalEntryChoice).toBe('before');
+    expect(q(f, 'app-confirmation-number-request')).toBeNull();
+  });
+
   it('shows no cards in a new request', () => {
     const f = render({});
     expect(q(f, '#wiz-reval-entry')).toBeNull();

@@ -162,7 +162,10 @@
           }
           <!-- 2026-11-06 (R3): "I don't know the confirmation number" -- outside bookers only. -->
           @if (showRevalEntryChoice && revalEntryChoice === 'lookup') {
-            <app-confirmation-number-request (haveNumber)="chooseRevalEntry('number')" />
+            <app-confirmation-number-request
+              (haveNumber)="chooseRevalEntry('number')"
+              (beforePortal)="chooseRevalEntry('before')"
+            />
           }
           @if (showSourceLookup) {
             <div class="ra-reval">
