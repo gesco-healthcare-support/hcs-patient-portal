@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
+using HealthcareSupport.CaseEvaluation.Branding;
 using HealthcareSupport.CaseEvaluation.Logging;
 using HealthcareSupport.CaseEvaluation.NotificationTemplates;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
@@ -48,13 +49,50 @@ public class AccessorAddedEmailHandlerTests
     private static AccessorAddedEmailHandler BuildHandler(
         INotificationDispatcher dispatcher,
         DocumentEmailContext? ctx,
-        ILogger<AccessorAddedEmailHandler>? logger = null) =>
+        ILogger<AccessorAddedEmailHandler>? logger = null,
+        OfficeDisplayNames? officeNames = null) =>
         new(
             dispatcher,
             StubResolver(ctx),
             Substitute.For<ICurrentTenant>(),
             logger ?? NullLogger<AccessorAddedEmailHandler>.Instance,
-            Substitute.For<ITenantStore>());
+            OfficeNames(officeNames ?? OfficeDisplayNames.None));
+
+    private static IOfficeDisplayNameResolver OfficeNames(OfficeDisplayNames names)
+    {
+        var resolver = Substitute.For<IOfficeDisplayNameResolver>();
+        resolver.ResolveCurrentAsync(Arg.Any<System.Threading.CancellationToken>()).Returns(names);
+        return resolver;
+    }
+
+    /// <summary>
+    /// 2026-11-09: "... at {ClinicName}" names the office's PRACTICE, not its web-address slug and
+    /// not the doctor-and-practice form the invitation uses.
+    /// </summary>
+    [Fact]
+    public async Task HandleEventAsync_NamesTheOfficesPractice()
+    {
+        var dispatcher = Substitute.For<INotificationDispatcher>();
+        var handler = BuildHandler(dispatcher, SampleContext(),
+            officeNames: new OfficeDisplayNames("TEST Spine Institute", "TEST-Doctor (TEST Spine Institute)"));
+
+        await handler.HandleEventAsync(new AppointmentAccessorAddedEto
+        {
+            AppointmentId = Guid.NewGuid(),
+            AccessorUserId = Guid.NewGuid(),
+            TenantId = Guid.NewGuid(),
+            Email = "accessor@example.test",
+            RoleName = "Applicant Attorney",
+            AccessTypeId = 23,
+        });
+
+        await dispatcher.Received(1).DispatchAsync(
+            Arg.Any<NotificationCase>(),
+            NotificationTemplateConsts.Codes.AccessorAppointmentAdded,
+            Arg.Any<IReadOnlyCollection<NotificationRecipient>>(),
+            Arg.Is<IReadOnlyDictionary<string, object?>>(v => (string?)v["ClinicName"] == "TEST Spine Institute"),
+            Arg.Any<string>());
+    }
 
     [Fact]
     public async Task HandleEventAsync_ExistingAccountAccessor_DispatchesAddedTemplateToAccessor()

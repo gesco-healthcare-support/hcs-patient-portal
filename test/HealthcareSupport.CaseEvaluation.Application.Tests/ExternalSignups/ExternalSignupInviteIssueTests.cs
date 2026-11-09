@@ -90,7 +90,10 @@ public abstract class ExternalSignupInviteIssueTests<TStartupModule>
             var validated = await _appService.ValidateInviteAsync(rawToken);
             validated.Email.ShouldBe(email);
             validated.RoleName.ShouldBe(IdentityUsersTestData.ClaimExaminerRoleName);
-            validated.TenantName.ShouldBe(TenantsTestData.TenantAName);
+            // 2026-11-09: who the invitation is from, as the register page shows it -- the office's own
+            // doctor on this rig (no letterhead stored), never the web-address slug.
+            validated.TenantName.ShouldBe($"Dr. {DoctorsTestData.Doctor1FirstName} {DoctorsTestData.Doctor1LastName}");
+            validated.TenantName.ShouldNotBe(TenantsTestData.TenantAName);
         }
     }
 

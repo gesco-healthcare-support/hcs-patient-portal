@@ -10,10 +10,16 @@ import {
   Output,
   SimpleChanges,
   inject,
+  viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
-import { NgbDateAdapter, NgbDatepickerModule, NgbDateStruct } from '@ng-bootstrap/ng-bootstrap';
+import {
+  NgbDateAdapter,
+  NgbDatepickerModule,
+  NgbDateStruct,
+  NgbInputDatepicker,
+} from '@ng-bootstrap/ng-bootstrap';
 import { firstValueFrom } from 'rxjs';
 import { DoctorAvailabilityService } from '../../proxy/doctor-availabilities/doctor-availability.service';
 import type { BookingWindowDto } from '../../proxy/doctor-availabilities/models';
@@ -162,6 +168,38 @@ export class AvailabilityCalendarComponent implements OnChanges {
       availableKeys: this.availableDateKeys,
     });
 
+  private readonly datePicker = viewChild<NgbInputDatepicker>('datePicker');
+
+  /**
+   * ngb builds a month once and only asks `markDisabled` again when the month changes. A popup that
+   * was opened before the availability lookup (or the booking window) returned therefore kept every
+   * day disabled. Swapping the function reference does NOT help: `NgbInputDatepicker.ngOnChanges`
+   * forwards only `minDate`/`maxDate` to an open popup, and applies every other input at `open()`.
+   * So the minimal step is to close and reopen an open popup, which re-applies the inputs and
+   * rebuilds the months from the data that has now landed.
+   */
+  private refreshDisabledDays(): void {
+    const picker = this.datePicker();
+    if (picker?.isOpen()) {
+      picker.close();
+      picker.open();
+    }
+    this.changeDetector.markForCheck();
+  }
+
+  /**
+   * Empties the date and time widgets and the offered times, without emitting anything. The host
+   * calls it when it refuses the picked date and clears its own form value in the same tick: the
+   * `[selectedDate]` binding then goes null -> date -> null, `ngOnChanges` never fires, and the
+   * local controls would keep showing the refused date with its times.
+   */
+  reset(): void {
+    this.dateControl.setValue(null, { emitEvent: false });
+    this.timeControl.setValue(null, { emitEvent: false });
+    this.timeOptions = [];
+    this.changeDetector.markForCheck();
+  }
+
   /** The lead time in force: the office's own once loaded, else the `leadDays` fallback. */
   get effectiveLeadDays(): number {
     return this.bookingWindow?.leadTimeDays ?? this.leadDays;
@@ -267,9 +305,7 @@ export class AvailabilityCalendarComponent implements OnChanges {
   }
 
   protected onClear(): void {
-    this.dateControl.setValue(null, { emitEvent: false });
-    this.timeControl.setValue(null, { emitEvent: false });
-    this.timeOptions = [];
+    this.reset();
     this.dateCleared.emit();
   }
 
@@ -293,6 +329,7 @@ export class AvailabilityCalendarComponent implements OnChanges {
         return;
       }
       this.bookingWindow = window;
+      this.refreshDisabledDays();
       this.bookingWindowChange.emit(window);
     } catch {
       if (version === this.windowRequestVersion) {
@@ -356,7 +393,7 @@ export class AvailabilityCalendarComponent implements OnChanges {
       if (this.selectedDate) {
         this.populateTimesFor(this.selectedDate);
       }
-      this.changeDetector.markForCheck();
+      this.refreshDisabledDays();
     } finally {
       if (version === this.requestVersion) {
         this.isLoading = false;

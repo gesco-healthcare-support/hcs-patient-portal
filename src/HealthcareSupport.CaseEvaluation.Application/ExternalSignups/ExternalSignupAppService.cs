@@ -4,6 +4,7 @@ using HealthcareSupport.CaseEvaluation.AppointmentApplicantAttorneys;
 using HealthcareSupport.CaseEvaluation.AppointmentDefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.Appointments.Notifications;
+using HealthcareSupport.CaseEvaluation.Branding;
 using HealthcareSupport.CaseEvaluation.DefenseAttorneys;
 using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.ExternalSignups;
@@ -1310,6 +1311,10 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             var inviteUrl = await _accountUrlBuilder.BuildInviteUrlAsync(
                 tenantId.Value, rawToken);
 
+            // 2026-11-09: who the invitation is from, as people read it ("Yuri Falkinstein, M.D. (West
+            // Coast Spine Institute)"). tenantName stays the slug for the scope and the result card.
+            var officeNames = await DisplayNameResolver.ResolveCurrentAsync();
+
             // Dispatch through the per-tenant InviteExternalUser
             // NotificationTemplate. Failure is logged (by the dispatcher) but
             // does NOT bubble: the admin can always copy + share the inviteUrl
@@ -1328,7 +1333,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
                             role: MapToRecipientRole(input.UserType),
                             isRegistered: false),
                     },
-                    variables: BuildInvitationVariables(tenantName, roleName, inviteUrl, invitation.ExpiresAt, firstName, lastName),
+                    variables: BuildInvitationVariables(officeNames.DoctorAndPracticeName, roleName, inviteUrl, invitation.ExpiresAt, firstName, lastName),
                     contextTag: $"Invite/{roleName}/{tenantId.Value}/{invitation.Id}");
             }
             catch (Exception)
@@ -1394,6 +1399,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             }
 
             var portalUrl = await _accountUrlBuilder.BuildPortalRootUrlAsync(tenantId.Value);
+            var officeNames = await DisplayNameResolver.ResolveCurrentAsync();
 
             // Unlike the invite, a dispatch failure here is NOT swallowed. The invite can swallow it
             // because the caller still holds a copyable link; this flow has no such fallback, so a
@@ -1414,8 +1420,9 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
                 },
                 variables: new Dictionary<string, object?>
                 {
-                    ["TenantName"] = tenantName,
-                    ["ClinicName"] = tenantName,
+                    // 2026-11-09: the practice name people know, not the slug.
+                    ["TenantName"] = officeNames.PracticeName,
+                    ["ClinicName"] = officeNames.PracticeName,
                     ["PortalUrl"] = portalUrl,
                     ["Email"] = normalizedEmail,
                 },
@@ -1502,6 +1509,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
 
         var rawToken = await _invitationManager.ResendAsync(invitation);
         var inviteUrl = await _accountUrlBuilder.BuildInviteUrlAsync(tenantId, rawToken);
+        var officeNames = await ResolveOfficeDisplayNamesAsync(tenantId);
 
         // Dispatch mirrors InviteExternalUserAsync; failure is swallowed so the
         // admin can always copy + share the inviteUrl in the response.
@@ -1517,7 +1525,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
                         role: MapToRecipientRole(invitation.UserType),
                         isRegistered: false),
                 },
-                variables: BuildInvitationVariables(tenantName, roleName, inviteUrl, invitation.ExpiresAt, invitation.FirstName, invitation.LastName),
+                variables: BuildInvitationVariables(officeNames.DoctorAndPracticeName, roleName, inviteUrl, invitation.ExpiresAt, invitation.FirstName, invitation.LastName),
                 contextTag: NotificationOccurrence.PerRequest($"InviteResend/{roleName}/{tenantId}/{invitation.Id}"));
         }
         catch (Exception)
@@ -1603,12 +1611,20 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         var tenantName = await ResolveCurrentTenantNameAsync(tenantId)
             ?? throw new BusinessException(CaseEvaluationDomainErrorCodes.InviteInvalid);
 
+        // 2026-11-09: the register page's banner reads these, so both are DISPLAY strings: who the
+        // invitation is from (not the slug) and the role's label ("Paralegal / Case Manager
+        // (Applicant side)", as the invite email already says since R5). The page locks the role from
+        // the numeric UserType, never from this text.
+        var officeNames = await ResolveOfficeDisplayNamesAsync(tenantId);
+
         return new InvitationValidationDto
         {
             Email = invitation.Email,
             UserType = invitation.UserType,
-            RoleName = ToRoleName(invitation.UserType),
-            TenantName = tenantName,
+            RoleName = ToRoleDisplayLabel(ToRoleName(invitation.UserType)),
+            TenantName = string.IsNullOrWhiteSpace(officeNames.DoctorAndPracticeName)
+                ? tenantName
+                : officeNames.DoctorAndPracticeName,
             ExpiresAt = invitation.ExpiresAt,
             FirstName = invitation.FirstName,
             LastName = invitation.LastName,
@@ -1627,7 +1643,7 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
     /// blank (fixes the OBS-27 empty "Hi ," greeting).
     /// </summary>
     internal static Dictionary<string, object?> BuildInvitationVariables(
-        string tenantName, string roleName, string inviteUrl, DateTime expiresAtUtc,
+        string invitingOfficeName, string roleName, string inviteUrl, DateTime expiresAtUtc,
         string? firstName = null, string? lastName = null)
     {
         // Expiry is an INSTANT, so the calendar day it falls on has to be worked out in Pacific
@@ -1642,7 +1658,9 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
         var greeting = string.IsNullOrWhiteSpace(fullName) ? "Hello," : $"Hi {fullName},";
         return new Dictionary<string, object?>(StringComparer.Ordinal)
         {
-            ["TenantName"] = tenantName,
+            // 2026-11-09: who the invitation is from, a DISPLAY name (doctor and practice), never the
+            // web-address slug. The token keeps its old name so stored templates still resolve.
+            ["TenantName"] = invitingOfficeName,
             // 2026-11-06 (R5): the display label, so a paralegal reads "Paralegal / Case Manager
             // (Applicant side)" as the screens say it. The role NAME stays unchanged everywhere else.
             ["RoleName"] = ToRoleDisplayLabel(roleName),
@@ -1690,6 +1708,18 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             return tenant?.Name;
         }
     }
+
+    /// <summary>2026-11-09: the office's display names, resolved inside that office's scope.</summary>
+    private async Task<OfficeDisplayNames> ResolveOfficeDisplayNamesAsync(Guid tenantId)
+    {
+        using (CurrentTenant.Change(tenantId))
+        {
+            return await DisplayNameResolver.ResolveCurrentAsync();
+        }
+    }
+
+    private IOfficeDisplayNameResolver DisplayNameResolver =>
+        LazyServiceProvider.LazyGetRequiredService<IOfficeDisplayNameResolver>();
 
     // BUG-029 v3 fix (2026-05-21): BuildInviteUrl helper removed.
     // Invite URL composition lives in IAccountUrlBuilder (single
