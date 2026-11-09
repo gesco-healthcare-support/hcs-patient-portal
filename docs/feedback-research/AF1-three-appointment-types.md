@@ -167,3 +167,10 @@ rework; this is why the horizon change is bundled into AF1 rather than treated s
   left open (permission-guarded)? Minor; default is leave open since it is break-glass only.
 - SystemParameter horizon fields (`AppointmentMaxTimeAME/PQME/OTHER`): confirm no other reader
   before deleting the columns vs. leaving them dormant. Default: leave dormant, stop reading.
+
+## Update 2026-11-08 -- AME back to 90 days
+
+The flat 60-day horizon above is no longer uniform. At the product owner's request AME
+may be booked up to 90 days ahead (PQME and OTHER stay at 60; internal staff ceiling is 90).
+`SystemParameterConsts.DefaultAppointmentMaxTimeAME` is now 90 for NEW offices only; an existing
+office keeps its stored `AppointmentMaxTimeAME` and changes it in System Parameters ("Max window - AME").
