@@ -1548,7 +1548,7 @@
         prefillEditableField(form, ['#external-firm-name', 'input[name="FirmName"]'], body.firmName);
         renderInviteBanner(
           form,
-          '<strong>You’ve been invited to register at ' + escapeHtml(body.tenantName) + '.</strong>'
+          '<strong>You’ve been invited to register with ' + escapeHtml(body.tenantName) + '.</strong>'
           + '<div class="mt-1">Your role is <strong>' + escapeHtml(body.roleName) + '</strong>. Set a password below to finish registration.</div>',
           'success');
         return true;
