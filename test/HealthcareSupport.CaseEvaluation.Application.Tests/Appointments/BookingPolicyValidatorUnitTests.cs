@@ -90,6 +90,54 @@ public class BookingPolicyValidatorUnitTests
         result.Outcome.ShouldBe(BookingPolicyOutcome.Allowed);
     }
 
+    // 2026-11-08 -- a NEW office's seeded defaults: AME may be booked 90 days ahead, PQME and OTHER
+    // 60. Built from the shipped constants, so changing a default fails here.
+    private static SystemParameter SeededDefaults() => MakeSystemParameter(
+        leadTime: SystemParameterConsts.DefaultAppointmentLeadTime,
+        pqme: SystemParameterConsts.DefaultAppointmentMaxTimePQME,
+        ame: SystemParameterConsts.DefaultAppointmentMaxTimeAME,
+        other: SystemParameterConsts.DefaultAppointmentMaxTimeOTHER,
+        internalMax: SystemParameterConsts.DefaultAppointmentMaxTimeInternal);
+
+    [Fact]
+    public void EvaluateBookingPolicy_SeededDefaults_ExternalAmeIsBookable90DaysOutButNot91()
+    {
+        var sp = SeededDefaults();
+
+        BookingPolicyValidator.EvaluateBookingPolicy(
+            Today.AddDays(90), Today, AppointmentMaxTimeCategory.Ame, sp).Outcome
+            .ShouldBe(BookingPolicyOutcome.Allowed);
+
+        var past = BookingPolicyValidator.EvaluateBookingPolicy(
+            Today.AddDays(91), Today, AppointmentMaxTimeCategory.Ame, sp);
+        past.Outcome.ShouldBe(BookingPolicyOutcome.PastMaxHorizon);
+        past.ThresholdDays.ShouldBe(90);
+    }
+
+    [Theory]
+    [InlineData(AppointmentMaxTimeCategory.Pqme)]
+    [InlineData(AppointmentMaxTimeCategory.Other)]
+    public void EvaluateBookingPolicy_SeededDefaults_ExternalPqmeAndOtherStayAt60Days(AppointmentMaxTimeCategory category)
+    {
+        var sp = SeededDefaults();
+
+        BookingPolicyValidator.EvaluateBookingPolicy(Today.AddDays(60), Today, category, sp).Outcome
+            .ShouldBe(BookingPolicyOutcome.Allowed);
+        BookingPolicyValidator.EvaluateBookingPolicy(Today.AddDays(61), Today, category, sp).Outcome
+            .ShouldBe(BookingPolicyOutcome.PastMaxHorizon);
+    }
+
+    [Fact]
+    public void ResolveBookingWindow_SeededDefaults_AmeWindowEqualsTheCeiling()
+    {
+        var ame = BookingPolicyValidator.ResolveBookingWindow(SeededDefaults(), AppointmentMaxTimeCategory.Ame, isInternalCaller: false);
+        var pqme = BookingPolicyValidator.ResolveBookingWindow(SeededDefaults(), AppointmentMaxTimeCategory.Pqme, isInternalCaller: false);
+
+        ame.MaxDays.ShouldBe(90);
+        ame.CeilingDays.ShouldBe(90);
+        pqme.MaxDays.ShouldBe(60);
+    }
+
     [Fact]
     public void EvaluateBookingPolicy_OtherCategoryUsesOtherHorizon()
     {

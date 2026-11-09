@@ -1,8 +1,15 @@
 <div class="ra-reval" id="wiz-number-request">
   <p class="ra-hint ra-reval__note">
-    Tell us about the patient and the claim. If they match one earlier evaluation, we email its
-    confirmation number to your login email. The number is never shown on this screen.
+    This only finds evaluations that were booked in this portal. If the first exam was done in the
+    old system, choose "The first exam was before this portal" instead.
   </p>
+  <p class="ra-hint ra-reval__note">
+    Tell us about the patient and the claim. If they match one earlier evaluation, we email its
+    confirmation number to your login email. It is never shown on this screen.
+  </p>
+  <button type="button" class="ap-btn" id="wiz-nr-before" (click)="beforePortal.emit()">
+    The first exam was before this portal
+  </button>
   <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
     <div class="ra-field">
       <label for="wiz-nr-first">Patient first name</label>
@@ -67,7 +74,8 @@
     @switch (state()) {
       @case ('sent') {
         <div class="ra-reval__msg" id="wiz-nr-sent">
-          If these details match one earlier evaluation, we have emailed its confirmation number to
+          If these details match one earlier evaluation booked in this portal, we have emailed its
+          confirmation number to
           {{ loginEmail }}. It can take a few minutes; check your junk folder too.
           <button type="button" class="ap-btn" (click)="haveNumber.emit()">
             I have the number now

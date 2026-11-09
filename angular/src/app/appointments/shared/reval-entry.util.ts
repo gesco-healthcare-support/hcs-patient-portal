@@ -20,7 +20,7 @@ export const REVAL_ENTRY_CARDS: readonly RevalEntryCard[] = [
   {
     value: 'lookup',
     title: "I don't know the confirmation number",
-    hint: "Give the patient's name, date of birth and claim number, and we email the number to you.",
+    hint: 'Only for evaluations booked in this portal. Give the patient\'s name, date of birth and claim number, and we email the number to you. First exam in the old system? Choose "The first exam was before this portal".',
   },
   {
     value: 'before',

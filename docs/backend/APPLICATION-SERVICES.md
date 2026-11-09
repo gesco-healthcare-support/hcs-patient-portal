@@ -191,7 +191,8 @@ together. In order:
    rebook. Every mode but plain needs a source confirmation number, and an unmapped mode throws. A re-evaluation
    by someone who is not a party to the source must send the patient's date of birth
    (`SourcePatientDateOfBirth`); it is checked here again (`ReEvaluationSourceAccess`), never trusted from the
-   earlier lookup.
+   earlier lookup. The source is the NEWEST re-evaluable case in the chain the number belongs to, walked again here
+   (see the next section), so `OriginalAppointmentId` points at it.
 2. **Resolve the patient** (`ResolvePatientForSubmitAsync`). It uses the supplied patient id, or
    `PatientsAppService.GetOrCreatePatientForAppointmentBookingAsync`
    (see [PatientsAppService](#getorcreatepatientforappointmentbookingasync)). A supplied id must be one the caller
@@ -235,16 +236,25 @@ approval side effects before the attorney and child rows existed, and it bypasse
 gates. `ApproveAsync` and `RejectAsync` are this service's transitions out of Pending. After approval the appointment goes
 to the Case Tracker, which owns what happens next.
 
-### Re-evaluation by a non-party (`ReEvaluationSourcesAppService`)
+### Re-evaluation source (`ReEvaluationSourcesAppService`)
 
 `POST api/app/re-evaluation-sources/lookup` (hand-written controller; the service is not auto-exposed) takes a
-confirmation number and the patient's date of birth in the body, so neither lands in a URL or an access log. It is
-open to every caller who may book (`Appointments.Create`), because the office decided patients and all external
-parties may re-evaluate (2026-11-06).
+confirmation number and, optionally, the patient's date of birth in the body, so neither lands in a URL or an access
+log. It is open to every caller who may book (`Appointments.Create`), because the office decided patients and all
+external parties may re-evaluate (2026-11-06). Since 2026-11-08 the booking form loads EVERY re-evaluation through it,
+staff and parties included.
 
-- **Who gets what** (`ReEvaluationSourceAccess`): a caller who can already read the earlier appointment gets it as
-  before. Anyone else needs a matching date of birth (the patient record or the copy on the appointment) and an
-  appointment that can be re-evaluated. Every other outcome is the same `null`.
+- **The newest case in the chain** (`ReEvaluationChain`, 2026-11-08): the answer is not the typed case but the newest
+  one that can be re-evaluated among it and every later case of the same patient reachable from it, through a
+  re-evaluation (`OriginalAppointmentId`) or a replacement (`RescheduledFromAppointmentId`: reschedule, re-book,
+  re-request). Newest is the latest exam date, then the latest booking; a pending re-evaluation is skipped for the
+  approved case before it. The answer says so (`FilledFromNewer`, `RequestedConfirmationNumber`) and the form shows a
+  note. The patient's appointments are loaded once and walked in memory, capped at 100.
+- **Who gets what** (`ReEvaluationSourceAccess`): "party" means a party to that NEWEST case. A party gets it whatever
+  its status (`CanBeReEvaluated` false lets the form give its specific refusal; this only happens when nothing in the
+  chain can be re-evaluated). Anyone else, including a party to an earlier case of the chain only (a previous attorney,
+  say), needs a matching date of birth (the patient record or the copy on either appointment) and gets the non-party
+  view. Every other outcome is the same `null`.
 - **What a non-party sees:** the appointment, patient, employer, injuries, claim examiner, insurance and both
   attorneys, which is what the booking form copies. Not the Authorized Users, not the patient's or the booker's
   login, and no Social Security number.
@@ -263,10 +273,11 @@ patient's first and last name, date of birth and a claim number in the body. It 
 forgot-password: the number is never shown on screen, it is emailed.
 
 - **The match** (`ConfirmationNumberLookupMatcher`): the names compare trimmed, case-insensitive, with a hyphen read as
-  a space; the date of birth is the exact day; the claim number is any injury row's, ignoring case, spaces and dashes.
-  Only appointments that `AppointmentLifecycleValidators.CanCreateReval` accepts count, the same rule the
-  re-evaluation form applies, so a number is never sent that the form would then refuse. Several cases of ONE patient
-  resolve to the latest; cases of more than one patient are ambiguous and nothing is sent.
+  a space; the date of birth is the exact day; the claim number is any injury row's, ignoring case, spaces and dashes,
+  on ANY of the patient's cases (2026-11-08), so a claim number that changed in a later re-evaluation still finds the
+  chain. From the matching cases the same `ReEvaluationChain` walk picks the newest case that
+  `AppointmentLifecycleValidators.CanCreateReval` accepts, so the number sent is the one the form would use. Cases of
+  more than one patient are ambiguous and nothing is sent; so is a chain with nothing that can be re-evaluated.
 - **Who gets it:** only the caller's own VERIFIED login email. An unverified login is treated as no match. The office
   inbox gets a staff-only copy naming who received the number (templates `ConfirmationNumberLookup` and
   `ConfirmationNumberLookupOffice`, seeded by the migrator). Each request sends again.
