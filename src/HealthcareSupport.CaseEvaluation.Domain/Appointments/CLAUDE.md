@@ -134,6 +134,9 @@ Lifecycle and booking:
 - `AppointmentLifecycleValidators` -- pure predicates for the resubmit and re-evaluation booking
   flows; `AppointmentLifecycleFlow` is the discriminator passed to them.
 - `EvaluationKindPolicy` -- decides an appointment's evaluation kind from its booking flow.
+- `ReEvaluationChain` (2026-11-08) -- the case a re-evaluation follows on from: the NEWEST re-evaluable case
+  reachable from the typed one through `OriginalAppointmentId` or `RescheduledFromAppointmentId`, same patient
+  only, capped at 100. Used by the re-evaluation lookup, the submit and the forgotten-number email.
 - `IAppointmentChildCascadeCopier` -- copies every child row of one appointment onto another when
   a reschedule is finalized; `CopiedGroupCounts` reports rows copied per child group.
 
