@@ -37,6 +37,9 @@ export class ConfirmationNumberRequestComponent {
   /** The booker has the number now and wants the number card. */
   readonly haveNumber = output<void>();
 
+  /** The first exam was done in the old system, so there is nothing to look up: switch cards. */
+  readonly beforePortal = output<void>();
+
   readonly form = new FormGroup({
     firstName: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
     lastName: new FormControl('', { nonNullable: true, validators: [Validators.required] }),

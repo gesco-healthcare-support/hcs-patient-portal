@@ -51,7 +51,7 @@ public class BookingPolicyValidator : ITransientDependency
     ///
     /// The max horizon is role-aware (2026-06-11): external callers are
     /// bound by the per-<see cref="AppointmentType.MaxTimeCategory"/> horizon
-    /// (data-driven PQME / AME / OTHER, default 60) via
+    /// (data-driven PQME / AME / OTHER; seeded defaults 60 / 90 / 60) via
     /// <see cref="AppointmentBookingValidators.ResolveMaxTimeDaysForType"/>;
     /// internal-staff callers (<paramref name="isInternalCaller"/> = true)
     /// are bound by the single <see cref="SystemParameter.AppointmentMaxTimeInternal"/>
@@ -102,7 +102,7 @@ public class BookingPolicyValidator : ITransientDependency
     ///
     /// <paramref name="isInternalCaller"/> selects the max horizon: internal
     /// staff use <see cref="SystemParameter.AppointmentMaxTimeInternal"/>
-    /// (90); external callers use the per-type horizon (60). Defaults to the
+    /// (90); external callers use the per-type horizon (60; AME 90 by default). Defaults to the
     /// external path so the pure helper never silently grants the wider
     /// internal window -- production always passes the resolved role flag.
     /// </summary>
@@ -148,7 +148,8 @@ public class BookingPolicyValidator : ITransientDependency
     {
         if (systemParameter == null)
         {
-            // Every per-type default is the same 60 days (SystemParameterConsts, AF1).
+            // Seeded defaults: PQME and OTHER 60 days, AME 90 (SystemParameterConsts, AF1; AME back to 90
+            // on 2026-11-08). With no row the type is unknown here, so the OTHER default applies.
             return new BookingWindowDto
             {
                 LeadTimeDays = SystemParameterConsts.DefaultAppointmentLeadTime,

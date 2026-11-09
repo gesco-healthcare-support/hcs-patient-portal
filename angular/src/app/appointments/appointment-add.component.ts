@@ -324,9 +324,10 @@ export class AppointmentAddComponent {
   // the defaults below apply. The server-side BookingPolicyValidator stays authoritative.
   private bookingWindow: BookingWindowDto | null = null;
   // 2026-06-11: role-based booking horizon. External users may book at most 60
-  // days out online; internal staff up to 90 (the absolute ceiling -- the
-  // state does not allow scheduling further out). 2026-10-12: these are now only
-  // the FALLBACK for when the office's own window has not loaded.
+  // days out online (AME 90 since 2026-11-08, via the office's own window); internal staff up
+  // to 90 (the absolute ceiling -- the state does not allow scheduling further out).
+  // 2026-10-12: these are now only a generic FALLBACK for when the office's own window has not
+  // loaded; the types differ per office, so this is not every type's horizon.
   private readonly externalMaxBookingDays = 60;
   private readonly internalMaxBookingDays = 90;
   private readonly defaultMinimumBookingDays = 3;
@@ -338,7 +339,7 @@ export class AppointmentAddComponent {
 
   /**
    * Per-role online-booking horizon: the office's own for this user and type once loaded, else 90
-   * days for internal staff and 60 for external users.
+   * days for internal staff and 60 for external users (a generic fallback; AME is 90 by default).
    */
   get maxBookingDays(): number {
     if (this.bookingWindow?.maxDays != null) {
@@ -3963,7 +3964,7 @@ export class AppointmentAddComponent {
       return;
     }
 
-    // 2026-06-11: external users may SEE slots beyond their 60-day online
+    // 2026-06-11: external users may SEE slots beyond their online (60-day, AME 90-day)
     // horizon (the picker only caps the shared 90-day ceiling), but cannot
     // book them online. When the picked date exceeds the role horizon
     // (60 external / 90 internal) show the contact-staff notice and clear the
