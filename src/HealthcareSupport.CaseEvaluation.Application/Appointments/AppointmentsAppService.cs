@@ -1008,6 +1008,12 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     /// throttled with it. For them every refusal -- no such number, a wrong date, a source that
     /// cannot be re-evaluated -- is the same not-found the guard gives, so the submit is no more of
     /// an oracle than the lookup.</para>
+    ///
+    /// <para>2026-11-08 (W2): the source is the newest re-evaluable case in the chain the number belongs
+    /// to, walked again HERE rather than taken from the form, so a re-evaluation approved between the
+    /// form's load and this submit is still the one followed. <c>OriginalAppointmentId</c>, and with it
+    /// the Case Tracker's previous-appointment link, points at that newest case. "Party" means a party
+    /// to it; anyone else needs the date of birth.</para>
     /// </summary>
     private async Task<SubmitLifecycle> ResolveRevalSubmitLifecycleAsync(
         string sourceConfirmationNumber,
@@ -1167,6 +1173,12 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
 
     /// <summary>
     /// Phase 11g (2026-05-04) -- Reval endpoint.
+    ///
+    /// <para>2026-11-08 (W2): the booking form submits through <see cref="SubmitAsync"/> instead, but this
+    /// route is still live, so it links the same way: to the newest re-evaluable case in the typed
+    /// case's chain (<see cref="ReEvaluationChain"/>), not to an older one. Access is unchanged and
+    /// still judged on the typed case: this route copies nothing from the linked case to the caller,
+    /// so linking a later one discloses nothing.</para>
     /// </summary>
     [Authorize]
     [Authorize(CaseEvaluationPermissions.Appointments.Create)]
@@ -1179,7 +1191,8 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         var callerIsItAdmin = CurrentUser.IsInRole("IT Admin");
 
         // T5: linkage first, then status -- see ReSubmitAsync.
-        var source = await LoadReadableSourceAsync(sourceConfirmationNumber);
+        var typed = await LoadReadableSourceAsync(sourceConfirmationNumber);
+        var source = await LazyServiceProvider.LazyGetRequiredService<ReEvaluationChain>().FindNewestEligibleAsync(typed);
         _appointmentManager.EnsureRevalSourceEligible(source, callerIsItAdmin);
         return await CreateAppointmentInternalAsync(
             input,

@@ -12,6 +12,13 @@ describe('reval-entry util', () => {
     expect(REVAL_ENTRY_CARDS.map((c) => c.value)).toEqual(['number', 'lookup', 'before']);
   });
 
+  it('says on the lookup card that it only finds portal cases and points to the old-system card', () => {
+    const hint = REVAL_ENTRY_CARDS.find((c) => c.value === 'lookup')!.hint;
+    expect(hint).toBe(
+      'Only for evaluations booked in this portal. Give the patient\'s name, date of birth and claim number, and we email the number to you. First exam in the old system? Choose "The first exam was before this portal".',
+    );
+  });
+
   it('gives outside bookers all three cards and staff the two without the lookup (R3)', () => {
     expect(REVAL_ENTRY_CARDS.map((c) => c.value)).toEqual(['number', 'lookup', 'before']);
     expect(STAFF_REVAL_ENTRY_CARDS.map((c) => c.value)).toEqual(['number', 'before']);

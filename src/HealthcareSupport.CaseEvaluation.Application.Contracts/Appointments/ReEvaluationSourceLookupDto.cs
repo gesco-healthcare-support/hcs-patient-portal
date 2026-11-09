@@ -19,8 +19,11 @@ public class ReEvaluationSourceLookupDto
     /// <summary>
     /// The patient's date of birth. A calendar date, so it is not shifted to UTC; kept out of the
     /// audit log's stored request parameters.
+    ///
+    /// <para>2026-11-08 (W2): optional. Every re-evaluation load comes through this lookup now, and a
+    /// party to the newest case in the chain needs no date; only a caller who is not must give one.</para>
     /// </summary>
     [DisableDateTimeNormalization]
     [DisableAuditing]
-    public DateTime PatientDateOfBirth { get; set; }
+    public DateTime? PatientDateOfBirth { get; set; }
 }

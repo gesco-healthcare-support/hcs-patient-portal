@@ -114,7 +114,9 @@ describe('ConfirmationNumberRequestComponent', () => {
     expect(calls[0].config).toEqual({ skipHandleError: true });
     const sent = el(f).querySelector('#wiz-nr-sent');
     expect(sent?.textContent).toContain(LOGIN);
-    expect(sent?.textContent).toContain('If these details match one earlier evaluation');
+    expect(sent?.textContent).toContain(
+      'If these details match one earlier evaluation booked in this portal, we have emailed its confirmation number to',
+    );
   });
 
   it('ignores a second submit while the first is on its way', () => {
@@ -162,6 +164,27 @@ describe('ConfirmationNumberRequestComponent', () => {
 
     el(f).querySelector<HTMLButtonElement>('#wiz-nr-sent button')!.click();
     expect(handedBack).toBe(1);
+  });
+
+  it('says what the lookup covers and offers the before-this-portal switch', () => {
+    const f = render();
+    const text = (el(f).querySelector('#wizard-placeholder') ?? el(f)).textContent!.replace(
+      /\s+/g,
+      ' ',
+    );
+    expect(text).toContain(
+      'This only finds evaluations that were booked in this portal. If the first exam was done in the old system, choose "The first exam was before this portal" instead.',
+    );
+    expect(text).toContain(
+      'Tell us about the patient and the claim. If they match one earlier evaluation, we email its confirmation number to your login email. It is never shown on this screen.',
+    );
+    let switched = 0;
+    f.componentInstance.beforePortal.subscribe(() => switched++);
+    const btn = el(f).querySelector<HTMLButtonElement>('#wiz-nr-before')!;
+    expect(btn.type).toBe('button');
+    expect(btn.textContent!.trim()).toBe('The first exam was before this portal');
+    btn.click();
+    expect(switched).toBe(1);
   });
 
   it('maps only a 429 to the hourly-limit message', () => {

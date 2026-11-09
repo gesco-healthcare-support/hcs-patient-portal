@@ -27,6 +27,12 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 /// <see cref="PhiAccessAction.ReEvaluationSourceLoadedByDateOfBirth"/>, and every refusal is
 /// <see cref="PhiAccessAction.ReEvaluationSourceLookupRefused"/> with no patient or appointment named.</para>
 ///
+/// <para><b>The newest case (2026-11-08, W2).</b> The answer is the newest re-evaluable case in the chain
+/// the typed number belongs to, and "party" means a party to THAT case. <see cref="ReEvaluationSourceDto.FilledFromNewer"/>
+/// tells the form when it is not the typed one, so it can say so. The booking form now loads every
+/// re-evaluation through this call, a party's included; the date of birth is only needed by a caller
+/// who is not a party to the newest case.</para>
+///
 /// <para>Not auto-exposed: the hand-written <c>ReEvaluationSourcesController</c> is the only route.</para>
 /// </summary>
 [RemoteService(IsEnabled = false)]
@@ -56,12 +62,15 @@ public class ReEvaluationSourcesAppService : CaseEvaluationAppService, IReEvalua
 
         var match = await _sourceAccess.FindAsync(input.ConfirmationNumber, input.PatientDateOfBirth);
 
-        // A party gets its case back whatever the status, so the re-evaluation status rule is
-        // applied here too: the lookup answers only with a case that can be re-evaluated, the same
-        // null for every other outcome.
-        if (match == null
-            || !AppointmentLifecycleValidators.CanCreateReval(
-                match.Source.AppointmentStatus, match.Source.EvaluationKind, CurrentUser.IsInRole("IT Admin")))
+        // 2026-11-08 (W2): every re-evaluation load comes through here now, a party's included. A party
+        // gets its case back whatever the status -- it could read it anyway -- so the booking form can
+        // give the specific "only an approved appointment" refusal instead of a not-found. That case is
+        // only ever not re-evaluable when nothing in its chain is. A caller who is not a party only ever
+        // matches a case that can be re-evaluated; anything else is the same null for every outcome.
+        var canBeReEvaluated = match != null
+            && AppointmentLifecycleValidators.CanCreateReval(
+                match.Source.AppointmentStatus, match.Source.EvaluationKind, CurrentUser.IsInRole("IT Admin"));
+        if (match == null || (!match.CallerIsParty && !canBeReEvaluated))
         {
             await PhiAccessRecorder.RecordAsync(
                 PhiAccessAction.ReEvaluationSourceLookupRefused, new PhiAccessTarget(null, null));
@@ -102,6 +111,9 @@ public class ReEvaluationSourcesAppService : CaseEvaluationAppService, IReEvalua
             ApplicantAttorney = AppointmentAttorneyDetails.From(applicant.FirstOrDefault()),
             DefenseAttorney = AppointmentAttorneyDetails.From(defense.FirstOrDefault()),
             CallerIsParty = match.CallerIsParty,
+            RequestedConfirmationNumber = match.Requested.RequestConfirmationNumber,
+            FilledFromNewer = match.FilledFromNewer,
+            CanBeReEvaluated = canBeReEvaluated,
         };
     }
 
