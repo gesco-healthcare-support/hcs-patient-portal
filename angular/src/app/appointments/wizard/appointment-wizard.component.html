@@ -216,9 +216,13 @@
               </button>
               @if (showSourceDateOfBirth) {
                 <div class="ra-hint ra-reval__note" id="wiz-prior-patient-dob-hint">
-                  Not on the earlier case (for example, you are new to the firm)? Enter the
-                  patient's date of birth with the number.
+                  Not on the earlier case, or on a later evaluation of the same patient (for
+                  example, you are new to the firm)? Enter the patient's date of birth with the
+                  number.
                 </div>
+              }
+              @if (sourceNewerNote) {
+                <div class="ra-reval__msg" id="wiz-prior-newer-note">{{ sourceNewerNote }}</div>
               }
               @if (sourceLoadMessage) {
                 <div class="ra-reval__msg">{{ sourceLoadMessage }}</div>

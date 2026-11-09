@@ -7,11 +7,36 @@ import { Confirmation, ConfirmationService, ToasterService } from '@abp/ng.theme
 import { AppointmentAddComponent } from './appointment-add.component';
 import { AppointmentService } from '../proxy/appointments/appointment.service';
 import { AppointmentApprovalService } from '../proxy/appointments/appointment-approval.service';
+import { ReEvaluationSourcesService } from '../proxy/appointments/re-evaluation-sources.service';
 import { CustomFieldsService } from '../proxy/custom-fields-controllers/custom-fields.service';
 import { AddressValidationProvider } from '../shared/address/address-validation.provider';
 import { AppointmentStatusType } from '../proxy/enums/appointment-status-type.enum';
 import { CustomFieldType } from '../proxy/enums/custom-field-type.enum';
 import { SECTION_CONTROLS, defaultPrefillSelection } from './shared/prefill-sections';
+
+/** The re-evaluation lookup's answer for a source the ordinary read would return (W2), or null. */
+function lookupAnswer(source: unknown): unknown {
+  const s = source as {
+    appointment?: { appointmentStatus?: AppointmentStatusType } | null;
+    patient?: unknown;
+  } | null;
+  if (!s?.appointment) {
+    return null;
+  }
+  return {
+    callerIsParty: true,
+    filledFromNewer: false,
+    canBeReEvaluated: s.appointment.appointmentStatus === AppointmentStatusType.Approved,
+    source: {
+      appointment: s.appointment,
+      patient: s.patient ?? null,
+      claimExaminer: null,
+      primaryInsurance: null,
+    },
+    applicantAttorney: null,
+    defenseAttorney: null,
+  };
+}
 
 /**
  * The booking engine's remaining uncovered paths: restoring a prefill section, the patient
@@ -94,6 +119,14 @@ describe('AppointmentAddComponent remaining paths', () => {
           },
         },
         { provide: AppointmentApprovalService, useValue: { approveAppointment: () => of(null) } },
+        {
+          // 2026-11-08 (W2): a re-evaluation loads through the lookup. The same source, as its answer:
+          // a party's own case, re-evaluable when approved.
+          provide: ReEvaluationSourcesService,
+          useValue: {
+            lookup: () => of(lookupAnswer(options.source)),
+          },
+        },
         {
           provide: CustomFieldsService,
           useValue: { getActiveForAppointmentType, getList: () => of({ items: [] }) },
