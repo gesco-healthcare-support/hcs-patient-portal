@@ -37,11 +37,11 @@
       },
       "System.Security.Cryptography.Xml": {
         "type": "Direct",
-        "requested": "[10.0.13, )",
-        "resolved": "10.0.13",
-        "contentHash": "v6/GHhLaHkuN/ISgbKzBeyC7TP7S6Qm/dVyKA+p0ay9nlJyLif+spozjAGclY/FRIv2TC+KNQCo7dSNmupvWtQ==",
+        "requested": "[10.0.15, )",
+        "resolved": "10.0.15",
+        "contentHash": "KV9nyhwORMX8BsErzPzxMFPlstLQFdBqYM6/t+N0F9BZdCAqMmanP4X4NJpegMNq+AoNZmtOmn/1hL0zPQaPiA==",
         "dependencies": {
-          "System.Security.Cryptography.Pkcs": "10.0.13"
+          "System.Security.Cryptography.Pkcs": "10.0.15"
         }
       },
       "Autofac": {
@@ -662,8 +662,8 @@
       },
       "System.Security.Cryptography.Pkcs": {
         "type": "Transitive",
-        "resolved": "10.0.13",
-        "contentHash": "a+EovgC1fBnwdlQ6cn3j4JFBfKqiFaFvoAhjisOoSvazLAcIznaBzPQP0oYnvccmeXfqUH1KebVZOxSeH6rMaw=="
+        "resolved": "10.0.15",
+        "contentHash": "4jEv/lXDuQkh60lPU3hlwASErXdv1ZMKmsxVuBfZWiVKT5Q2QGo58kTa6rN519+PU+m4Hsj1m3yT8fN+Xw0XZw=="
       },
       "TimeZoneConverter": {
         "type": "Transitive",
@@ -1669,7 +1669,7 @@
           "QuestPDF": "[2026.2.4, )",
           "Scriban": "[7.2.5, )",
           "Stateless": "[5.20.1, )",
-          "System.Security.Cryptography.Xml": "[10.0.13, )",
+          "System.Security.Cryptography.Xml": "[10.0.15, )",
           "Volo.Abp.AuditLogging.Domain": "[10.0.2, )",
           "Volo.Abp.BackgroundJobs.Domain": "[10.0.2, )",
           "Volo.Abp.BlobStoring.Database.Domain": "[10.0.2, )",
@@ -1697,7 +1697,7 @@
           "MessagePack": "[3.1.9, )",
           "Microsoft.Extensions.FileProviders.Embedded": "[10.0.0, )",
           "Scriban": "[7.2.5, )",
-          "System.Security.Cryptography.Xml": "[10.0.13, )",
+          "System.Security.Cryptography.Xml": "[10.0.15, )",
           "Volo.Abp.AuditLogging.Domain.Shared": "[10.0.2, )",
           "Volo.Abp.BackgroundJobs.Domain.Shared": "[10.0.2, )",
           "Volo.Abp.BlobStoring.Database.Domain.Shared": "[10.0.2, )",
@@ -1725,7 +1725,7 @@
           "NSubstitute": "[5.3.0, )",
           "Scriban": "[7.2.5, )",
           "Shouldly": "[4.3.0, )",
-          "System.Security.Cryptography.Xml": "[10.0.13, )",
+          "System.Security.Cryptography.Xml": "[10.0.15, )",
           "Volo.Abp.Authorization": "[10.0.2, )",
           "Volo.Abp.Autofac": "[10.0.2, )",
           "Volo.Abp.BackgroundJobs.Abstractions": "[10.0.2, )",
