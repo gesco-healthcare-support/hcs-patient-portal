@@ -102,7 +102,7 @@ ENTRYPOINT ["/usr/local/bin/dev-restore-run.sh", "src/HealthcareSupport.CaseEval
 # 2026-09-25 (decision 17) the sdk build/dev stages above are pinned the same way.
 # SonarCloud's docker:S8431 objects to carrying both a tag and a digest; the
 # argument for keeping them is with the docker ecosystem entry in that file.
-FROM mcr.microsoft.com/dotnet/aspnet:10.0@sha256:d5633778c754e89a386882eddf8dbee6942447a8a4b8267c19cf1e1158d0b0ac AS prod
+FROM mcr.microsoft.com/dotnet/aspnet:10.0@sha256:bfd912c83295ce66d4b706ebb8541b9f14259b0e76fbb88b2751f58ce2399d2e AS prod
 WORKDIR /app
 COPY --from=build --chown=app:app /app/publish .
 # NON-ROOT RUNTIME (#701). Every image in this repo ran its process as uid 0,
