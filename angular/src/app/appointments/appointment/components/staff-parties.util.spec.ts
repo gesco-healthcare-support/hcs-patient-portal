@@ -150,13 +150,18 @@ describe('staff-parties.util', () => {
   });
 
   describe('partiesPayloadProblem', () => {
-    it('asks for the email of a party being added', () => {
+    it('asks for the email of an attorney being added', () => {
       const message = partiesPayloadProblem({
         defenseAttorney: { remove: false, firmName: 'TEST-Firm' },
-        claimExaminer: { remove: false, name: 'TEST-Cleo' },
       });
 
-      expect(message).toContain('defense attorney and claim examiner');
+      expect(message).toContain('defense attorney');
+    });
+
+    it('does not ask for a claim examiner email (a law-office booking may have none)', () => {
+      expect(
+        partiesPayloadProblem({ claimExaminer: { remove: false, name: 'TEST-Cleo' } }),
+      ).toBeNull();
     });
 
     it('asks for the firm name of an attorney being added', () => {

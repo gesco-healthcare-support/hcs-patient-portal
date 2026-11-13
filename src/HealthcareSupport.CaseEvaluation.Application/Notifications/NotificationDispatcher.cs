@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.EmailStops;
+using HealthcareSupport.CaseEvaluation.Validation;
 using HealthcareSupport.CaseEvaluation.Notifications.Outbox;
 using Microsoft.Extensions.Logging;
 using Volo.Abp;
@@ -101,6 +102,12 @@ public class NotificationDispatcher : INotificationDispatcher, IPacketCopyDispat
             return;
         }
 
+        recipients = WithoutPlaceholders(recipients, templateCode, contextTag);
+        if (recipients.Count == 0)
+        {
+            return;
+        }
+
         var remaining = await WithoutStoppedAsync(notificationCase, templateCode, recipients, contextTag);
         if (remaining.Count == 0)
         {
@@ -136,6 +143,12 @@ public class NotificationDispatcher : INotificationDispatcher, IPacketCopyDispat
         Check.NotNull(packetRefs, nameof(packetRefs));
 
         if (recipients.Count == 0 || packetRefs.Count == 0)
+        {
+            return;
+        }
+
+        recipients = WithoutPlaceholders(recipients, templateCode, contextTag);
+        if (recipients.Count == 0)
         {
             return;
         }
@@ -215,6 +228,26 @@ public class NotificationDispatcher : INotificationDispatcher, IPacketCopyDispat
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
+        // 2026-11-13: a placeholder address (unknown@..., na@...) is never mailed. A placeholder To hands the
+        // email to the first real CC; when nobody real is left nothing is written.
+        var realCc = WithoutPlaceholders(
+            ccEmails.Select(e => new NotificationRecipient { Email = e }).ToList(), templateCode, contextTag)
+            .Select(r => r.Email)
+            .ToList();
+        if (!EmailStopPolicy.IsNeverStopped(templateCode) && PlaceholderEmail.IsPlaceholder(to.Email))
+        {
+            LogPlaceholderDropped(contextTag, to.Role);
+            if (realCc.Count == 0)
+            {
+                return;
+            }
+
+            to = new NotificationRecipient { Email = realCc[0] };
+            realCc = realCc.Skip(1).ToList();
+        }
+
+        ccEmails = realCc;
+
         // 2026-11-05: a stopped To hands the email to the first remaining CC; a stopped CC is left off; when
         // nobody is left the email is not written. One lookup covers the To and every CC.
         var stops = await LookupStopsAsync(notificationCase, templateCode, ccEmails.Prepend(to.Email));
@@ -247,6 +280,44 @@ public class NotificationDispatcher : INotificationDispatcher, IPacketCopyDispat
             emailStopCheck: !EmailStopPolicy.IsNeverStopped(templateCode),
             emailStopCaseId: notificationCase.AppointmentId);
         await ScheduleDrainAsync(tenantId);
+    }
+
+    // 2026-11-13: placeholder addresses already stored on a case (a live case has unknown@...) must never be
+    // mailed, whatever wrote them. One warning per dropped recipient, with the context tag and the role only:
+    // never the address, and never a template code.
+    private IReadOnlyCollection<NotificationRecipient> WithoutPlaceholders(
+        IReadOnlyCollection<NotificationRecipient> recipients, string templateCode, string contextTag)
+    {
+        // Self-service account mail (activation, password reset and change) goes to the person's own login,
+        // which may legitimately look like a placeholder (na@firm.com); it is exempt, for the same lock-out
+        // reason email stops exempt it.
+        if (EmailStopPolicy.IsNeverStopped(templateCode)
+            || !recipients.Any(r => PlaceholderEmail.IsPlaceholder(r.Email)))
+        {
+            return recipients;
+        }
+
+        var kept = new List<NotificationRecipient>();
+        foreach (var recipient in recipients)
+        {
+            if (PlaceholderEmail.IsPlaceholder(recipient.Email))
+            {
+                LogPlaceholderDropped(contextTag, recipient.Role);
+                continue;
+            }
+
+            kept.Add(recipient);
+        }
+
+        return kept;
+    }
+
+    private void LogPlaceholderDropped(string contextTag, HealthcareSupport.CaseEvaluation.Appointments.Notifications.RecipientRole? role)
+    {
+        _logger.LogWarning(
+            "NotificationDispatcher: a placeholder recipient was left off ({Context}, role {Role}).",
+            contextTag,
+            role?.ToString() ?? "unknown");
     }
 
     // T10: writes one Pending outbox row (idempotent by key) in the current UoW

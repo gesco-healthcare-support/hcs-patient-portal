@@ -1,3 +1,4 @@
+import { PLACEHOLDER_EMAIL_MESSAGE } from '../../shared/placeholder-email';
 import { CommonModule } from '@angular/common';
 import {
   ChangeDetectionStrategy,
@@ -63,6 +64,8 @@ import { Observable, Subscription } from 'rxjs';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AppointmentAddAttorneySectionComponent implements OnChanges, OnDestroy {
+  readonly placeholderEmailMessage = PLACEHOLDER_EMAIL_MESSAGE;
+
   @Input({ required: true }) form!: FormGroup;
   @Input({ required: true }) role!: 'applicant' | 'defense';
   @Input({ required: true }) getStateLookup!: (

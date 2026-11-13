@@ -64,6 +64,9 @@
             @if (form.get('email')?.touched && form.get('email')?.hasError('email')) {
               <div class="text-danger small mt-1">Enter a valid email address.</div>
             }
+            @if (form.get('email')?.touched && form.get('email')?.hasError('placeholderEmail')) {
+              <div class="text-danger small mt-1">{{ placeholderEmailMessage }}</div>
+            }
           </div>
 
           <div class="col-md-6">

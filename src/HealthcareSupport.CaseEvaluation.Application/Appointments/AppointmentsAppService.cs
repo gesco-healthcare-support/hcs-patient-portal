@@ -778,6 +778,20 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // 2026-11-04 (office decisions 1 and 2): refuse a bad mail choice before anything is written.
         var mailChoices = AppointmentMailChoices.Validate(input, CurrentUser.Roles, CurrentUser.GetVerifiedEmail());
 
+        // 2026-11-13: a placeholder email (unknown@..., na@..., xxx@...) is refused before anything is written.
+        PartyEmailGuard.EnsureNoPlaceholder(PartyEmailGuard.SubmitEmails(input));
+
+        // 2026-11-13: a blank claim examiner email is accepted only from a law-office booker who gave the other
+        // side's attorney a real email. Judged here, before any write, from the caller's ROLES; the child
+        // service applies the same rule again against the stored appointment.
+        if (input.ClaimExaminer != null
+            && string.IsNullOrWhiteSpace(input.ClaimExaminer.Email)
+            && !ClaimExaminerEmailRule.MayLeaveBlank(
+                CurrentUser.Roles, input.ApplicantAttorneyEmail, input.DefenseAttorneyEmail))
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentClaimExaminerEmailRequired);
+        }
+
         try
         {
             // 2026-11-06: the source is resolved FIRST. A re-evaluation proven by the patient's date
@@ -1340,6 +1354,12 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
             throw new UserFriendlyException(L["Appointment:DuplicateStakeholderEmail"]);
         }
 
+        // 2026-11-13: the shared create path (also reached by the older create and re-submit calls).
+        PartyEmailGuard.EnsureNoPlaceholder(new[]
+        {
+            input.PatientEmail, input.ApplicantAttorneyEmail, input.DefenseAttorneyEmail, input.ClaimExaminerEmail,
+        });
+
         var patient = await _patientRepository.FindAsync(input.PatientId);
         if (patient == null)
         {
@@ -1487,7 +1507,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         appointment.PatientEmail = input.PatientEmail;
         appointment.ApplicantAttorneyEmail = input.ApplicantAttorneyEmail;
         appointment.DefenseAttorneyEmail = input.DefenseAttorneyEmail;
-        appointment.ClaimExaminerEmail = resolvedClaimExaminerEmail;
+        appointment.ClaimExaminerEmail = string.IsNullOrWhiteSpace(resolvedClaimExaminerEmail) ? null : resolvedClaimExaminerEmail;
         // Item 5 (2026-08-14): freeze the patient's demographics onto the appointment
         // for the same reason the emails above are snapshotted -- the appointment is a
         // legal record of what was served, so a later edit to the shared Patient row

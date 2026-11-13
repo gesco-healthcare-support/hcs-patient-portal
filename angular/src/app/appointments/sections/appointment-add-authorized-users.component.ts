@@ -1,3 +1,7 @@
+import {
+  placeholderEmailValidator,
+  PLACEHOLDER_EMAIL_MESSAGE,
+} from '../../shared/placeholder-email';
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
 import { LocalizationPipe } from '@abp/ng.core';
@@ -99,6 +103,8 @@ export class AppointmentAddAuthorizedUsersComponent {
     return authorizedUserRoleLabel(role, this.externalBooker);
   }
 
+  readonly placeholderEmailMessage = PLACEHOLDER_EMAIL_MESSAGE;
+
   isAuthorizedUserModalOpen = false;
   authorizedUserModalMode: 'create' | 'edit' = 'create';
   editingAuthorizedUserIndex = -1;
@@ -107,7 +113,10 @@ export class AppointmentAddAuthorizedUsersComponent {
   readonly authorizedUserForm = this.fb.group({
     firstName: ['', [Validators.maxLength(64)]],
     lastName: ['', [Validators.maxLength(64)]],
-    email: ['', [Validators.required, Validators.email, Validators.maxLength(256)]],
+    email: [
+      '',
+      [Validators.required, Validators.email, Validators.maxLength(256), placeholderEmailValidator],
+    ],
     userRole: ['', [Validators.required]],
     accessTypeId: [23, [Validators.required]],
   });

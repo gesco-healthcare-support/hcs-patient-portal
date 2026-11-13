@@ -64,6 +64,14 @@ public static class CaseEvaluationExceptionStatusCodeMappings
             CaseEvaluationDomainErrorCodes.AppointmentAccessorOtherSideNotAllowed,
             HttpStatusCode.BadRequest);
 
+        // 2026-11-13: placeholder party emails, and the claim examiner email rule.
+        options.Map(
+            CaseEvaluationDomainErrorCodes.AppointmentPlaceholderEmail,
+            HttpStatusCode.BadRequest);
+        options.Map(
+            CaseEvaluationDomainErrorCodes.AppointmentClaimExaminerEmailRequired,
+            HttpStatusCode.BadRequest);
+
         // Internal-user (IT-Admin) creation flow.
         options.Map(
             CaseEvaluationDomainErrorCodes.InternalUserInvalidRole,

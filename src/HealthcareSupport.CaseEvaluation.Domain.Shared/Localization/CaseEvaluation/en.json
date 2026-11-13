@@ -345,6 +345,8 @@
     "CaseEvaluation:Appointment.AttorneyMailRedirectAttorneyOnly": "Only the attorney named on this case can send its notifications to a paralegal / case manager.",
     "CaseEvaluation:Appointment.AttorneyMailRedirectNeedsParalegal": "Add your paralegal / case manager as an Authorized User before sending this case's notifications to them.",
     "CaseEvaluation:Appointment.AccessorOtherSideNotAllowed": "You can add or remove people of your own side of the case only.",
+    "CaseEvaluation:Appointment.PlaceholderEmail": "This looks like a placeholder email (for example unknown@...). Enter the person's real email address, or leave the field blank if it is optional.",
+    "CaseEvaluation:Appointment.ClaimExaminerEmailRequired": "Enter the claim examiner's email address. It can be left blank only when you are booking for a law office and have entered the other side's attorney email.",
     "CaseEvaluation:EmailStop.InternalAddress": "This address belongs to our own office or staff, so its emails can't be stopped here.",
     "CaseEvaluation:EmailStop.InvalidEmail": "Enter a valid email address.",
     "CaseEvaluation:Appointment.AccessorRoleMismatch": "The accessor '{email}' is already registered with a different user type. Select the correct accessor type and try again.",

@@ -1,3 +1,4 @@
+import { isPlaceholderEmail, PLACEHOLDER_EMAIL_MESSAGE } from '../../../shared/placeholder-email';
 import { FormControl, FormGroup, Validators } from '@angular/forms';
 import { RestService } from '@abp/ng.core';
 import { firstValueFrom } from 'rxjs';
@@ -114,7 +115,29 @@ export class StaffPartiesEditor {
     if (this.claimExaminerForm.invalid) {
       return 'Check the claim examiner details: the email address is not valid.';
     }
-    return partiesPayloadProblem(this.build(raw, applicantAttorneyId, defenseAttorneyId).payload);
+    const { payload } = this.build(raw, applicantAttorneyId, defenseAttorneyId);
+    return partiesPayloadProblem(payload) ?? this.placeholderProblem(payload);
+  }
+
+  /**
+   * 2026-11-13: a placeholder email (unknown@..., na@...) is refused only when it is NEW or CHANGED since
+   * the edit began, so a case already holding one can still have an unrelated party edited and saved.
+   */
+  private placeholderProblem(payload: AppointmentPartiesUpdate): string | null {
+    const isNewPlaceholder = (value: unknown, initial: unknown): boolean => {
+      const typed = typeof value === 'string' ? value.trim().toLowerCase() : '';
+      const before = typeof initial === 'string' ? initial.trim().toLowerCase() : '';
+      return !!typed && typed !== before && isPlaceholderEmail(typed);
+    };
+    const checks: Array<[unknown, unknown]> = [
+      [payload.patientEmail, this.initialForm['patientEmail']],
+      [payload.applicantAttorney?.email, this.initialForm['applicantAttorneyEmail']],
+      [payload.defenseAttorney?.email, this.initialForm['defenseAttorneyEmail']],
+      [payload.claimExaminer?.email, this.initialClaimExaminer.email],
+    ];
+    return checks.some(([value, initial]) => isNewPlaceholder(value, initial))
+      ? PLACEHOLDER_EMAIL_MESSAGE
+      : null;
   }
 
   /** Sends the changes; resolves to the saved appointment, or null when nothing changed. */
