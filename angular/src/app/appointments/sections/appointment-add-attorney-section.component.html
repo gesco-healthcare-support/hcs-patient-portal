@@ -82,6 +82,9 @@
             [readonly]="isReadOnly"
             [class.is-invalid]="isFieldInvalid(prefix + 'Email')"
           />
+          @if (form.get(prefix + 'Email')?.hasError('placeholderEmail')) {
+            <div class="invalid-feedback d-block">{{ placeholderEmailMessage }}</div>
+          }
         </div>
         <div class="col-md-3 mb-3">
           <label [for]="role + '-attorney-firm-name'" class="form-label fw-semibold">

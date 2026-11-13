@@ -205,7 +205,11 @@
         @if (isFieldInvalid('email')) {
           <div class="invalid-feedback d-block">
             {{
-              form.get('email')?.hasError('email') ? 'Enter a valid email address.' : 'Required.'
+              form.get('email')?.hasError('placeholderEmail')
+                ? placeholderEmailMessage
+                : form.get('email')?.hasError('email')
+                  ? 'Enter a valid email address.'
+                  : 'Required.'
             }}
           </div>
         }

@@ -76,10 +76,10 @@ public class NotificationDispatcherCcUnitTests
         var to = new NotificationRecipient("booker@gesco.com", role: RecipientRole.Patient, isRegistered: true);
         var cc = new[]
         {
-            new NotificationRecipient("aa@gesco.com", role: RecipientRole.ApplicantAttorney),
-            new NotificationRecipient("da@gesco.com", role: RecipientRole.DefenseAttorney),
+            new NotificationRecipient("atty-a@gesco.com", role: RecipientRole.ApplicantAttorney),
+            new NotificationRecipient("atty-d@gesco.com", role: RecipientRole.DefenseAttorney),
             new NotificationRecipient("booker@gesco.com", role: RecipientRole.Patient), // == To -> dropped
-            new NotificationRecipient("AA@gesco.com", role: RecipientRole.ApplicantAttorney), // case-dup -> dropped
+            new NotificationRecipient("ATTY-A@gesco.com", role: RecipientRole.ApplicantAttorney), // case-dup -> dropped
         };
 
         await f.Dispatcher.DispatchToWithCcAsync(
@@ -92,8 +92,8 @@ public class NotificationDispatcherCcUnitTests
         row.Body.ShouldBe("Body");
         var ccList = row.GetCcList();
         ccList.Count.ShouldBe(2);
-        ccList.ShouldContain("aa@gesco.com");
-        ccList.ShouldContain("da@gesco.com");
+        ccList.ShouldContain("atty-a@gesco.com");
+        ccList.ShouldContain("atty-d@gesco.com");
         ccList.ShouldNotContain("booker@gesco.com");
     }
 

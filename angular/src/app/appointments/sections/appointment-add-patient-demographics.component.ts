@@ -1,3 +1,4 @@
+import { PLACEHOLDER_EMAIL_MESSAGE } from '../../shared/placeholder-email';
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormGroup, FormsModule, ReactiveFormsModule } from '@angular/forms';
@@ -80,6 +81,8 @@ import { PhoneNumberDirective } from '../../shared/phone-number.directive';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AppointmentAddPatientDemographicsComponent {
+  readonly placeholderEmailMessage = PLACEHOLDER_EMAIL_MESSAGE;
+
   @Input({ required: true }) form!: FormGroup;
 
   // F2 (2026-05-29): control-name map for the patient address autocomplete.

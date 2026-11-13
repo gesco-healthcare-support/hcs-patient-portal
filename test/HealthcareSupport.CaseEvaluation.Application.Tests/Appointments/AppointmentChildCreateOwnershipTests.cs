@@ -54,7 +54,8 @@ public sealed class AppointmentChildCreateOwnershipTests
             repo,
             manager,
             Substitute.For<IRepository<HealthcareSupport.CaseEvaluation.States.State, Guid>>(),
-            guard);
+            guard,
+            Substitute.For<IRepository<HealthcareSupport.CaseEvaluation.Appointments.Appointment, Guid>>());
 
         await Should.ThrowAsync<BusinessException>(async () =>
             await service.CreateAsync(new AppointmentClaimExaminerCreateDto { AppointmentId = TargetAppointment }));

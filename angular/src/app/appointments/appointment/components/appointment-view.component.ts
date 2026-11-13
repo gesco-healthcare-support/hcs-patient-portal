@@ -1,3 +1,7 @@
+import {
+  placeholderEmailValidator,
+  PLACEHOLDER_EMAIL_MESSAGE,
+} from '../../../shared/placeholder-email';
 import { followerNote } from '../../shared/case-follower.util';
 import {
   authorizedUserRoleLabel,
@@ -521,6 +525,8 @@ export class AppointmentViewComponent implements OnInit {
   // with appointment-add.component.ts. The ngOnInit block above now
   // uses the `wireAttorneySectionToggle` convenience wrapper.
 
+  /** Shown under an email field that holds a placeholder (unknown@..., na@...). */
+  readonly placeholderEmailMessage = PLACEHOLDER_EMAIL_MESSAGE;
   // #122 (2026-05-14): authorized-user modal sub-form. Kept separate from
   // `form` because it represents draft state for a per-row append/edit
   // operation that submits via its own POST/PUT, not via save().
@@ -530,7 +536,10 @@ export class AppointmentViewComponent implements OnInit {
     identityUserId: [null as string | null],
     firstName: ['', [Validators.maxLength(64)]],
     lastName: ['', [Validators.maxLength(64)]],
-    email: ['', [Validators.required, Validators.email, Validators.maxLength(256)]],
+    email: [
+      '',
+      [Validators.required, Validators.email, Validators.maxLength(256), placeholderEmailValidator],
+    ],
     userRole: ['', [Validators.required]],
     accessTypeId: [23 as number, [Validators.required]],
   });

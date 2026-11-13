@@ -1,3 +1,4 @@
+import { PLACEHOLDER_EMAIL_MESSAGE } from '../../shared/placeholder-email';
 import { CommonModule } from '@angular/common';
 import { Component, Input } from '@angular/core';
 import { FormGroup, ReactiveFormsModule } from '@angular/forms';
@@ -46,6 +47,11 @@ export class AppointmentAddClaimPartiesSectionComponent {
   // Examiner card, or both (default -- the legacy form). Lets the wizard show
   // insurance and examiner as two separate steps without a new component.
   @Input() only: 'both' | 'insurance' | 'examiner' = 'both';
+  // 2026-11-13: false when the examiner email is optional (law-office booker who gave the other side's
+  // attorney email). The wizard computes it; the server applies the same rule from the caller's roles.
+  @Input() emailRequired = true;
+
+  readonly placeholderEmailMessage = PLACEHOLDER_EMAIL_MESSAGE;
 
   readonly insuranceAddressFields: AddressFieldMap = {
     street: 'appointmentInsuranceStreet',

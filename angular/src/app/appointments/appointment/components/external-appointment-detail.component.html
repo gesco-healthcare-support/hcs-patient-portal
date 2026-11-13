@@ -1126,6 +1126,9 @@
                   maxlength="256"
                   placeholder="name@example.com"
                 />
+                @if (authorizedUserForm.get('email')?.hasError('placeholderEmail')) {
+                  <div class="text-danger small mt-1">{{ placeholderEmailMessage }}</div>
+                }
               </div>
               <div class="ra-field col-6">
                 <label for="ead-user-role">
