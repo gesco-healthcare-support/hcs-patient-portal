@@ -178,4 +178,43 @@ public class NotificationDispatcherPlaceholderTests
 
         f.Rows.ShouldBeEmpty();
     }
+
+    /// <summary>
+    /// Self-service account mail goes to the person's own login, which may look like a placeholder
+    /// (na@firm.com): it is still written, in all three dispatch methods. The same address on a case
+    /// template is dropped (the control).
+    /// </summary>
+    [Theory]
+    [InlineData("AccountActivation")]
+    [InlineData("ResetPassword")]
+    [InlineData("PasswordChange")]
+    public async Task AccountMail_ToAPlaceholderShapedLogin_IsStillWritten_ButCaseMailIsDropped(string accountTemplate)
+    {
+        var f = Build();
+        var packet = new HealthcareSupport.CaseEvaluation.Appointments.PacketAttachmentRef
+        {
+            AppointmentId = Guid.NewGuid(),
+            PacketId = Guid.NewGuid(),
+            Kind = HealthcareSupport.CaseEvaluation.AppointmentDocuments.PacketKind.AttorneyClaimExaminer,
+        };
+
+        await f.Dispatcher.DispatchAsync(
+            NotificationCase.None, accountTemplate, new[] { R("na@firm.test") },
+            new Dictionary<string, object?>(), "TEST-acct/1");
+        await f.Dispatcher.DispatchWithPacketsAsync(
+            NotificationCase.None, accountTemplate, new[] { R("abc@firm.test") },
+            new Dictionary<string, object?>(), "TEST-acct/2", new[] { packet });
+        await f.Dispatcher.DispatchToWithCcAsync(
+            NotificationCase.None, accountTemplate, R("temp@firm.test"), Array.Empty<NotificationRecipient>(),
+            new Dictionary<string, object?>(), "TEST-acct/3");
+
+        f.Rows.Select(r => r.To).ShouldBe(new[] { "na@firm.test", "abc@firm.test", "temp@firm.test" }, ignoreOrder: true);
+        f.Log.Warnings.ShouldBeEmpty();
+
+        // Control: the same placeholder-shaped address on a case template is dropped.
+        await f.Dispatcher.DispatchAsync(
+            NotificationCase.None, TemplateCode, new[] { R("na@firm.test") },
+            new Dictionary<string, object?>(), "TEST-case/4");
+        f.Rows.Count.ShouldBe(3);
+    }
 }

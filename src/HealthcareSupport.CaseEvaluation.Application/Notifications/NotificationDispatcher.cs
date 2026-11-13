@@ -102,7 +102,7 @@ public class NotificationDispatcher : INotificationDispatcher, IPacketCopyDispat
             return;
         }
 
-        recipients = WithoutPlaceholders(recipients, contextTag);
+        recipients = WithoutPlaceholders(recipients, templateCode, contextTag);
         if (recipients.Count == 0)
         {
             return;
@@ -147,7 +147,7 @@ public class NotificationDispatcher : INotificationDispatcher, IPacketCopyDispat
             return;
         }
 
-        recipients = WithoutPlaceholders(recipients, contextTag);
+        recipients = WithoutPlaceholders(recipients, templateCode, contextTag);
         if (recipients.Count == 0)
         {
             return;
@@ -231,10 +231,10 @@ public class NotificationDispatcher : INotificationDispatcher, IPacketCopyDispat
         // 2026-11-13: a placeholder address (unknown@..., na@...) is never mailed. A placeholder To hands the
         // email to the first real CC; when nobody real is left nothing is written.
         var realCc = WithoutPlaceholders(
-            ccEmails.Select(e => new NotificationRecipient { Email = e }).ToList(), contextTag)
+            ccEmails.Select(e => new NotificationRecipient { Email = e }).ToList(), templateCode, contextTag)
             .Select(r => r.Email)
             .ToList();
-        if (PlaceholderEmail.IsPlaceholder(to.Email))
+        if (!EmailStopPolicy.IsNeverStopped(templateCode) && PlaceholderEmail.IsPlaceholder(to.Email))
         {
             LogPlaceholderDropped(contextTag, to.Role);
             if (realCc.Count == 0)
@@ -286,9 +286,13 @@ public class NotificationDispatcher : INotificationDispatcher, IPacketCopyDispat
     // mailed, whatever wrote them. One warning per dropped recipient, with the context tag and the role only:
     // never the address, and never a template code.
     private IReadOnlyCollection<NotificationRecipient> WithoutPlaceholders(
-        IReadOnlyCollection<NotificationRecipient> recipients, string contextTag)
+        IReadOnlyCollection<NotificationRecipient> recipients, string templateCode, string contextTag)
     {
-        if (!recipients.Any(r => PlaceholderEmail.IsPlaceholder(r.Email)))
+        // Self-service account mail (activation, password reset and change) goes to the person's own login,
+        // which may legitimately look like a placeholder (na@firm.com); it is exempt, for the same lock-out
+        // reason email stops exempt it.
+        if (EmailStopPolicy.IsNeverStopped(templateCode)
+            || !recipients.Any(r => PlaceholderEmail.IsPlaceholder(r.Email)))
         {
             return recipients;
         }
