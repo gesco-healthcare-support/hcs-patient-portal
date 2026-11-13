@@ -9,7 +9,7 @@ public class AppointmentClaimExaminerUpdateDto : IHasConcurrencyStamp
 {
     public Guid AppointmentId { get; set; }
 
-    // CI1 (2026-06-05): CE required -- Name + Email mandatory on a CE record.
+    // CI1 (2026-06-05): CE required -- Name mandatory (Email: see below) on a CE record.
     [Required]
     [StringLength(AppointmentClaimExaminerConsts.NameMaxLength)]
     public string? Name { get; set; }
@@ -17,7 +17,8 @@ public class AppointmentClaimExaminerUpdateDto : IHasConcurrencyStamp
     [StringLength(AppointmentClaimExaminerConsts.SuiteMaxLength)]
     public string? Suite { get; set; }
 
-    [Required]
+    // 2026-11-13: optional for a law-office booker who gave the other side's attorney email. The server
+    // enforces when it may be blank (ClaimExaminerEmailRule); everyone else still has to supply it.
     [StringLength(AppointmentClaimExaminerConsts.EmailMaxLength)]
     public string? Email { get; set; }
 

@@ -8,8 +8,8 @@ public class AppointmentClaimExaminerCreateDto
 {
     public Guid AppointmentId { get; set; }
 
-    // CI1 (2026-06-05): CE is required on every booking, so Name + Email are
-    // mandatory when a CE record is created. Insurance stays optional.
+    // CI1 (2026-06-05): CE is required on every booking, so Name is
+    // mandatory when a CE record is created (Email: see below). Insurance stays optional.
     [Required]
     [StringLength(AppointmentClaimExaminerConsts.NameMaxLength)]
     public string? Name { get; set; }
@@ -17,7 +17,8 @@ public class AppointmentClaimExaminerCreateDto
     [StringLength(AppointmentClaimExaminerConsts.SuiteMaxLength)]
     public string? Suite { get; set; }
 
-    [Required]
+    // 2026-11-13: optional for a law-office booker who gave the other side's attorney email. The server
+    // enforces when it may be blank (ClaimExaminerEmailRule); everyone else still has to supply it.
     [StringLength(AppointmentClaimExaminerConsts.EmailMaxLength)]
     public string? Email { get; set; }
 

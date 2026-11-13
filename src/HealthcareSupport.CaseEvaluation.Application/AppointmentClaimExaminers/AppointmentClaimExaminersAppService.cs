@@ -12,6 +12,7 @@ using Volo.Abp.Application.Dtos;
 using Volo.Abp.Application.Services;
 using Volo.Abp.Domain.Repositories;
 using HealthcareSupport.CaseEvaluation.Permissions;
+using HealthcareSupport.CaseEvaluation.Validation;
 
 namespace HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers;
 
@@ -23,13 +24,16 @@ public class AppointmentClaimExaminersAppService : CaseEvaluationAppService, IAp
     protected AppointmentClaimExaminerManager _manager;
     protected IRepository<HealthcareSupport.CaseEvaluation.States.State, Guid> _stateRepository;
     protected AppointmentChildOwnershipGuard _childOwnershipGuard;
+    protected IRepository<Appointment, Guid> _appointmentRepository;
 
     public AppointmentClaimExaminersAppService(
         IRepository<AppointmentClaimExaminer, Guid> repository,
         AppointmentClaimExaminerManager manager,
         IRepository<HealthcareSupport.CaseEvaluation.States.State, Guid> stateRepository,
-        AppointmentChildOwnershipGuard childOwnershipGuard)
+        AppointmentChildOwnershipGuard childOwnershipGuard,
+        IRepository<Appointment, Guid> appointmentRepository)
     {
+        _appointmentRepository = appointmentRepository;
         _repository = repository;
         _manager = manager;
         _stateRepository = stateRepository;
@@ -98,12 +102,13 @@ public class AppointmentClaimExaminersAppService : CaseEvaluationAppService, IAp
         // creator (AccessPathway.Creator; see AppointmentChildOwnershipGuard.EnsureIsPartyAsync for why that is permanent).
         // Checked FIRST, before any other lookup, so a non-party is refused the same way whatever they send.
         await _childOwnershipGuard.EnsureIsPartyAsync(input.AppointmentId);
+        await EnsureEmailAllowedAsync(input.AppointmentId, input.Email, storedEmail: null, isNewRow: true);
         var entity = await _manager.CreateAsync(
             input.AppointmentId,
             input.IsActive,
             input.Name,
             input.Suite,
-            input.Email,
+            NullIfBlank(input.Email),
             input.PhoneNumber,
             input.Fax,
             input.Street,
@@ -126,6 +131,7 @@ public class AppointmentClaimExaminersAppService : CaseEvaluationAppService, IAp
         // write to somebody else's row. Every external role holds this service's Edit permission.
         var existingChild = await _repository.GetAsync(id);
         await _childOwnershipGuard.EnsureCanWriteChildAsync(existingChild.AppointmentId, input.AppointmentId);
+        await EnsureEmailAllowedAsync(existingChild.AppointmentId, input.Email, existingChild.Email, isNewRow: false);
 
         var entity = await _manager.UpdateAsync(
             id,
@@ -133,7 +139,7 @@ public class AppointmentClaimExaminersAppService : CaseEvaluationAppService, IAp
             input.IsActive,
             input.Name,
             input.Suite,
-            input.Email,
+            NullIfBlank(input.Email),
             input.PhoneNumber,
             input.Fax,
             input.Street,
@@ -142,5 +148,40 @@ public class AppointmentClaimExaminersAppService : CaseEvaluationAppService, IAp
             input.StateId,
             input.ConcurrencyStamp);
         return ObjectMapper.Map<AppointmentClaimExaminer, AppointmentClaimExaminerDto>(entity);
+    }
+
+    private static string? NullIfBlank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    /// <summary>
+    /// 2026-11-13. The email is optional only for a law-office booker who gave the other side's attorney a
+    /// real email (<see cref="ClaimExaminerEmailRule"/>); a row already saved with no email can be saved
+    /// again without one, so an old booking never blocks an unrelated edit. A placeholder (unknown@...) is
+    /// refused when the value is new or changed, never because of what is already stored.
+    /// </summary>
+    private async Task EnsureEmailAllowedAsync(Guid appointmentId, string? email, string? storedEmail, bool isNewRow)
+    {
+        var typed = NullIfBlank(email);
+        if (typed == null)
+        {
+            if (!isNewRow && string.IsNullOrWhiteSpace(storedEmail))
+            {
+                return;
+            }
+
+            var appointment = await _appointmentRepository.GetAsync(appointmentId);
+            if (!ClaimExaminerEmailRule.MayLeaveBlank(
+                    CurrentUser.Roles, appointment.ApplicantAttorneyEmail, appointment.DefenseAttorneyEmail))
+            {
+                throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentClaimExaminerEmailRequired);
+            }
+
+            return;
+        }
+
+        var unchanged = !isNewRow && string.Equals(typed, storedEmail?.Trim(), StringComparison.OrdinalIgnoreCase);
+        if (!unchanged && PlaceholderEmail.IsPlaceholder(typed))
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentPlaceholderEmail);
+        }
     }
 }

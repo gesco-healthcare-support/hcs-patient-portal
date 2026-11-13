@@ -224,7 +224,7 @@ public abstract class ExternalSignupInviteIssueTests<TStartupModule>
         await Should.NotThrowAsync(
             async () => await _appService.SendPortalLinkAsync(new SendPortalLinkInput
             {
-                Email = $"nobody-{token}@test.local",
+                Email = $"absent-{token}@test.local",
                 TenantId = TenantsTestData.TenantARef,
             }),
             "An address with no account must be a silent no-op. Staff already learn from the invite "
