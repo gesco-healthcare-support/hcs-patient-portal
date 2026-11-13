@@ -140,6 +140,7 @@ CaseEvaluation.SystemParameters side=Both host=IT Admin, admin office=Intake Sta
 CaseEvaluation.SystemParameters.Edit side=Both host=IT Admin, admin office=Staff Supervisor, admin
 CaseEvaluation.UserManagement side=Both host=IT Admin, admin office=Intake Staff, Staff Supervisor, admin
 CaseEvaluation.UserManagement.InviteExternalUser side=Both host=IT Admin, admin office=Intake Staff, Staff Supervisor, admin
+CaseEvaluation.UserManagement.SwitchOffExternalUser side=Tenant host=- office=Staff Supervisor, admin
 CaseEvaluation.UserSignatures side=Both host=IT Admin, admin office=Intake Staff, Staff Supervisor, admin
 CaseEvaluation.UserSignatures.ManageOwn side=Both host=IT Admin, admin office=Intake Staff, Staff Supervisor, admin
 CaseEvaluation.WcabOffices side=Both host=IT Admin, admin office=Intake Staff, Staff Supervisor, admin

@@ -42,6 +42,7 @@ import {
   userTypeFromName,
 } from './users-hub.util';
 import { EmailStopsPageComponent } from '../email-stops/email-stops-page.component';
+import { ExternalLoginsPageComponent } from '../external-logins/external-logins-page.component';
 import { TenantFormState, UsersSectionGateway } from './users-section.gateway';
 
 import { PacificDatePipe } from '../shared/pipes/pacific-date.pipe';
@@ -124,6 +125,7 @@ const COPY_FAILED_AFTER_RESEND = 'The new invite link could not be copied.';
     RouterLink,
     RouterOutlet,
     EmailStopsPageComponent,
+    ExternalLoginsPageComponent,
     IconComponent,
     OfficeNamePipe,
     ManagedTableComponent,

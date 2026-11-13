@@ -255,6 +255,16 @@ const INTERNAL_SHELL_CHILDREN: Routes = [
         data: { section: 'emailStops', requiredPolicy: 'CaseEvaluation.EmailStops' },
       },
       {
+        path: 'outside-logins',
+        loadComponent: () =>
+          import('./users/internal-users-hub.component').then((c) => c.InternalUsersHubComponent),
+        canActivate: [authGuard, permissionGuard],
+        data: {
+          section: 'externalLogins',
+          requiredPolicy: 'CaseEvaluation.UserManagement.SwitchOffExternalUser',
+        },
+      },
+      {
         path: 'internal',
         loadComponent: () =>
           import('./users/internal-users-hub.component').then((c) => c.InternalUsersHubComponent),
