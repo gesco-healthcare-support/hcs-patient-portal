@@ -246,8 +246,9 @@ export function partiesPayloadProblem(payload: AppointmentPartiesUpdate): string
   const parties: Array<[string, { email?: string } | null | undefined]> = [
     ['applicant attorney', payload.applicantAttorney],
     ['defense attorney', payload.defenseAttorney],
-    ['claim examiner', payload.claimExaminer],
   ];
+  // 2026-11-13: the claim examiner email is no longer required here -- a case booked by a law office may
+  // legitimately have none, and staff must still be able to save it. A typed value is checked by the editor.
   const missing = parties
     .filter(([, change]) => kept(change as { remove: boolean }) && !change?.email)
     .map(([label]) => label);

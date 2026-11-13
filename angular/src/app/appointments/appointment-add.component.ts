@@ -13,6 +13,8 @@ import {
 } from 'rxjs/operators';
 import { firstValueFrom, Observable, of } from 'rxjs';
 import { applyAttorneySectionValidators } from './shared/attorney-section-validators';
+import { claimExaminerEmailMayBeBlank } from './shared/claim-examiner-email.util';
+import { placeholderEmailValidator } from '../shared/placeholder-email';
 import { attorneyQuestionText, resolveAttorneyToggleAction } from './shared/attorney-question.util';
 import {
   clearPrefillSection,
@@ -887,7 +889,7 @@ export class AppointmentAddComponent {
       null as string | null,
       // task_d5407b22 (2026-07-21): patient email is optional (injured workers often lack
       // one); applyConditionalPatientEmailValidator keeps it non-required. Format + length only.
-      [Validators.maxLength(50), Validators.email],
+      [Validators.maxLength(50), Validators.email, placeholderEmailValidator],
     ],
     genderId: [null as number | null],
     // OLD parity (live audit 2026-05-07): DOB is required for every
@@ -926,7 +928,10 @@ export class AppointmentAddComponent {
     applicantAttorneyIdentityUserId: [null as string | null],
     applicantAttorneyFirstName: [null as string | null, [Validators.maxLength(50)]],
     applicantAttorneyLastName: [null as string | null, [Validators.maxLength(50)]],
-    applicantAttorneyEmail: [null as string | null, [Validators.maxLength(50), Validators.email]],
+    applicantAttorneyEmail: [
+      null as string | null,
+      [Validators.maxLength(50), Validators.email, placeholderEmailValidator],
+    ],
     // 2026-10-27: 256, the attorney record's limit since then (real firm names run past 50).
     applicantAttorneyFirmName: [null as string | null, [Validators.maxLength(256)]],
     applicantAttorneyWebAddress: [null as string | null, [Validators.maxLength(100)]],
@@ -944,7 +949,10 @@ export class AppointmentAddComponent {
     defenseAttorneyIdentityUserId: [null as string | null],
     defenseAttorneyFirstName: [null as string | null, [Validators.maxLength(50)]],
     defenseAttorneyLastName: [null as string | null, [Validators.maxLength(50)]],
-    defenseAttorneyEmail: [null as string | null, [Validators.maxLength(50), Validators.email]],
+    defenseAttorneyEmail: [
+      null as string | null,
+      [Validators.maxLength(50), Validators.email, placeholderEmailValidator],
+    ],
     defenseAttorneyFirmName: [null as string | null, [Validators.maxLength(256)]],
     defenseAttorneyWebAddress: [null as string | null, [Validators.maxLength(100)]],
     defenseAttorneyPhoneNumber: [null as string | null, [Validators.maxLength(20)]],
@@ -962,7 +970,10 @@ export class AppointmentAddComponent {
     // child FormGroup gets the same OLD-parity required treatment.
     claimExaminerEnabled: [false],
     claimExaminerName: [null as string | null, [Validators.maxLength(50)]],
-    claimExaminerEmail: [null as string | null, [Validators.maxLength(50), Validators.email]],
+    claimExaminerEmail: [
+      null as string | null,
+      [Validators.maxLength(50), Validators.email, placeholderEmailValidator],
+    ],
     // CI1 (2026-06-05): appointment-level Primary Insurance (optional) + Claim
     // Examiner (REQUIRED -- Name + Email) -- one each per appointment, replacing
     // the per-injury insurance/CE captured in the claim-information modal. CI2
@@ -986,7 +997,7 @@ export class AppointmentAddComponent {
     ],
     appointmentClaimExaminerEmail: [
       null as string | null,
-      [Validators.required, Validators.maxLength(50), Validators.email],
+      [Validators.required, Validators.maxLength(50), Validators.email, placeholderEmailValidator],
     ],
     appointmentClaimExaminerSuite: [null as string | null, [Validators.maxLength(255)]],
     // I12 (2026-06-08): Phone / Street / City / State / Zip required client-side
@@ -1216,6 +1227,18 @@ export class AppointmentAddComponent {
     this.applyConditionalEmailValidator('defenseAttorneyEmail', daInitialEnabled);
     applyAttorneySectionValidators(this.form, 'defenseAttorney', daInitialEnabled);
     this.applyConditionalEmailValidator('claimExaminerEmail', ceInitialEnabled);
+    // 2026-11-13: the claim examiner email is optional for a law-office booker once the other side's
+    // attorney email is given. Recomputed whenever either attorney section's toggle or email changes
+    // (these subscribers are added after the toggle handlers above, so they see the cleared values).
+    this.applyClaimExaminerEmailRule();
+    for (const name of [
+      'applicantAttorneyEnabled',
+      'applicantAttorneyEmail',
+      'defenseAttorneyEnabled',
+      'defenseAttorneyEmail',
+    ]) {
+      this.form.get(name)?.valueChanges.subscribe(() => this.applyClaimExaminerEmailRule());
+    }
     // 2026-06-11: set the patient-email required state for the initial booker
     // role + AA-enabled combination (recomputed on every AA toggle above).
     this.applyConditionalPatientEmailValidator();
@@ -1230,12 +1253,45 @@ export class AppointmentAddComponent {
     // OLD's behavior (see the comment on those methods).
   }
 
+  /** True while the claim examiner email is asked for (drives the label asterisk). */
+  claimExaminerEmailRequired = true;
+
+  /**
+   * 2026-11-13: makes the claim examiner email optional only for a law-office booker who has given the
+   * OTHER side's attorney a real email (see claimExaminerEmailMayBeBlank). Staff, patient and claim
+   * examiner bookers always keep it required. The server applies the same rule from the caller's roles.
+   */
+  private applyClaimExaminerEmailRule(): void {
+    const control = this.form.get('appointmentClaimExaminerEmail');
+    if (!control) return;
+    const bookerSide = this.isInternalBooker
+      ? null
+      : this.isApplicantSideBooker && !this.isDefenseSideBooker
+        ? 'applicant'
+        : this.isDefenseSideBooker && !this.isApplicantSideBooker
+          ? 'defense'
+          : null;
+    const other = bookerSide === 'applicant' ? 'defenseAttorney' : 'applicantAttorney';
+    const mayBeBlank = claimExaminerEmailMayBeBlank(bookerSide, {
+      enabled: !!this.form.get(other + 'Enabled')?.value,
+      email: this.form.get(other + 'Email')?.value as string | null,
+    });
+    this.claimExaminerEmailRequired = !mayBeBlank;
+    control.setValidators([
+      ...(mayBeBlank ? [] : [Validators.required]),
+      Validators.maxLength(50),
+      Validators.email,
+      placeholderEmailValidator,
+    ]);
+    control.updateValueAndValidity({ emitEvent: false });
+  }
+
   private applyConditionalEmailValidator(fieldName: string, required: boolean): void {
     const control = this.form.get(fieldName);
     if (!control) return;
     const validators = required
-      ? [Validators.required, Validators.email, Validators.maxLength(50)]
-      : [Validators.email, Validators.maxLength(50)];
+      ? [Validators.required, Validators.email, Validators.maxLength(50), placeholderEmailValidator]
+      : [Validators.email, Validators.maxLength(50), placeholderEmailValidator];
     control.setValidators(validators);
     control.updateValueAndValidity({ emitEvent: false });
   }
@@ -1252,7 +1308,7 @@ export class AppointmentAddComponent {
     const control = this.form.get('email');
     if (!control) return;
     this.patientEmailRequired = false;
-    control.setValidators([Validators.maxLength(50), Validators.email]);
+    control.setValidators([Validators.maxLength(50), Validators.email, placeholderEmailValidator]);
     control.updateValueAndValidity({ emitEvent: false });
   }
 

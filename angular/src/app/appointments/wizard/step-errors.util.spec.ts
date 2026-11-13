@@ -92,6 +92,12 @@ describe('step-errors.util', () => {
       expect(describeControlError({ required: true }).toLowerCase()).toContain('required');
     });
 
+    it('describes a placeholder email', () => {
+      expect(describeControlError({ placeholderEmail: true }).toLowerCase()).toContain(
+        'placeholder',
+      );
+    });
+
     it('describes an email error', () => {
       expect(describeControlError({ email: true }).toLowerCase()).toContain('email');
     });

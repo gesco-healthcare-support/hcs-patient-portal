@@ -160,6 +160,8 @@ public class AppointmentAccessorsAppService : CaseEvaluationAppService, IAppoint
         {
             throw new UserFriendlyException(L["The {0} field is required.", L["Role"]]);
         }
+        // 2026-11-13: a new Authorized User must have a real email (an accessor row is always new on create).
+        PartyEmailGuard.EnsureNoPlaceholder(new[] { input.Email });
 
         // Deny-by-default: only internal staff or the creator-attorney (AA/DA)
         // may add an accessor (blocks non-parties, Patient/CE creators, and the

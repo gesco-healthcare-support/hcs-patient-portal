@@ -130,7 +130,7 @@
           </div>
           <div class="col-md-6 mb-3">
             <label for="appointment-claim-examiner-email" class="form-label fw-semibold">
-              Email *
+              Email{{ emailRequired ? ' *' : '' }}
             </label>
             <input
               id="appointment-claim-examiner-email"
@@ -146,6 +146,12 @@
               form.get('appointmentClaimExaminerEmail')?.touched
             ) {
               <div class="invalid-feedback d-block">Claim Examiner email is required.</div>
+            }
+            @if (
+              form.get('appointmentClaimExaminerEmail')?.hasError('placeholderEmail') &&
+              form.get('appointmentClaimExaminerEmail')?.touched
+            ) {
+              <div class="invalid-feedback d-block">{{ placeholderEmailMessage }}</div>
             }
           </div>
           <div class="col-md-3 mb-3">

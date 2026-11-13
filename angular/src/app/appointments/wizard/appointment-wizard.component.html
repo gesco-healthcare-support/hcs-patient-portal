@@ -322,6 +322,7 @@
           <app-appointment-add-claim-parties-section
             [form]="form"
             only="examiner"
+            [emailRequired]="claimExaminerEmailRequired"
             [getStateLookup]="getStateLookup"
             [isFieldInvalid]="isFieldInvalidBound"
           />

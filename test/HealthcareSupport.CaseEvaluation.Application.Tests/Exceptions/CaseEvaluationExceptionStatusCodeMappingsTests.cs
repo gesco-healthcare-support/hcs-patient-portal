@@ -112,6 +112,14 @@ public class CaseEvaluationExceptionStatusCodeMappingsTests
             CaseEvaluationDomainErrorCodes.IntakeAssignmentOperatorInactive
         ].ShouldBe(HttpStatusCode.BadRequest);
 
+        // 2026-11-13: placeholder party emails and the claim examiner email rule show their message, not a 403.
+        options.ErrorCodeToHttpStatusCodeMappings[
+            CaseEvaluationDomainErrorCodes.AppointmentPlaceholderEmail
+        ].ShouldBe(HttpStatusCode.BadRequest);
+        options.ErrorCodeToHttpStatusCodeMappings[
+            CaseEvaluationDomainErrorCodes.AppointmentClaimExaminerEmailRequired
+        ].ShouldBe(HttpStatusCode.BadRequest);
+
         // Slot capacity edits (3 codes): the dialog shows the server's message, so none may be the default 403.
         options.ErrorCodeToHttpStatusCodeMappings[
             CaseEvaluationDomainErrorCodes.DoctorAvailabilityCannotReduceCapacityBelowBooked
@@ -138,10 +146,11 @@ public class CaseEvaluationExceptionStatusCodeMappingsTests
         options.ErrorCodeToHttpStatusCodeMappings[
             CaseEvaluationDomainErrorCodes.RegistrationFirmNameRequired
         ].ShouldBe(HttpStatusCode.BadRequest);
-        // Exactly 28 mappings (27 until the two Responsible User codes were retired on 2026-11-02,
+        // Exactly 30 mappings (28 until the two placeholder-email / claim-examiner-email codes were added on
+        // 2026-11-13; 27 until the two Responsible User codes were retired on 2026-11-02,
         // then 25; +3 on 2026-11-04 for the booker's mail choices and the same-side Authorized User
         // rule); no duplicate-key blow up.
-        options.ErrorCodeToHttpStatusCodeMappings.Count.ShouldBe(28);
+        options.ErrorCodeToHttpStatusCodeMappings.Count.ShouldBe(30);
     }
 
     /// <summary>

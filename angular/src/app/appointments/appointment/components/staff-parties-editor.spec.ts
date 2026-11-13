@@ -89,6 +89,31 @@ describe('StaffPartiesEditor', () => {
     expect(editor.problem({ ...loadedForm }, null, 'm')).toContain('claim examiner');
   });
 
+  it('refuses a NEW or changed placeholder email, never one that was already stored', () => {
+    // Unchanged old placeholder on the examiner, another field edited: fine.
+    const old = new StaffPartiesEditor(rest);
+    old.begin({ ...loadedForm }, { name: 'TEST-Cleo', email: 'unknown@gmail.com' });
+    old.claimExaminerForm.patchValue({ phoneNumber: '8185550123' });
+    expect(old.problem({ ...loadedForm }, null, 'm')).toBeNull();
+
+    // Changed to a placeholder: refused, for each party.
+    old.claimExaminerForm.patchValue({ email: 'na@gmail.com' });
+    expect(old.problem({ ...loadedForm }, null, 'm')).toContain('placeholder');
+
+    editor.cancel();
+    expect(editor.problem({ ...loadedForm, patientEmail: 'test@firm.test' }, null, 'm')).toContain(
+      'placeholder',
+    );
+    expect(
+      editor.problem({ ...loadedForm, defenseAttorneyEmail: 'xxx@firm.test' }, null, 'm'),
+    ).toContain('placeholder');
+  });
+
+  it('saves a claim examiner with no email', () => {
+    editor.claimExaminerForm.patchValue({ email: null, phoneNumber: '8185550123' });
+    expect(editor.problem({ ...loadedForm }, null, 'm')).toBeNull();
+  });
+
   it('shows the examiner as saved', () => {
     expect(editor.claimExaminerAfterSave(examiner, { claimExaminer: { remove: true } })).toBeNull();
     expect(editor.claimExaminerAfterSave(examiner, { claimExaminer: null })).toBe(examiner);

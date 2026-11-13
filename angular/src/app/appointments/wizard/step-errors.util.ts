@@ -191,6 +191,9 @@ export function describeControlError(errors: ValidationErrors | null): string {
   if (errors['email']) {
     return 'Enter a valid email address';
   }
+  if (errors['placeholderEmail']) {
+    return 'Enter the real email address (not a placeholder like unknown@...)';
+  }
   // ngbDatepicker reports a malformed / out-of-range typed date via ngbDate;
   // the shared US-date parser is the source (see UsDateParserFormatter).
   if (errors['ngbDate']) {

@@ -140,7 +140,13 @@
               @if (
                 authorizedUserForm.get('email')?.touched && authorizedUserForm.get('email')?.invalid
               ) {
-                <div class="text-danger small mt-1">Enter a valid email address.</div>
+                <div class="text-danger small mt-1">
+                  {{
+                    authorizedUserForm.get('email')?.hasError('placeholderEmail')
+                      ? placeholderEmailMessage
+                      : 'Enter a valid email address.'
+                  }}
+                </div>
               }
             </div>
             <div class="col-md-6">
