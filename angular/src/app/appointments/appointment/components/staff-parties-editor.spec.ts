@@ -105,7 +105,7 @@ describe('StaffPartiesEditor', () => {
       'placeholder',
     );
     expect(
-      editor.problem({ ...loadedForm, defenseAttorneyEmail: 'xx@firm.test' }, null, 'm'),
+      editor.problem({ ...loadedForm, defenseAttorneyEmail: 'xxx@firm.test' }, null, 'm'),
     ).toContain('placeholder');
   });
 

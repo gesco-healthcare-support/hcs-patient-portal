@@ -139,7 +139,7 @@ public partial class MultiOfficeAtomicBookingSubmitTests
             case "claim": input.ClaimExaminerEmail = "unknown@gmail.com"; break;
             case "claimRow": input.ClaimExaminer!.Email = "na@gmail.com"; break;
             case "patient": input.PatientEmail = "test@example.com"; break;
-            case "applicant": input.ApplicantAttorneyEmail = "xx@firm.test"; break;
+            case "applicant": input.ApplicantAttorneyEmail = "xxx@firm.test"; break;
             case "defenseRow": input.DefenseAttorney!.Email = "none@firm.test"; break;
             default:
                 input.Accessors = new List<AppointmentAccessorCreateDto>

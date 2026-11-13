@@ -6,13 +6,13 @@ namespace HealthcareSupport.CaseEvaluation.Validation;
 
 /// <summary>
 /// 2026-11-13 -- recognises the "I do not know it" email addresses people type into a required field
-/// (unknown@gmail.com, na@na.com, xx@x.com). Such an address looks valid, then receives real case
+/// (unknown@gmail.com, na@na.com, xxx@x.com). Such an address looks valid, then receives real case
 /// mail, packets included. The same lists live in
 /// <c>angular/src/app/shared/placeholder-email.ts</c>; a Domain test fails when they differ.
 ///
 /// <para>Rule: take the part before the last <c>@</c>, lowercase it, cut it at the first <c>+</c>,
 /// remove <c>. - _ /</c>, remove trailing digits. It is a placeholder when the result is in
-/// <see cref="Words"/>, or is one character repeated two or more times (xx, aaaa). A domain in
+/// <see cref="Words"/>, or is one character repeated three or more times (xxx, aaaa). A domain in
 /// <see cref="Domains"/> makes any address at it a placeholder.</para>
 /// </summary>
 public static class PlaceholderEmail
@@ -59,7 +59,7 @@ public static class PlaceholderEmail
             return false;
         }
 
-        return WordSet.Contains(key) || (key.Length >= 2 && key.All(c => c == key[0]));
+        return WordSet.Contains(key) || (key.Length >= 3 && key.All(c => c == key[0]));
     }
 
     private static string Normalize(string local)

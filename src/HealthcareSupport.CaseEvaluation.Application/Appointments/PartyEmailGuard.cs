@@ -7,7 +7,7 @@ using Volo.Abp;
 namespace HealthcareSupport.CaseEvaluation.Appointments;
 
 /// <summary>
-/// 2026-11-13 -- refuses placeholder party emails (unknown@..., na@..., xx@...) with a localized 400.
+/// 2026-11-13 -- refuses placeholder party emails (unknown@..., na@..., xxx@...) with a localized 400.
 /// Blank is never refused here (blank means "no value"; whether it is allowed is each field's own rule).
 /// </summary>
 public static class PartyEmailGuard

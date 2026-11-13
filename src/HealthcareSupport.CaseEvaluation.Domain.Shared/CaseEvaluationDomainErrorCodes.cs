@@ -1459,7 +1459,7 @@ public static class CaseEvaluationDomainErrorCodes
 
     /// <summary>
     /// 2026-11-13 -- a party email typed into a booking, party edit, Authorized User add or invite is a
-    /// placeholder (unknown@..., na@..., xx@...). Localization key
+    /// placeholder (unknown@..., na@..., xxx@...). Localization key
     /// <c>CaseEvaluation:Appointment.PlaceholderEmail</c>. 400.
     /// </summary>
     public const string AppointmentPlaceholderEmail =

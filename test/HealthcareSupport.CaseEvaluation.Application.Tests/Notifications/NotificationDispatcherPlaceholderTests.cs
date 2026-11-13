@@ -129,7 +129,7 @@ public class NotificationDispatcherPlaceholderTests
 
         await f.Dispatcher.DispatchWithPacketsAsync(
             NotificationCase.None, TemplateCode,
-            new[] { R("TEST-real@firm.test", RecipientRole.DefenseAttorney), R("xx@firm.test") },
+            new[] { R("TEST-real@firm.test", RecipientRole.DefenseAttorney), R("xxx@firm.test") },
             new Dictionary<string, object?>(), "TEST-ctx/3", new[] { packet });
 
         f.Rows.ShouldHaveSingleItem().To.ShouldBe("TEST-real@firm.test");

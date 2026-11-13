@@ -2,7 +2,7 @@ import { AbstractControl, ValidationErrors } from '@angular/forms';
 
 /**
  * Placeholder emails (2026-11-13): the "I do not know it" addresses people type into a required field
- * (unknown@gmail.com, na@na.com, xx@x.com). They look valid, then receive real case mail.
+ * (unknown@gmail.com, na@na.com, xxx@x.com). They look valid, then receive real case mail.
  *
  * The lists below are the SAME lists as `PlaceholderEmail.cs` in Domain.Shared; a Domain test reads this
  * file and fails when they differ. Change both together. Keep each list as plain quoted strings.
@@ -77,7 +77,7 @@ export const PLACEHOLDER_EMAIL_MESSAGE =
 /**
  * True when the address is a placeholder. Rule: the part before the last `@`, lowercased, cut at the
  * first `+`, with `.` `-` `_` `/` removed and trailing digits removed, is in the word list or is one
- * character repeated two or more times; or the domain is in the domain list. Blank is NOT a placeholder.
+ * character repeated three or more times; or the domain is in the domain list. Blank is NOT a placeholder.
  */
 export function isPlaceholderEmail(email: string | null | undefined): boolean {
   const trimmed = (email ?? '').trim();
@@ -101,7 +101,7 @@ export function isPlaceholderEmail(email: string | null | undefined): boolean {
   }
   return (
     PLACEHOLDER_EMAIL_WORDS.includes(key) ||
-    (key.length >= 2 && [...key].every((c) => c === key[0]))
+    (key.length >= 3 && [...key].every((c) => c === key[0]))
   );
 }
 

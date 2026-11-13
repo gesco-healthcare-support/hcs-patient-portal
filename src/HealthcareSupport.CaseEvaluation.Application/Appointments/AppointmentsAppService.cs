@@ -778,7 +778,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // 2026-11-04 (office decisions 1 and 2): refuse a bad mail choice before anything is written.
         var mailChoices = AppointmentMailChoices.Validate(input, CurrentUser.Roles, CurrentUser.GetVerifiedEmail());
 
-        // 2026-11-13: a placeholder email (unknown@..., na@..., xx@...) is refused before anything is written.
+        // 2026-11-13: a placeholder email (unknown@..., na@..., xxx@...) is refused before anything is written.
         PartyEmailGuard.EnsureNoPlaceholder(PartyEmailGuard.SubmitEmails(input));
 
         // 2026-11-13: a blank claim examiner email is accepted only from a law-office booker who gave the other
