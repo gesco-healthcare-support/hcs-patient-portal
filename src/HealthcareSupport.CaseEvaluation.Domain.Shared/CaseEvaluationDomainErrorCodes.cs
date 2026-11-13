@@ -1456,4 +1456,20 @@ public static class CaseEvaluationDomainErrorCodes
     /// </summary>
     public const string ReEvaluationLookupThrottled =
         "CaseEvaluation:Appointment.ReEvaluationLookupThrottled";
+
+    /// <summary>
+    /// 2026-11-13 -- a party email typed into a booking, party edit, Authorized User add or invite is a
+    /// placeholder (unknown@..., na@..., xxx@...). Localization key
+    /// <c>CaseEvaluation:Appointment.PlaceholderEmail</c>. 400.
+    /// </summary>
+    public const string AppointmentPlaceholderEmail =
+        "CaseEvaluation:Appointment.PlaceholderEmail";
+
+    /// <summary>
+    /// 2026-11-13 -- the claim examiner email was left blank, which is allowed only for a law-office booker
+    /// who has also given the other side's attorney email. Localization key
+    /// <c>CaseEvaluation:Appointment.ClaimExaminerEmailRequired</c>. 400.
+    /// </summary>
+    public const string AppointmentClaimExaminerEmailRequired =
+        "CaseEvaluation:Appointment.ClaimExaminerEmailRequired";
 }

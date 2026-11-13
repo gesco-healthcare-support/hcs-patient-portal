@@ -143,7 +143,7 @@ public class AppointmentPartiesAppService : CaseEvaluationAppService, IAppointme
 
         if (input.PatientEmail != null)
         {
-            appointment.PatientEmail = RequireEmail(input.PatientEmail, "Patient");
+            appointment.PatientEmail = RequireEmail(input.PatientEmail, "Patient", appointment.PatientEmail);
         }
 
         await ApplyApplicantAttorneyAsync(appointment, input.ApplicantAttorney);
@@ -295,7 +295,7 @@ public class AppointmentPartiesAppService : CaseEvaluationAppService, IAppointme
             return;
         }
 
-        var email = RequireEmail(change.Email, "ApplicantAttorney");
+        var email = RequireEmail(change.Email, "ApplicantAttorney", appointment.ApplicantAttorneyEmail);
         var masterId = await KeepMasterIdOnlyForTheSameEmailAsync(
             change.AttorneyId, email, id => _applicantMasters.FindAsync(id), m => m.Email);
 
@@ -335,7 +335,7 @@ public class AppointmentPartiesAppService : CaseEvaluationAppService, IAppointme
             return;
         }
 
-        var email = RequireEmail(change.Email, "DefenseAttorney");
+        var email = RequireEmail(change.Email, "DefenseAttorney", appointment.DefenseAttorneyEmail);
         var masterId = await KeepMasterIdOnlyForTheSameEmailAsync(
             change.AttorneyId, email, id => _defenseMasters.FindAsync(id), m => m.Email);
 
@@ -372,7 +372,12 @@ public class AppointmentPartiesAppService : CaseEvaluationAppService, IAppointme
             return;
         }
 
-        var email = RequireEmail(change.Email, "ClaimExaminer");
+        // 2026-11-13: a claim examiner saved without an email must stay saveable (a law-office booker may
+        // legitimately have left it blank), so a blank is accepted here unconditionally. A typed value is
+        // still checked, and refused as a placeholder only when it is new or changed.
+        var email = string.IsNullOrWhiteSpace(change.Email)
+            ? null
+            : RequireEmail(change.Email, "ClaimExaminer", appointment.ClaimExaminerEmail);
         var row = await _claimExaminers.FirstOrDefaultAsync(x => x.AppointmentId == appointment.Id);
         var isNew = row == null;
         row ??= new AppointmentClaimExaminer(GuidGenerator.Create(), appointment.Id, isActive: true)
@@ -420,13 +425,16 @@ public class AppointmentPartiesAppService : CaseEvaluationAppService, IAppointme
             : null;
     }
 
-    private string RequireEmail(string? email, string partyKey)
+    private string RequireEmail(string? email, string partyKey, string? storedEmail)
     {
         var trimmed = email?.Trim();
         if (string.IsNullOrEmpty(trimmed) || !IsEmailAddress(trimmed))
         {
             throw new UserFriendlyException(L["AppointmentParties:EmailRequired", L[partyKey]]);
         }
+        // 2026-11-13: only a NEW or CHANGED value is refused, so a case already holding an old placeholder
+        // can still have an unrelated party edited and saved.
+        PartyEmailGuard.EnsureNoPlaceholderIfChanged(trimmed, storedEmail);
         return trimmed;
     }
 

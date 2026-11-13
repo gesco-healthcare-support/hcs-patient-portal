@@ -1,3 +1,7 @@
+import {
+  placeholderEmailValidator,
+  PLACEHOLDER_EMAIL_MESSAGE,
+} from '../../shared/placeholder-email';
 import { CommonModule } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -44,6 +48,8 @@ import {
   templateUrl: './invite-external-user.component.html',
 })
 export class InviteExternalUserComponent {
+  readonly placeholderEmailMessage = PLACEHOLDER_EMAIL_MESSAGE;
+
   private readonly fb = inject(FormBuilder);
   private readonly restService = inject(RestService);
   private readonly router = inject(Router);
@@ -67,7 +73,10 @@ export class InviteExternalUserComponent {
   readonly form = this.fb.group({
     firstName: ['', [Validators.maxLength(128)]],
     lastName: ['', [Validators.maxLength(128)]],
-    email: ['', [Validators.required, Validators.email, Validators.maxLength(256)]],
+    email: [
+      '',
+      [Validators.required, Validators.email, Validators.maxLength(256), placeholderEmailValidator],
+    ],
     userType: [1 as number | null, [Validators.required]],
   });
 

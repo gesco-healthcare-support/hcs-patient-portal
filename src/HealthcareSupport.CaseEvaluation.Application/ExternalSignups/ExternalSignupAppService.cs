@@ -1226,6 +1226,9 @@ public class ExternalSignupAppService : CaseEvaluationAppService, IExternalSignu
             throw new UserFriendlyException(L["Email is required."]);
         }
 
+        // 2026-11-13: an invite goes to a real mailbox; unknown@... or na@... would only reach a stranger.
+        PartyEmailGuard.EnsureNoPlaceholder(new[] { input.Email });
+
         if (!IsExternalRoleType(input.UserType))
         {
             throw new UserFriendlyException(L["Only external roles can be invited via this surface."]);

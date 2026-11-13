@@ -1673,7 +1673,7 @@ public partial class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOf
             AppointmentDate = date,
             AppointmentStatus = AppointmentStatusType.Pending,
             PatientEmail = $"submit-{suffix}@example.test",
-            ApplicantAttorneyEmail = $"aa-{suffix}@example.test",
+            ApplicantAttorneyEmail = $"atty-a-{suffix}@example.test",
             DefenseAttorneyEmail = $"da-{suffix}@example.test",
             ClaimExaminerEmail = $"ce-{suffix}@example.test",
 
@@ -1697,7 +1697,7 @@ public partial class MultiOfficeAtomicBookingSubmitTests : CaseEvaluationMultiOf
             {
                 FirstName = "Avery",
                 LastName = "Applicant",
-                Email = $"aa-{suffix}@example.test",
+                Email = $"atty-a-{suffix}@example.test",
                 FirmName = "Applicant Law Group",
             },
             DefenseAttorney = new DefenseAttorneyDetailsDto

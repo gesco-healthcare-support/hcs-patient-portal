@@ -152,7 +152,7 @@ public class EfCoreAppointmentPartiesAppServiceTests
     public async Task Staff_add_an_unregistered_applicant_attorney_who_then_registers_and_sees_the_case()
     {
         var token = NewToken();
-        var email = $"aa-{token}@example.test";
+        var email = $"atty-a-{token}@example.test";
         var id = await CreateAppointmentAsync(token, AppointmentStatusType.Approved, bookerId: IdentityUsersTestData.ClaimExaminer1UserId);
 
         await AsStaffAsync(() => _parties.UpdateAsync(id, new AppointmentPartiesUpdateDto
@@ -393,6 +393,96 @@ public class EfCoreAppointmentPartiesAppServiceTests
         var after = await IntakeRowsAsync(id);
         after.Count.ShouldBe(before + 1);
         after.ShouldContain(r => r.Payload.Contains("TEST-After", StringComparison.Ordinal));
+    }
+
+    // ----------------------------------------------------------------- 2026-11-13: blank CE email, placeholders
+
+    /// <summary>
+    /// A claim examiner saved WITHOUT an email (a law-office booker may legitimately have left it blank) must
+    /// stay saveable by staff, and the appointment's column stays empty rather than ""
+    /// </summary>
+    [Fact]
+    public async Task Staff_can_save_a_claim_examiner_with_no_email()
+    {
+        var token = NewToken();
+        var id = await CreateAppointmentAsync(token, AppointmentStatusType.Approved);
+
+        await AsStaffAsync(() => _parties.UpdateAsync(id, new AppointmentPartiesUpdateDto
+        {
+            ClaimExaminer = new StaffClaimExaminerChangeDto { Name = "TEST-NoMail", Email = null, PhoneNumber = "8185550123" },
+        }));
+
+        await InOfficeAsync(async () =>
+        {
+            (await _appointmentRepository.GetAsync(id)).ClaimExaminerEmail.ShouldBeNull();
+            (await _claimExaminers.GetListAsync(x => x.AppointmentId == id)).ShouldHaveSingleItem().Email.ShouldBeNull();
+        });
+    }
+
+    /// <summary>A NEW placeholder is refused on every party the staff edit can change, and nothing is saved.</summary>
+    [Theory]
+    [InlineData("claim")]
+    [InlineData("defense")]
+    [InlineData("applicant")]
+    public async Task Staff_cannot_save_a_new_placeholder_email(string party)
+    {
+        var token = NewToken();
+        var id = await CreateAppointmentAsync(token, AppointmentStatusType.Approved);
+        var update = new AppointmentPartiesUpdateDto();
+        switch (party)
+        {
+            case "claim":
+                update.ClaimExaminer = new StaffClaimExaminerChangeDto { Name = "TEST-Fake", Email = "unknown@gmail.com" };
+                break;
+            case "defense":
+                update.DefenseAttorney = Attorney("na@firm.test", "TEST-Dana", "TEST-Defense");
+                break;
+            default:
+                update.ApplicantAttorney = Attorney("test@firm.test", "TEST-Avery", "TEST-Applicant");
+                break;
+        }
+
+        var refused = await Should.ThrowAsync<BusinessException>(() => AsStaffAsync(() => _parties.UpdateAsync(id, update)));
+
+        refused.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentPlaceholderEmail);
+        await InOfficeAsync(async () =>
+        {
+            var stored = await _appointmentRepository.GetAsync(id);
+            stored.ClaimExaminerEmail.ShouldBeNull();
+            stored.DefenseAttorneyEmail.ShouldBeNull();
+            stored.ApplicantAttorneyEmail.ShouldBeNull();
+        });
+    }
+
+    /// <summary>
+    /// A placeholder already stored on the case never blocks an unrelated save: the same value re-sent with a
+    /// changed phone number is accepted, while changing it to another placeholder is refused.
+    /// </summary>
+    [Fact]
+    public async Task An_old_stored_placeholder_does_not_block_an_unrelated_save()
+    {
+        var token = NewToken();
+        var id = await CreateAppointmentAsync(token, AppointmentStatusType.Approved);
+        await InOfficeAsync(async () =>
+        {
+            var appointment = await _appointmentRepository.GetAsync(id);
+            appointment.ClaimExaminerEmail = "unknown@gmail.com";
+            await _appointmentRepository.UpdateAsync(appointment, autoSave: true);
+        });
+
+        await AsStaffAsync(() => _parties.UpdateAsync(id, new AppointmentPartiesUpdateDto
+        {
+            ClaimExaminer = new StaffClaimExaminerChangeDto { Name = "TEST-Old", Email = "Unknown@gmail.com", PhoneNumber = "8185550199" },
+        }));
+
+        await InOfficeAsync(async () =>
+            (await _claimExaminers.GetListAsync(x => x.AppointmentId == id)).ShouldHaveSingleItem().PhoneNumber.ShouldBe("8185550199"));
+
+        var refused = await Should.ThrowAsync<BusinessException>(() => AsStaffAsync(() => _parties.UpdateAsync(id, new AppointmentPartiesUpdateDto
+        {
+            ClaimExaminer = new StaffClaimExaminerChangeDto { Name = "TEST-Old", Email = "na@gmail.com" },
+        })));
+        refused.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentPlaceholderEmail);
     }
 
     // ----------------------------------------------------------------- the new party's packet email
