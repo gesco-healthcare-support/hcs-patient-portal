@@ -1391,6 +1391,22 @@ public static class CaseEvaluationDomainErrorCodes
         "CaseEvaluation:UserManagement.PrivilegedChangeNotAllowed";
 
     /// <summary>
+    /// 2026-11-13 -- <c>ExternalLoginsAppService</c>: the target is not an outside user (it holds a staff or
+    /// administrator role, holds no role, or is a host operator's shadow login). Localization key
+    /// <c>CaseEvaluation:ExternalLogin.NotAnOutsideUser</c>. 400.
+    /// </summary>
+    public const string ExternalLoginNotAnOutsideUser =
+        "CaseEvaluation:ExternalLogin.NotAnOutsideUser";
+
+    /// <summary>The caller tried to switch off their own login. Localization key <c>CaseEvaluation:ExternalLogin.CannotChangeSelf</c>. 400.</summary>
+    public const string ExternalLoginCannotChangeSelf =
+        "CaseEvaluation:ExternalLogin.CannotChangeSelf";
+
+    /// <summary>The call came from the staff site (no office). Localization key <c>CaseEvaluation:ExternalLogin.OfficeOnly</c>. 400.</summary>
+    public const string ExternalLoginOfficeOnly =
+        "CaseEvaluation:ExternalLogin.OfficeOnly";
+
+    /// <summary>
     /// 2026-10-23 -- importing users from a file is switched off (the permission is disabled in
     /// <c>CaseEvaluationPermissionDefinitionProvider.DisableUserImport</c>). Raised by the import overrides in
     /// <c>UserExtendedAppService</c>, which a caller reaches only if that permission is ever enabled again.
