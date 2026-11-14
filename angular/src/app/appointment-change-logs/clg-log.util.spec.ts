@@ -1,5 +1,6 @@
 import type { AppointmentChangeLogDto } from '../proxy/appointment-change-logs/models';
-import { changeTypeMeta, groupChangeLogEntries } from './clg-log.util';
+import { changeTypeMeta, groupChangeLogEntries, whoHint, whoIsMuted } from './clg-log.util';
+import type { ChangeLogRow } from './clg-log.util';
 
 describe('clg-log.util', () => {
   describe('changeTypeMeta', () => {
@@ -71,6 +72,54 @@ describe('clg-log.util', () => {
 
     it('returns an empty list for no rows', () => {
       expect(groupChangeLogEntries([])).toEqual([]);
+    });
+  });
+
+  describe('who and action', () => {
+    const row = (over: Partial<ChangeLogRow>): ChangeLogRow => ({
+      appointmentId: 'a1',
+      entityType: 'Appointment',
+      changeType: 'Updated',
+      changeTime: '2026-06-10T14:48:00Z',
+      propertyName: 'AppointmentStatus',
+      ...over,
+    });
+
+    it('carries the action and the author onto the grouped entry', () => {
+      const entries = groupChangeLogEntries([
+        row({ actionLabel: 'Approved', changedByName: 'Sam Supervisor', changedByKind: 'Staff' }),
+      ]);
+      expect(entries[0].actionLabel).toBe('Approved');
+      expect(entries[0].changedByName).toBe('Sam Supervisor');
+      expect(entries[0].changedByKind).toBe('Staff');
+      expect(entries[0].fieldCount).toBe(1);
+    });
+
+    it('does not merge two different actions that share a timestamp', () => {
+      const entries = groupChangeLogEntries([
+        row({ entityType: 'Document', actionLabel: 'Document accepted' }),
+        row({ entityType: 'Document', actionLabel: 'Document rejected' }),
+      ]);
+      expect(entries).toHaveSize(2);
+    });
+
+    it('counts a row with no field name as an event, not a field', () => {
+      const entries = groupChangeLogEntries([
+        row({ propertyName: '', actionLabel: 'Authorized user added' }),
+      ]);
+      expect(entries[0].fieldCount).toBe(0);
+      expect(entries[0].diffs).toHaveSize(1);
+    });
+
+    it('hints host staff and outside only, and mutes system-like actors', () => {
+      expect(whoHint('HostStaff')).toBe('host staff');
+      expect(whoHint('Outside')).toBe('outside');
+      expect(whoHint('Staff')).toBe('');
+      expect(whoHint(null)).toBe('');
+      expect(whoIsMuted('System')).toBeTrue();
+      expect(whoIsMuted('CaseTracker')).toBeTrue();
+      expect(whoIsMuted('Party')).toBeTrue();
+      expect(whoIsMuted('Staff')).toBeFalse();
     });
   });
 });

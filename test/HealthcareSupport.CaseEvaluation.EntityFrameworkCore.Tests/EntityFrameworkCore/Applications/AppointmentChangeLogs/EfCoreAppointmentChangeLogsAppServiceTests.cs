@@ -222,6 +222,160 @@ public class EfCoreAppointmentChangeLogsAppServiceTests
         rows[1].ChangeTime.ShouldBe(older);
     }
 
+
+    // ---------------------------------------------------------------------------------------
+    // Whole case + who
+    // ---------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// The per-case page reads the audit history of EVERYTHING under the appointment, not only the
+    /// intake five: an authorized user (even a removed one - the soft-delete filter must not hide the
+    /// row that proves the removal), a document, a change request and its consent round.
+    /// </summary>
+    [Fact]
+    public async Task GetByAppointmentAsync_scans_authorized_users_including_removed_ones_and_nothing_from_other_cases()
+    {
+        var accessorId = Guid.NewGuid();
+        var removedAccessorId = Guid.NewGuid();
+        var decoyAccessorId = Guid.NewGuid();
+        var tenantId = TenantsTestData.TenantARef;
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(tenantId))
+            {
+                var accessors = GetRequiredService<IRepository<HealthcareSupport.CaseEvaluation.AppointmentAccessors.AppointmentAccessor, Guid>>();
+                var live = new HealthcareSupport.CaseEvaluation.AppointmentAccessors.AppointmentAccessor(
+                    accessorId, IdentityUsersTestData.ApplicantAttorney1UserId, AppointmentsTestData.Appointment1Id, HealthcareSupport.CaseEvaluation.Enums.AccessType.View) { TenantId = tenantId };
+                var removed = new HealthcareSupport.CaseEvaluation.AppointmentAccessors.AppointmentAccessor(
+                    removedAccessorId, IdentityUsersTestData.DefenseAttorney1UserId, AppointmentsTestData.Appointment1Id, HealthcareSupport.CaseEvaluation.Enums.AccessType.View) { TenantId = tenantId };
+                var decoy = new HealthcareSupport.CaseEvaluation.AppointmentAccessors.AppointmentAccessor(
+                    decoyAccessorId, IdentityUsersTestData.ClaimExaminer1UserId, AppointmentsTestData.Appointment2Id, HealthcareSupport.CaseEvaluation.Enums.AccessType.View) { TenantId = tenantId };
+                await accessors.InsertAsync(live, autoSave: true);
+                await accessors.InsertAsync(removed, autoSave: true);
+                await accessors.InsertAsync(decoy, autoSave: true);
+                await accessors.DeleteAsync(removedAccessorId, autoSave: true);
+            }
+        });
+
+        var (auditLog, scans) = StubAuditLog();
+        await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(tenantId))
+            {
+                await BuildService(auditLog).GetByAppointmentAsync(AppointmentsTestData.Appointment1Id);
+            }
+        });
+
+        scans.ShouldContain(s => s.EntityId == accessorId.ToString()
+            && s.EntityTypeFullName == AppointmentAuditedEntities.Accessor);
+        scans.ShouldContain(s => s.EntityId == removedAccessorId.ToString()
+            && s.EntityTypeFullName == AppointmentAuditedEntities.Accessor);
+        scans.ShouldNotContain(s => s.EntityId == decoyAccessorId.ToString());
+    }
+
+    /// <summary>
+    /// The audit-log id travels from the EntityChange to the resolver, and the resolved person lands on
+    /// every row of that change, while a change under an unknown audit log is "System". The resolver is
+    /// substituted (the rig writes no real audit rows), so this pins the plumbing, not the rules.
+    /// </summary>
+    [Fact]
+    public async Task GetByAppointmentAsync_stamps_who_made_each_change_from_its_audit_log()
+    {
+        var appointmentId = Guid.NewGuid();
+        var known = Guid.NewGuid();
+        var unknown = Guid.NewGuid();
+        var when = new DateTime(2026, 6, 8, 8, 0, 0, DateTimeKind.Utc);
+
+        var (auditLog, _) = StubAuditLog(scan => scan.EntityTypeFullName == AppointmentAuditedEntities.Appointment
+            ? new List<EntityChange>
+            {
+                ChangeUnder(known, AppointmentAuditedEntities.Appointment, appointmentId.ToString(),
+                    EntityChangeType.Updated, when, ("PanelNumber", "TEST-P1", "TEST-P2")),
+                ChangeUnder(unknown, AppointmentAuditedEntities.Appointment, appointmentId.ToString(),
+                    EntityChangeType.Updated, when.AddHours(1), ("PanelNumber", "TEST-P2", "TEST-P3")),
+            }
+            : new List<EntityChange>());
+
+        var resolver = Substitute.For<IChangeAuthorResolver>();
+        resolver.ResolveAsync(Arg.Any<IReadOnlyCollection<Guid>>())
+            .Returns(new Dictionary<Guid, ChangeAuthor>
+            {
+                [known] = new ChangeAuthor("Test Operator", ChangeAuthorKinds.HostStaff),
+            });
+
+        var rows = await WithUnitOfWorkAsync(async () =>
+        {
+            using (_currentTenant.Change(TenantsTestData.TenantARef))
+            {
+                return await BuildService(auditLog, resolver).GetByAppointmentAsync(appointmentId);
+            }
+        });
+
+        rows.Count.ShouldBe(2);
+        var byKnown = rows.Single(r => r.NewValue == "TEST-P2");
+        byKnown.ChangedByName.ShouldBe("Test Operator");
+        byKnown.ChangedByKind.ShouldBe(ChangeAuthorKinds.HostStaff);
+        var byUnknown = rows.Single(r => r.NewValue == "TEST-P3");
+        byUnknown.ChangedByName.ShouldBe("System");
+        byUnknown.ChangedByKind.ShouldBe(ChangeAuthorKinds.System);
+    }
+
+    /// <summary>
+    /// Proves the audit-log lookup glue against the real rig: a real AuditLog row written through the
+    /// repository is read back by <see cref="AuditLogChangeAuthorSource"/> with its user and impersonator.
+    /// </summary>
+    [Fact]
+    public async Task AuditLogChangeAuthorSource_reads_user_and_impersonator_from_a_real_audit_log_row()
+    {
+        var userId = Guid.NewGuid();
+        var operatorId = Guid.NewGuid();
+        var auditLogId = Guid.NewGuid();
+        var missingId = Guid.NewGuid();
+
+        await WithUnitOfWorkAsync(async () =>
+        {
+            var repo = GetRequiredService<IAuditLogRepository>();
+            var log = new AuditLog(
+                auditLogId,
+                "TestApp",
+                null,
+                null!,
+                userId,
+                "shadow.test",
+                DateTime.UtcNow,
+                1,
+                "127.0.0.1",
+                null!,
+                null!,
+                null!,
+                null!,
+                "POST",
+                "/api/app/appointments/x/approve",
+                200,
+                operatorId,
+                "operator.test",
+                null,
+                null!,
+                new Volo.Abp.Data.ExtraPropertyDictionary(),
+                new List<EntityChange>(),
+                new List<AuditLogAction>(),
+                null!,
+                null!);
+            await repo.InsertAsync(log, autoSave: true);
+        });
+
+        var facts = await WithUnitOfWorkAsync(async () =>
+            await GetRequiredService<IChangeAuthorSource>()
+                .LoadAsync(new[] { auditLogId, missingId }));
+
+        facts.ContainsKey(missingId).ShouldBeFalse();
+        var f = facts[auditLogId];
+        f.UserId.ShouldBe(userId);
+        f.ImpersonatorUserId.ShouldBe(operatorId);
+        f.Url.ShouldBe("/api/app/appointments/x/approve");
+    }
+
     // ---------------------------------------------------------------------------------------
     // GetListAsync - resolving which appointment (if any) the list is about
     // ---------------------------------------------------------------------------------------
@@ -615,17 +769,25 @@ public class EfCoreAppointmentChangeLogsAppServiceTests
     /// repository. LazyServiceProvider is assigned by hand because manual construction skips
     /// ABP's property injection, and the inherited AsyncExecuter resolves through it.
     /// </summary>
-    private AppointmentChangeLogsAppService BuildService(IAuditLogRepository auditLogRepository)
+    private AppointmentChangeLogsAppService BuildService(
+        IAuditLogRepository auditLogRepository, IChangeAuthorResolver? authorResolver = null)
         => new(
             auditLogRepository,
             _appointmentRepository,
-            _injuryRepository,
-            _bodyPartRepository,
-            _claimExaminerRepository,
-            _primaryInsuranceRepository)
+            GetRequiredService<AppointmentCaseEntityLocator>(),
+            authorResolver ?? NoAuthors())
         {
             LazyServiceProvider = _lazyServiceProvider,
         };
+
+    /// <summary>A resolver that knows nobody: every change resolves to "System".</summary>
+    private static IChangeAuthorResolver NoAuthors()
+    {
+        var resolver = Substitute.For<IChangeAuthorResolver>();
+        resolver.ResolveAsync(Arg.Any<IReadOnlyCollection<Guid>>())
+            .Returns(new Dictionary<Guid, ChangeAuthor>());
+        return resolver;
+    }
 
     /// <summary>
     /// Runs GetListAsync inside TenantA with an audit repository that returns nothing, and hands
@@ -656,6 +818,15 @@ public class EfCoreAppointmentChangeLogsAppServiceTests
         EntityChangeType changeType,
         DateTime changeTime,
         params (string Property, string? OldValue, string? NewValue)[] properties)
+        => ChangeUnder(Guid.NewGuid(), entityTypeFullName, entityId, changeType, changeTime, properties);
+
+    private EntityChange ChangeUnder(
+        Guid auditLogId,
+        string entityTypeFullName,
+        string entityId,
+        EntityChangeType changeType,
+        DateTime changeTime,
+        params (string Property, string? OldValue, string? NewValue)[] properties)
     {
         var info = new EntityChangeInfo
         {
@@ -674,8 +845,7 @@ public class EfCoreAppointmentChangeLogsAppServiceTests
                 .ToList(),
         };
 
-        // auditLogId is never read back by this service; any value will do.
-        return new EntityChange(_guidGenerator, Guid.NewGuid(), info);
+        return new EntityChange(_guidGenerator, auditLogId, info);
     }
 
     /// <summary>

@@ -96,4 +96,71 @@ public class AppointmentChangeLogBuilderTests
         row.AppointmentId.ShouldBeNull();
         row.ValueRedacted.ShouldBeTrue(); // BodyPartName is not allowlisted -> masked.
     }
+
+    [Fact]
+    public void Every_row_of_a_change_carries_the_action_label_and_the_audit_log_id()
+    {
+        var apptId = Guid.NewGuid();
+        var log = Guid.NewGuid();
+        var changes = new[]
+        {
+            new RawEntityChange(ApptType, apptId.ToString(), "Updated", new DateTime(2026, 6, 1),
+                new[]
+                {
+                    new RawPropertyChange("AppointmentStatus", "1", "2"),
+                    new RawPropertyChange("DueDate", "2026-06-10", "2026-06-12"),
+                },
+                log),
+        };
+
+        var built = AppointmentChangeLogBuilder.BuildRowsWithSource(changes, apptId);
+
+        built.Count.ShouldBe(2);
+        built.ShouldAllBe(r => r.Row.ActionLabel == "Approved");
+        built.ShouldAllBe(r => r.AuditLogId == log);
+    }
+
+    [Fact]
+    public void A_named_event_whose_every_property_is_dropped_still_yields_one_row()
+    {
+        const string accessorType = AppointmentAuditedEntities.Accessor;
+        var apptId = Guid.NewGuid();
+        var changes = new[]
+        {
+            new RawEntityChange(accessorType, Guid.NewGuid().ToString(), "Created", new DateTime(2026, 6, 1),
+                new[]
+                {
+                    new RawPropertyChange("IdentityUserId", null, Guid.NewGuid().ToString()),
+                    new RawPropertyChange("AppointmentId", null, apptId.ToString()),
+                }),
+        };
+
+        var rows = AppointmentChangeLogBuilder.BuildRows(changes, apptId);
+
+        rows.Count.ShouldBe(1);
+        rows[0].ActionLabel.ShouldBe("Authorized user added");
+        rows[0].PropertyName.ShouldBe(string.Empty);
+        rows[0].EntityType.ShouldBe("Authorized User");
+    }
+
+    [Fact]
+    public void A_generic_edit_whose_every_property_is_dropped_yields_no_row()
+    {
+        var changes = new[]
+        {
+            new RawEntityChange(BodyPartType, Guid.NewGuid().ToString(), "Updated", new DateTime(2026, 6, 1),
+                new[] { new RawPropertyChange("LastModificationTime", "a", "b") }),
+        };
+
+        AppointmentChangeLogBuilder.BuildRows(changes, Guid.NewGuid()).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void The_per_case_list_covers_every_audited_entity_and_the_global_scan_stays_the_intake_five()
+    {
+        AppointmentAuditedEntities.All.Count.ShouldBe(5);
+        AppointmentAuditedEntities.PerCase.ShouldContain(AppointmentAuditedEntities.Document);
+        AppointmentAuditedEntities.PerCase.ShouldContain(AppointmentAuditedEntities.ConsentRound);
+        AppointmentAuditedEntities.All.ShouldAllBe(t => AppointmentAuditedEntities.PerCase.Contains(t));
+    }
 }

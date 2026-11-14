@@ -1,9 +1,15 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
-import type { AppointmentChangeLogDto } from '../proxy/appointment-change-logs/models';
 import { IconComponent } from '../shared/ui/icon/icon.component';
-import { changeTypeMeta, groupChangeLogEntries, type ClgKindMeta } from './clg-log.util';
+import {
+  changeTypeMeta,
+  groupChangeLogEntries,
+  whoHint,
+  whoIsMuted,
+  type ChangeLogRow,
+  type ClgKindMeta,
+} from './clg-log.util';
 
 import { PacificDatePipe } from '../shared/pipes/pacific-date.pipe';
 /**
@@ -21,7 +27,7 @@ import { PacificDatePipe } from '../shared/pipes/pacific-date.pipe';
   templateUrl: './change-log-timeline.component.html',
 })
 export class ChangeLogTimelineComponent {
-  readonly rows = input<AppointmentChangeLogDto[]>([]);
+  readonly rows = input<ChangeLogRow[]>([]);
 
   private readonly router = inject(Router);
   protected readonly openKeys = signal<ReadonlySet<string>>(new Set());
@@ -29,6 +35,14 @@ export class ChangeLogTimelineComponent {
 
   protected meta(changeType: string | null | undefined): ClgKindMeta {
     return changeTypeMeta(changeType);
+  }
+
+  protected hint(kind: string | null | undefined): string {
+    return whoHint(kind);
+  }
+
+  protected muted(kind: string | null | undefined): boolean {
+    return whoIsMuted(kind);
   }
 
   protected isOpen(key: string): boolean {
