@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments;
+using HealthcareSupport.CaseEvaluation.Branding;
 using HealthcareSupport.CaseEvaluation.Locations;
 using Microsoft.Extensions.Configuration;
 using Volo.Abp.DependencyInjection;
@@ -11,13 +12,21 @@ using Volo.Abp.MultiTenancy;
 namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker;
 
 /// <summary>
-/// Resolves the owning office, the specific clinic, and which MinIO bucket the document object
-/// keys live in.
+/// Resolves the owning office, the specific clinic, the office's letterhead facts, and which MinIO
+/// bucket the document object keys live in.
 ///
 /// <para><c>FacilityId</c> is LOCATION-scoped, not tenant-scoped: an office has many clinics and
 /// each carries its own external id, so the value published is the one belonging to THIS
 /// appointment's clinic. It can be empty on rows created before the field shipped, which the
 /// receiver is told to expect.</para>
+///
+/// <para>The letterhead (2026-11-15) lives here rather than as a tenth dependency of
+/// <see cref="IntakePayloadBuilder"/>: it is a fact about the owning office, and this resolver
+/// already owns those. <see cref="OfficeLetterheadResolver"/> reads whichever office is CURRENT, so
+/// the read is pinned to the APPOINTMENT's office with an explicit <c>Change</c>. The builder
+/// already runs in that office, which makes the switch a no-op today; without it, a caller in
+/// another scope would publish another office's address to the Case Tracker, or empty host
+/// defaults, and nothing downstream could tell.</para>
 /// </summary>
 public class TenantLocationResolver : ITransientDependency
 {
@@ -29,15 +38,21 @@ public class TenantLocationResolver : ITransientDependency
     private readonly IRepository<Location, Guid> _locationRepository;
     private readonly ITenantStore _tenantStore;
     private readonly IConfiguration _configuration;
+    private readonly OfficeLetterheadResolver _officeLetterheadResolver;
+    private readonly ICurrentTenant _currentTenant;
 
     public TenantLocationResolver(
         IRepository<Location, Guid> locationRepository,
         ITenantStore tenantStore,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        OfficeLetterheadResolver officeLetterheadResolver,
+        ICurrentTenant currentTenant)
     {
         _locationRepository = locationRepository;
         _tenantStore = tenantStore;
         _configuration = configuration;
+        _officeLetterheadResolver = officeLetterheadResolver;
+        _currentTenant = currentTenant;
     }
 
     public virtual async Task<TenantLocationSection> ResolveAsync(
@@ -63,6 +78,13 @@ public class TenantLocationResolver : ITransientDependency
         {
             var tenant = await _tenantStore.FindAsync(tenantId);
             section.Tenant.OfficeName = tenant?.Name ?? string.Empty;
+
+            // No office, no letterhead: an appointment without one keeps an all-null section.
+            using (_currentTenant.Change(tenantId))
+            {
+                var letterhead = await _officeLetterheadResolver.ResolveAsync(cancellationToken);
+                section.Office = IntakeOfficeSection.From(letterhead);
+            }
         }
 
         return section;
@@ -85,4 +107,6 @@ public class TenantLocationSection
     public IntakeTenantSection Tenant { get; set; } = new();
 
     public IntakeLocationSection Location { get; set; } = new();
+
+    public IntakeOfficeSection Office { get; set; } = new();
 }
