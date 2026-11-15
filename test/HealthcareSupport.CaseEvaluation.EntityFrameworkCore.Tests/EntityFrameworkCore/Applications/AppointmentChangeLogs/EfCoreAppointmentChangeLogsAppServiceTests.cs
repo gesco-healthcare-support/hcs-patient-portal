@@ -246,11 +246,14 @@ public class EfCoreAppointmentChangeLogsAppServiceTests
             {
                 var accessors = GetRequiredService<IRepository<HealthcareSupport.CaseEvaluation.AppointmentAccessors.AppointmentAccessor, Guid>>();
                 var live = new HealthcareSupport.CaseEvaluation.AppointmentAccessors.AppointmentAccessor(
-                    accessorId, IdentityUsersTestData.ApplicantAttorney1UserId, AppointmentsTestData.Appointment1Id, HealthcareSupport.CaseEvaluation.Enums.AccessType.View) { TenantId = tenantId };
+                    accessorId, IdentityUsersTestData.ApplicantAttorney1UserId, AppointmentsTestData.Appointment1Id, HealthcareSupport.CaseEvaluation.Enums.AccessType.View)
+                { TenantId = tenantId };
                 var removed = new HealthcareSupport.CaseEvaluation.AppointmentAccessors.AppointmentAccessor(
-                    removedAccessorId, IdentityUsersTestData.DefenseAttorney1UserId, AppointmentsTestData.Appointment1Id, HealthcareSupport.CaseEvaluation.Enums.AccessType.View) { TenantId = tenantId };
+                    removedAccessorId, IdentityUsersTestData.DefenseAttorney1UserId, AppointmentsTestData.Appointment1Id, HealthcareSupport.CaseEvaluation.Enums.AccessType.View)
+                { TenantId = tenantId };
                 var decoy = new HealthcareSupport.CaseEvaluation.AppointmentAccessors.AppointmentAccessor(
-                    decoyAccessorId, IdentityUsersTestData.ClaimExaminer1UserId, AppointmentsTestData.Appointment2Id, HealthcareSupport.CaseEvaluation.Enums.AccessType.View) { TenantId = tenantId };
+                    decoyAccessorId, IdentityUsersTestData.ClaimExaminer1UserId, AppointmentsTestData.Appointment2Id, HealthcareSupport.CaseEvaluation.Enums.AccessType.View)
+                { TenantId = tenantId };
                 await accessors.InsertAsync(live, autoSave: true);
                 await accessors.InsertAsync(removed, autoSave: true);
                 await accessors.InsertAsync(decoy, autoSave: true);
