@@ -9,11 +9,11 @@ feature reads ABP audit (`EntityChange`) and diffs in-memory at update time. See
 | File | Purpose |
 |---|---|
 | `AppointmentChangeLogsAppService.cs` | Aggregates ABP `EntityChange` for an appointment + its child entities; redacts via the policy; exposes per-appointment + global filtered/paged list. `[RemoteService(false)]`, `[Authorize(AppointmentChangeLogs.Default)]`. |
-| `AppointmentChangeLogBuilder.cs` | Pure: explodes raw entity changes to per-field redacted DTO rows. Unit-tested. |
+| `AppointmentChangeLogBuilder.cs` | Pure: explodes raw entity changes to per-field redacted DTO rows. Unit-tested. Also declares `BuiltChangeLogRow` (a row plus the audit log id it came from; the id never reaches the client). |
 | `AppointmentAuditedEntities.cs` | Audited entity FQNs + friendly labels. `All` = the 5 intake types the global list scans; `PerCase` = every audited entity under one appointment (adds employer, party links, authorized users, documents, packets, info requests, change requests, consent rounds, change-request documents). |
-| `AppointmentCaseEntityLocator.cs` | Finds the ids of every audited row under ONE appointment (soft-deleted rows INCLUDED, tenant filter kept, capped per type). Resolves repositories from the provider, so it stays at three dependencies. |
+| `AppointmentCaseEntityLocator.cs` | Finds the ids of every audited row under ONE appointment (soft-deleted rows INCLUDED, tenant filter kept, capped per type, ordered by id before the cap). Returns `CaseEntityRef` (entity type name + id) pairs. Resolves repositories from the provider, so it stays at three dependencies. |
 | `AppointmentChangeActionLabeler.cs` | Pure: one readable action per audited change ("Booked", "Approved", "Document rejected", "Consent agreed (side A)", ...). Built from enum states only, never from values, so a label cannot carry PHI. |
-| `ChangeAuthor.cs`, `ChangeAuthorResolver.cs` | The "who" rules over two seams: `IChangeAuthorSource` (audit log rows, `AuditLogChangeAuthorSource`) and `IChangeAuthorDirectory` (users, `IdentityChangeAuthorDirectory`). Pure resolver, unit-tested. |
+| `ChangeAuthor.cs`, `ChangeAuthorResolver.cs` | The "who" rules over two seams: `IChangeAuthorSource` (audit log rows, `AuditLogChangeAuthorSource`) and `IChangeAuthorDirectory` (users, `IdentityChangeAuthorDirectory`). Pure resolver behind `IChangeAuthorResolver`, unit-tested. `ChangeAuthor.cs` also holds the small records the rules pass around: `ChangeAuthorFacts` (what one audit log recorded: user, impersonator, URL), `ChangeAuthorUser` (an office user reduced to display name, staff flag and operator stamp) and `ChangeAuthorRoles` (the four staff role names that make a login Staff rather than Outside). |
 | `RawEntityChange.cs` | Framework-agnostic projection of ABP `EntityChange`, so the builder stays DB-free + testable. Declares TWO records: `RawEntityChange` and `RawPropertyChange` (one property's name, original and new value). Both are `sealed record` because ABP's own audit entities have protected setters and cannot be constructed freely in tests. |
 
 Shared engines under `Appointments/Auditing/`: `AuditFieldPolicy` (PHI allowlist),
@@ -25,9 +25,10 @@ Shared engines under `Appointments/Auditing/`: `AuditFieldPolicy` (PHI allowlist
   `AppointmentsAppService.UpdateAsync`. One email per save -- no `IsMailSent` latch.
 - **PHI redaction is deny-by-default** (`AuditFieldPolicy`): only allowlisted non-sensitive
   fields show old/new values; everything else is masked. Applied on BOTH the view and the email.
-- **Child entities:** injury details FK to `AppointmentId`; body parts / claim examiners /
-  primary insurance FK to `AppointmentInjuryDetailId`. The AppService resolves those ids and
-  queries `EntityChange` per id (+ per type for the global list).
+- **Child entities:** injury details, claim examiner and primary insurance FK to `AppointmentId`
+  (claim examiner + insurance moved off the injury detail in #296); body parts FK to
+  `AppointmentInjuryDetailId`. `AppointmentCaseEntityLocator` resolves every id under the case and
+  the AppService queries `EntityChange` per id (+ per type for the global list).
 - **Email:** `AppointmentIntakeChangedEto` (carries already-redacted fields) ->
   `IntakeChangedEmailHandler`. A panel-number-only or due-date-only save sends the
   `AppointmentChangeLogs` diff table to the office inbox ONLY (2026-11-03). A save that moves the
