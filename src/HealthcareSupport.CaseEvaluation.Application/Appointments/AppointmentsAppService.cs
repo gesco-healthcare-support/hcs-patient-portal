@@ -1341,7 +1341,7 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         if (existingNumber != null)
         {
             throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentDuplicateBooking)
-                .WithData("0", existingNumber);
+                .WithData("ConfirmationNumber", existingNumber);
         }
     }
 
@@ -1390,11 +1390,6 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         {
             throw new UserFriendlyException(L["The selected patient does not exist."]);
         }
-
-        // 2026-11-13: the same patient, exam type and date/time must not be booked twice. A booker whose
-        // document upload failed pressed Submit again and created a second request (A00001 / A00002 in
-        // production, 2026-11-02). Checked before any appointment write, on the shared create path.
-        await EnsureNoActiveDuplicateBookingAsync(input);
 
         // IP6 (2026-06-05): IdentityUserId is optional -- a record-only booking
         // persists the appointment with no patient login. Validate existence
@@ -1449,6 +1444,12 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // ReSubmit / CreateReval, so the role check lives here once.
         var isInternalBooker = BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles);
         await _bookingPolicyValidator.ValidateAsync(input.AppointmentDate, input.AppointmentTypeId, isInternalBooker);
+
+        // 2026-11-13: the same patient, exam type and date/time must not be booked twice. A booker whose
+        // document upload failed pressed Submit again and created a second request (A00001 / A00002 in
+        // production, 2026-11-02). Checked last, after the slot, lead-time and max-time validation (so those errors keep their meaning)
+        // and before any appointment write, on the shared create path.
+        await EnsureNoActiveDuplicateBookingAsync(input);
 
         // F1/F2 fix (2026-06-07) -- every booking now lands at Pending on
         // create, including internal-staff bookings. The former internal

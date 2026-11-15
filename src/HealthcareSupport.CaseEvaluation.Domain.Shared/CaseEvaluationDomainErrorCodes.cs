@@ -1475,7 +1475,7 @@ public static class CaseEvaluationDomainErrorCodes
 
     /// <summary>
     /// 2026-11-13 -- the patient already has an ACTIVE request for the same exam type at the same date and
-    /// time. Localization key <c>CaseEvaluation:Appointment.DuplicateBooking</c> ({0} = the existing
+    /// time. Localization key <c>CaseEvaluation:Appointment.DuplicateBooking</c> ({ConfirmationNumber} = the existing
     /// confirmation number). 400.
     /// </summary>
     public const string AppointmentDuplicateBooking =

@@ -207,7 +207,7 @@ public class BookingAtomicitySqlServerTests : IAsyncLifetime
             () => SubmitAsBookerAsync(BuildBooking(slotId, dayOffset: 34, new TimeOnly(11, 0), marker)));
 
         refused.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentDuplicateBooking);
-        refused.Data["0"].ShouldBe(firstNumber);
+        refused.Data["ConfirmationNumber"].ShouldBe(firstNumber);
         (await CountAppointmentsAsync(slotId)).ShouldBe(1);
     }
 
