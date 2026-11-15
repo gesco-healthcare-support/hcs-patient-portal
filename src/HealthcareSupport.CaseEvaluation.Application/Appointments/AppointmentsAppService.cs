@@ -1321,21 +1321,6 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     }
 
     /// <summary>
-    /// Phase 11g (2026-05-04) -- shared booking pipeline used by
-    /// <see cref="CreateAsync"/>, <see cref="ReSubmitAsync"/>, and
-    /// <see cref="CreateRevalAsync"/>. All three flows perform identical
-    /// existence + slot + lead-time + max-time validation; they differ
-    /// only in confirmation-number resolution (per OLD's branching at
-    /// <c>AppointmentDomain.cs:262-271</c>).
-    /// </summary>
-    /// <param name="publishSubmittedEvent">
-    /// False only for the atomic submit path (item B, 2026-08-21). That path writes the child
-    /// groups after the appointment and publishes the event itself at the very end, so the booking
-    /// email cascade describes a booking that is actually complete. Publishing here as well would
-    /// send the office two notices for one booking, the first of them describing attorney and
-    /// injury data that had not been written yet.
-    /// </param>
-    /// <summary>
     /// Refuses a booking when the patient already has an ACTIVE appointment of the same type at the same
     /// date and time. Active means not Rejected, cancelled, rescheduled, NoShow or NotSeen. Reschedule
     /// creates its replacement directly (not through this path) and a re-booked, re-evaluated or
@@ -1360,6 +1345,21 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         }
     }
 
+    /// <summary>
+    /// Phase 11g (2026-05-04) -- shared booking pipeline used by
+    /// <see cref="CreateAsync"/>, <see cref="ReSubmitAsync"/>, and
+    /// <see cref="CreateRevalAsync"/>. All three flows perform identical
+    /// existence + slot + lead-time + max-time validation; they differ
+    /// only in confirmation-number resolution (per OLD's branching at
+    /// <c>AppointmentDomain.cs:262-271</c>).
+    /// </summary>
+    /// <param name="publishSubmittedEvent">
+    /// False only for the atomic submit path (item B, 2026-08-21). That path writes the child
+    /// groups after the appointment and publishes the event itself at the very end, so the booking
+    /// email cascade describes a booking that is actually complete. Publishing here as well would
+    /// send the office two notices for one booking, the first of them describing attorney and
+    /// injury data that had not been written yet.
+    /// </param>
     private async Task<AppointmentDto> CreateAppointmentInternalAsync(
         AppointmentCreateDto input,
         AppointmentLifecycleFlow? lifecycleFlow,

@@ -9,6 +9,7 @@ using HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes;
 using HealthcareSupport.CaseEvaluation.Appointments;
 using HealthcareSupport.CaseEvaluation.BlobContainers;
 using HealthcareSupport.CaseEvaluation.Documents;
+using HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Handlers;
 using HealthcareSupport.CaseEvaluation.Localization;
 using HealthcareSupport.CaseEvaluation.Notifications.Events;
 using HealthcareSupport.CaseEvaluation.PackageDetails;
@@ -25,6 +26,7 @@ using Volo.Abp.BackgroundJobs;
 using Volo.Abp.BlobStoring;
 using Volo.Abp.Domain.ChangeTracking;
 using Volo.Abp.Domain.Entities;
+using Volo.Abp.Domain.Entities.Events;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.EventBus.Local;
 using Volo.Abp.Identity;
@@ -73,6 +75,7 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
     // party to (only the IMultiTenant filter applied, which scopes by
     // tenant, not by appointment-membership).
     private readonly AppointmentReadAccessGuard _readAccessGuard;
+    private readonly AppointmentChangedHandler _caseTrackerRePush;
 
     public AppointmentDocumentsAppService(
         IRepository<AppointmentDocument, Guid> documentRepository,
@@ -89,7 +92,8 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         ILocalEventBus localEventBus,
         IdentityUserManager userManager,
         IUnitOfWorkManager unitOfWorkManager,
-        AppointmentReadAccessGuard readAccessGuard)
+        AppointmentReadAccessGuard readAccessGuard,
+        AppointmentChangedHandler caseTrackerRePush)
     {
         _documentRepository = documentRepository;
         _appointmentRepository = appointmentRepository;
@@ -106,6 +110,7 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         _userManager = userManager;
         _unitOfWorkManager = unitOfWorkManager;
         _readAccessGuard = readAccessGuard;
+        _caseTrackerRePush = caseTrackerRePush;
     }
 
     /// <summary>
@@ -291,6 +296,9 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
     // in-app notice rows). Entities it merely reads, the appointment above all, must not be change-tracked:
     // ABP bumps the concurrency stamp of any tracked entity it sees as touched, so two uploads to one
     // appointment at the same moment made the second fail with a 409 and the booker resubmitted the request.
+    // Not tracking the appointment also stops ABP's navigation-change event for it, which is what used to
+    // re-push the intake (its payload lists the documents) to the Case Tracker, so the method re-pushes
+    // explicitly after the insert, the way AppointmentPartiesAppService does.
     [Authorize(CaseEvaluationPermissions.AppointmentDocuments.Create)]
     [UnitOfWork]
     [DisableValidation]
@@ -390,6 +398,14 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
             entity.ResponsibleUserId = CurrentUser.Id;
         }
         await _documentRepository.UpdateAsync(entity);
+
+        // The intake payload lists the documents, so the new row must be visible to the handler's reads.
+        await CurrentUnitOfWork!.SaveChangesAsync();
+        var appointmentForPush = await _appointmentRepository.FindAsync(appointmentId);
+        if (appointmentForPush != null)
+        {
+            await _caseTrackerRePush.HandleEventAsync(new EntityUpdatedEventData<Appointment>(appointmentForPush));
+        }
 
         await _localEventBus.PublishAsync(new AppointmentDocumentUploadedEto
         {
