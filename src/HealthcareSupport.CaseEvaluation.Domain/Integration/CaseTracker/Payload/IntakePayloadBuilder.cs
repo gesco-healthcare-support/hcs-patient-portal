@@ -120,6 +120,7 @@ public class IntakePayloadBuilder : IIntakePayloadBuilder, ITransientDependency
             DurationMinutes = core.DurationMinutes,
             Tenant = tenantLocation.Tenant,
             Location = tenantLocation.Location,
+            Office = tenantLocation.Office,
             AppointmentType = new IntakeAppointmentTypeSection
             {
                 Id = core.AppointmentTypeId,
