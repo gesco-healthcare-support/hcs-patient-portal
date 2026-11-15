@@ -71,6 +71,9 @@ public static class CaseEvaluationExceptionStatusCodeMappings
         options.Map(
             CaseEvaluationDomainErrorCodes.AppointmentClaimExaminerEmailRequired,
             HttpStatusCode.BadRequest);
+        options.Map(
+            CaseEvaluationDomainErrorCodes.AppointmentDuplicateBooking,
+            HttpStatusCode.BadRequest);
 
         // Internal-user (IT-Admin) creation flow.
         options.Map(

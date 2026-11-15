@@ -119,6 +119,10 @@ public class CaseEvaluationExceptionStatusCodeMappingsTests
         options.ErrorCodeToHttpStatusCodeMappings[
             CaseEvaluationDomainErrorCodes.AppointmentClaimExaminerEmailRequired
         ].ShouldBe(HttpStatusCode.BadRequest);
+        // 2026-11-13: a duplicate booking shows its message too.
+        options.ErrorCodeToHttpStatusCodeMappings[
+            CaseEvaluationDomainErrorCodes.AppointmentDuplicateBooking
+        ].ShouldBe(HttpStatusCode.BadRequest);
 
         // Slot capacity edits (3 codes): the dialog shows the server's message, so none may be the default 403.
         options.ErrorCodeToHttpStatusCodeMappings[
@@ -157,11 +161,11 @@ public class CaseEvaluationExceptionStatusCodeMappingsTests
         options.ErrorCodeToHttpStatusCodeMappings[
             CaseEvaluationDomainErrorCodes.RegistrationFirmNameRequired
         ].ShouldBe(HttpStatusCode.BadRequest);
-        // Exactly 33 mappings (30 until the three outside-login codes were added on 2026-11-13; 28 until the two placeholder-email / claim-examiner-email codes were added on
+        // Exactly 34 mappings (33 until the duplicate-booking code was added; 30 until the three outside-login codes were added on 2026-11-13; 28 until the two placeholder-email / claim-examiner-email codes were added on
         // 2026-11-13; 27 until the two Responsible User codes were retired on 2026-11-02,
         // then 25; +3 on 2026-11-04 for the booker's mail choices and the same-side Authorized User
         // rule); no duplicate-key blow up.
-        options.ErrorCodeToHttpStatusCodeMappings.Count.ShouldBe(33);
+        options.ErrorCodeToHttpStatusCodeMappings.Count.ShouldBe(34);
     }
 
     /// <summary>
