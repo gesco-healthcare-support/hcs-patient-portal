@@ -1335,6 +1335,31 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     /// send the office two notices for one booking, the first of them describing attorney and
     /// injury data that had not been written yet.
     /// </param>
+    /// <summary>
+    /// Refuses a booking when the patient already has an ACTIVE appointment of the same type at the same
+    /// date and time. Active means not Rejected, cancelled, rescheduled, NoShow or NotSeen. Reschedule
+    /// creates its replacement directly (not through this path) and a re-booked, re-evaluated or
+    /// re-submitted request has a closed source or another date, so none of them is blocked.
+    /// </summary>
+    private async Task EnsureNoActiveDuplicateBookingAsync(AppointmentCreateDto input)
+    {
+        var queryable = await _appointmentRepository.GetQueryableAsync();
+        var closed = AppointmentDuplicateBookingRule.ClosedStatuses;
+        var existingNumber = await AsyncExecuter.FirstOrDefaultAsync(
+            queryable
+                .Where(x => x.PatientId == input.PatientId
+                    && x.AppointmentTypeId == input.AppointmentTypeId
+                    && x.AppointmentDate == input.AppointmentDate
+                    && !closed.Contains(x.AppointmentStatus))
+                .OrderBy(x => x.CreationTime)
+                .Select(x => x.RequestConfirmationNumber));
+        if (existingNumber != null)
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentDuplicateBooking)
+                .WithData("0", existingNumber);
+        }
+    }
+
     private async Task<AppointmentDto> CreateAppointmentInternalAsync(
         AppointmentCreateDto input,
         AppointmentLifecycleFlow? lifecycleFlow,
@@ -1365,6 +1390,11 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         {
             throw new UserFriendlyException(L["The selected patient does not exist."]);
         }
+
+        // 2026-11-13: the same patient, exam type and date/time must not be booked twice. A booker whose
+        // document upload failed pressed Submit again and created a second request (A00001 / A00002 in
+        // production, 2026-11-02). Checked before any appointment write, on the shared create path.
+        await EnsureNoActiveDuplicateBookingAsync(input);
 
         // IP6 (2026-06-05): IdentityUserId is optional -- a record-only booking
         // persists the appointment with no patient login. Validate existence

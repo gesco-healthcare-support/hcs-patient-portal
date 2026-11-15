@@ -23,6 +23,7 @@ using Volo.Abp.Application.Services;
 using Volo.Abp.Authorization;
 using Volo.Abp.BackgroundJobs;
 using Volo.Abp.BlobStoring;
+using Volo.Abp.Domain.ChangeTracking;
 using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.EventBus.Local;
@@ -286,9 +287,14 @@ public class AppointmentDocumentsAppService : CaseEvaluationAppService, IAppoint
         };
     }
 
+    // [DisableEntityChangeTracking] (2026-11-13): an upload only ever ADDS rows (the document, its outbox and
+    // in-app notice rows). Entities it merely reads, the appointment above all, must not be change-tracked:
+    // ABP bumps the concurrency stamp of any tracked entity it sees as touched, so two uploads to one
+    // appointment at the same moment made the second fail with a 409 and the booker resubmitted the request.
     [Authorize(CaseEvaluationPermissions.AppointmentDocuments.Create)]
     [UnitOfWork]
     [DisableValidation]
+    [DisableEntityChangeTracking]
     public virtual async Task<AppointmentDocumentDto> UploadStreamAsync(
         Guid appointmentId,
         string documentName,

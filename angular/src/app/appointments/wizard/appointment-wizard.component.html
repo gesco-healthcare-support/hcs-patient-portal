@@ -689,6 +689,23 @@
         }
       }
     </form>
+    @if (bookingAlreadyCreated) {
+      <div class="ra-note warn" style="margin-top: 14px" role="status" data-testid="created-note">
+        <span class="i"><app-icon name="alert" [size]="16" /></span>
+        <span>
+          Your request{{ createdConfirmationNumber ? ' ' + createdConfirmationNumber : '' }} was
+          created. It must not be submitted again.
+          <button
+            class="ap-btn ap-btn--ghost"
+            type="button"
+            data-testid="go-to-request"
+            (click)="goToCreatedRequest()"
+          >
+            Go to my request
+          </button>
+        </span>
+      </div>
+    }
   </div>
 
   <div class="ra-foot">
@@ -717,7 +734,7 @@
           (click)="onSubmit()"
         >
           <app-icon name="check" [size]="16" />
-          Submit request
+          {{ bookingAlreadyCreated ? 'Retry document upload' : 'Submit request' }}
         </button>
       } @else {
         <button class="ap-btn ap-btn--primary" type="button" (click)="nextStep()">

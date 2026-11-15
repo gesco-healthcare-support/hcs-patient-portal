@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentAccessors;
 using HealthcareSupport.CaseEvaluation.AppointmentBodyParts;
@@ -170,6 +171,172 @@ public class BookingAtomicitySqlServerTests : IAsyncLifetime
         (await CountEmployerDetailsAsync(marker)).ShouldBe(1);
         (await CountPatientsAsync(marker)).ShouldBe(1);
         (await CountAppointmentsAsync(slotId)).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task UploadStreamAsync_TwoUploadsToOneAppointmentAtTheSameTime_BothSucceed()
+    {
+        // Production 2026-11-02: the booking wizard uploaded two staged documents in parallel right
+        // after the submit and the second came back 409 (an optimistic-concurrency failure), so the
+        // booker believed the request had failed and submitted it again.
+        var marker = Guid.NewGuid().ToString("N")[..12];
+        await SeedNotificationTemplatesAsync();
+        var slotId = await InsertSlotAsync(dayOffset: 33, new TimeOnly(11, 0));
+        await SubmitAsBookerAsync(BuildBooking(slotId, dayOffset: 33, new TimeOnly(11, 0), marker));
+        var appointmentId = await GetAppointmentIdAsync(slotId);
+
+        var results = await Task.WhenAll(
+            Task.Run(() => UploadOnePdfAsync(appointmentId, "strike-a.pdf")),
+            Task.Run(() => UploadOnePdfAsync(appointmentId, "strike-b.pdf")));
+
+        results.Where(r => r != null).ToList().ShouldBeEmpty(string.Join(" || ", results));
+        (await CountInOfficeAsync<HealthcareSupport.CaseEvaluation.AppointmentDocuments.AppointmentDocument>(
+            d => d.AppointmentId == appointmentId)).ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task SubmitAsync_ForThePatientTypeAndTimeOfAnActiveRequest_IsRefusedNamingIt()
+    {
+        // Production 2026-11-02: a second Submit after a failed upload created A00002 beside A00001.
+        var marker = Guid.NewGuid().ToString("N")[..12];
+        var slotId = await InsertSlotAsync(dayOffset: 34, new TimeOnly(11, 0));
+        await SubmitAsBookerAsync(BuildBooking(slotId, dayOffset: 34, new TimeOnly(11, 0), marker));
+        var firstNumber = await GetConfirmationNumberAsync(slotId);
+
+        var refused = await Should.ThrowAsync<BusinessException>(
+            () => SubmitAsBookerAsync(BuildBooking(slotId, dayOffset: 34, new TimeOnly(11, 0), marker)));
+
+        refused.Code.ShouldBe(CaseEvaluationDomainErrorCodes.AppointmentDuplicateBooking);
+        refused.Data["0"].ShouldBe(firstNumber);
+        (await CountAppointmentsAsync(slotId)).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task SubmitAsync_ForTheSamePatientAtAnotherTime_IsAllowed()
+    {
+        var marker = Guid.NewGuid().ToString("N")[..12];
+        var first = await InsertSlotAsync(dayOffset: 35, new TimeOnly(11, 0));
+        var second = await InsertSlotAsync(dayOffset: 35, new TimeOnly(14, 0));
+        await SubmitAsBookerAsync(BuildBooking(first, dayOffset: 35, new TimeOnly(11, 0), marker));
+
+        await SubmitAsBookerAsync(BuildBooking(second, dayOffset: 35, new TimeOnly(14, 0), marker));
+
+        (await CountAppointmentsAsync(second)).ShouldBe(1);
+    }
+
+    [Theory]
+    [InlineData(AppointmentStatusType.Rejected, 36)]
+    [InlineData(AppointmentStatusType.CancelledNoBill, 37)]
+    public async Task SubmitAsync_AfterTheEarlierRequestWasClosed_IsAllowed(AppointmentStatusType closedAs, int dayOffset)
+    {
+        var marker = Guid.NewGuid().ToString("N")[..12];
+        var slotId = await InsertSlotAsync(dayOffset: dayOffset, new TimeOnly(11, 0));
+        await SubmitAsBookerAsync(BuildBooking(slotId, dayOffset: dayOffset, new TimeOnly(11, 0), marker));
+        await BookingAtomicityHarness.InOfficeAsync(Services, OfficeId, async () =>
+        {
+            var repository = Services.GetRequiredService<IRepository<Appointment, Guid>>();
+            var existing = (await repository.GetListAsync(a => a.DoctorAvailabilityId == slotId)).Single();
+            existing.AppointmentStatus = closedAs;
+            await repository.UpdateAsync(existing, autoSave: true);
+        });
+
+        await SubmitAsBookerAsync(BuildBooking(slotId, dayOffset: dayOffset, new TimeOnly(11, 0), marker));
+
+        (await CountAppointmentsAsync(slotId)).ShouldBe(2);
+    }
+
+    private async Task<string> GetConfirmationNumberAsync(Guid slotId)
+    {
+        var number = string.Empty;
+        await BookingAtomicityHarness.InOfficeAsync(Services, OfficeId, async () =>
+        {
+            var all = await Services.GetRequiredService<IRepository<Appointment, Guid>>().GetListAsync(a => a.DoctorAvailabilityId == slotId);
+            number = all.Single().RequestConfirmationNumber;
+        });
+        return number;
+    }
+
+    /// <summary>The upload sends its emails inline, and a missing template throws; production has them seeded.</summary>
+    private Task SeedNotificationTemplatesAsync() =>
+        BookingAtomicityHarness.InOfficeAsync(Services, OfficeId, async () =>
+        {
+            var typeRepository = Services.GetRequiredService<HealthcareSupport.CaseEvaluation.NotificationTemplates.INotificationTemplateTypeRepository>();
+            var templateRepository = Services.GetRequiredService<HealthcareSupport.CaseEvaluation.NotificationTemplates.INotificationTemplateRepository>();
+            var guids = Services.GetRequiredService<Volo.Abp.Guids.IGuidGenerator>();
+            var typeId = Guid.Parse("00000000-0000-0000-0000-0000000000e1");
+            if (await typeRepository.FindAsync(typeId) == null)
+            {
+                await typeRepository.InsertAsync(
+                    new HealthcareSupport.CaseEvaluation.NotificationTemplates.NotificationTemplateType(typeId, "Email"), autoSave: true);
+            }
+            var existing = (await templateRepository.GetQueryableAsync()).Select(x => x.TemplateCode).ToList();
+            foreach (var code in HealthcareSupport.CaseEvaluation.NotificationTemplates.NotificationTemplateConsts.Codes.All.Where(c => !existing.Contains(c)))
+            {
+                await templateRepository.InsertAsync(new HealthcareSupport.CaseEvaluation.NotificationTemplates.NotificationTemplate(
+                    id: guids.Create(), tenantId: OfficeId, templateCode: code, templateTypeId: typeId,
+                    subject: $"[{code}] -- TEST", bodyEmail: $"<p>Stub for {code}</p>", bodySms: $"Stub for {code}",
+                    description: null, isActive: true), autoSave: true);
+            }
+        });
+
+    [Fact]
+    public async Task UploadStreamAsync_DoesNotTouchTheAppointmentRow()
+    {
+        var marker = Guid.NewGuid().ToString("N")[..12];
+        await SeedNotificationTemplatesAsync();
+        var slotId = await InsertSlotAsync(dayOffset: 38, new TimeOnly(11, 0));
+        await SubmitAsBookerAsync(BuildBooking(slotId, dayOffset: 38, new TimeOnly(11, 0), marker));
+        var appointmentId = await GetAppointmentIdAsync(slotId);
+        var before = await GetConcurrencyStampAsync(appointmentId);
+
+        (await UploadOnePdfAsync(appointmentId, "strike.pdf")).ShouldBeNull();
+
+        (await GetConcurrencyStampAsync(appointmentId)).ShouldBe(before,
+            "an upload that rewrites the appointment row is what made two parallel uploads conflict");
+    }
+
+    private async Task<string?> GetConcurrencyStampAsync(Guid appointmentId)
+    {
+        string? stamp = null;
+        await BookingAtomicityHarness.InOfficeAsync(Services, OfficeId, async () =>
+        {
+            stamp = (await Services.GetRequiredService<IRepository<Appointment, Guid>>().GetAsync(appointmentId)).ConcurrencyStamp;
+        });
+        return stamp;
+    }
+
+    private async Task<Guid> GetAppointmentIdAsync(Guid slotId)
+    {
+        var id = Guid.Empty;
+        await BookingAtomicityHarness.InOfficeAsync(Services, OfficeId, async () =>
+        {
+            var all = await Services.GetRequiredService<IRepository<Appointment, Guid>>().GetListAsync(a => a.DoctorAvailabilityId == slotId);
+            id = all.Single().Id;
+        });
+        return id;
+    }
+
+    /// <summary>Runs one upload in its own scope and request context; returns the failure text, or null.</summary>
+    private async Task<string?> UploadOnePdfAsync(Guid appointmentId, string fileName)
+    {
+        try
+        {
+            using var scope = Services.GetRequiredService<IServiceScopeFactory>().CreateScope();
+            var sp = scope.ServiceProvider;
+            using (sp.GetRequiredService<ICurrentTenant>().Change(OfficeId))
+            using (WithCurrentUser.Run(sp.GetRequiredService<ICurrentPrincipalAccessor>(), _databases.Seeded.BookerUserId, "admin"))
+            {
+                var bytes = System.Text.Encoding.ASCII.GetBytes("%PDF-1.4 1 0 obj<<>>endobj trailer<<>> %%EOF");
+                using var stream = new System.IO.MemoryStream(bytes);
+                await sp.GetRequiredService<HealthcareSupport.CaseEvaluation.AppointmentDocuments.IAppointmentDocumentsAppService>()
+                    .UploadStreamAsync(appointmentId, fileName, fileName, "application/pdf", bytes.Length, stream);
+            }
+            return null;
+        }
+        catch (Exception ex)
+        {
+            return ex.GetType().Name + ": " + (ex as BusinessException)?.Code + " " + ex.Message;
+        }
     }
 
     private async Task WriteStateThenThrowAsync(string name, bool isTransactional)

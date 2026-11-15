@@ -60,6 +60,7 @@ describe('AppointmentAddComponent remaining paths', () => {
   let restRequest: jasmine.Spy;
   let getActiveForAppointmentType: jasmine.Spy;
   let validate: jasmine.Spy;
+  let submit: jasmine.Spy;
 
   interface Probe {
     [key: string]: any;
@@ -104,6 +105,9 @@ describe('AppointmentAddComponent remaining paths', () => {
     getActiveForAppointmentType = jasmine
       .createSpy('getActiveForAppointmentType')
       .and.returnValue(of([]));
+    submit = jasmine
+      .createSpy('submit')
+      .and.callFake(() => of({ appointmentId: 'appt-1', requestConfirmationNumber: 'A00001' }));
     validate = jasmine
       .createSpy('validate')
       .and.returnValue(of({ status: 'ok', standardized: null, matchesInput: true }));
@@ -114,7 +118,7 @@ describe('AppointmentAddComponent remaining paths', () => {
         {
           provide: AppointmentService,
           useValue: {
-            submit: () => of({ appointmentId: 'appt-1' }),
+            submit,
             getByConfirmationNumber: () => of(options.source ?? { appointment: null }),
           },
         },
@@ -418,16 +422,54 @@ describe('AppointmentAddComponent remaining paths', () => {
       await c.onSubmit();
 
       expect(toaster.warn).toHaveBeenCalledWith(
-        'Appointment created, but some documents failed to upload. Retry from the Documents section.',
+        'Your request A00001 was created, but some documents did not upload. Press Retry to upload them again; do not submit the request a second time.',
       );
       expect(router.navigateByUrl).not.toHaveBeenCalled();
       expect(c.stagedDocuments[0].status).toBe('failed');
       expect(c.stagedDocuments[0].error).toBe('Too large.');
+      expect(c.bookingAlreadyCreated).toBeTrue();
     });
 
-    // typescript:S9382 moved the uploads out of a sequential loop. What that must not cost: a file
-    // already uploaded is never sent again, and one failure marks only its own file.
-    it('sends every pending file before any upload has answered', async () => {
+    // Production 2026-11-02: after a failed upload the Submit button came back, the booker pressed it
+    // again and a second request (A00002) was created.
+    it('never calls the submit endpoint again once the request was created', async () => {
+      let attempt = 0;
+      const c = create({
+        rest: {
+          'appt-1/documents': () => {
+            attempt += 1;
+            return attempt === 1 ? throwError(() => ({ error: {} })) : of({});
+          },
+        },
+      });
+      fillValidForm(c);
+      c.stagedDocuments = [staged()];
+
+      await c.onSubmit();
+      expect(submit).toHaveBeenCalledTimes(1);
+
+      await c.onSubmit();
+
+      expect(submit).toHaveBeenCalledTimes(1);
+      expect(c.stagedDocuments[0].status).toBe('uploaded');
+      expect(router.navigateByUrl).toHaveBeenCalledWith('/');
+    });
+
+    it('offers a way to the created request', async () => {
+      const c = create({ rest: { 'appt-1/documents': throwError(() => ({ error: {} })) } });
+      fillValidForm(c);
+      c.stagedDocuments = [staged()];
+      await c.onSubmit();
+
+      c.goToCreatedRequest();
+
+      expect(router.navigateByUrl).toHaveBeenCalledWith('/appointments/view/appt-1');
+    });
+
+    // Two uploads in flight against one appointment made the second fail in production (2026-11-02),
+    // so the files go one after another. What that must not cost: a file already uploaded is never
+    // sent again, and one failure marks only its own file.
+    it('sends the next file only after the previous one has answered', async () => {
       const answers: Subject<unknown>[] = [];
       const c = create({
         rest: {
@@ -442,17 +484,15 @@ describe('AppointmentAddComponent remaining paths', () => {
 
       const done = c.uploadStagedDocuments('appt-1');
       await Promise.resolve();
+      await Promise.resolve();
 
+      expect(answers).toHaveSize(1);
+      answers[0].next({});
+      answers[0].complete();
+      await new Promise((resolve) => setTimeout(resolve));
       expect(answers).toHaveSize(2);
-      expect(c.stagedDocuments.map((d: { status: string }) => d.status)).toEqual([
-        'uploading',
-        'uploaded',
-        'uploading',
-      ]);
-      answers.forEach((s) => {
-        s.next({});
-        s.complete();
-      });
+      answers[1].next({});
+      answers[1].complete();
       expect(await done).toBeTrue();
       expect(c.stagedDocuments.map((d: { status: string }) => d.status)).toEqual([
         'uploaded',
