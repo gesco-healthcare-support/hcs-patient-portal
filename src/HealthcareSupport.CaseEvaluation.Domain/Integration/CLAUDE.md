@@ -28,7 +28,7 @@ source of truth for field names and semantics.
 | `CaseTracker/CaseTrackerFeedManager.cs` | Start feed (floor below the oldest Pending row or in-flight write) and Return to push, for the offices screen. |
 | `CaseTracker/CaseTrackerMissingIntakeReporter.cs` | The missing-intake report (#944): published appointments with no intake row, NO date floor, split by the office's first intake row. REPORT ONLY -- it takes no dependency that can enqueue, because the sweep's 7-day floor exists to stop history being resent. Backs the host failures page's panel and the weekly job. |
 | `CaseTracker/CaseTrackerDeliveryModeReader.cs` | Push switch on AND no active feed record = the drain may push. The one place that rule lives. |
-| `CaseTracker/Payload/` | `IIntakePayloadBuilder` facade over four focused resolvers, plus the DTOs and the pure helpers (`ObjectKeyBuilder`, `DocumentEntryMapper`, `IntegrationTimestamp`, `EvaluationKindWire`). |
+| `CaseTracker/Payload/` | `IIntakePayloadBuilder` facade over four focused resolvers, plus the DTOs and the pure helpers (`ObjectKeyBuilder`, `DocumentEntryMapper`, `IntegrationTimestamp`, `EvaluationKindWire`). `data.office` (`IntakeOfficeSection`, 2026-11-15) is the office's effective letterhead from `OfficeLetterheadResolver`, read by `TenantLocationResolver` inside the office scope; a letterhead edit queues nothing by itself. |
 
 ## Conventions
 

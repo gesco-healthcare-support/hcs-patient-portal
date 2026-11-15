@@ -140,6 +140,9 @@ public class IntakePayload
 
     public IntakeLocationSection Location { get; set; } = new();
 
+    /// <summary>The office's letterhead facts as the patient packet prints them; see <see cref="IntakeOfficeSection"/>.</summary>
+    public IntakeOfficeSection Office { get; set; } = new();
+
     public IntakeAppointmentTypeSection AppointmentType { get; set; } = new();
 
     public string? PanelNumber { get; set; }
