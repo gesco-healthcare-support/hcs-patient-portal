@@ -29,4 +29,31 @@ public class AppointmentChangeLogDto
     public string ChangeType { get; set; } = string.Empty;
 
     public DateTime ChangeTime { get; set; }
+
+    /// <summary>
+    /// Readable action for the whole change ("Booked", "Approved", "Document rejected", ...). Every
+    /// property row of one change carries the same label. Built from enum states only, never from values.
+    /// </summary>
+    public string ActionLabel { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Who made the change: the real person's display name (a host operator acting through an office
+    /// login is shown as the operator, never the login), or a fixed system label such as "Case Tracker".
+    /// Null when the audit record cannot be linked.
+    /// </summary>
+    public string? ChangedByName { get; set; }
+
+    /// <summary>One of <see cref="ChangeAuthorKinds"/>.</summary>
+    public string? ChangedByKind { get; set; }
+}
+
+/// <summary>The kinds of actor shown beside a change-log row.</summary>
+public static class ChangeAuthorKinds
+{
+    public const string Staff = "Staff";
+    public const string HostStaff = "HostStaff";
+    public const string Outside = "Outside";
+    public const string System = "System";
+    public const string CaseTracker = "CaseTracker";
+    public const string Party = "Party";
 }

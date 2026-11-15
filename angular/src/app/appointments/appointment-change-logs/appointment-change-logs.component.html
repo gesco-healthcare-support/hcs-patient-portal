@@ -10,7 +10,7 @@
 <div class="ia-head">
   <div>
     <h1>Change log</h1>
-    <p>Request history and recorded field changes for this appointment.</p>
+    <p>Who did what on this case, from booking to now.</p>
   </div>
   <button class="af-btn af-btn--ghost" type="button" (click)="back()">
     <app-icon name="chevLeft" [size]="15" />
@@ -33,8 +33,11 @@
 }
 
 <section class="clg-section">
-  <h2 class="clg-section__title">Field-level audit</h2>
-  <p class="clg-section__sub">Recorded field changes to this appointment and its claim details.</p>
+  <h2 class="clg-section__title">Case history</h2>
+  <p class="clg-section__sub">
+    Every recorded action on this case with who did it: booking, decisions, documents, change
+    requests, authorized users and edits to the details and parties.
+  </p>
   @if (isLoading) {
     <div class="clg" style="padding: 18px; color: var(--n-500)">Loading change log&hellip;</div>
   } @else if (errorMessage) {
