@@ -130,6 +130,17 @@ public class CaseEvaluationExceptionStatusCodeMappingsTests
         options.ErrorCodeToHttpStatusCodeMappings[
             CaseEvaluationDomainErrorCodes.DoctorAvailabilitySetCapacitySlotsNotFound
         ].ShouldBe(HttpStatusCode.BadRequest);
+
+        // 2026-11-13: switching an outside login off or on shows its message, not a 403.
+        options.ErrorCodeToHttpStatusCodeMappings[
+            CaseEvaluationDomainErrorCodes.ExternalLoginNotAnOutsideUser
+        ].ShouldBe(HttpStatusCode.BadRequest);
+        options.ErrorCodeToHttpStatusCodeMappings[
+            CaseEvaluationDomainErrorCodes.ExternalLoginCannotChangeSelf
+        ].ShouldBe(HttpStatusCode.BadRequest);
+        options.ErrorCodeToHttpStatusCodeMappings[
+            CaseEvaluationDomainErrorCodes.ExternalLoginOfficeOnly
+        ].ShouldBe(HttpStatusCode.BadRequest);
     }
 
     [Fact]
@@ -146,11 +157,11 @@ public class CaseEvaluationExceptionStatusCodeMappingsTests
         options.ErrorCodeToHttpStatusCodeMappings[
             CaseEvaluationDomainErrorCodes.RegistrationFirmNameRequired
         ].ShouldBe(HttpStatusCode.BadRequest);
-        // Exactly 30 mappings (28 until the two placeholder-email / claim-examiner-email codes were added on
+        // Exactly 33 mappings (30 until the three outside-login codes were added on 2026-11-13; 28 until the two placeholder-email / claim-examiner-email codes were added on
         // 2026-11-13; 27 until the two Responsible User codes were retired on 2026-11-02,
         // then 25; +3 on 2026-11-04 for the booker's mail choices and the same-side Authorized User
         // rule); no duplicate-key blow up.
-        options.ErrorCodeToHttpStatusCodeMappings.Count.ShouldBe(30);
+        options.ErrorCodeToHttpStatusCodeMappings.Count.ShouldBe(33);
     }
 
     /// <summary>
