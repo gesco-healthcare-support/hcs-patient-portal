@@ -16,31 +16,49 @@
         </span>
         <span class="tx">
           <span class="t1">
-            <b>{{ e.entityType }} {{ meta(e.changeType).verb }}</b>
+            @if (e.actionLabel) {
+              <b class="clg-action">{{ e.actionLabel }}</b>
+              <span class="clg-ent">{{ e.entityType }}</span>
+            } @else {
+              <b>{{ e.entityType }} {{ meta(e.changeType).verb }}</b>
+            }
             @if (e.appointmentId) {
               <a class="conf" (click)="openAppointment(e.appointmentId, $event)">
                 View appointment
               </a>
             }
           </span>
-          <span class="t2">{{ e.changeTime | pacificDate: 'MMM d, y, h:mm a' }}</span>
+          <span class="t2">
+            {{ e.changeTime | pacificDate: 'MMM d, y, h:mm a' }}
+            @if (e.changedByName) {
+              <span class="clg-who" [class.clg-who--muted]="muted(e.changedByKind)">
+                &middot; by
+                <b>{{ e.changedByName }}</b>
+                @if (hint(e.changedByKind)) {
+                  <span class="clg-who__hint">({{ hint(e.changedByKind) }})</span>
+                }
+              </span>
+            }
+          </span>
         </span>
-        <span class="cnt">{{ e.diffs.length }} field{{ e.diffs.length === 1 ? '' : 's' }}</span>
+        <span class="cnt">{{ e.fieldCount }} field{{ e.fieldCount === 1 ? '' : 's' }}</span>
         <span class="chev"><app-icon name="chevRight" [size]="16" /></span>
       </div>
       @if (isOpen(e.key)) {
         <div class="clg-diffs">
           @for (d of e.diffs; track $index) {
-            <div class="clg-diff">
-              <span class="f">{{ d.propertyName }}</span>
-              @if (d.valueRedacted) {
-                <span class="red">updated (value hidden &mdash; sensitive field)</span>
-              } @else {
-                <span class="old">{{ d.oldValue || '—' }}</span>
-                <span class="arr"><app-icon name="chevRight" [size]="13" /></span>
-                <span class="new">{{ d.newValue || '—' }}</span>
-              }
-            </div>
+            @if (d.propertyName) {
+              <div class="clg-diff">
+                <span class="f">{{ d.propertyName }}</span>
+                @if (d.valueRedacted) {
+                  <span class="red">updated (value hidden &mdash; sensitive field)</span>
+                } @else {
+                  <span class="old">{{ d.oldValue || '—' }}</span>
+                  <span class="arr"><app-icon name="chevRight" [size]="13" /></span>
+                  <span class="new">{{ d.newValue || '—' }}</span>
+                }
+              </div>
+            }
           }
         </div>
       }

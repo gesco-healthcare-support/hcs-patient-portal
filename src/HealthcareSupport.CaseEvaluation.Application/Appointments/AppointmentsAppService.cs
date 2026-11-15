@@ -1321,6 +1321,31 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
     }
 
     /// <summary>
+    /// Refuses a booking when the patient already has an ACTIVE appointment of the same type at the same
+    /// date and time. Active means not Rejected, cancelled, rescheduled, NoShow or NotSeen. Reschedule
+    /// creates its replacement directly (not through this path) and a re-booked, re-evaluated or
+    /// re-submitted request has a closed source or another date, so none of them is blocked.
+    /// </summary>
+    private async Task EnsureNoActiveDuplicateBookingAsync(AppointmentCreateDto input)
+    {
+        var queryable = await _appointmentRepository.GetQueryableAsync();
+        var closed = AppointmentDuplicateBookingRule.ClosedStatuses;
+        var existingNumber = await AsyncExecuter.FirstOrDefaultAsync(
+            queryable
+                .Where(x => x.PatientId == input.PatientId
+                    && x.AppointmentTypeId == input.AppointmentTypeId
+                    && x.AppointmentDate == input.AppointmentDate
+                    && !closed.Contains(x.AppointmentStatus))
+                .OrderBy(x => x.CreationTime)
+                .Select(x => x.RequestConfirmationNumber));
+        if (existingNumber != null)
+        {
+            throw new BusinessException(CaseEvaluationDomainErrorCodes.AppointmentDuplicateBooking)
+                .WithData("ConfirmationNumber", existingNumber);
+        }
+    }
+
+    /// <summary>
     /// Phase 11g (2026-05-04) -- shared booking pipeline used by
     /// <see cref="CreateAsync"/>, <see cref="ReSubmitAsync"/>, and
     /// <see cref="CreateRevalAsync"/>. All three flows perform identical
@@ -1419,6 +1444,12 @@ public class AppointmentsAppService : CaseEvaluationAppService, IAppointmentsApp
         // ReSubmit / CreateReval, so the role check lives here once.
         var isInternalBooker = BookingFlowRoles.IsInternalUserCaller(CurrentUser.Roles);
         await _bookingPolicyValidator.ValidateAsync(input.AppointmentDate, input.AppointmentTypeId, isInternalBooker);
+
+        // 2026-11-13: the same patient, exam type and date/time must not be booked twice. A booker
+        // whose document upload failed pressed Submit again and created a second request. Checked
+        // last, after the slot, lead-time and max-time validation (so those errors keep their
+        // meaning) and before any appointment write, on the shared create path.
+        await EnsureNoActiveDuplicateBookingAsync(input);
 
         // F1/F2 fix (2026-06-07) -- every booking now lands at Pending on
         // create, including internal-staff bookings. The former internal

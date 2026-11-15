@@ -1,0 +1,32 @@
+.el-filters {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+.el-table {
+  margin-top: 8px;
+}
+.el-right {
+  text-align: right;
+}
+.el-none {
+  text-align: center;
+  color: var(--n-400, #868f94);
+  padding: 24px;
+}
+.el-pager {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+.el-off {
+  color: var(--n-500, #5a6469);
+  font-weight: 600;
+}
+.el-small {
+  display: block;
+  font-size: 12px;
+  color: var(--n-500, #5a6469);
+}
