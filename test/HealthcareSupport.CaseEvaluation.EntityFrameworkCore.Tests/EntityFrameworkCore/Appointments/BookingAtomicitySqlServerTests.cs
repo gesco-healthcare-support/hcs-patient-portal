@@ -176,7 +176,7 @@ public class BookingAtomicitySqlServerTests : IAsyncLifetime
     [Fact]
     public async Task UploadStreamAsync_TwoUploadsToOneAppointmentAtTheSameTime_BothSucceed()
     {
-        // Production 2026-11-02: the booking wizard uploaded two staged documents in parallel right
+        // The booking wizard used to upload two staged documents in parallel right
         // after the submit and the second came back 409 (an optimistic-concurrency failure), so the
         // booker believed the request had failed and submitted it again.
         var marker = Guid.NewGuid().ToString("N")[..12];
@@ -197,7 +197,7 @@ public class BookingAtomicitySqlServerTests : IAsyncLifetime
     [Fact]
     public async Task SubmitAsync_ForThePatientTypeAndTimeOfAnActiveRequest_IsRefusedNamingIt()
     {
-        // Production 2026-11-02: a second Submit after a failed upload created A00002 beside A00001.
+        // A second Submit after a failed upload used to create a second request beside the first.
         var marker = Guid.NewGuid().ToString("N")[..12];
         var slotId = await InsertSlotAsync(dayOffset: 34, new TimeOnly(11, 0));
         await SubmitAsBookerAsync(BuildBooking(slotId, dayOffset: 34, new TimeOnly(11, 0), marker));
@@ -256,7 +256,7 @@ public class BookingAtomicitySqlServerTests : IAsyncLifetime
         return number;
     }
 
-    /// <summary>The upload sends its emails inline, and a missing template throws; production has them seeded.</summary>
+    /// <summary>The upload sends its emails inline, and a missing template throws; real offices have them seeded.</summary>
     private Task SeedNotificationTemplatesAsync() =>
         BookingAtomicityHarness.InOfficeAsync(Services, OfficeId, async () =>
         {

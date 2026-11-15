@@ -2370,7 +2370,7 @@ export class AppointmentAddComponent {
   /**
    * The tail of a booking that was already created: (re)upload the staged files, then the
    * internal auto-approve and the navigation. NEVER calls the submit endpoint -- a second submit
-   * created a duplicate request (A00001 and A00002, 2026-11-02).
+   * created a duplicate request.
    */
   private async finishCreatedBooking(): Promise<void> {
     const appointmentId = this.createdAppointmentIdForRetry;
@@ -2488,7 +2488,7 @@ export class AppointmentAddComponent {
       return true;
     }
     // One file after another, on purpose. Two uploads in flight against the same appointment used to
-    // make the second fail (production 2026-11-02), which told the booker the request had failed
+    // make the second fail which told the booker the request had failed
     // and led to a duplicate booking. Every file still settles on its own: one failing marks only
     // that file, and the rest are uploaded regardless.
     let allUploaded = true;

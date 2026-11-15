@@ -430,8 +430,8 @@ describe('AppointmentAddComponent remaining paths', () => {
       expect(c.bookingAlreadyCreated).toBeTrue();
     });
 
-    // Production 2026-11-02: after a failed upload the Submit button came back, the booker pressed it
-    // again and a second request (A00002) was created.
+    // After a failed upload the Submit button used to come back, the booker pressed it again and a
+    // second request was created.
     it('never calls the submit endpoint again once the request was created', async () => {
       let attempt = 0;
       const c = create({
@@ -466,7 +466,7 @@ describe('AppointmentAddComponent remaining paths', () => {
       expect(router.navigateByUrl).toHaveBeenCalledWith('/appointments/view/appt-1');
     });
 
-    // Two uploads in flight against one appointment made the second fail in production (2026-11-02),
+    // Two uploads in flight against one appointment made the second fail,
     // so the files go one after another. What that must not cost: a file already uploaded is never
     // sent again, and one failure marks only its own file.
     it('sends the next file only after the previous one has answered', async () => {
