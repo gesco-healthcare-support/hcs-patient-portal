@@ -230,6 +230,11 @@ public class CaseEvaluationPermissionDefinitionProvider : PermissionDefinitionPr
         userManagementPermission.AddChild(
             CaseEvaluationPermissions.UserManagement.InviteExternalUser,
             L("Permission:UserManagement.InviteExternalUser"));
+        // 2026-11-13: office side only (the people are an office's own outside users).
+        userManagementPermission.AddChild(
+            CaseEvaluationPermissions.UserManagement.SwitchOffExternalUser,
+            L("Permission:UserManagement.SwitchOffExternalUser"),
+            MultiTenancySides.Tenant);
 
         // 2026-10-20: Host only. Internal users (Intake Staff, Staff Supervisor) are HOST operators, created
         // and listed in host context, so they are managed from the host alone. Until then this was Both,

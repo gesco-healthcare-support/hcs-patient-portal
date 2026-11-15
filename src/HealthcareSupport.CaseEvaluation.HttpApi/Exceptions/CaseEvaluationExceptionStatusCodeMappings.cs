@@ -71,6 +71,9 @@ public static class CaseEvaluationExceptionStatusCodeMappings
         options.Map(
             CaseEvaluationDomainErrorCodes.AppointmentClaimExaminerEmailRequired,
             HttpStatusCode.BadRequest);
+        options.Map(
+            CaseEvaluationDomainErrorCodes.AppointmentDuplicateBooking,
+            HttpStatusCode.BadRequest);
 
         // Internal-user (IT-Admin) creation flow.
         options.Map(
@@ -150,6 +153,18 @@ public static class CaseEvaluationExceptionStatusCodeMappings
             HttpStatusCode.BadRequest);
         options.Map(
             CaseEvaluationDomainErrorCodes.DoctorAvailabilitySetCapacitySlotsNotFound,
+            HttpStatusCode.BadRequest);
+
+        // 2026-11-13: switching an outside login off or on. Each refusal carries a message the supervisor can
+        // act on; unmapped, ABP answers 403 and the screen shows a permission failure instead.
+        options.Map(
+            CaseEvaluationDomainErrorCodes.ExternalLoginNotAnOutsideUser,
+            HttpStatusCode.BadRequest);
+        options.Map(
+            CaseEvaluationDomainErrorCodes.ExternalLoginCannotChangeSelf,
+            HttpStatusCode.BadRequest);
+        options.Map(
+            CaseEvaluationDomainErrorCodes.ExternalLoginOfficeOnly,
             HttpStatusCode.BadRequest);
     }
 

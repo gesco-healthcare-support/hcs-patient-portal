@@ -359,6 +359,14 @@ public static class CaseEvaluationPermissions
     {
         public const string Default = GroupName + ".UserManagement";
         public const string InviteExternalUser = Default + ".InviteExternalUser";
+
+        /// <summary>
+        /// 2026-11-13 -- switch an outside user's login (patient, attorney, paralegal, claim examiner) off and
+        /// back on, inside an office. Office Staff Supervisor and admin; never Intake Staff or an external
+        /// role. This is deliberately NOT <c>AbpIdentity.Users.Update</c>, which would also let the holder set
+        /// any outside user's password.
+        /// </summary>
+        public const string SwitchOffExternalUser = Default + ".SwitchOffExternalUser";
     }
 
     /// <summary>
