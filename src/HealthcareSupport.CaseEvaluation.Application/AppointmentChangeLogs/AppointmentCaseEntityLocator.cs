@@ -110,8 +110,10 @@ public class AppointmentCaseEntityLocator : ITransientDependency
     {
         var repository = _services.GetRequiredService<IRepository<TEntity, Guid>>();
         var query = await repository.GetQueryableAsync();
+        // OrderBy before Take: a cap without an order is an arbitrary subset, and EF logs a
+        // "row limiting operator without OrderBy" warning for it on every query compile.
         return await _executer.ToListAsync(
-            query.Where(where).Select(e => e.Id).Take(MaxIdsPerType));
+            query.Where(where).OrderBy(e => e.Id).Select(e => e.Id).Take(MaxIdsPerType));
     }
 }
 
