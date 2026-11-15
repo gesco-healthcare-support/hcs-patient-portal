@@ -12,6 +12,7 @@ using HealthcareSupport.CaseEvaluation.AppointmentPrimaryInsurances;
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
 using HealthcareSupport.CaseEvaluation.AppointmentChangeRequests;
 using HealthcareSupport.CaseEvaluation.Appointments;
+using HealthcareSupport.CaseEvaluation.Branding;
 using HealthcareSupport.CaseEvaluation.DoctorAvailabilities;
 using HealthcareSupport.CaseEvaluation.Doctors;
 using HealthcareSupport.CaseEvaluation.Enums;
@@ -48,6 +49,7 @@ public class IntakePayloadBuilderTests
     private static readonly Guid SlotId = new("d1e2f3a4-b5c6-4d7e-8f90-a1b2c3d4e5fa");
     private static readonly Guid PatientId = new("e5f6a7b8-c9d0-4e1f-a2b3-c4d5e6f7a8bc");
     private static readonly Guid DoctorId = new("f7a8b9c0-d1e2-4f30-a415-263748596a7b");
+    private static readonly Guid OtherOfficeId = new("0ff1ce00-0000-4000-8000-000000000002");
 
     private static Appointment NewAppointment(
         Guid id,
@@ -81,7 +83,9 @@ public class IntakePayloadBuilderTests
         List<AppointmentPacket>? packets = null,
         List<AppointmentInjuryDetailWithNavigationProperties>? injuries = null,
         bool withDoctor = true,
-        Appointment? successor = null)
+        Appointment? successor = null,
+        OfficeLetterheadResolver? letterheadResolver = null,
+        ICurrentTenant? currentTenant = null)
     {
         var appointmentRepo = Substitute.For<IRepository<Appointment, Guid>>();
         appointmentRepo.GetAsync(appointment.Id, Arg.Any<bool>(), Arg.Any<CancellationToken>())
@@ -187,7 +191,10 @@ public class IntakePayloadBuilderTests
             appointmentRepo,
             new AppointmentCoreResolver(appointmentRepo, slotRepo, typeRepo),
             new PartyResolver(new AppointmentPatientSnapshotResolver(patientRepo), doctorRepo, stateRepo),
-            new TenantLocationResolver(locationRepo, tenantStore, configuration),
+            new TenantLocationResolver(
+                locationRepo, tenantStore, configuration,
+                letterheadResolver ?? LetterheadResolverReturning(SyntheticLetterhead()),
+                currentTenant ?? new SwitchableTenant(TenantId).Tenant),
             new DocumentListResolver(documentRepo, packetRepo, documentTypeRepo),
             new InjuryResolver(injuryRepo),
             new PartyDetailResolver(insuranceRepo, examinerRepo, stateRepo),
@@ -564,6 +571,171 @@ public class IntakePayloadBuilderTests
         data.Doctor.Id.ShouldBeNull();
         data.Doctor.FirstName.ShouldBeEmpty();
         data.Doctor.LastName.ShouldBeEmpty();
+    }
+
+    // 2026-11-15: data.office carries the office's letterhead facts exactly as the patient packet
+    // prints them, so the Case Tracker can print the same address on its own letters.
+    [Fact]
+    public async Task BuildAsync_SendsTheOfficeLetterheadAsThePacketPrintsIt()
+    {
+        var builder = Build(NewAppointment(AppointmentId, "A00065"));
+
+        var office = (await builder.BuildAsync(AppointmentId)).Data.Office;
+
+        office.PracticeName.ShouldBe("TEST Sample Spine Center");
+        office.Phone.ShouldBe("(555) 010-0100");
+        office.Fax.ShouldBe("(555) 010-0101");
+        office.RecordsReleaseAddress.ShouldBe("TEST RECORDS DEPT.\n100 SAMPLE WAY, STE. 1\nSAMPLETOWN, CA 90000");
+    }
+
+    [Fact]
+    public async Task BuildAsync_WhenTheLetterheadIsUnset_FallsBackForTheNameAndSendsNullForTheRest()
+    {
+        var unset = OfficeLetterhead.Compose(
+            new OfficeLetterheadValues(), displayName: "TEST Display Practice", doctorFirstName: "Morgan", doctorLastName: "Reyes");
+        var builder = Build(NewAppointment(AppointmentId, "A00065"), letterheadResolver: LetterheadResolverReturning(unset));
+
+        var office = (await builder.BuildAsync(AppointmentId)).Data.Office;
+
+        office.PracticeName.ShouldBe("TEST Display Practice", "the packet's own fallback: the office display name");
+        office.RecordsReleaseAddress.ShouldBeNull();
+        office.Phone.ShouldBeNull();
+        office.Fax.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task BuildAsync_ForAnAppointmentWithNoOffice_SendsAnAllNullOfficeAndReadsNoLetterhead()
+    {
+        var appointment = NewAppointment(AppointmentId, "A00065");
+        appointment.TenantId = null;
+        var resolver = LetterheadResolverReturning(SyntheticLetterhead());
+        var builder = Build(appointment, letterheadResolver: resolver);
+
+        var office = (await builder.BuildAsync(AppointmentId)).Data.Office;
+
+        office.PracticeName.ShouldBeNull();
+        office.RecordsReleaseAddress.ShouldBeNull();
+        office.Phone.ShouldBeNull();
+        office.Fax.ShouldBeNull();
+        await resolver.DidNotReceive().ResolveAsync(Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// The wire shape the Case Tracker reads: <c>data.office</c> with exactly four camelCase keys, a
+    /// blank value present as JSON null (the serializer never omits nulls), the address rows joined
+    /// by a bare newline, and nothing office-shaped in a document-update body.
+    /// </summary>
+    [Fact]
+    public async Task SerializedPayload_CarriesDataOfficeWithExactlyItsFourKeys()
+    {
+        var letterhead = OfficeLetterhead.Compose(
+            new OfficeLetterheadValues
+            {
+                PracticeName = "TEST Sample Spine Center",
+                Phone = "(555) 010-0100",
+                RecordsReleaseAddress = "TEST RECORDS DEPT.\r\n100 SAMPLE WAY",
+            },
+            displayName: null, doctorFirstName: "Morgan", doctorLastName: "Reyes");
+        var builder = Build(NewAppointment(AppointmentId, "A00065"), letterheadResolver: LetterheadResolverReturning(letterhead));
+        var envelope = await builder.BuildAsync(AppointmentId);
+
+        using var json = System.Text.Json.JsonDocument.Parse(IntakePayloadSerializer.Serialize(envelope));
+        var office = json.RootElement.GetProperty("data").GetProperty("office");
+
+        office.EnumerateObject().Select(p => p.Name)
+            .ShouldBe(new[] { "practiceName", "recordsReleaseAddress", "phone", "fax" }, ignoreOrder: true);
+        office.GetProperty("practiceName").GetString().ShouldBe("TEST Sample Spine Center");
+        office.GetProperty("recordsReleaseAddress").GetString().ShouldBe("TEST RECORDS DEPT.\n100 SAMPLE WAY");
+        office.GetProperty("phone").GetString().ShouldBe("(555) 010-0100");
+        office.GetProperty("fax").ValueKind.ShouldBe(System.Text.Json.JsonValueKind.Null);
+
+        IntakePayloadSerializer.SerializeDocumentEntries(envelope.Data.Documents)
+            .ShouldNotContain("office", Case.Insensitive);
+    }
+
+    /// <summary>
+    /// The letterhead is read in the APPOINTMENT's office, not whichever office is current. A
+    /// mismatched caller (another office, or the host) must still publish this appointment's own
+    /// practice and address, never another office's and never the empty host defaults. Afterwards
+    /// the caller's scope is restored.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task BuildAsync_ReadsTheLetterheadOfTheAppointmentsOffice_NotTheCurrentOne(bool callerIsInAnotherOffice)
+    {
+        Guid? callerScope = callerIsInAnotherOffice ? OtherOfficeId : null;
+        var tenant = new SwitchableTenant(callerScope);
+        var otherOffice = OfficeLetterhead.Compose(
+            new OfficeLetterheadValues { PracticeName = "TEST Other Office Clinic", Phone = "(555) 010-0199" },
+            displayName: null, doctorFirstName: "Avery", doctorLastName: "Other");
+        var resolver = Substitute.For<OfficeLetterheadResolver>(
+            Substitute.For<IReadOnlyRepository<Doctor, Guid>>(),
+            Substitute.For<IReadOnlyRepository<OfficeBranding, Guid>>(),
+            tenant.Tenant);
+        resolver.ResolveAsync(Arg.Any<CancellationToken>()).Returns(_ => Task.FromResult(
+            tenant.Tenant.Id == TenantId ? SyntheticLetterhead()
+            : tenant.Tenant.Id == OtherOfficeId ? otherOffice
+            : OfficeLetterhead.Compose(null, null, null, null)));
+        var builder = Build(NewAppointment(AppointmentId, "A00065"), letterheadResolver: resolver, currentTenant: tenant.Tenant);
+
+        var office = (await builder.BuildAsync(AppointmentId)).Data.Office;
+
+        office.PracticeName.ShouldBe("TEST Sample Spine Center");
+        office.Phone.ShouldBe("(555) 010-0100");
+        tenant.Tenant.Id.ShouldBe(callerScope, "the caller's own scope is restored afterwards");
+    }
+
+    /// <summary>An <see cref="ICurrentTenant"/> whose <c>Change</c> really switches and restores <c>Id</c>.</summary>
+    private sealed class SwitchableTenant
+    {
+        private Guid? _id;
+
+        public SwitchableTenant(Guid? id)
+        {
+            _id = id;
+            Tenant.Id.Returns(_ => _id);
+            Tenant.Change(Arg.Any<Guid?>(), Arg.Any<string?>()).Returns(ci =>
+            {
+                var previous = _id;
+                _id = ci.ArgAt<Guid?>(0);
+                return new Restore(() => _id = previous);
+            });
+        }
+
+        public ICurrentTenant Tenant { get; } = Substitute.For<ICurrentTenant>();
+    }
+
+    private sealed class Restore(Action onDispose) : IDisposable
+    {
+        public void Dispose() => onDispose();
+    }
+
+    /// <summary>A synthetic letterhead with every field the Case Tracker reads filled in.</summary>
+    private static OfficeLetterhead SyntheticLetterhead() => OfficeLetterhead.Compose(
+        new OfficeLetterheadValues
+        {
+            PracticeName = "TEST Sample Spine Center",
+            Phone = "(555) 010-0100",
+            Fax = "(555) 010-0101",
+            RecordsReleaseAddress = "TEST RECORDS DEPT.\n100 SAMPLE WAY, STE. 1\nSAMPLETOWN, CA 90000",
+        },
+        displayName: "TEST Display Practice",
+        doctorFirstName: "Morgan",
+        doctorLastName: "Reyes");
+
+    /// <summary>
+    /// The letterhead resolver with its read substituted: it is covered on its own by
+    /// <c>OfficeLetterheadResolverTests</c>, and here only its result matters.
+    /// </summary>
+    private static OfficeLetterheadResolver LetterheadResolverReturning(OfficeLetterhead letterhead)
+    {
+        var resolver = Substitute.For<OfficeLetterheadResolver>(
+            Substitute.For<IReadOnlyRepository<Doctor, Guid>>(),
+            Substitute.For<IReadOnlyRepository<OfficeBranding, Guid>>(),
+            Substitute.For<ICurrentTenant>());
+        resolver.ResolveAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult(letterhead));
+        return resolver;
     }
 
     /// <summary>

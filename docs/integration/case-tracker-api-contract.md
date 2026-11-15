@@ -257,6 +257,26 @@ only the Cal-Med ID they enter can do that.
 | `city`    | string | max 50  | Yes      | `Location.City` (`Location.cs:29`)    |
 | `zipCode` | string | max 15  | Yes      | `Location.ZipCode` (`Location.cs:32`) |
 
+### `data.office` (the office's own letterhead) (ADDED 2026-11-15)
+
+The office's letterhead facts, so you can print the same address on your letters. Each value is
+the EFFECTIVE one the patient packet prints (`OfficeLetterheadResolver.ResolveAsync()` in
+`Domain/Branding/`), so the packet and your letters cannot disagree. A blank value is `null`, never
+`""`. Intake bodies only: a document update never carries `office`.
+
+| Key                     | Type   | Nullable       | Source                                                                                                                                        |
+| ----------------------- | ------ | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `practiceName`          | string | Effectively no | Letterhead practice name; when unset, the office display name, then "Dr. {First} {Last}" from its doctor (`OfficeLetterhead.Compose`)         |
+| `recordsReleaseAddress` | string | Yes            | Letterhead records-release address. Several rows, separated by `"\n"` (never `"\r\n"`); print each row on its own line                        |
+| `phone`                 | string | Yes            | Letterhead phone, as the office entered it (not reformatted)                                                                                  |
+| `fax`                   | string | Yes            | Letterhead fax, as the office entered it (not reformatted)                                                                                    |
+
+**A letterhead edit by itself re-sends nothing.** Each intake body carries the letterhead as it was
+when that body was built. The appointment's NEXT intake (any change that pushes it) carries the new
+values. The reconcile GET (section F) builds live, so it always shows the current letterhead. The
+intake idempotency key is the `data` content (section G), so after an edit an otherwise unchanged
+intake for an appointment goes out once as a fresh push rather than collapsing onto the old one.
+
 ### `data.appointmentType` + `panelNumber`
 
 | Key                    | Type               | Nullable | Source                                                                                                 |
@@ -1010,6 +1030,9 @@ Portal side - BUILT and merged (as of `8a1568eb`, 2026-07-28). All of it ships D
   sweep, and the host-scoped admin dead-letter screen whose Retry re-sends from CURRENT data and marks
   the old row resolved. Part 5.
 
+- `data.office` on every intake body (§A, ADDED 2026-11-15): practice name, records-release address,
+  phone and fax, as the patient packet prints them. Additive; intake bodies only.
+
 Portal side - still NOT built:
 
 - TLS/mTLS on the transport (coordinate with Case Tracker). Note: if their service requires CLIENT
@@ -1270,7 +1293,8 @@ The Gesco envelope. An example with synthetic ids and the bodies abridged:
 - `body`: a JSON STRING holding exactly the bytes the push would have sent. For `intake` that is the
   section A envelope (`POST /api/intake/appointments`); for `documentUpdate` it is the section E bare
   array for `appointmentId` (`POST /api/intake/appointments/{appointmentId}/documents`). Parse it and hand
-  it to the same code that handles those POSTs today.
+  it to the same code that handles those POSTs today. An `intake` body carries `data.office` (section A,
+  ADDED 2026-11-15) as of when that row was written; a `documentUpdate` body never does.
 - `nextCursor`: send it on your next request. On an empty page it is the cursor you sent (or your
   acknowledged position if you sent none), so an empty page never moves you.
 - `hasMore`: `true` when more rows were ready than fit on the page.
