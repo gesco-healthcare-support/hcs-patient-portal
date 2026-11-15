@@ -37,6 +37,11 @@
       <app-email-stops-page />
     }
 
+    <!-- ============ Outside logins (2026-11-13) ============ -->
+    @if (section() === 'externalLogins') {
+      <app-external-logins-page />
+    }
+
     <!-- ============ Invite External ============ -->
     @if (section() === 'invite') {
       <div class="ra-card">

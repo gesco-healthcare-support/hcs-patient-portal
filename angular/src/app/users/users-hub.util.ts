@@ -6,7 +6,14 @@ import { ExternalUserType } from '../proxy/external-signups/external-user-type.e
 import { InvitationStatus } from '../proxy/invitations/invitation-status.enum';
 
 /** The sections of the Users & Access hub, in rail order. */
-export type UsersSectionKey = 'invite' | 'pending' | 'all' | 'emailStops' | 'staff' | 'tenants';
+export type UsersSectionKey =
+  | 'invite'
+  | 'pending'
+  | 'all'
+  | 'emailStops'
+  | 'externalLogins'
+  | 'staff'
+  | 'tenants';
 
 /** Rail metadata for one section: label, icon, deep-link route, and gating policy. */
 export interface UsersSection {
@@ -60,6 +67,15 @@ export const USERS_SECTIONS: UsersSection[] = [
     icon: 'bell',
     route: '/users/email-stops',
     policy: 'CaseEvaluation.EmailStops',
+  },
+  {
+    // 2026-11-13: an office's staff supervisor switches an outside login (patient, attorney, paralegal,
+    // claim examiner) off or on. Office side only: the permission is not granted on the staff site.
+    key: 'externalLogins',
+    label: 'Outside logins',
+    icon: 'user',
+    route: '/users/outside-logins',
+    policy: 'CaseEvaluation.UserManagement.SwitchOffExternalUser',
   },
   {
     key: 'staff',

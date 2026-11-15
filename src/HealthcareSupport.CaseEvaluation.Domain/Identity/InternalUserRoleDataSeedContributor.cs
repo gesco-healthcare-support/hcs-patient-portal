@@ -777,6 +777,10 @@ public class InternalUserRoleDataSeedContributor : IDataSeedContributor, ITransi
         yield return Default("UserManagement");
         yield return $"{Group}.UserManagement.InviteExternalUser";
 
+        // 2026-11-13 -- switch an outside user's login off and on (office side only). Staff Supervisor, not
+        // Intake Staff. The permission is MultiTenancySides.Tenant, so no host role is given it.
+        yield return $"{Group}.UserManagement.SwitchOffExternalUser";
+
         // NOT InternalUsers (2026-10-20). Internal users are host operators, managed from the host
         // alone, and the permission is now MultiTenancySides.Host, so ABP refuses to grant it in an
         // office: this pass would throw. InternalUserRoleGrantsTests pins its absence.
