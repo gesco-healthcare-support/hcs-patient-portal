@@ -1,0 +1,167 @@
+<div class="ra-card">
+  <div class="ra-card__head">
+    <div>
+      <h3>{{ '::ExternalLogins:Page:Title' | abpLocalization }}</h3>
+      <p>{{ '::ExternalLogins:Page:Intro' | abpLocalization }}</p>
+    </div>
+  </div>
+  <div class="ra-card__body">
+    <div class="el-filters">
+      <div class="ra-field">
+        <label for="el-filter">{{ '::ExternalLogins:Page:Search' | abpLocalization }}</label>
+        <input
+          id="el-filter"
+          class="ra-input"
+          type="search"
+          data-testid="filter"
+          [ngModel]="filter()"
+          (ngModelChange)="setFilter($event)"
+        />
+      </div>
+      <div class="ra-field">
+        <label for="el-status">{{ '::ExternalLogins:Page:Show' | abpLocalization }}</label>
+        <select
+          id="el-status"
+          class="ra-input"
+          data-testid="status"
+          [ngModel]="status()"
+          (ngModelChange)="setStatus($event)"
+        >
+          <option value="">{{ '::ExternalLogins:Page:ShowAll' | abpLocalization }}</option>
+          <option value="active">{{ '::ExternalLogins:Page:ShowActive' | abpLocalization }}</option>
+          <option value="off">{{ '::ExternalLogins:Page:ShowOff' | abpLocalization }}</option>
+        </select>
+      </div>
+    </div>
+
+    <table class="ad-table el-table">
+      <thead>
+        <tr>
+          <th>{{ '::ExternalLogins:Page:Name' | abpLocalization }}</th>
+          <th>{{ '::ExternalLogins:Page:Email' | abpLocalization }}</th>
+          <th>{{ '::ExternalLogins:Page:Role' | abpLocalization }}</th>
+          <th>{{ '::ExternalLogins:Page:Firm' | abpLocalization }}</th>
+          <th>{{ '::ExternalLogins:Page:Status' | abpLocalization }}</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (l of items(); track l.id) {
+          <tr data-testid="login-row">
+            <td>{{ fullName(l) || '-' }}</td>
+            <td>{{ l.email || '-' }}</td>
+            <td>{{ roleLabels(l) }}</td>
+            <td>{{ l.firmName || '-' }}</td>
+            <td data-testid="status-cell">
+              @if (l.isActive) {
+                {{ '::ExternalLogins:Page:StatusActive' | abpLocalization }}
+              } @else {
+                <span class="el-off">
+                  {{ '::ExternalLogins:Page:StatusOff' | abpLocalization }}
+                </span>
+              }
+              @if (!l.emailConfirmed) {
+                <span class="el-small">
+                  {{ '::ExternalLogins:Page:NotConfirmed' | abpLocalization }}
+                </span>
+              }
+            </td>
+            <td class="el-right">
+              <button
+                class="af-btn af-btn--sm"
+                [class.af-btn--primary]="!l.isActive"
+                [class.af-btn--ghost]="l.isActive"
+                type="button"
+                data-testid="toggle"
+                (click)="ask(l)"
+              >
+                {{
+                  (l.isActive ? '::ExternalLogins:SwitchOff' : '::ExternalLogins:SwitchOn')
+                    | abpLocalization
+                }}
+              </button>
+            </td>
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="6" class="el-none">
+              {{ '::ExternalLogins:Page:Empty' | abpLocalization }}
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+    @if (hasPrev() || hasNext()) {
+      <div class="el-pager">
+        <button
+          class="af-btn af-btn--ghost af-btn--sm"
+          type="button"
+          [disabled]="!hasPrev()"
+          (click)="page(-1)"
+        >
+          {{ '::ExternalLogins:Page:Previous' | abpLocalization }}
+        </button>
+        <button
+          class="af-btn af-btn--ghost af-btn--sm"
+          type="button"
+          [disabled]="!hasNext()"
+          (click)="page(1)"
+        >
+          {{ '::ExternalLogins:Page:Next' | abpLocalization }}
+        </button>
+      </div>
+    }
+  </div>
+</div>
+
+@if (target(); as t) {
+  <div class="ra-scrim">
+    <div class="ra-modal ra-modal--sm" role="dialog" aria-modal="true">
+      <div class="ra-modal__head">
+        <h3>
+          {{
+            (t.turnOn ? '::ExternalLogins:Confirm:OnTitle' : '::ExternalLogins:Confirm:OffTitle')
+              | abpLocalization
+          }}
+        </h3>
+      </div>
+      <div class="ra-modal__body">
+        @if (t.turnOn) {
+          <p data-testid="confirm-on-text">
+            {{ '::ExternalLogins:Confirm:OnBody' | abpLocalization: t.login.email }}
+          </p>
+        } @else {
+          <p data-testid="confirm-off-text">
+            {{ '::ExternalLogins:Confirm:OffBody' | abpLocalization: t.login.email }}
+          </p>
+          <p data-testid="confirm-off-emails">
+            {{ '::ExternalLogins:Confirm:OffEmails' | abpLocalization }}
+          </p>
+        }
+      </div>
+      <div class="ra-modal__foot">
+        <button
+          class="af-btn af-btn--ghost"
+          type="button"
+          data-testid="cancel"
+          [disabled]="busy()"
+          (click)="cancel()"
+        >
+          {{ '::ExternalLogins:Confirm:Cancel' | abpLocalization }}
+        </button>
+        <button
+          class="af-btn af-btn--primary"
+          type="button"
+          data-testid="confirm"
+          [disabled]="busy()"
+          (click)="confirm()"
+        >
+          {{
+            (t.turnOn ? '::ExternalLogins:SwitchOn' : '::ExternalLogins:SwitchOff')
+              | abpLocalization
+          }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
