@@ -274,6 +274,8 @@ HealthcareSupport.CaseEvaluation.ExternalAccount.CaseEvaluationProfileAppService
 HealthcareSupport.CaseEvaluation.ExternalAccount.ExternalAccountAppService.ResendEmailVerificationAsync(ResendEmailVerificationInput) -> class=- method=(anonymous)
 HealthcareSupport.CaseEvaluation.ExternalAccount.ExternalAccountAppService.ResetPasswordAsync(ResetPasswordInput) -> class=- method=(anonymous)
 HealthcareSupport.CaseEvaluation.ExternalAccount.ExternalAccountAppService.SendPasswordResetCodeAsync(SendPasswordResetCodeInput) -> class=- method=(anonymous)
+HealthcareSupport.CaseEvaluation.ExternalLogins.ExternalLoginsAppService.GetListAsync(GetExternalLoginsInput) -> class=CaseEvaluation.UserManagement.SwitchOffExternalUser method=-
+HealthcareSupport.CaseEvaluation.ExternalLogins.ExternalLoginsAppService.SetActiveAsync(Guid, ExternalLoginSetActiveDto) -> class=CaseEvaluation.UserManagement.SwitchOffExternalUser method=-
 HealthcareSupport.CaseEvaluation.ExternalSignups.ExternalSignupAppService.GetActiveInvitedEmailsAsync(List<String>) -> class=- method=CaseEvaluation.UserManagement.InviteExternalUser
 HealthcareSupport.CaseEvaluation.ExternalSignups.ExternalSignupAppService.GetExternalUserLookupAsync(String) -> class=- method=(authenticated)
 HealthcareSupport.CaseEvaluation.ExternalSignups.ExternalSignupAppService.GetInvitesAsync(GetInvitesInput) -> class=- method=CaseEvaluation.UserManagement.InviteExternalUser
