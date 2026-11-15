@@ -269,14 +269,13 @@ public class RescheduleFinalizer : ITransientDependency
         });
 
         _logger.LogInformation(
-            "ApproveRescheduleAsync: change request {ChangeRequestId} accepted; appointment {OldAppointmentId} closed as {OldStatus} and replaced by {NewAppointmentId} ({NewConfirmationNumber}) on slot {SlotId}. Children copied: {CopiedCounts} (total {CopiedTotal}). Override={Override}.",
+            "ApproveRescheduleAsync: change request {ChangeRequestId} accepted; appointment {OldAppointmentId} closed as {OldStatus} and replaced by {NewAppointmentId} ({NewConfirmationNumber}) on slot {SlotId}. Children copied: {CopiedTotal}. Override={Override}.",
             changeRequest.Id,
             sourceAppointment.Id,
             sourceAppointment.AppointmentStatus,
             newAppointment.Id,
             newAppointment.RequestConfirmationNumber,
             newSlotId,
-            copied,
             copied.Total,
             isAdminOverride);
     }

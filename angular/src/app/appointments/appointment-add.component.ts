@@ -854,6 +854,8 @@ export class AppointmentAddComponent {
   // Set to the created appointment id once it exists, so an upload retry
   // re-POSTs to the SAME appointment instead of creating a duplicate.
   private createdAppointmentIdForRetry?: string;
+  /** Confirmation number of the request this wizard already created; set with the id above. */
+  createdConfirmationNumber?: string;
 
   // AF6 (2026-06-05): PQME-only opt-in. When checked, the booker must mark one
   // staged document as the panel strike list before submit; unchecked, a PQME
@@ -2347,12 +2349,42 @@ export class AppointmentAddComponent {
     }
     this.isSaving = true;
     try {
-      if (await this.uploadStagedDocuments(this.createdAppointmentIdForRetry)) {
-        this.navigateAfterBooking();
-      }
+      await this.finishCreatedBooking();
     } finally {
       this.isSaving = false;
     }
+  }
+
+  /** True once the submit has succeeded; from then on Submit can only retry uploads. */
+  get bookingAlreadyCreated(): boolean {
+    return !!this.createdAppointmentIdForRetry;
+  }
+
+  /** Opens the request this wizard created, so the booker never has to submit it again. */
+  goToCreatedRequest(): void {
+    if (this.createdAppointmentIdForRetry) {
+      void this.router.navigateByUrl(`/appointments/view/${this.createdAppointmentIdForRetry}`);
+    }
+  }
+
+  /**
+   * The tail of a booking that was already created: (re)upload the staged files, then the
+   * internal auto-approve and the navigation. NEVER calls the submit endpoint -- a second submit
+   * created a duplicate request.
+   */
+  private async finishCreatedBooking(): Promise<void> {
+    const appointmentId = this.createdAppointmentIdForRetry;
+    if (!(await this.uploadStagedDocuments(appointmentId))) {
+      this.toaster.warn(this.partialUploadMessage());
+      return;
+    }
+    await this.autoApproveIfInternalBooker(appointmentId);
+    this.navigateAfterBooking();
+  }
+
+  private partialUploadMessage(): string {
+    const number = this.createdConfirmationNumber ? ` ${this.createdConfirmationNumber}` : '';
+    return `Your request${number} was created, but some documents did not upload. Press Retry to upload them again; do not submit the request a second time.`;
   }
 
   /**
@@ -2455,15 +2487,17 @@ export class AppointmentAddComponent {
     if (!appointmentId || this.stagedDocuments.length === 0) {
       return true;
     }
-    // typescript:S9382 -- each file is its own POST creating its own document row, so they are sent
-    // together rather than one after another. Every file still settles on its own: one failing
-    // marks only that file, and the rest are uploaded regardless.
-    const outcomes = await Promise.all(
-      this.stagedDocuments
-        .filter((staged) => staged.status !== 'uploaded')
-        .map((staged) => this.uploadStagedDocument(appointmentId, staged)),
-    );
-    return outcomes.every(Boolean);
+    // One file after another, on purpose. Two uploads in flight against the same appointment used to
+    // make the second fail which told the booker the request had failed
+    // and led to a duplicate booking. Every file still settles on its own: one failing marks only
+    // that file, and the rest are uploaded regardless.
+    let allUploaded = true;
+    for (const staged of this.stagedDocuments.filter((doc) => doc.status !== 'uploaded')) {
+      if (!(await this.uploadStagedDocument(appointmentId, staged))) {
+        allUploaded = false;
+      }
+    }
+    return allUploaded;
   }
 
   /** Uploads one staged file, recording its status; true when it reached the server. */
@@ -2521,6 +2555,19 @@ export class AppointmentAddComponent {
     if (this.isSaving) {
       return;
     }
+    // The request already exists (the submit succeeded and only a document upload failed):
+    // pressing Submit again must only retry the uploads, never create a second request.
+    if (this.createdAppointmentIdForRetry) {
+      this.isSaving = true;
+      try {
+        await this.finishCreatedBooking();
+      } catch (err: unknown) {
+        this.handleSubmitFailure(err);
+      } finally {
+        this.isSaving = false;
+      }
+      return;
+    }
     // typescript:S3776 -- the pre-submit gates, the payload and the failure handling each live in
     // their own method below; this one keeps only the order they run in.
     const missingSource = this.missingSourceMessage();
@@ -2567,10 +2614,9 @@ export class AppointmentAddComponent {
       // AF7: documents stay OUTSIDE that transaction on purpose -- a blob upload cannot join a
       // database transaction. Unchanged keep-and-retry behaviour, now keyed off the submit result.
       this.createdAppointmentIdForRetry = submitted?.appointmentId;
+      this.createdConfirmationNumber = submitted?.requestConfirmationNumber;
       if (!(await this.uploadStagedDocuments(submitted?.appointmentId))) {
-        this.toaster.warn(
-          'Appointment created, but some documents failed to upload. Retry from the Documents section.',
-        );
+        this.toaster.warn(this.partialUploadMessage());
         return;
       }
 

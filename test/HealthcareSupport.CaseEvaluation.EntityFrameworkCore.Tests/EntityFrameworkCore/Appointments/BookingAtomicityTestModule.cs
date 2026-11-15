@@ -1,7 +1,10 @@
+using HealthcareSupport.CaseEvaluation.BlobContainers;
 using HealthcareSupport.CaseEvaluation.Data;
 using HealthcareSupport.CaseEvaluation.EntityFrameworkCore.MultiOffice;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using NSubstitute;
+using Volo.Abp.BlobStoring;
 using Volo.Abp.EntityFrameworkCore;
 using Volo.Abp.Modularity;
 using Volo.Abp.Uow;
@@ -38,6 +41,11 @@ public class BookingAtomicityTestModule : AbpModule
         // SQLite. Both are put back to ABP's stock registrations.
         context.Services.Replace(ServiceDescriptor.Singleton<IUnitOfWorkManager, UnitOfWorkManager>());
         context.Services.Replace(ServiceDescriptor.Singleton<IUnitOfWorkTransactionBehaviourProvider, NullUnitOfWorkTransactionBehaviourProvider>());
+
+        // Document uploads write a blob through the malware-scanning MinIO provider, which fails closed
+        // with no clamd and no MinIO here. Blob storage is not under test in the upload concurrency
+        // test; the database writes are, so the container is a stand-in that accepts every save.
+        context.Services.Replace(ServiceDescriptor.Singleton(Substitute.For<IBlobContainer<AppointmentDocumentsContainer>>()));
 
         // Registered after the multi-office module's UseSqlite, so this one is the default that
         // applies. The parameterless overload reads the already-resolved connection string: the
