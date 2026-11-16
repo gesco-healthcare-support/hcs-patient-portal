@@ -12,16 +12,14 @@ The real scripts run against a fake `docker`, `ssh`, `scp` and `date`. Nothing r
 bash: CI runs on Linux; on Windows set TEST_BASH to C:/Program Files/Git/usr/bin/bash.exe or they are skipped.
 """
 
-import os
 import pathlib
 import secrets
 import shutil
-import subprocess
 import tempfile
 import unittest
 
-from shell_harness import BASH, shell_path
-from test_backup_run_stamp import FAKE_DATE, FAKE_SCP, FAKE_SSH
+from shell_harness import BASH
+from test_backup_run_stamp import FAKE_DATE, FAKE_SCP, FAKE_SSH, run_offbox_harness
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 OFFBOX = REPO_ROOT / "scripts" / "hosting" / "backup-offbox.sh"
@@ -74,25 +72,7 @@ class RestoreProofTests(unittest.TestCase):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def run_script(self, *args, **extra_env):
-        env = dict(os.environ)
-        env.pop("STAMP", None)
-        env.update({
-            "PATH": str(self.bin) + os.pathsep + env.get("PATH", ""),
-            "REPO_DIR": shell_path(REPO_ROOT),
-            "ENV_FILE": shell_path(self.env_file),
-            "BACKUP_DIR": shell_path(self.backups),
-            "STAGING": shell_path(self.staging),
-            "SSH_KEY": shell_path(self.key),
-            "REMOTE_HOST": "portalbackup@backup-host.invalid",
-            "REMOTE_DIR": "C:/PortalBackups",
-            "FAKE_LOG": shell_path(self.log),
-            "FAKE_BACKUP_DIR": shell_path(self.backups),
-            "FAKE_CLOCK": shell_path(self.tmp / "clock"),
-            "FAKE_REMOTE": shell_path(self.remote),
-        })
-        env.update(extra_env)
-        return subprocess.run([BASH, shell_path(OFFBOX), *args], cwd=REPO_ROOT, env=env, capture_output=True,
-                              text=True, encoding="utf-8", errors="replace", timeout=180)
+        return run_offbox_harness(self, OFFBOX, *args, **extra_env)
 
     def calls(self):
         if not self.log.exists():
