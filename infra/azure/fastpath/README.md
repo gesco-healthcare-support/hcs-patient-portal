@@ -256,6 +256,10 @@ not, until step 1 moves it). The rest is the go-live runbook:
    `scripts/hosting/dc.sh up -d` (and `--force-recreate reverse-proxy`, through its dependencies) starts the two
    one-shot containers again, `db-migrator` and `minio-init`. That is harmless: both are idempotent and exit 0.
 
+   Right after the first migrator run, put `model` and the portal databases in SIMPLE recovery with
+   `sudo bash scripts/hosting/sql-simple-recovery.sh`. No log backups are taken, so FULL recovery only grows the
+   logs until a restore proof runs the disk out of space. It is idempotent; the same script serves the office server.
+
    Then install the backup units (`docs/runbooks/hosting-backup-restore.md`). Run
    `scripts/hosting/backup-azure-blob.sh --dry-run` before enabling the timers. It is the first real test of the
    VM's identity against the backup account, and it also checks that SQL Server can write `backups/`.
@@ -415,5 +419,10 @@ The VM side is `scripts/hosting/relay-listener.sh` with `hcs-portal-relay.servic
   be refused; run it again. (On the first deployment the backup ran hours later and was not refused.)
 - **Platform patching reboots the VM** when an update needs it. Docker restarts the containers, but uploads return
   503 for about a minute while ClamAV loads its signatures, as they do after any restart.
+- **Patching runs ONLY from an assigned maintenance configuration.** The template sets
+  `bypassPlatformSafetyChecksOnUserSchedule`, so the customer-managed schedule an operator sets in Azure Update
+  Manager survives a template redeploy. The consequence: a fresh build with no maintenance configuration assigned
+  receives NO automatic patches. Assign one right after the build (weekly, Saturday 22:00 Pacific, classification
+  InGuestPatch, reboot IfRequired).
 - **One VM, one zone.** No high availability. The data disk can be zone-redundant (`Premium_ZRS`, the default), but
   the VM itself is a single instance. Recovery is the nightly backup.
