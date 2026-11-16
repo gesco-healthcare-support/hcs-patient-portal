@@ -423,7 +423,8 @@ The VM side is `scripts/hosting/relay-listener.sh` with `hcs-portal-relay.servic
   `bypassPlatformSafetyChecksOnUserSchedule`, so the customer-managed schedule an operator sets in Azure Update
   Manager survives a template redeploy. The consequence: a fresh build with no maintenance configuration assigned
   receives NO automatic patches. Assign one right after the build: maintenance scope InGuestPatch, weekly on
-  Saturday 22:00 Pacific for 3 hours (it ends before the 01:30 nightly backup), Linux classifications Critical and
-  Security, reboot IfRequired. No deploys inside that window: a patch reboot kills a running deploy.
+  Saturday 02:00 Pacific for 3 hours (it starts after the 01:30 nightly backup and stays clear of the Sunday 02:30
+  restore proof), Linux classifications Critical and Security, reboot IfRequired. No deploys inside that window: a
+  patch reboot kills a running deploy, and it also empties /tmp, so re-stage the deploy scripts afterwards.
 - **One VM, one zone.** No high availability. The data disk can be zone-redundant (`Premium_ZRS`, the default), but
   the VM itself is a single instance. Recovery is the nightly backup.
