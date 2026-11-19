@@ -219,6 +219,10 @@ def health():
     return jsonify(status="ok", templates=sorted(_TEMPLATE_FILES))
 
 
+# Where the image's fonts live; a package bump there changes what a render draws.
+_FONT_ROOTS = ("/usr/share/fonts", "/usr/local/share/fonts")
+
+
 @functools.lru_cache(maxsize=1)
 def _environment_fingerprint():
     """Everything besides the template that decides how a render looks, hashed once per worker.
@@ -231,7 +235,7 @@ def _environment_fingerprint():
     for package in ("weasyprint", "pikepdf", "pydyf"):
         digest.update(f"{package}={importlib.metadata.version(package)};".encode())
     fonts = []
-    for root in ("/usr/share/fonts", "/usr/local/share/fonts"):
+    for root in _FONT_ROOTS:
         base = Path(root)
         if base.is_dir():
             fonts.extend(f"{p.relative_to(base)}:{p.stat().st_size}" for p in base.rglob("*") if p.is_file())

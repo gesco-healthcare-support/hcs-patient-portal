@@ -19,7 +19,7 @@ _TOKEN = r"##[A-Za-z][A-Za-z0-9_]*\.[A-Za-z][A-Za-z0-9_]*##"
 _SPAN = re.compile(rf'(<td class="tok-cell">)?<span class="tok">((?:{_TOKEN}-?)+)</span>')
 # First name and last name printed side by side are ONE field: the patient's name.
 _NAME_PAIR = re.compile(
-    rf'<span class="tok">##Patients\.FirstName##</span>(?:\s|&nbsp;)*<span class="tok">##Patients\.LastName##</span>')
+    r'<span class="tok">##Patients\.FirstName##</span>(?:\s|&nbsp;)*<span class="tok">##Patients\.LastName##</span>')
 
 # token -> field name (the last segment of the dotted name).
 FIELD_FOR_TOKEN = {
@@ -44,8 +44,9 @@ FIELD_FOR_TOKEN = {
 NAME_FIELD = "patient_name"
 
 # Widths of the line a field sits on, by field. Anything else falls back to the default.
-_WIDTH = {"patient_name": "2.4in", "account": "1.1in", "type": "1.3in", "dob": "1.2in", "ssn": "1.2in",
-          "exam_date": "1.2in", "date_of_injury": "1.2in"}
+_DATE_WIDTH = "1.2in"
+_WIDTH = {"patient_name": "2.4in", "account": "1.1in", "type": "1.3in", "dob": _DATE_WIDTH, "ssn": _DATE_WIDTH,
+          "exam_date": _DATE_WIDTH, "date_of_injury": _DATE_WIDTH}
 _DEFAULT_WIDTH = "1.6in"
 
 CSS = r"""

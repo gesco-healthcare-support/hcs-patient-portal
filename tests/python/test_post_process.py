@@ -722,5 +722,67 @@ class FinalizeTest(unittest.TestCase):
         self.assertEqual(pdf.saved_to, ["/work/page1.pdf", "/work/page1.pdf"])
 
 
+class UseHelveticaTest(unittest.TestCase):
+    """BLANK variants only: every text field draws with the standard Helvetica (/Helv)."""
+
+    def _run(self, fields, dr=None):
+        acro = Dictionary(Fields=Array(fields))
+        if dr is not None:
+            acro.DR = dr
+        pdf = fake.Pdf(root=Dictionary())
+        pdf.Root.AcroForm = acro
+        fake.Pdf.register("/work/blank.pdf", pdf)
+        changed, printed = run_quietly(post_process.use_helvetica, "/work/blank.pdf")
+        return pdf, changed, printed
+
+    def test_a_text_field_is_pointed_at_helvetica_and_keeps_its_size(self):
+        text = Dictionary(FT=Name("/Tx"), T="packet.patient.adl.patient_name", DA="0 g /ABCDEF+Arial 0 Tf")
+        pdf, changed, printed = self._run([text])
+        self.assertEqual(changed, 1)
+        self.assertIn("helvetica text fields=1", printed)
+        self.assertEqual(str(text[Name.DA]), "0 g /Helv 0 Tf")
+        self.assertEqual(pdf.saved_to, ["/work/blank.pdf"])
+
+    def test_helvetica_is_registered_in_the_form_resources_as_winansi_type1(self):
+        pdf, _, _ = self._run([Dictionary(FT=Name("/Tx"), T="x", DA="/F1 0 Tf")])
+        helv = pdf.Root.AcroForm.DR.Font[Name.Helv]
+        self.assertEqual(helv[Name.BaseFont], Name.Helvetica)
+        self.assertEqual(helv[Name.Encoding], Name.WinAnsiEncoding)
+
+    def test_existing_form_resources_are_kept(self):
+        existing = Dictionary(Font=Dictionary(F1=Dictionary()))
+        pdf, _, _ = self._run([Dictionary(FT=Name("/Tx"), T="x", DA="/F1 0 Tf")], dr=existing)
+        self.assertIn(Name("/F1"), pdf.Root.AcroForm.DR.Font)
+
+    def test_form_resources_without_a_font_dictionary_get_one(self):
+        pdf, _, _ = self._run([Dictionary(FT=Name("/Tx"), T="x", DA="/F1 0 Tf")], dr=Dictionary())
+        self.assertIn(Name.Helv, pdf.Root.AcroForm.DR.Font)
+
+    def test_a_default_appearance_with_no_font_operator_is_replaced(self):
+        text = Dictionary(FT=Name("/Tx"), T="x", DA="0 g")
+        self._run([text])
+        self.assertEqual(str(text[Name.DA]), "/Helv 0 Tf 0 g")
+
+    def test_a_text_field_with_no_default_appearance_gets_one(self):
+        text = Dictionary(FT=Name("/Tx"), T="x")
+        self._run([text])
+        self.assertEqual(str(text[Name.DA]), "0 g /Helv 0 Tf")
+
+    def test_only_text_fields_are_touched(self):
+        button = Dictionary(FT=Name("/Btn"), T="b", DA="0 g /F1 9 Tf")
+        _, changed, _ = self._run([button])
+        self.assertEqual(changed, 0)
+        self.assertEqual(str(button[Name.DA]), "0 g /F1 9 Tf")
+
+    def test_finalize_applies_it_only_when_asked(self):
+        for asked, expected in ((False, "0 g /F1 0 Tf"), (True, "0 g /Helv 0 Tf")):
+            with self.subTest(helvetica=asked):
+                text = Dictionary(FT=Name("/Tx"), T="x", DA="0 g /F1 0 Tf")
+                pdf = make_pdf(fields=[text], pages=[fake.Page(Dictionary())])
+                fake.Pdf.register("/work/f.pdf", pdf)
+                run_quietly(post_process.finalize, "/work/f.pdf", helvetica=asked)
+                self.assertEqual(str(text[Name.DA]), expected)
+
+
 if __name__ == "__main__":
     unittest.main()

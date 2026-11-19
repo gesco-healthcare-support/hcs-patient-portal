@@ -81,8 +81,11 @@ public class CaseTrackerFormsController : AbpController
     /// <response code="403">A bad token, a spent allowance, or an office that is unknown or not switched on.</response>
     [HttpGet]
     [Route("offices/{officeId}/forms/patient-packet")]
-    public virtual Task<IActionResult> GetPatientPacketAsync(Guid officeId, CancellationToken cancellationToken) =>
-        GetFormAsync(officeId, BlankPacketKind.PatientPacket, "patient-packet-blank.pdf", cancellationToken);
+    public virtual Task<IActionResult> GetPatientPacketAsync(
+        Guid officeId,
+        [FromHeader(Name = "If-None-Match")] string? ifNoneMatch,
+        CancellationToken cancellationToken) =>
+        GetFormAsync(officeId, BlankPacketKind.PatientPacket, "patient-packet-blank.pdf", ifNoneMatch, cancellationToken);
 
     /// <summary>The blank doctor packet for one office.</summary>
     /// <response code="200">The PDF, with an ETag.</response>
@@ -90,13 +93,17 @@ public class CaseTrackerFormsController : AbpController
     /// <response code="403">A bad token, a spent allowance, or an office that is unknown or not switched on.</response>
     [HttpGet]
     [Route("offices/{officeId}/forms/doctor-packet")]
-    public virtual Task<IActionResult> GetDoctorPacketAsync(Guid officeId, CancellationToken cancellationToken) =>
-        GetFormAsync(officeId, BlankPacketKind.DoctorPacket, "doctor-packet-blank.pdf", cancellationToken);
+    public virtual Task<IActionResult> GetDoctorPacketAsync(
+        Guid officeId,
+        [FromHeader(Name = "If-None-Match")] string? ifNoneMatch,
+        CancellationToken cancellationToken) =>
+        GetFormAsync(officeId, BlankPacketKind.DoctorPacket, "doctor-packet-blank.pdf", ifNoneMatch, cancellationToken);
 
     private async Task<IActionResult> GetFormAsync(
         Guid officeId,
         BlankPacketKind kind,
         string fileName,
+        string? ifNoneMatch,
         CancellationToken cancellationToken)
     {
         if (!HasValidToken())
@@ -109,8 +116,7 @@ public class CaseTrackerFormsController : AbpController
             return AllowanceExceeded("This office's hourly form allowance is used up. It refills within the hour.");
         }
 
-        var result = await _formService.GetAsync(
-            officeId, kind, Request.Headers[HeaderNames.IfNoneMatch].ToString(), cancellationToken);
+        var result = await _formService.GetAsync(officeId, kind, ifNoneMatch, cancellationToken);
 
         // The office's own copy: never shared by a cache between callers.
         Response.Headers[HeaderNames.CacheControl] = "private, no-cache";
@@ -121,11 +127,9 @@ public class CaseTrackerFormsController : AbpController
             case BlankPacketFormOutcome.NotModified:
                 Response.Headers[HeaderNames.ETag] = result.ETag;
                 return StatusCode(StatusCodes.Status304NotModified);
-            case BlankPacketFormOutcome.Pdf:
+            default:
                 Response.Headers[HeaderNames.ETag] = result.ETag;
                 return File(result.Pdf!, "application/pdf", fileName);
-            default:
-                throw new InvalidOperationException($"Unmapped blank form outcome {result.Outcome}.");
         }
     }
 

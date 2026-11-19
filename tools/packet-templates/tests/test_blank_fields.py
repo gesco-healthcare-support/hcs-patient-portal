@@ -17,6 +17,8 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, os.path.join(ROOT, "shared"))
 import blank_fields  # noqa: E402
 
+# [A-Za-z0-9_] is NOT written as \w on purpose: \w is Unicode-aware, and this pattern must agree character for
+# character with the ASCII-only token pattern of the renderer and the .NET side (python:S6353 is declined).
 TOKEN = re.compile(r"##[A-Za-z][A-Za-z0-9_]*\.[A-Za-z][A-Za-z0-9_]*##")
 FIELD = re.compile(r'<(?:input|textarea)[^>]*?name="([^"]+)"')
 
@@ -87,7 +89,7 @@ class BlankVariantTests(unittest.TestCase):
             sent_names, blank_names = FIELD.findall(sent), FIELD.findall(blank)
             self.assertTrue(set(sent_names) <= set(blank_names))
             new = [n for n in blank_names if n not in set(sent_names)]
-            self.assertEqual(len(new), len(set(new)), "a new field name repeats")
+            self.assertLessEqual(len(new), len(set(new)), "a new field name repeats")
 
     def test_the_blank_variant_is_never_the_sent_file(self):
         self.assertNotEqual(self.patient_sent, self.patient_blank)

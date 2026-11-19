@@ -35,6 +35,7 @@ Synthetic values only. Never put real patient data in this file.
 import base64
 import io
 import json
+import os
 import struct
 import subprocess
 import sys
@@ -88,8 +89,9 @@ EXPECTED = {
 # nothing else going red. This file is the committed list, one "<template><TAB><field name>" per line, and the check
 # compares it with the fields of the REAL rendered PDF in both directions. After a deliberate change, regenerate it:
 #   docker exec -i packet-renderer python - --print-names < tests/packet-render/render_real_packets.py > tests/packet-render/field-names.txt
-# The workflow copies it into the container (stdin is the script, so the file cannot be read from the repository).
-FIELD_NAMES_PATH = "/tmp/field-names.txt"
+# The workflow copies it into the container and names it in FIELD_NAMES_PATH (docker exec -e), because stdin is the
+# script, so the file cannot be read from the repository. There is no default location: an unset variable fails the check.
+FIELD_NAMES_PATH = os.environ.get("FIELD_NAMES_PATH")
 NAMED_TEMPLATES = ("doctor", "doctor-blank", "patient", "patient-blank")
 # The blank copy is the sent packet with its per-case values turned into fields, so it must keep every name the sent
 # one has: the Case Tracker fills a blank with the names it already knows.
@@ -139,6 +141,8 @@ def field_names(pdf):
 
 def read_pinned_names():
     """template -> pinned names, from the committed file; None when the workflow did not copy it in."""
+    if not FIELD_NAMES_PATH:
+        return None
     try:
         with open(FIELD_NAMES_PATH, encoding="utf-8") as handle:
             lines = [line.rstrip(chr(10)) for line in handle if line.strip()]
@@ -170,7 +174,7 @@ def name_problems(name, payload, pinned, rendered_names):
     names = field_names(payload)
     rendered_names[name] = names
     if pinned is None:
-        return [f"{FIELD_NAMES_PATH} is missing: the workflow must copy tests/packet-render/field-names.txt in"]
+        return ["FIELD_NAMES_PATH is unset or unreadable: the workflow must copy tests/packet-render/field-names.txt in and name it"]
     want = pinned.get(name, [])
     problems = []
     missing, added = sorted(set(want) - set(names)), sorted(set(names) - set(want))
@@ -246,21 +250,32 @@ def check(name, pinned, rendered_names):
     return f"{line} -- " + ("; ".join(problems) if problems else "OK"), not problems, got
 
 
-def main(argv):
-    printing = "--print" in argv
-    printing_names = "--print-names" in argv
-    pinned, rendered_names = read_pinned_names(), {}
+def check_all(pinned, rendered_names, log):
+    """Check every template the service knows; returns each pass/fail and what was measured."""
     results, measured = [], {}
     for name in sorted(app._TEMPLATE_FILES):
         line, passed, got = check(name, pinned, rendered_names)
-        print(line, file=sys.stderr if printing_names else sys.stdout)
+        print(line, file=log)
         results.append(passed)
         if got is not None:
             measured[name] = got
+    return results, measured
+
+
+def print_pinned_names(rendered_names):
+    """The field-names.txt content: one "<template><TAB><name>" per line."""
+    for template in NAMED_TEMPLATES:
+        for field in rendered_names.get(template, []):
+            print(f"{template}{chr(9)}{field}")
+
+
+def main(argv):
+    printing = "--print" in argv
+    printing_names = "--print-names" in argv
+    rendered_names = {}
+    results, measured = check_all(read_pinned_names(), rendered_names, sys.stderr if printing_names else sys.stdout)
     if printing_names:
-        for template in NAMED_TEMPLATES:
-            for field in rendered_names.get(template, []):
-                print(f"{template}{chr(9)}{field}")
+        print_pinned_names(rendered_names)
         return 0
     stale = sorted(set(EXPECTED) - set(app._TEMPLATE_FILES))
     if stale:

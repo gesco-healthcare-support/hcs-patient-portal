@@ -130,8 +130,8 @@ public class CaseTrackerFormsControllerTests
 
         var results = new[]
         {
-            await h.Controller.GetPatientPacketAsync(OfficeId, CancellationToken.None),
-            await h.Controller.GetDoctorPacketAsync(OfficeId, CancellationToken.None),
+            await h.Controller.GetPatientPacketAsync(OfficeId, null, CancellationToken.None),
+            await h.Controller.GetDoctorPacketAsync(OfficeId, null, CancellationToken.None),
             await h.Controller.GetOfficesAsync(CancellationToken.None),
         };
 
@@ -153,7 +153,7 @@ public class CaseTrackerFormsControllerTests
         var h = Build("wrong");
         for (var i = 0; i < CaseTrackerFormsConsts.FormRequestsPerHourPerOffice + 5; i++)
         {
-            await h.Controller.GetPatientPacketAsync(OfficeId, CancellationToken.None);
+            await h.Controller.GetPatientPacketAsync(OfficeId, null, CancellationToken.None);
         }
 
         h.Allowance.TryAcquireForm(OfficeId).ShouldBeTrue();
@@ -168,7 +168,7 @@ public class CaseTrackerFormsControllerTests
             h.Allowance.TryAcquireForm(OfficeId).ShouldBeTrue();
         }
 
-        var (status, body) = ReadJson(await h.Controller.GetDoctorPacketAsync(OfficeId, CancellationToken.None));
+        var (status, body) = ReadJson(await h.Controller.GetDoctorPacketAsync(OfficeId, null, CancellationToken.None));
 
         status.ShouldBe(StatusCodes.Status403Forbidden);
         ErrorCode(body).ShouldBe("allowance_exceeded");
@@ -197,7 +197,7 @@ public class CaseTrackerFormsControllerTests
     {
         var h = Build(FeedToken, switchOn: false);
 
-        var (status, body) = ReadJson(await h.Controller.GetPatientPacketAsync(OfficeId, CancellationToken.None));
+        var (status, body) = ReadJson(await h.Controller.GetPatientPacketAsync(OfficeId, null, CancellationToken.None));
 
         status.ShouldBe(StatusCodes.Status403Forbidden);
         ErrorCode(body).ShouldBe("feed_not_enabled");
@@ -211,8 +211,8 @@ public class CaseTrackerFormsControllerTests
         var h = Build(FeedToken);
 
         var result = patient
-            ? await h.Controller.GetPatientPacketAsync(OfficeId, CancellationToken.None)
-            : await h.Controller.GetDoctorPacketAsync(OfficeId, CancellationToken.None);
+            ? await h.Controller.GetPatientPacketAsync(OfficeId, null, CancellationToken.None)
+            : await h.Controller.GetDoctorPacketAsync(OfficeId, null, CancellationToken.None);
 
         var file = result.ShouldBeOfType<FileContentResult>();
         file.ContentType.ShouldBe("application/pdf");
@@ -226,11 +226,11 @@ public class CaseTrackerFormsControllerTests
     public async Task AnIfNoneMatchOfTheCurrentETag_Is304_WithTheETag_AndNoBody()
     {
         var first = Build(FeedToken);
-        await first.Controller.GetPatientPacketAsync(OfficeId, CancellationToken.None);
+        await first.Controller.GetPatientPacketAsync(OfficeId, null, CancellationToken.None);
         var eTag = first.Http.Response.Headers[HeaderNames.ETag].ToString();
 
         var second = Build(FeedToken, ifNoneMatch: eTag);
-        var result = await second.Controller.GetPatientPacketAsync(OfficeId, CancellationToken.None);
+        var result = await second.Controller.GetPatientPacketAsync(OfficeId, eTag, CancellationToken.None);
 
         result.ShouldBeOfType<StatusCodeResult>().StatusCode.ShouldBe(StatusCodes.Status304NotModified);
         second.Http.Response.Headers[HeaderNames.ETag].ToString().ShouldBe(eTag);

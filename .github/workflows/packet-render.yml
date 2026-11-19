@@ -60,10 +60,10 @@ jobs:
 
       # The pin is a file in the repository; stdin carries the script, so the container gets its own copy.
       - name: Copy the committed field-name pin into the container
-        run: docker cp tests/packet-render/field-names.txt packet-renderer:/tmp/field-names.txt
+        run: docker cp tests/packet-render/field-names.txt packet-renderer:/app/field-names.txt
 
       - name: Render the six packets and check them against their pins
-        run: docker exec -i packet-renderer python - < tests/packet-render/render_real_packets.py
+        run: docker exec -i -e FIELD_NAMES_PATH=/app/field-names.txt packet-renderer python - < tests/packet-render/render_real_packets.py
 
       # Template names and byte sizes only: the service never logs tokens, and these are synthetic anyway.
       - name: Show the renderer's log
