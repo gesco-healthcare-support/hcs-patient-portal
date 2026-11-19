@@ -79,8 +79,21 @@ EXPECTED = {
     "attorney-ame": {"pages": 2, "widgets": 0},
     "attorney-pqme": {"pages": 3, "widgets": 0},
     "doctor": {"pages": 8, "widgets": 1341},
+    "doctor-blank": {"pages": 8, "widgets": 1360},
     "patient": {"pages": 12, "widgets": 723},
+    "patient-blank": {"pages": 12, "widgets": 740},
 }
+
+# The Case Tracker fills these packets BY FIELD NAME, so a name that changes or disappears breaks its filler with
+# nothing else going red. This file is the committed list, one "<template><TAB><field name>" per line, and the check
+# compares it with the fields of the REAL rendered PDF in both directions. After a deliberate change, regenerate it:
+#   docker exec -i packet-renderer python - --print-names < tests/packet-render/render_real_packets.py > tests/packet-render/field-names.txt
+# The workflow copies it into the container (stdin is the script, so the file cannot be read from the repository).
+FIELD_NAMES_PATH = "/tmp/field-names.txt"
+NAMED_TEMPLATES = ("doctor", "doctor-blank", "patient", "patient-blank")
+# The blank copy is the sent packet with its per-case values turned into fields, so it must keep every name the sent
+# one has: the Case Tracker fills a blank with the names it already knows.
+BLANK_OF = {"doctor-blank": "doctor", "patient-blank": "patient"}
 
 
 def render(name, signature=None):
@@ -103,6 +116,74 @@ def measure(pdf):
         widgets = sum(1 for page in document.pages for annotation in (page.get("/Annots") or [])
                       if annotation.get("/Subtype") == "/Widget")
         return {"pages": len(document.pages), "widgets": widgets}
+
+
+def _walk_fields(fields, prefix):
+    """Fully-qualified names of the terminal fields. A radio group is one field: its kids carry no /T of their own."""
+    for field in fields:
+        title = field.get("/T")
+        name = prefix + str(title) if title is not None else prefix
+        kids = field.get("/Kids")
+        if kids is not None and any(kid.get("/T") is not None for kid in kids):
+            yield from _walk_fields(kids, name + ".")
+        elif title is not None:
+            yield name
+
+
+def field_names(pdf):
+    """Sorted, de-duplicated fully-qualified field names of a PDF."""
+    with pikepdf.open(io.BytesIO(pdf)) as document:
+        acroform = document.Root.get("/AcroForm")
+        return sorted(set(_walk_fields(acroform.get("/Fields", []) if acroform is not None else [], "")))
+
+
+def read_pinned_names():
+    """template -> pinned names, from the committed file; None when the workflow did not copy it in."""
+    try:
+        with open(FIELD_NAMES_PATH, encoding="utf-8") as handle:
+            lines = [line.rstrip(chr(10)) for line in handle if line.strip()]
+    except OSError:
+        return None
+    pinned = {}
+    for line in lines:
+        template, _, name = line.partition(chr(9))
+        pinned.setdefault(template, []).append(name)
+    return pinned
+
+
+def helvetica_problems(name, payload):
+    """Only the blank copies draw their text fields with the standard Helvetica; the packets that are emailed must not."""
+    if name not in NAMED_TEMPLATES:
+        return []
+    with pikepdf.open(io.BytesIO(payload)) as document:
+        text_fields = [f for f in document.Root.AcroForm.Fields if f.get("/FT") == "/Tx"]
+        helv = sum(1 for f in text_fields if "/Helv " in str(f.get("/DA", "")))
+    if name in BLANK_OF:
+        return [] if text_fields and helv == len(text_fields) else [f"{helv} of {len(text_fields)} text fields use /Helv"]
+    return [] if helv == 0 else [f"{helv} text fields of a SENT packet use /Helv"]
+
+
+def name_problems(name, payload, pinned, rendered_names):
+    """A field name that is no longer there, or a new one nobody pinned. Only the templates the Case Tracker fills."""
+    if name not in NAMED_TEMPLATES:
+        return []
+    names = field_names(payload)
+    rendered_names[name] = names
+    if pinned is None:
+        return [f"{FIELD_NAMES_PATH} is missing: the workflow must copy tests/packet-render/field-names.txt in"]
+    want = pinned.get(name, [])
+    problems = []
+    missing, added = sorted(set(want) - set(names)), sorted(set(names) - set(want))
+    if missing:
+        problems.append(f"{len(missing)} pinned field names are gone, e.g. {missing[0]}")
+    if added:
+        problems.append(f"{len(added)} field names are not pinned, e.g. {added[0]}")
+    if name in BLANK_OF:
+        sent = pinned.get(BLANK_OF[name], [])
+        lost = sorted(set(sent) - set(names))
+        if lost:
+            problems.append(f"the blank copy dropped {len(lost)} names of the sent packet, e.g. {lost[0]}")
+    return problems
 
 
 def images_on_page(pdf, index):
@@ -145,7 +226,7 @@ def text_problems(pdf):
     return problems
 
 
-def check(name):
+def check(name, pinned, rendered_names):
     """One line for the log, whether this template passed, and what was measured (None if nothing was)."""
     status, content_type, payload, token_count = render(name)
     if status != 200 or content_type != "application/pdf":
@@ -156,7 +237,8 @@ def check(name):
         got = measure(payload)
     except pikepdf.PdfError as error:
         return f"{name}: pikepdf cannot open it: {error}", False, None
-    problems = text_problems(payload) + signature_problems(name, payload)
+    problems = text_problems(payload) + signature_problems(name, payload) + name_problems(
+        name, payload, pinned, rendered_names) + helvetica_problems(name, payload)
     want = EXPECTED.get(name)
     if want != got:
         problems.append(f"want {want}")
@@ -166,13 +248,20 @@ def check(name):
 
 def main(argv):
     printing = "--print" in argv
+    printing_names = "--print-names" in argv
+    pinned, rendered_names = read_pinned_names(), {}
     results, measured = [], {}
     for name in sorted(app._TEMPLATE_FILES):
-        line, passed, got = check(name)
-        print(line)
+        line, passed, got = check(name, pinned, rendered_names)
+        print(line, file=sys.stderr if printing_names else sys.stdout)
         results.append(passed)
         if got is not None:
             measured[name] = got
+    if printing_names:
+        for template in NAMED_TEMPLATES:
+            for field in rendered_names.get(template, []):
+                print(f"{template}{chr(9)}{field}")
+        return 0
     stale = sorted(set(EXPECTED) - set(app._TEMPLATE_FILES))
     if stale:
         print(f"pins for templates the service no longer has: {', '.join(stale)}")

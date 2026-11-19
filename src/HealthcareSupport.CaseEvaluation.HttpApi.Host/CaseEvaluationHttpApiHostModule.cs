@@ -942,9 +942,13 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
     public const int IntegrationRequestsPerHour = 300;
 
     /// <summary>
-    /// #927 -- true for the changes feed, <c>/api/integration/offices/{officeId}/feed</c>, any verb. Checked BEFORE
-    /// <see cref="IsIntegrationPath"/> by the limiter, because the feed has its own allowance and must not
-    /// spend the one reconcile and attendance share.
+    /// #927 -- true for the routes served with the feed token and their own allowances, any verb: the changes feed
+    /// (<c>/api/integration/offices/{officeId}/feed</c>), the office list (<c>/api/integration/offices</c>) and the
+    /// two blank forms (<c>/api/integration/offices/{officeId}/forms/patient-packet</c> and <c>.../doctor-packet</c>).
+    /// Checked BEFORE <see cref="IsIntegrationPath"/> by the limiter, because these have their own allowances and
+    /// must not spend the one reconcile and attendance share. A request with the token skips the middleware limiter
+    /// (the controllers count it); one without is capped per address and refused with the 403 envelope.
+    /// Nothing else matches: reconcile and attendance (<c>offices/{id}/appointments/...</c>) stay in the shared bucket.
     /// </summary>
     internal static bool IsFeedPath(Microsoft.AspNetCore.Http.HttpContext httpContext)
     {
@@ -953,9 +957,23 @@ public class CaseEvaluationHttpApiHostModule : AbpModule
             return false;
         }
 
-        var segments = (rest.Value ?? string.Empty).Trim('/').Split('/');
-        return segments.Length == 2 && string.Equals(segments[1], "feed", StringComparison.OrdinalIgnoreCase);
+        var text = (rest.Value ?? string.Empty).Trim('/');
+        if (text.Length == 0)
+        {
+            return true;
+        }
+
+        var segments = text.Split('/');
+        return segments.Length switch
+        {
+            2 => Is(segments[1], "feed"),
+            3 => Is(segments[1], "forms") && (Is(segments[2], "patient-packet") || Is(segments[2], "doctor-packet")),
+            _ => false,
+        };
     }
+
+    private static bool Is(string segment, string expected) =>
+        string.Equals(segment, expected, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// #927 -- whether the request carries the valid feed token. False when the validator cannot be resolved,

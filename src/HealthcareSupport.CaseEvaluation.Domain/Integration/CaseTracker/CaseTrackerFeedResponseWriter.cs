@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Text.Json;
@@ -43,6 +44,29 @@ public static class CaseTrackerFeedResponseWriter
     /// <summary>A refusal: no data, one error. <paramref name="field"/> names the offending parameter, if any.</summary>
     public static string WriteError(string code, string message, string? field, Guid requestId, DateTime timestampUtc) =>
         Write(requestId, timestampUtc, writer => writer.WriteNull("data"), (code, message, field));
+
+    /// <summary>The office list: <c>data: { offices: [{ id, practiceName, doctorName }] }</c>, in the same envelope.</summary>
+    public static string WriteOfficeList(IReadOnlyList<CaseTrackerOfficeEntry> offices, Guid requestId, DateTime timestampUtc)
+    {
+        ArgumentNullException.ThrowIfNull(offices);
+
+        return Write(requestId, timestampUtc, writer =>
+        {
+            writer.WriteStartObject("data");
+            writer.WriteStartArray("offices");
+            foreach (var office in offices)
+            {
+                writer.WriteStartObject();
+                writer.WriteString("id", office.Id.ToString("D"));
+                writer.WriteString("practiceName", office.PracticeName);
+                writer.WriteString("doctorName", office.DoctorName);
+                writer.WriteEndObject();
+            }
+
+            writer.WriteEndArray();
+            writer.WriteEndObject();
+        }, error: null);
+    }
 
     /// <summary>The wire name of a message type: <c>intake</c> or <c>documentUpdate</c>.</summary>
     public static string WireName(IntegrationMessageType messageType) => messageType switch
