@@ -98,7 +98,7 @@ class UrlFetcherTests(unittest.TestCase):
 class RenderWiringTests(unittest.TestCase):
     """render() must escape and must hand WeasyPrint the refusing fetcher."""
 
-    def _render(self, tokens):
+    def _render(self, tokens, template="doctor"):
         app = load_app()
         seen = {}
 
@@ -112,12 +112,13 @@ class RenderWiringTests(unittest.TestCase):
                     fh.write(b"%PDF-fake")
 
         app.HTML = FakeHTML
-        app.post_process = types.SimpleNamespace(finalize=lambda path: None)
+        app.post_process = types.SimpleNamespace(
+            finalize=lambda path, helvetica=False: seen.__setitem__("helvetica", helvetica))
         app.request = types.SimpleNamespace(
-            get_json=lambda silent=True: {"template": "doctor", "tokens": tokens}
+            get_json=lambda silent=True: {"template": template, "tokens": tokens}
         )
         app.Response = lambda body, mimetype=None: (body, mimetype)
-        app._TEMPLATE_CACHE["doctor"] = f"<html><body>{TOK}</body></html>"
+        app._TEMPLATE_CACHE[template] = f"<html><body>{TOK}</body></html>"
         app.render()
         return app, seen
 
@@ -131,6 +132,14 @@ class RenderWiringTests(unittest.TestCase):
         fetcher = seen["kwargs"].get("url_fetcher")
         self.assertIsInstance(fetcher, app.DataOnlyUrlFetcher)
         self.assertEqual(fetcher.init_kwargs, {"allow_redirects": False})
+
+    def test_a_sent_template_is_finalized_without_helvetica(self):
+        _, seen = self._render({TOK: "x"}, template="doctor")
+        self.assertIs(seen["helvetica"], False)
+
+    def test_a_blank_template_is_finalized_with_helvetica(self):
+        _, seen = self._render({TOK: "x"}, template="patient-blank")
+        self.assertIs(seen["helvetica"], True)
 
 
 if __name__ == "__main__":

@@ -100,7 +100,12 @@ public class CaseTrackerFormsControllerTests
         controller.ControllerContext = new ControllerContext { HttpContext = http };
         return new Harness
         {
-            Controller = controller, Allowance = allowance, Renderer = renderer, Mode = mode, Runner = runner, Http = http,
+            Controller = controller,
+            Allowance = allowance,
+            Renderer = renderer,
+            Mode = mode,
+            Runner = runner,
+            Http = http,
         };
     }
 

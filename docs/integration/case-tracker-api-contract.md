@@ -1416,6 +1416,8 @@ employer and claim details on the doctor's return-to-work page) is an EMPTY text
 with a unique name. Text fields use a standard Helvetica, so any filler can draw any Latin text. No case data and no
 signature image is ever in a blank.
 
+**Errors and appearances.** The renderer sidecar is called on every request, including one that ends in a 304 (it supplies the version the ETag is built from), so a 5xx means retry later. The text fields carry no appearance stream (/AP) and NeedAppearances is false, so the filler must generate appearances; the blank forms' text fields use the standard Helvetica (/Helv), so any filler can draw any Latin text.
+
 **Field names.** Dotted, as the sent packets: `packet.patient.<page>.<field>` and `packet.doctor.<page>.<field>`. The new
 ones are `packet.patient.{adl,release,pregnancy,privacyack,complaints,ama3}.{patient_name,exam_date,account,dob,ssn,date_of_injury}`
 (17 fields) and `packet.doctor.{hdr,fee,rtw}.*` (19 fields), for example `packet.doctor.fee.patient_name`,
