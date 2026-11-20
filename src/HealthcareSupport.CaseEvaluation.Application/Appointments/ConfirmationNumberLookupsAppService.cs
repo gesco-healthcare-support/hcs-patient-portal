@@ -38,6 +38,7 @@ public class ConfirmationNumberLookupsAppService : CaseEvaluationAppService, ICo
     private readonly DocumentEmailContextResolver _contextResolver;
     private readonly OfficeNotificationRecipients _officeRecipients;
     private readonly ILogger<ConfirmationNumberLookupsAppService> _logger;
+    private readonly LookupResponseFloor _responseFloor;
 
     public ConfirmationNumberLookupsAppService(
         ReEvaluationLookupThrottle throttle,
@@ -45,7 +46,8 @@ public class ConfirmationNumberLookupsAppService : CaseEvaluationAppService, ICo
         INotificationDispatcher dispatcher,
         DocumentEmailContextResolver contextResolver,
         OfficeNotificationRecipients officeRecipients,
-        ILogger<ConfirmationNumberLookupsAppService> logger)
+        ILogger<ConfirmationNumberLookupsAppService> logger,
+        LookupResponseFloor responseFloor)
     {
         _throttle = throttle;
         _matcher = matcher;
@@ -53,12 +55,28 @@ public class ConfirmationNumberLookupsAppService : CaseEvaluationAppService, ICo
         _contextResolver = contextResolver;
         _officeRecipients = officeRecipients;
         _logger = logger;
+        _responseFloor = responseFloor;
     }
 
     public virtual async Task RequestAsync(ConfirmationNumberLookupDto input)
     {
         Check.NotNull(input, nameof(input));
 
+        // 2026-11-20: every answer takes the same minimum time, the throttle refusal included; a match sends
+        // two emails first and would otherwise be told apart by its time. See LookupResponseFloor.
+        var started = _responseFloor.Start();
+        try
+        {
+            await RequestCoreAsync(input);
+        }
+        finally
+        {
+            await _responseFloor.PadAsync(started);
+        }
+    }
+
+    private async Task RequestCoreAsync(ConfirmationNumberLookupDto input)
+    {
         await _throttle.EnsureAllowedAndStampAsync(LookupThrottleBudget.ConfirmationNumber);
 
         // An unverified login proves nothing about who reads that mailbox, so it is treated as no match.

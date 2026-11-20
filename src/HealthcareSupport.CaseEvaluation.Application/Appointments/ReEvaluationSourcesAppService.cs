@@ -43,23 +43,47 @@ public class ReEvaluationSourcesAppService : CaseEvaluationAppService, IReEvalua
     private readonly IAppointmentRepository _appointmentRepository;
     private readonly IAppointmentApplicantAttorneyRepository _applicantAttorneyLinks;
     private readonly IAppointmentDefenseAttorneyRepository _defenseAttorneyLinks;
+    private readonly LookupResponseFloor _responseFloor;
 
     public ReEvaluationSourcesAppService(
         ReEvaluationSourceAccess sourceAccess,
         IAppointmentRepository appointmentRepository,
         IAppointmentApplicantAttorneyRepository applicantAttorneyLinks,
-        IAppointmentDefenseAttorneyRepository defenseAttorneyLinks)
+        IAppointmentDefenseAttorneyRepository defenseAttorneyLinks,
+        LookupResponseFloor responseFloor)
     {
         _sourceAccess = sourceAccess;
         _appointmentRepository = appointmentRepository;
         _applicantAttorneyLinks = applicantAttorneyLinks;
         _defenseAttorneyLinks = defenseAttorneyLinks;
+        _responseFloor = responseFloor;
     }
 
     public virtual async Task<ReEvaluationSourceDto?> LookupAsync(ReEvaluationSourceLookupDto input)
     {
         Check.NotNull(input, nameof(input));
 
+        // 2026-11-20: every answer except a case the caller may load takes the same minimum time: a refusal
+        // for an unknown number, a refusal for a wrong date of birth, and a throttle or any other exception
+        // alike. Otherwise the time would say whether the number exists. See LookupResponseFloor.
+        var started = _responseFloor.Start();
+        ReEvaluationSourceDto? answer = null;
+        try
+        {
+            answer = await LookupCoreAsync(input);
+            return answer;
+        }
+        finally
+        {
+            if (answer == null)
+            {
+                await _responseFloor.PadAsync(started);
+            }
+        }
+    }
+
+    private async Task<ReEvaluationSourceDto?> LookupCoreAsync(ReEvaluationSourceLookupDto input)
+    {
         var match = await _sourceAccess.FindAsync(input.ConfirmationNumber, input.PatientDateOfBirth);
 
         // 2026-11-08 (W2): every re-evaluation load comes through here now, a party's included. A party
