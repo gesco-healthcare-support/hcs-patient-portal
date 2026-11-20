@@ -16,6 +16,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Net.Http.Headers;
 using NSubstitute;
+using NSubstitute.Extensions;
 using Shouldly;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.MultiTenancy;
@@ -47,7 +48,8 @@ public class CaseTrackerFormsControllerTests
         public required DefaultHttpContext Http { get; init; }
     }
 
-    private static Harness Build(string? presentedToken, bool switchOn = true, string? ifNoneMatch = null)
+    private static Harness Build(
+        string? presentedToken, bool switchOn = true, string? ifNoneMatch = null, BlankPacketFormResult? forcedForm = null)
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -72,9 +74,15 @@ public class CaseTrackerFormsControllerTests
             .Returns(Task.FromResult(new OfficeLetterhead { PracticeName = "Sample Practice", PhysicianName = "Dr. Sample Doctor" }));
         var store = Substitute.For<ITenantStore>();
         store.FindAsync(OfficeId).Returns(Task.FromResult<TenantConfiguration?>(new TenantConfiguration(OfficeId, "sample")));
-        var formService = new CaseTrackerBlankFormService(
+        var formService = Substitute.ForPartsOf<CaseTrackerBlankFormService>(
             store, Substitute.For<ICurrentTenant>(), mode, letterhead, renderer, new BlankPacketFormCache(),
             NullLogger<CaseTrackerBlankFormService>.Instance);
+        if (forcedForm != null)
+        {
+            formService.Configure()
+                .GetAsync(Arg.Any<Guid>(), Arg.Any<BlankPacketKind>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+                .Returns(Task.FromResult(forcedForm));
+        }
 
         var runner = Substitute.For<ITenantWorkRunner>();
         runner.AggregateAcrossOfficesAsync(Arg.Any<Func<Guid, Task<CaseTrackerOfficeEntry>>>())
@@ -251,5 +259,22 @@ public class CaseTrackerFormsControllerTests
         office.GetProperty("practiceName").GetString().ShouldBe("Sample Practice");
         office.GetProperty("doctorName").GetString().ShouldBe("Dr. Sample Doctor");
         body.RootElement.GetProperty("errors").GetArrayLength().ShouldBe(0);
+    }
+
+    // Fail closed (2026-11-20): an outcome the action does not handle, or a PDF outcome without bytes, must
+    // throw (a 500), never serve a guessed body. A future fourth outcome used to fall through to File(null).
+    [Theory]
+    [InlineData(99, true)]
+    [InlineData((int)BlankPacketFormOutcome.Pdf, false)]
+    public async Task AnUnhandledOutcome_OrAPdfOutcomeWithoutBytes_Throws_AndServesNoFile(int outcome, bool withBytes)
+    {
+        var h = Build(FeedToken, forcedForm: new BlankPacketFormResult(
+            (BlankPacketFormOutcome)outcome, "\"e\"", withBytes ? Pdf : null));
+
+        var thrown = await Should.ThrowAsync<InvalidOperationException>(
+            () => h.Controller.GetPatientPacketAsync(OfficeId, null, CancellationToken.None));
+
+        thrown.Message.ShouldContain(((BlankPacketFormOutcome)outcome).ToString());
+        h.Http.Response.Headers.ContainsKey(HeaderNames.ETag).ShouldBeFalse();
     }
 }

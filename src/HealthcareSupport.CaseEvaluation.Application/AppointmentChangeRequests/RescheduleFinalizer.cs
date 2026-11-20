@@ -166,7 +166,7 @@ public class RescheduleFinalizer : ITransientDependency
             return await _appointmentRepository.InsertAsync(created, autoSave: true);
         });
 
-        var copied = await _childCascadeCopier.CopyAllAsync(
+        await _childCascadeCopier.CopyAllAsync(
             sourceAppointment.Id, newAppointment.Id, sourceAppointment.TenantId);
 
         // Close the OLD appointment through the state machine rather than by assignment, so the
@@ -268,15 +268,15 @@ public class RescheduleFinalizer : ITransientDependency
             OccurredAt = DateTime.UtcNow,
         });
 
+        // Ids and status only. The copied-row count and the confirmation number stay out: the count is
+        // derived from the copied child rows, which CodeQL rightly treats as private data (#351).
         _logger.LogInformation(
-            "ApproveRescheduleAsync: change request {ChangeRequestId} accepted; appointment {OldAppointmentId} closed as {OldStatus} and replaced by {NewAppointmentId} ({NewConfirmationNumber}) on slot {SlotId}. Children copied: {CopiedTotal}. Override={Override}.",
+            "ApproveRescheduleAsync: change request {ChangeRequestId} accepted; appointment {OldAppointmentId} closed as {OldStatus} and replaced by {NewAppointmentId} on slot {SlotId}. Override={Override}.",
             changeRequest.Id,
             sourceAppointment.Id,
             sourceAppointment.AppointmentStatus,
             newAppointment.Id,
-            newAppointment.RequestConfirmationNumber,
             newSlotId,
-            copied.Total,
             isAdminOverride);
     }
 
