@@ -39,8 +39,13 @@
          instances and invokes them at the AppService boundary. -->
     <PackageReference Include="Volo.Abp.FluentValidation" Version="10.0.2" />
     <!-- #6 (2026-06-19): server-side HTML sanitization of IT-Admin-authored
-         email-template bodies. Ganss.Xss / AngleSharp-based, MIT. -->
-    <PackageReference Include="HtmlSanitizer" Version="9.0.892" />
+         email-template bodies. Ganss.Xss / AngleSharp-based, MIT.
+         2026-11-20: 9.0.892 -> 11.0.26. 9.0.892 failed every restore (NU1903, CSS removal
+         DoS, fixed in 9.0.967). 11.x also brings AngleSharp >= 1.10, which retires the
+         AngleSharp < 1.5.0 audit suppression that 9.0.x forced. Measured before the bump:
+         all 63 shipped template bodies sanitize byte-identically on 9.0.892 and 11.0.26;
+         ShippedEmailBodySanitizationTests pins the merge-token links for later bumps. -->
+    <PackageReference Include="HtmlSanitizer" Version="11.0.26" />
   </ItemGroup>
 
 </Project>
