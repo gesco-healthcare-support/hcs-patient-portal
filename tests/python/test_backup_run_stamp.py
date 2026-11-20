@@ -84,6 +84,33 @@ def code_lines(path):
             if line.strip() and not line.lstrip().startswith("#")]
 
 
+def run_offbox_harness(case, script, *args, **extra_env):
+    """Run a hosting script with the fake `bin` first on PATH and every path pointed into the test's temp dir.
+
+    `case` provides tmp, bin, env_file, backups, staging, key and log (see BehaviourTests.setUp). Shared with
+    test_backup_offbox_restore_proof so the two harnesses cannot drift apart.
+    """
+    env = dict(os.environ)
+    env.pop("STAMP", None)
+    env.update({
+        "PATH": str(case.bin) + os.pathsep + env.get("PATH", ""),
+        "REPO_DIR": shell_path(REPO_ROOT),
+        "ENV_FILE": shell_path(case.env_file),
+        "BACKUP_DIR": shell_path(case.backups),
+        "STAGING": shell_path(case.staging),
+        "SSH_KEY": shell_path(case.key),
+        "REMOTE_HOST": "portalbackup@backup-host.invalid",
+        "REMOTE_DIR": "C:/PortalBackups",
+        "FAKE_LOG": shell_path(case.log),
+        "FAKE_BACKUP_DIR": shell_path(case.backups),
+        "FAKE_CLOCK": shell_path(case.tmp / "clock"),
+        "FAKE_REMOTE": shell_path(case.remote),
+    })
+    env.update(extra_env)
+    return subprocess.run([BASH, shell_path(script), *args], cwd=REPO_ROOT, env=env, capture_output=True,
+                          text=True, encoding="utf-8", errors="replace", timeout=180)
+
+
 class StaticTests(unittest.TestCase):
     def test_the_offbox_script_exports_its_stamp_before_it_runs_the_dump(self):
         lines = code_lines(OFFBOX)
@@ -122,25 +149,7 @@ class BehaviourTests(unittest.TestCase):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def run_script(self, script, *args, **extra_env):
-        env = dict(os.environ)
-        env.pop("STAMP", None)
-        env.update({
-            "PATH": str(self.bin) + os.pathsep + env.get("PATH", ""),
-            "REPO_DIR": shell_path(REPO_ROOT),
-            "ENV_FILE": shell_path(self.env_file),
-            "BACKUP_DIR": shell_path(self.backups),
-            "STAGING": shell_path(self.staging),
-            "SSH_KEY": shell_path(self.key),
-            "REMOTE_HOST": "portalbackup@backup-host.invalid",
-            "REMOTE_DIR": "C:/PortalBackups",
-            "FAKE_LOG": shell_path(self.log),
-            "FAKE_BACKUP_DIR": shell_path(self.backups),
-            "FAKE_CLOCK": shell_path(self.tmp / "clock"),
-            "FAKE_REMOTE": shell_path(self.remote),
-        })
-        env.update(extra_env)
-        return subprocess.run([BASH, shell_path(script), *args], cwd=REPO_ROOT, env=env, capture_output=True,
-                              text=True, encoding="utf-8", errors="replace", timeout=180)
+        return run_offbox_harness(self, script, *args, **extra_env)
 
     def backup_calls(self):
         if not self.log.exists():

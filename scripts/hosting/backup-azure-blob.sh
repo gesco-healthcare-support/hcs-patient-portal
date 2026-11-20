@@ -135,7 +135,18 @@ flock -w 7200 9 || fail "another backup run still holds ${MARKER_DIR}/backup-azu
 # rclone's configuration, readable only by root, gone when the script exits however it exits.
 rclone_env="$(umask 077 && mktemp "${stage}/rclone-env.XXXXXX")"
 proof_file=""
+# Scratch-database cleanup. Runs on EVERY exit once `scratch` is set, because fail() is `exit 1` and used to run
+# before the DROP: a disk-full RESTORE left the scratch database RESTORING with gigabytes behind it (2026-11).
+# Dropping a RESTORING database also leaves its files on disk, so the MOVE targets are removed explicitly.
+# Every command here is `|| true`: cleanup must never replace the script's own exit status.
+scratch=""
+scratch_cleanup() {
+  [[ -n "$scratch" ]] || return 0
+  sqlc -Q "IF DB_ID(N'${scratch}') IS NOT NULL BEGIN IF DATABASEPROPERTYEX(N'${scratch}','Status')='ONLINE' ALTER DATABASE [${scratch}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [${scratch}]; END" > /dev/null || true
+  sqlx bash -c 'rm -f /var/opt/mssql/data/"$0"_*.dat' "$scratch" > /dev/null 2>&1 || true
+}
 cleanup() {
+  scratch_cleanup
   rm -f "$rclone_env"
   [[ -z "$proof_file" ]] || rm -f "${backup_abs}/${proof_file}"
 }
@@ -258,17 +269,29 @@ if $verify_restore; then
     /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$sa_password" -C -b "$@"; }
   cbase="/var/opt/mssql/backups/${proof_file}"
   scratch="RestoreProofAzure_${run_stamp//-/_}"
+  sqlx() { docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" exec -T sql-server "$@"; }
   # MOVE to fresh files so the scratch copy cannot touch the live database's data files.
+  filelist="$(sqlc -h -1 -W -s '|' -Q "SET NOCOUNT ON; RESTORE FILELISTONLY FROM DISK=N'${cbase}';" | tr -d '\r' | grep -v '^$')"
+  # Refuse BEFORE the RESTORE when the data disk cannot hold the scratch copy. SQL Server pre-allocates the files at
+  # their backed-up size (a log grown to 7.9 GB took a 7.9 GB copy), and a disk-full RESTORE is what stranded one.
+  need_bytes="$(printf '%s\n' "$filelist" | awk -F'|' '$5 ~ /^[0-9]+$/ { s += $5 } END { printf "%.0f", s }')"
+  avail_bytes="$(sqlx df -B1 --output=avail /var/opt/mssql/data < /dev/null | tail -1 | tr -d '\r ')"
+  [[ "$need_bytes" =~ ^[0-9]+$ && "$need_bytes" -gt 0 ]] || fail "could not read the backup's file sizes (RESTORE FILELISTONLY)"
+  [[ "$avail_bytes" =~ ^[0-9]+$ ]] || fail "could not read the free space of /var/opt/mssql/data in the SQL container"
+  if (( avail_bytes <= need_bytes * 11 / 10 + 1073741824 )); then
+    fail "not enough free disk for the restore proof: the dump restores to $((need_bytes / 1048576)) MB, only $((avail_bytes / 1048576)) MB is free in /var/opt/mssql/data (needs 110% plus 1024 MB)"
+  fi
   move=""
   i=0
-  for lf in $(sqlc -h -1 -W -Q "SET NOCOUNT ON; RESTORE FILELISTONLY FROM DISK=N'${cbase}';" | awk '{print $1}' | grep -v '^$'); do
+  for lf in $(printf '%s\n' "$filelist" | awk -F'|' '{print $1}'); do
     i=$((i + 1))
     move="${move} MOVE N'${lf}' TO N'/var/opt/mssql/data/${scratch}_${i}.dat',"
   done
   sqlc -Q "RESTORE DATABASE [${scratch}] FROM DISK=N'${cbase}' WITH ${move} RECOVERY, REPLACE;" \
     || fail "RESTORE FAILED from the Azure copy -- the backup is not trustworthy"
   tables="$(sqlc -h -1 -W -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM [${scratch}].sys.tables;" | tr -d '\r ')"
-  sqlc -Q "DROP DATABASE [${scratch}];" > /dev/null
+  scratch_cleanup
+  scratch=""
   log "     RESTORE PROVED from Azure: sha256 matches the manifest, ${tables} tables read back, scratch dropped"
   touch "${MARKER_DIR}/last-restore-proof"
 else
