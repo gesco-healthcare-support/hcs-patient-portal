@@ -28,4 +28,11 @@ public interface IHtmlPacketRenderer
         string templateName,
         IReadOnlyDictionary<string, string> tokens,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The sidecar's version of <paramref name="templateName"/>: a hash of the baked template and the
+    /// post-processing that finishes it. It changes exactly when a render of that template could change, so a
+    /// caller can build an ETag from it without rendering.
+    /// </summary>
+    Task<string> GetTemplateVersionAsync(string templateName, CancellationToken cancellationToken = default);
 }

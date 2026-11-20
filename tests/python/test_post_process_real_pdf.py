@@ -163,5 +163,57 @@ class FinalizeAgainstRealPikepdf(unittest.TestCase):
         self.assertGreaterEqual(self.report["pypdf_field_count"], 4)
 
 
+# Runs in the child: a text field whose /DA names a subset font, then use_helvetica over it.
+_HELV_CHILD = r"""
+import json, sys
+sys.path.insert(0, sys.argv[2])
+import pikepdf
+from pikepdf import Pdf, Name, Dictionary, Array, String
+import post_process
+
+path = sys.argv[1]
+pdf = Pdf.new()
+pdf.add_blank_page(page_size=(612, 792))
+subset = pdf.make_indirect(Dictionary(Type=Name.Font, Subtype=Name.Type1, BaseFont=Name("/ABCDEF+Arial")))
+field = pdf.make_indirect(Dictionary(Type=Name.Annot, Subtype=Name.Widget, F=4, Rect=Array([10, 600, 200, 620]),
+                                     FT=Name.Tx, T="synthetic.text", DA=String("0 g /F1 0 Tf")))
+pdf.pages[0].obj.Annots = Array([field])
+pdf.Root.AcroForm = pdf.make_indirect(Dictionary(Fields=Array([field]), DR=Dictionary(Font=Dictionary(F1=subset))))
+pdf.save(path)
+
+changed = post_process.use_helvetica(path)
+out = Pdf.open(path)
+acro = out.Root.AcroForm
+print(json.dumps({
+    "changed": changed,
+    "da": str(acro.Fields[0].DA),
+    "fonts": sorted(str(k) for k in acro.DR.Font.keys()),
+    "helv": str(acro.DR.Font.Helv.BaseFont),
+}))
+"""
+
+
+@unittest.skipUnless(_HAVE or REQUIRED, "real pikepdf and pypdf not installed; see module docstring")
+class UseHelveticaAgainstRealPikepdf(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        with tempfile.TemporaryDirectory() as td:
+            proc = subprocess.run(
+                [sys.executable, "-c", _HELV_CHILD, str(Path(td) / "fixture.pdf"), str(SHARED)],
+                capture_output=True, text=True, timeout=120,
+            )
+        if proc.returncode != 0:
+            raise AssertionError(f"use_helvetica() failed:\n{proc.stderr}\n{proc.stdout}")
+        cls.report = json.loads(proc.stdout.strip().splitlines()[-1])
+
+    def test_the_text_field_now_draws_with_standard_helvetica_and_keeps_auto_size(self):
+        self.assertEqual(1, self.report["changed"])
+        self.assertEqual("0 g /Helv 0 Tf", self.report["da"])
+        self.assertEqual("/Helvetica", self.report["helv"])
+
+    def test_the_registered_fonts_are_kept_because_page_text_names_them(self):
+        self.assertEqual(["/F1", "/Helv"], self.report["fonts"])
+
+
 if __name__ == "__main__":
     unittest.main()

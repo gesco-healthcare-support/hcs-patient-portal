@@ -149,6 +149,9 @@ resource vm 'Microsoft.Compute/virtualMachines@2024-07-01' = {
         patchSettings: {
           patchMode: 'AutomaticByPlatform'
           assessmentMode: 'AutomaticByPlatform'
+          automaticByPlatformSettings: {
+            bypassPlatformSafetyChecksOnUserSchedule: true
+          }
         }
       }
     }

@@ -111,7 +111,16 @@ case "$1" in
     if [[ "$all" == *write-probe* && -n "${FAKE_SQL_CANNOT_WRITE:-}" ]]; then
       echo "touch: cannot touch '/var/opt/mssql/backups/.write-probe': Permission denied" >&2; exit 1
     fi
-    if [[ "$all" == *FILELISTONLY* ]]; then echo "CaseEvaluation"; echo "CaseEvaluation_log"; fi
+    # RESTORE FILELISTONLY rows, pipe-separated: LogicalName|PhysicalName|Type|FileGroupName|Size(bytes)|...
+    if [[ "$all" == *FILELISTONLY* ]]; then
+      echo "CaseEvaluation|/var/opt/mssql/data/CaseEvaluation.mdf|D|PRIMARY|${FAKE_DATA_BYTES:-8388608}|35184372080640"
+      echo "CaseEvaluation_log|/var/opt/mssql/data/CaseEvaluation_log.ldf|L||${FAKE_LOG_BYTES:-8388608}|2199023255552"
+    fi
+    if [[ "$all" == *"df -B1"* ]]; then echo "Avail"; echo "${FAKE_AVAIL_BYTES:-107374182400}"; fi
+    if [[ "$all" == *"RESTORE DATABASE"* && -n "${FAKE_FAIL_RESTORE:-}" ]]; then
+      echo "Msg 3257: There is insufficient free space" >&2; exit 1
+    fi
+    if [[ "$all" == *"DROP DATABASE"* && -n "${FAKE_FAIL_DROP:-}" ]]; then exit 7; fi
     if [[ "$all" == *"COUNT(*)"* ]]; then echo "113"; fi
     exit 0 ;;
   run)
@@ -362,6 +371,51 @@ class BehaviourTests(unittest.TestCase):
         self.assertTrue((self.markers / "last-success").exists())
         self.assertEqual([p.name for p in self.backups.glob("*.bakproof")], [],
                          "the downloaded copy is removed after the proof")
+        self.assertEqual(len(self.drops()), 1, "the scratch database is dropped on success")
+        self.assertEqual(len(self.file_removals()), 1, "and its files are removed too")
+        self.assertIn("RestoreProofAzure_", self.file_removals()[0][-1])
+
+    def drops(self):
+        return [c for c in self.calls() if c[0] == "compose" and any("DROP DATABASE" in a for a in c)]
+
+    def file_removals(self):
+        return [c for c in self.calls() if c[0] == "compose" and "rm -f /var/opt/mssql/data/" in " ".join(c)]
+
+    def test_a_failed_restore_still_drops_the_scratch_database_and_removes_its_files(self):
+        # fail() is `exit 1`; it used to run before the DROP and stranded a RESTORING database (and its files).
+        result = self.run_script("--verify-restore", FAKE_FAIL_RESTORE="1")
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("RESTORE FAILED", result.stderr)
+        self.assertEqual(len(self.drops()), 1)
+        self.assertIn("DB_ID(N'RestoreProofAzure_", " ".join(self.drops()[0]))
+        self.assertEqual(len(self.file_removals()), 1)
+        self.assertEqual([p.name for p in self.backups.glob("*.bakproof")], [])
+        self.assertFalse((self.markers / "last-restore-proof").exists())
+
+    def test_cleanup_never_replaces_the_scripts_own_exit_status(self):
+        # The DROP itself fails (exit 7). The run already failed with 1; the trap must not turn that into 7.
+        result = self.run_script("--verify-restore", FAKE_FAIL_RESTORE="1", FAKE_FAIL_DROP="1")
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual(len(self.file_removals()), 1, "files are still removed after a failed DROP")
+
+    def test_too_little_free_disk_refuses_the_restore_before_it_is_issued(self):
+        # Needs 16 MB * 1.1 + 1 GiB; offer exactly 1 GiB.
+        result = self.run_script("--verify-restore", FAKE_AVAIL_BYTES=str(1024 * 1024 * 1024))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("not enough free disk", result.stderr)
+        self.assertIn("16 MB", result.stderr)
+        self.assertIn("1024 MB is free", result.stderr)
+        restores = [c for c in self.calls() if c[0] == "compose" and any("RESTORE DATABASE" in a for a in c)]
+        self.assertEqual(restores, [], "no RESTORE may be issued on a disk that cannot hold it")
+        self.assertEqual(len(self.drops()), 1, "the trap still runs")
+        self.assertFalse((self.markers / "last-success").exists())
+
+    def test_the_free_space_check_counts_every_file_of_the_backup(self):
+        # 2 x 600 MB = 1200 MB * 1.1 + 1024 MB = 2344 MB needed; 2000 MB free is refused although one file fits.
+        result = self.run_script("--verify-restore", FAKE_DATA_BYTES=str(600 * 1048576),
+                                 FAKE_LOG_BYTES=str(600 * 1048576), FAKE_AVAIL_BYTES=str(2000 * 1048576))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("1200 MB", result.stderr)
 
     def test_a_download_that_does_not_match_the_manifest_fails_the_proof(self):
         result = self.run_script("--verify-restore", FAKE_CORRUPT_DOWNLOAD="1")

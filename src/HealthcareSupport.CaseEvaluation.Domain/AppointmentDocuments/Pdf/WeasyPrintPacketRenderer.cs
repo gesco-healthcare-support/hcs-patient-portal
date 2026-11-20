@@ -34,6 +34,9 @@ public class WeasyPrintPacketRenderer : IHtmlPacketRenderer
     /// <summary>The packet-renderer render endpoint: JSON request {template, tokens}, PDF response.</summary>
     private const string RenderRoute = "/render";
 
+    /// <summary>The sidecar's template-version endpoint; the template name is appended.</summary>
+    private const string TemplateVersionRoute = "/template-version/";
+
     private readonly HttpClient _httpClient;
     private readonly ILogger<WeasyPrintPacketRenderer> _logger;
 
@@ -85,5 +88,24 @@ public class WeasyPrintPacketRenderer : IHtmlPacketRenderer
             "Packet render: template {Template}, {TokenCount} tokens -> {OutputBytes} bytes PDF.",
             templateName, tokens.Count, pdfBytes.Length);
         return pdfBytes;
+    }
+
+    public virtual async Task<string> GetTemplateVersionAsync(
+        string templateName,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(templateName))
+        {
+            throw new ArgumentException("templateName must be non-empty.", nameof(templateName));
+        }
+
+        using var response = await _httpClient.GetAsync(
+            TemplateVersionRoute + Uri.EscapeDataString(templateName), cancellationToken);
+        response.EnsureSuccessStatusCode();
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+        var version = document.RootElement.GetProperty("sha256").GetString();
+        return string.IsNullOrEmpty(version)
+            ? throw new InvalidOperationException("The packet renderer returned no template version.")
+            : version;
     }
 }

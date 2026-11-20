@@ -22,5 +22,6 @@ scripts/shard-tests.py
 tools/packet-templates/attorney/build_attorney.py
 tools/packet-templates/doctor/build_doctor.py
 tools/packet-templates/patient/build_patient.py
+tools/packet-templates/shared/blank_fields.py
 tools/packet-templates/shared/check_fields.py
 tools/packet-templates/shared/post_process.py

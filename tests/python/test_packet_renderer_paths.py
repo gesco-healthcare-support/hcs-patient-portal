@@ -168,11 +168,14 @@ class TemplatePathTests(unittest.TestCase):
     def setUp(self):
         self.app = load_app()
 
-    def test_all_four_templates_are_mapped(self):
+    def test_all_six_templates_are_mapped(self):
         self.assertEqual(
             sorted(self.app._TEMPLATE_FILES),
-            ["attorney-ame", "attorney-pqme", "doctor", "patient"],
+            ["attorney-ame", "attorney-pqme", "doctor", "doctor-blank", "patient", "patient-blank"],
         )
+
+    def test_only_the_blank_templates_get_helvetica(self):
+        self.assertEqual(self.app._BLANK_TEMPLATES, frozenset({"doctor-blank", "patient-blank"}))
 
     def test_every_template_path_sits_under_the_resolved_root(self):
         root = self.app.GENERATORS_ROOT
