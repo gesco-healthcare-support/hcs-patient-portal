@@ -89,16 +89,14 @@ jobs:
       # "markdownlint-cli2 v0.13.0 ... Linting: 444 file(s) ... 0 error(s)",
       # identical to the npx form it replaces.
       #
-      # NOT hash-pinned (#700), and npm is a WEAKER case than the pip sites: PyPI
-      # forbids re-uploading a published version, while npm allows unpublishing
-      # within 72 hours, which is the window a hash would close. Accepted anyway --
-      # this is build-time tooling that lints markdown and touches no shipped
-      # artefact -- but recorded as a narrower argument than the PyPI one rather
-      # than borrowing it wholesale.
+      # Installed from a committed lockfile (.github/tools/markdownlint): every
+      # transitive package is pinned by version and integrity hash, and `npm ci`
+      # fails if the lock and package.json disagree. --ignore-scripts blocks
+      # lifecycle scripts.
       - name: Install markdownlint-cli2 without running lifecycle scripts
-        run: >
-          npm install --no-save --no-audit --no-fund --ignore-scripts
-          --prefix "$RUNNER_TEMP/mdlint" markdownlint-cli2@0.13.0
+        run: |
+          cp -r .github/tools/markdownlint "$RUNNER_TEMP/mdlint"
+          npm ci --ignore-scripts --no-audit --no-fund --prefix "$RUNNER_TEMP/mdlint"
 
       - name: Lint every markdown file in the repository
         run: |
