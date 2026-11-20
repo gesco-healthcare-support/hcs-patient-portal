@@ -125,6 +125,11 @@ public class CaseEvaluationMultiOfficeTestModule : AbpModule
         context.Services.Replace(
             ServiceDescriptor.Transient<ITenantConnectionStringProvider, MultiOfficeConnectionStringProvider>());
 
+        // The two lookups wait out a constant minimum time on purpose (LookupResponseFloor). Here a recorder
+        // counts the waits instead of sleeping, so the lookup tests stay fast and can prove the wait happened.
+        context.Services.Replace(
+            ServiceDescriptor.Singleton<HealthcareSupport.CaseEvaluation.Appointments.LookupResponseFloor, RecordingLookupResponseFloor>());
+
         // Route EVERY DbContext to the per-request resolved connection string instead
         // of a single fixed connection. For host scope the resolver returns
         // ConnectionStrings:Default (set to the host database in the test base); for a
