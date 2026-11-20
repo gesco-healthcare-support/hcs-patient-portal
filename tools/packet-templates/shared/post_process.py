@@ -279,12 +279,50 @@ def harvest_circle_fields(path):
     return added
 
 
-def finalize(path):
+def use_helvetica(path):
+    """BLANK variants only: point every text field's /DA at the standard Helvetica (/Helv, WinAnsi, nothing
+    embedded) and register it in /DR.
+
+    WeasyPrint writes no appearance for a text field and its /DA names a SUBSET of the page font (only the
+    glyphs the template itself used), so a library that builds the appearance from /DA can fail on an arbitrary
+    name. Helvetica is a standard font every viewer and filler has, so any Latin text can be drawn. The size
+    stays 0 (auto-fit), as fix() sets it. Returns the number of fields changed."""
+    pdf = Pdf.open(path, allow_overwriting_input=True)
+    acro = _ensure_acroform(pdf)
+    if Name.DR not in acro:
+        acro.DR = pdf.make_indirect(Dictionary())
+    dr = acro.DR
+    if Name.Font not in dr:
+        dr.Font = Dictionary()
+    dr.Font[Name.Helv] = pdf.make_indirect(Dictionary(
+        Type=Name.Font, Subtype=Name.Type1, BaseFont=Name.Helvetica, Encoding=Name.WinAnsiEncoding))
+    changed = 0
+    for f in acro.Fields:
+        if f.get(Name.FT) != Name.Tx:
+            continue
+        da = str(f.get(Name.DA, "0 g /Helv 0 Tf"))
+        new = re.sub(r"/\S+(\s+[\d.]+\s+Tf\b)", r"/Helv\1", da, count=1)
+        if "/Helv" not in new:
+            new = "/Helv 0 Tf 0 g"
+        f[Name.DA] = pikepdf.String(new)
+        changed += 1
+    # /DR is left alone on purpose: WeasyPrint's page content names its fonts through it, so dropping the
+    # per-field subsets that no /DA uses any more blanks the page text (measured: pdftotext finds nothing).
+    print(f"helvetica text fields={changed}")
+    pdf.save(path)
+    return changed
+
+
+def finalize(path, helvetica=False):
     """Renderer entry point: harvest circle-the-choice anchors, then normalize the form
     (radio cleanup, checkbox/highlight appearances, single-line auto-size) in place. Safe on
-    flat PDFs with no form fields (e.g. the AttorneyCE notices) -- they pass through unchanged."""
+    flat PDFs with no form fields (e.g. the AttorneyCE notices) -- they pass through unchanged.
+
+    helvetica is True only for the blank variants (see use_helvetica above)."""
     harvest_circle_fields(path)
     fix(path)
+    if helvetica:
+        use_helvetica(path)
 
 
 if __name__ == "__main__":

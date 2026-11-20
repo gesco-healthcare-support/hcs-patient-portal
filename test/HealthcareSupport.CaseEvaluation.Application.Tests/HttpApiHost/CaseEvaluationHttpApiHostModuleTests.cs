@@ -679,12 +679,38 @@ public class CaseEvaluationHttpApiHostModuleTests
     [InlineData("/api/integration/offices/abc/feed/extra", false)]
     [InlineData("/api/integration/offices/feed", false)]
     [InlineData("/api/app/case-tracker/offices/abc/feed/start", false)]
-    public void IsFeedPath_MatchesOnlyTheFeedRoute(string path, bool expected)
+    [InlineData("/api/integration/offices", true)]
+    [InlineData("/api/integration/offices/", true)]
+    [InlineData("/api/integration/offices/abc/forms/patient-packet", true)]
+    [InlineData("/api/integration/offices/abc/forms/doctor-packet", true)]
+    [InlineData("/api/integration/offices/abc/forms/patient-packet/", true)]
+    [InlineData("/API/Integration/Offices/abc/Forms/Doctor-Packet", true)]
+    [InlineData("/api/integration/offices/abc/forms/patient-packet/extra", false)]
+    [InlineData("/api/integration/offices/abc/forms/other", false)]
+    [InlineData("/api/integration/offices/abc/forms", false)]
+    [InlineData("/api/integration/offices/abc", false)]
+    [InlineData("/api/integration/offices/abc/def/patient-packet", false)]
+    [InlineData("/api/integration/offices/abc/appointments/def/attendance", false)]
+    [InlineData("/api/integration/officesx", false)]
+    public void IsFeedPath_MatchesOnlyTheTokenRoutes(string path, bool expected)
     {
         var ctx = new DefaultHttpContext();
         ctx.Request.Path = path;
 
         CaseEvaluationHttpApiHostModule.IsFeedPath(ctx).ShouldBe(expected);
+    }
+
+    [Theory]
+    [InlineData("POST")]
+    [InlineData("PUT")]
+    [InlineData("DELETE")]
+    public void IsFeedPath_IgnoresTheVerb_SoAnUnexpectedVerbIsStillRefusedByTheTokenCap(string verb)
+    {
+        var ctx = new DefaultHttpContext();
+        ctx.Request.Method = verb;
+        ctx.Request.Path = "/api/integration/offices/abc/forms/patient-packet";
+
+        CaseEvaluationHttpApiHostModule.IsFeedPath(ctx).ShouldBeTrue();
     }
 
     [Fact]

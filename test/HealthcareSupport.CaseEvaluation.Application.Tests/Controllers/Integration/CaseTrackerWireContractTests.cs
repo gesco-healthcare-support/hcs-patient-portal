@@ -54,6 +54,7 @@ public sealed partial class CaseTrackerWireContractTests
     /// </summary>
     [Theory]
     [InlineData(typeof(CaseTrackerFeedController))]
+    [InlineData(typeof(CaseTrackerFormsController))]
     [InlineData(typeof(CaseTrackerAttendanceController))]
     [InlineData(typeof(CaseTrackerReconcileController))]
     public void EveryIntegrationControllerIsRootedAt_ApiIntegration(Type controller)
@@ -63,6 +64,18 @@ public sealed partial class CaseTrackerWireContractTests
     public void TheFeedRouteIs_OfficesTenantIdFeed()
         => RouteOn(typeof(CaseTrackerFeedController), nameof(CaseTrackerFeedController.GetFeedAsync))
             .ShouldBe("offices/{tenantId}/feed");
+
+    [Theory]
+    [InlineData(nameof(CaseTrackerFormsController.GetOfficesAsync), "offices")]
+    [InlineData(nameof(CaseTrackerFormsController.GetPatientPacketAsync), "offices/{officeId}/forms/patient-packet")]
+    [InlineData(nameof(CaseTrackerFormsController.GetDoctorPacketAsync), "offices/{officeId}/forms/doctor-packet")]
+    public void TheFormsAndOfficeListRoutesAre_Pinned(string action, string route)
+        => RouteOn(typeof(CaseTrackerFormsController), action).ShouldBe(route);
+
+    [Fact]
+    public void TheFormsControllerIsAnonymous_BecauseTheFeedTokenIsItsOnlyGate()
+        => typeof(CaseTrackerFormsController)
+            .GetCustomAttribute<Microsoft.AspNetCore.Authorization.AllowAnonymousAttribute>().ShouldNotBeNull();
 
     [Fact]
     public void TheAttendanceRouteIs_OfficesTenantIdAppointmentsAppointmentIdAttendance()

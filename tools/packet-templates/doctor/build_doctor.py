@@ -14,6 +14,10 @@ import base64
 import mimetypes
 import os
 import re
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "shared"))
+import blank_fields  # noqa: E402  the blank (reusable) variant
 
 # Field-path segments for the round-trip contract
 # (packet.doctor.<page>.<section>.<field>). A typo in one copy breaks the round trip in
@@ -1364,6 +1368,19 @@ def _inline_images(html):
 VARIANTS = {
     "doctor": {"output": "doctor.html", "landscape_pages": ()},
     "doctor-landscape": {"output": "doctor_landscape.html", "landscape_pages": (1, 2, 3, 4, 5)},
+    # The reusable copy for the Case Tracker: the per-case tokens on the pages in BLANK_PAGES become empty,
+    # uniquely named fields. A blank variant is never sent to anyone.
+    "doctor-blank": {"output": "doctor_blank.html", "landscape_pages": (), "blank": True},
+}
+
+# 1-based page -> (field-name prefix, token -> field name overrides). Every other page
+# prints no per-case token (a test checks it), so it passes through unchanged.
+_RTW_NAMES = {"##Patients.LastName##": "employee_last", "##Patients.FirstName##": "employee_first",
+              "##Patients.MiddleName##": "employee_mi"}
+BLANK_PAGES = {
+    1: ("packet.doctor.hdr", {}),
+    5: ("packet.doctor.fee", {}),
+    7: ("packet.doctor.rtw", _RTW_NAMES),
 }
 
 # Named page: the pages keep the standard margins, only the orientation changes.
@@ -1379,8 +1396,12 @@ def build_variant(variant):
     pages = []
     for number, fn in enumerate(PAGES, start=1):
         cls = "page land" if number in landscape else "page"
-        pages.append(f'<div class="{cls}">\n{fn()}\n</div>')
-    css = CSS + (LANDSCAPE_CSS if landscape else "")
+        body = fn()
+        if variant.get("blank") and number in BLANK_PAGES:
+            prefix, overrides = BLANK_PAGES[number]
+            body = blank_fields.blankify(body, prefix, overrides)
+        pages.append(f'<div class="{cls}">\n{body}\n</div>')
+    css = CSS + (LANDSCAPE_CSS if landscape else "") + (blank_fields.CSS if variant.get("blank") else "")
     html = ('<!DOCTYPE html>\n<html lang="en"><head><meta charset="utf-8">'
             '<title>Doctor Packet</title>\n<style>' + css + '</style></head>\n<body>\n'
             + "\n".join(pages) + '\n</body></html>')

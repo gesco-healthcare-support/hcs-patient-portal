@@ -99,6 +99,22 @@ it, touching nothing live.
 
 Until somebody has done that and dated it, treat every instruction below as untested.
 
+**Why the portal databases run in SIMPLE recovery.** No transaction-log backup is ever taken (the backups are
+nightly full dumps), so FULL recovery gave no point-in-time restore and only made each log grow without bound: the
+host log reached 7.9 GB and the weekly restore proof then ran the data disk out of space. `model` and every
+portal database are therefore SIMPLE, set by `scripts/hosting/sql-simple-recovery.sh` (idempotent; run it from the
+repository root, `--shrink-log <MB>` also shrinks logs that have already grown). A fresh SQL volume starts with
+`model` in FULL again and a restored database keeps the model it was backed up in, so **run it after restoring
+onto a fresh server or a fresh SQL volume**, together with the `sql-app-login.sh` step below.
+
+**The restore proof cleans up after itself.** Both `backup-offbox.sh --verify-restore` and
+`backup-azure-blob.sh --verify-restore` check, before the `RESTORE`, that `/var/opt/mssql/data` inside the SQL
+container has room for the scratch copy (the dump's file sizes times 1.1, plus 1 GB), and refuse with an alert
+otherwise. On every exit, success or failure, they drop the scratch database and delete its data files. If a
+failed run from before this change left a `RestoreProof*` database behind, drop it by hand and delete its
+`RestoreProof*_*.dat` files from the container's data folder (dropping a database that is still RESTORING leaves
+its files on disk).
+
 ## What it does
 
 `scripts/hosting/backup-databases.sh` enumerates `CaseEvaluation` + `CaseEvaluation_*` (via
@@ -383,6 +399,7 @@ neutralised.
    ```bash
    sudo bash scripts/hosting/sql-app-login.sh            # creates the login; refuses a password mismatch
    sudo bash scripts/hosting/sql-app-login.sh --adopt    # after the restores: owner of every portal database
+   sudo bash scripts/hosting/sql-simple-recovery.sh      # SIMPLE recovery for model and every portal database
    ```
 
 5. **Recreate the buckets, then copy the documents back.** `minio-init` makes the buckets and the application's
