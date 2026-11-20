@@ -7,7 +7,8 @@ namespace HealthcareSupport.CaseEvaluation.Appointments;
 
 /// <summary>
 /// 2026-11-20 -- a constant minimum response time for the two lookups that must not say what they found:
-/// the re-evaluation source lookup by confirmation number and date of birth (<see cref="ReEvaluationSourcesAppService"/>)
+/// the re-evaluation source lookup by confirmation number and date of birth (<see cref="ReEvaluationSourceAccess"/>,
+/// shared by the lookup and the booking submit)
 /// and the "I don't know the number" request (<see cref="ConfirmationNumberLookupsAppService"/>).
 ///
 /// <para><b>Why.</b> Their answers are identical by design, but the work behind them is not. An unknown

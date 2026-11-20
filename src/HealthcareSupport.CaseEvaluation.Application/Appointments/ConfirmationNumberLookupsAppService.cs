@@ -8,6 +8,7 @@ using HealthcareSupport.CaseEvaluation.PhiAccess;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
 using Volo.Abp;
+using Volo.Abp.Uow;
 
 namespace HealthcareSupport.CaseEvaluation.Appointments;
 
@@ -64,10 +65,15 @@ public class ConfirmationNumberLookupsAppService : CaseEvaluationAppService, ICo
 
         // 2026-11-20: every answer takes the same minimum time, the throttle refusal included; a match sends
         // two emails first and would otherwise be told apart by its time. See LookupResponseFloor.
+        // The work runs in its own unit of work, completed BEFORE the wait: a match's outbox rows commit and the
+        // dispatcher's on-completed drain enqueue runs inside the measured time, not after it. A throw disposes
+        // it uncommitted, as before.
         var started = _responseFloor.Start();
         try
         {
+            using var uow = UnitOfWorkManager.Begin(requiresNew: true, isTransactional: true);
             await RequestCoreAsync(input);
+            await uow.CompleteAsync();
         }
         finally
         {
