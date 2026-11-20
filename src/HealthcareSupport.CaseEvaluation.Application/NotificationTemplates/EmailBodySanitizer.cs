@@ -12,10 +12,13 @@ namespace HealthcareSupport.CaseEvaluation.NotificationTemplates;
 /// <list type="bullet">
 ///   <item><c>mailto:</c> is allowed (templates link support addresses).</item>
 ///   <item>a bare <c>##Token##</c> merge placeholder in a link/image URL is
-///         preserved -- otherwise Ganss strips the non-scheme href and a
-///         templated link like <c>&lt;a href="##ResetUrl##"&gt;</c> would lose
-///         its target before <see cref="TemplateVariableSubstitutor"/> can
-///         swap in the real URL at render time.</item>
+///         kept explicitly, so a templated link like
+///         <c>&lt;a href="##ResetUrl##"&gt;</c> keeps its target until
+///         <see cref="TemplateVariableSubstitutor"/> swaps in the real URL at
+///         render time. Measured 2026-11-20: HtmlSanitizer 9.0.892 and 11.0.26
+///         already keep such a relative href, so this rule is a safety net for
+///         a future version that does not; <c>ShippedEmailBodySanitizationTests</c>
+///         pins that the links survive.</item>
 /// </list>
 /// Registered as a singleton: the sanitizer is configured once in the
 /// constructor and never mutated afterward, so <c>Sanitize</c> is safe to
