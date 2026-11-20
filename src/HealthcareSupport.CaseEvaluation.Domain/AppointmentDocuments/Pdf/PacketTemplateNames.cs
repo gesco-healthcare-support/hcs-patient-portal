@@ -16,4 +16,13 @@ public static class PacketTemplateNames
 
     /// <summary>Panel QME notice -- the AME/IME notices plus the DWC QME Appointment Notification Form.</summary>
     public const string AttorneyPqme = "attorney-pqme";
+
+    /// <summary>
+    /// Reusable copy of the patient packet for the Case Tracker: every per-case value is an empty, uniquely
+    /// named field. Served by <c>CaseTrackerBlankFormService</c>; never generated for an appointment.
+    /// </summary>
+    public const string PatientBlank = "patient-blank";
+
+    /// <summary>Reusable copy of the doctor packet for the Case Tracker; see <see cref="PatientBlank"/>.</summary>
+    public const string DoctorBlank = "doctor-blank";
 }

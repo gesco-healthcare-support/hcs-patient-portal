@@ -28,7 +28,10 @@ HIPAA: the token map carries PHI (SSN / DOB). NEVER log the tokens, the substitu
 PDF -- only the template name and byte sizes. The service binds to 127.0.0.1 on the compose network.
 """
 
+import functools
+import hashlib
 import html as html_lib
+import importlib.metadata
 import logging
 import os
 import re
@@ -82,7 +85,14 @@ _TEMPLATE_FILES = {
     "patient": GENERATORS_ROOT / "patient" / "patient.html",
     "attorney-ame": GENERATORS_ROOT / "attorney" / "ame_ime.html",
     "attorney-pqme": GENERATORS_ROOT / "attorney" / "pqme.html",
+    # Reusable copies for the Case Tracker: every per-case value is an empty, uniquely named field.
+    "doctor-blank": GENERATORS_ROOT / "doctor" / "doctor_blank.html",
+    "patient-blank": GENERATORS_ROOT / "patient" / "patient_blank.html",
 }
+
+# Templates whose text fields get a standard Helvetica (post_process.use_helvetica), so any filler library can
+# draw any Latin text. The packets that are emailed are NOT in this set and render exactly as before.
+_BLANK_TEMPLATES = frozenset({"doctor-blank", "patient-blank"})
 
 # Read on first use rather than at import, so this module can be imported outside the image where
 # the generated HTML does not exist (it is gitignored and produced at build time).
@@ -209,6 +219,56 @@ def health():
     return jsonify(status="ok", templates=sorted(_TEMPLATE_FILES))
 
 
+# Where the image's fonts live; a package bump there changes what a render draws.
+_FONT_ROOTS = ("/usr/share/fonts", "/usr/local/share/fonts")
+
+
+@functools.lru_cache(maxsize=1)
+def _environment_fingerprint():
+    """Everything besides the template that decides how a render looks, hashed once per worker.
+
+    The renderer source, the PDF libraries' installed versions, and the list of installed font files with their
+    sizes (a Debian font package bump changes the glyphs a render draws without touching any file of ours).
+    """
+    digest = hashlib.sha256()
+    digest.update(Path(__file__).read_bytes())
+    for package in ("weasyprint", "pikepdf", "pydyf"):
+        digest.update(f"{package}={importlib.metadata.version(package)};".encode())
+    fonts = []
+    for root in _FONT_ROOTS:
+        base = Path(root)
+        if base.is_dir():
+            fonts.extend(f"{p.relative_to(base)}:{p.stat().st_size}" for p in base.rglob("*") if p.is_file())
+    digest.update(";".join(sorted(fonts)).encode())
+    return digest.hexdigest()
+
+
+def template_version(name):
+    """SHA-256 of what decides the bytes of a render: the baked template, the post-processing that finishes it, and
+    the environment fingerprint (renderer source, library versions, installed fonts).
+
+    The .NET side derives the blank forms' ETag from this, so it changes exactly when a render could change --
+    including a renderer-only deploy -- and never otherwise.
+    """
+    digest = hashlib.sha256()
+    digest.update(_TEMPLATE_FILES[name].read_bytes())
+    digest.update(Path(post_process.__file__).read_bytes())
+    digest.update(_environment_fingerprint().encode())
+    return digest.hexdigest()
+
+
+@app.get("/template-version/<name>")
+def get_template_version(name):
+    """The version of one template (see template_version). 404 for a name the service does not know."""
+    if name not in _TEMPLATE_FILES:
+        return jsonify(error=f"unknown template; expected one of {sorted(_TEMPLATE_FILES)}"), 404
+    try:
+        return jsonify(template=name, sha256=template_version(name))
+    except OSError:
+        log.exception("template %s could not be read for its version", name)
+        return jsonify(error=f"template {name} could not be read"), 500
+
+
 @app.post("/render")
 def render():
     """Substitute tokens into the named template and return the rendered fillable PDF.
@@ -251,7 +311,7 @@ def render():
         HTML(string=html, url_fetcher=DataOnlyUrlFetcher(allow_redirects=False)).write_pdf(
             path, pdf_forms=True
         )
-        post_process.finalize(path)
+        post_process.finalize(path, helvetica=name in _BLANK_TEMPLATES)
         with open(path, "rb") as fh:
             pdf = fh.read()
     finally:

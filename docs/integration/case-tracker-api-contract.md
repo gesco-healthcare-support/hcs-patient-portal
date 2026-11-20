@@ -1380,6 +1380,50 @@ also cap the feed; nothing is agreed.
 
 ---
 
+## M. Blank forms and the office list (PULL -- you call us) (ADDED 2026-11-19)
+
+Three read-only routes for setting up an iPad intake: the offices, and a blank, reusable copy of the patient packet and
+of the doctor packet for each office. They sit beside the changes feed, in the same controller family, with the same
+token and the same answers.
+
+| Route | Answers |
+| --- | --- |
+| `GET /api/integration/offices` | `{ data: { offices: [{ id, practiceName, doctorName }] }, meta, errors }`. Every office, nothing else: no address, no login, no setting. The practice name is the letterhead's (the practice, else the doctor, else the web-address slug), so it is never blank. |
+| `GET /api/integration/offices/{officeId}/forms/patient-packet` | The blank patient packet, `application/pdf`. |
+| `GET /api/integration/offices/{officeId}/forms/doctor-packet` | The blank doctor packet, `application/pdf`. |
+
+**Auth.** The feed's `X-Feed-Token` header, checked first, before any office or database is touched. A bad or absent
+token is `403` with `errors[0].code = "forbidden"`, never 401. The integration token does not open these routes.
+
+**Office gate.** The office must exist and its Case Tracker switch must be on. An unknown office, a failed lookup, an
+unreadable switch and one that is switched off all answer `403` with `errors[0].code = "feed_not_enabled"`, so the answer cannot be used to discover
+offices. The feed also needs an active feed record; these routes do not.
+
+**Limits.** Their own buckets, so they never spend the feed's 240 an hour: 30 form downloads an hour per office (both
+forms together) and 30 office-list requests an hour for the whole portal. A spent allowance is `403` with
+`errors[0].code = "allowance_exceeded"`. They are counted after the token check, so a caller without the token spends
+nothing. A request without the token is capped per source address like the feed's (403 `forbidden`), and nginx's edge limit for the API host still applies.
+
+**ETag and 304.** Each form carries a strong `ETag`. Send it back as `If-None-Match` and an unchanged form answers
+`304` with no body (and the `ETag`). The ETag changes exactly when a render could change: the template or its
+post-processing changed (a renderer deploy), or the office's letterhead changed. It is computed without rendering, so
+a `304` is cheap. Poll about once a day and replace your copy only on a `200`. `Cache-Control: private, no-cache`; the
+file name is neutral (`patient-packet-blank.pdf`, `doctor-packet-blank.pdf`).
+
+**What is in the blank.** The same layout, letterhead and existing field names as the packet the portal sends. The
+office's own letterhead is printed as usual. Every value that is per case (name, dates, confirmation number, SSN,
+employer and claim details on the doctor's return-to-work page) is an EMPTY text field instead of printed text, each
+with a unique name. Text fields use a standard Helvetica, so any filler can draw any Latin text. No case data and no
+signature image is ever in a blank.
+
+**Errors and appearances.** The renderer sidecar is called on every request, including one that ends in a 304 (it supplies the version the ETag is built from), so a 5xx means retry later. The text fields carry no appearance stream (/AP) and NeedAppearances is false, so the filler must generate appearances; the blank forms' text fields use the standard Helvetica (/Helv), so any filler can draw any Latin text.
+
+**Field names.** Dotted, as the sent packets: `packet.patient.<page>.<field>` and `packet.doctor.<page>.<field>`. The new
+ones are `packet.patient.{adl,release,pregnancy,privacyack,complaints,ama3}.{patient_name,exam_date,account,dob,ssn,date_of_injury}`
+(17 fields) and `packet.doctor.{hdr,fee,rtw}.*` (19 fields), for example `packet.doctor.fee.patient_name`,
+`packet.doctor.rtw.employer_zip`. Every name of the sent packet is kept in the blank. The full list, pinned in CI so a
+name cannot change or disappear unnoticed, is `tests/packet-render/field-names.txt` (one `template<TAB>name` per line).
+
 ## Coordination
 
 NOTE 2026-09-24: the two "provides" lists below predate the September thread and have NOT been

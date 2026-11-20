@@ -22,6 +22,10 @@ import base64
 import mimetypes
 import os
 import re
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "shared"))
+import blank_fields  # noqa: E402  the blank (reusable) variant
 
 EN_DASH = "\u2013"
 
@@ -1377,21 +1381,40 @@ PAGES = [
 ]
 
 
-def build():
-    """Assemble all registered pages into patient.html."""
-    body = "\n".join(fn() for _, fn in PAGES)
+def _document(css, body):
     html = (
         "<!DOCTYPE html>\n<html><head><meta charset=\"utf-8\">\n"
-        f"<style>{CSS}</style></head>\n<body>\n{body}\n</body></html>\n"
+        f"<style>{css}</style></head>\n<body>\n{body}\n</body></html>\n"
     )
-    html = _inline_images(html)
+    return _inline_images(html)
+
+
+def build_standard():
+    """The packet that is sent: every per-case value is a printed token."""
+    return _document(CSS, "\n".join(fn() for _, fn in PAGES))
+
+
+def build_blank():
+    """The reusable copy for the Case Tracker: every per-case token is an empty, uniquely named field
+    packet.patient.<page>.<field>. The sent packet above is unchanged."""
+    body = "\n".join(blank_fields.blankify(fn(), f"packet.patient.{slug}") for slug, fn in PAGES)
+    return _document(CSS + blank_fields.CSS, body)
+
+
+def _write(name, html):
     # newline="\n" so the document is byte-identical on every platform.
     # Without it Python's text mode emits CRLF on Windows and LF on Linux --
     # same content, different bytes, different hash. The packet-renderer image
     # builds on Linux, so LF is what ships (docker/packet-renderer/Dockerfile).
-    with open("patient.html", "w", encoding="utf-8", newline="\n") as fh:
+    with open(name, "w", encoding="utf-8", newline="\n") as fh:
         fh.write(html)
-    print(f"patient.html written: {len(PAGES)} page(s) registered")
+
+
+def build():
+    """Assemble all registered pages into patient.html and its blank twin patient_blank.html."""
+    _write("patient.html", build_standard())
+    _write("patient_blank.html", build_blank())
+    print(f"patient.html and patient_blank.html written: {len(PAGES)} page(s) registered")
 
 
 if __name__ == "__main__":
