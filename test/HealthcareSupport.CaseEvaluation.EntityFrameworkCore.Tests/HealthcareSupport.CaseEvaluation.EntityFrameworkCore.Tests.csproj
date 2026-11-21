@@ -4,12 +4,9 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>HealthcareSupport.CaseEvaluation</RootNamespace>
-    <!-- Audit only DIRECT deps here. The Sqlite test provider pulls a transitive
-         SQLitePCLRaw.lib.e_sqlite3 with a published advisory (NU1903) that failed
-         restore-as-error and blocked commits. It is test-only (production runs on
-         SQL Server, not SQLite), so direct-only audit is acceptable. Update the
-         transitive package to a patched version to restore full auditing. -->
-    <NuGetAuditMode>direct</NuGetAuditMode>
+    <!-- 2026-11-20: full NuGet auditing is back. It was direct-only because the Sqlite test provider pulled
+         SQLitePCLRaw.lib.e_sqlite3 2.1.11 (GHSA-2m69-gcr7-jv3q). The SQLitePCLRaw pin below fixes that, so a
+         transitive advisory in this project fails the restore again like everywhere else. -->
   </PropertyGroup>
 
   <ItemGroup>
@@ -19,6 +16,10 @@
 
   <ItemGroup>
     <PackageReference Include="Volo.Abp.EntityFrameworkCore.Sqlite" Version="10.0.2" />
+    <!-- 2026-11-20: lifts the SQLite native bundle that Microsoft.EntityFrameworkCore.Sqlite 10.0.0 pulls
+         (2.1.11, GHSA-2m69-gcr7-jv3q) to the patched 2.1.14 on the same line. Test-only: production runs on
+         SQL Server. Drop it once EF Core's Sqlite provider ships a patched SQLitePCLRaw itself. -->
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.14" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <!-- #927: the changes feed pages on rowversion and MIN_ACTIVE_ROWVERSION(), which only a real SQL Server
          has. Test-only; the tests start the image docker-compose.yml pins. MIT licensed. -->
