@@ -32,6 +32,9 @@ RULES = [
      re.compile(r"(?:^|\s)-e\s+[\"']?MC_HOST_\w+=")),
     ("docker -e NAME=<secret variable> (the value on docker's command line)",
      re.compile(r"(?:^|\s)-e\s+[\"']?\w+=[\"']?\$\{?\w*(?:PASS|SECRET|TOKEN|KEY)", re.IGNORECASE)),
+    # openssl -passin/-passout pass:<value from a variable> puts the passphrase on openssl's command line; use env:NAME.
+    ("openssl pass:$VAR (the passphrase on openssl's command line)",
+     re.compile(r"-pass(?:in|out)\s+[\"']?pass:\$")),
 ]
 
 # `mc admin user add` must be fed from a pipe (the secret on stdin), never given the secret as an argument.
@@ -50,6 +53,9 @@ KNOWN_BAD = [
     "printf 'mc alias set local %s %s %s > /dev/null\\n' \"$(sq \"$MINIO_URL\")\"",
     '-e "MC_HOST_m=http://${MINIO_USER}:${MINIO_PASS}@minio:9000" \\',
     'run() { MSYS_NO_PATHCONV=1 docker run --rm -e K="$ABP_NUGET_API_KEY" -e P="$PROJECT" \\',
+    '-out "$OUT" -passout "pass:${DATAPROTECTION_CERT_PASSPHRASE}"',
+    '-out "$OUT" -passout "pass:${AUTHSERVER_CERT_PASSPHRASE}"',
+    'openssl pkcs12 -in "$OUT" -noout -passin pass:$PW',
 ]
 KNOWN_BAD_USER_ADD = [
     'mc admin user add local "$$MINIO_APP_ACCESS_KEY" "$$MINIO_APP_SECRET_KEY"',
@@ -64,6 +70,8 @@ KNOWN_GOOD = [
     "printf '%s\\n' \"$$MINIO_APP_SECRET_KEY\" | mc admin user add local \"$$MINIO_APP_ACCESS_KEY\"",
     "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -Q \"SELECT 1\" -o /dev/null",
     "as_sa() { docker exec -i \"$container\" bash -c \"SQLCMDPASSWORD=\\\"\\$MSSQL_SA_PASSWORD\\\" ${SQLCMD} -S localhost -U sa -C\"; }",
+    '-out "$OUT" -passout env:DATAPROTECTION_CERT_PASSPHRASE',
+    'openssl pkcs12 -in "$OUT" -noout -passin env:PW',
 ]
 
 # Shell, PowerShell and compose files: anything that can run a command.
