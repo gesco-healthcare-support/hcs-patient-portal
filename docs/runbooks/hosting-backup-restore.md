@@ -463,10 +463,13 @@ migration at a known time, you want the last backup BEFORE it.
 ### 2. Confirm the file is readable and see what is inside
 
 ```bash
-docker compose -f docker-compose.prod.yml --env-file secrets/env.prod exec -T sql-server \
-  /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "<MSSQL_SA_PASSWORD>" -C -b \
-  -Q "RESTORE HEADERONLY FROM DISK = N'/var/opt/mssql/backups/CaseEvaluation_falkinstein_<stamp>.bak';"
+docker compose -f docker-compose.prod.yml --env-file secrets/env.prod exec -T sql-server bash -c \
+  'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -Q "$0"' \
+  "RESTORE HEADERONLY FROM DISK = N'/var/opt/mssql/backups/CaseEvaluation_falkinstein_<stamp>.bak';"
 ```
+
+The sa password comes from the container's own environment and reaches sqlcmd by name (`SQLCMDPASSWORD`).
+Never type it after `-P`: a command line is readable by every local user, and it stays in your shell history.
 
 Expect one row with a `BackupFinishDate` you recognise. An error here means a corrupt or truncated
 file: **stop, and pick a different backup.** Do not proceed to overwrite a live database using a
@@ -484,9 +487,9 @@ them every database and the DataProtection keys.
 ### 4. Restore
 
 ```bash
-docker compose -f docker-compose.prod.yml --env-file secrets/env.prod exec -T sql-server \
-  /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "<MSSQL_SA_PASSWORD>" -C -b \
-  -Q "RESTORE DATABASE [CaseEvaluation_falkinstein] FROM DISK = N'/var/opt/mssql/backups/CaseEvaluation_falkinstein_<stamp>.bak' WITH REPLACE, RECOVERY;"
+docker compose -f docker-compose.prod.yml --env-file secrets/env.prod exec -T sql-server bash -c \
+  'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -Q "$0"' \
+  "RESTORE DATABASE [CaseEvaluation_falkinstein] FROM DISK = N'/var/opt/mssql/backups/CaseEvaluation_falkinstein_<stamp>.bak' WITH REPLACE, RECOVERY;"
 ```
 
 Expect `RESTORE DATABASE successfully processed N pages`. `-b` makes sqlcmd exit non-zero on

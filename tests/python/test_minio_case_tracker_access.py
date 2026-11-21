@@ -51,13 +51,20 @@ PATH="$FAKE_DIR/bin:$PATH" bash -s <<< "$script"
 """
 
 # A tiny stateful stand-in for `mc admin`. users/<key> holds the secret; attached/<key> the policy name.
+# Every call's arguments go to mc.log, so a test can prove no credential reached mc's command line. The login must
+# arrive as MC_HOST_local (recorded in mc-host.log); `mc alias set` is refused as unexpected. `user add` refuses a
+# secret argument and reads the secret from stdin, as the real mc does when it is not given one.
 FAKE_MC = r"""#!/usr/bin/env bash
 state="$FAKE_DIR/state"; mkdir -p "$state/users" "$state/attached" "$state/policies"
+{ printf '%s\x1f' "$@"; printf '\n'; } >> "$FAKE_DIR/mc.log"
+printf '%s\n' "${MC_HOST_local:-}" >> "$FAKE_DIR/mc-host.log"
+[ -n "${MC_HOST_local:-}" ] || { echo "fake mc: MC_HOST_local is not set" >&2; exit 2; }
 case "$1 $2 $3" in
-  "alias set local") exit 0 ;;
   "admin policy create") cp "$6" "$state/policies/$5.json"; exit 0 ;;
   "admin policy info") [ -f "$state/policies/$5.json" ] && cat "$state/policies/$5.json"; exit $? ;;
-  "admin user add") printf '%s' "$6" > "$state/users/$5"; exit 0 ;;
+  "admin user add")
+    [ -z "${6:-}" ] || { echo "fake mc: the secret is on the command line" >&2; exit 2; }
+    IFS= read -r secret; printf '%s' "$secret" > "$state/users/$5"; exit 0 ;;
   "admin user info")
     [ -f "$state/users/$5" ] || { echo "mc: user $5 does not exist" >&2; exit 1; }
     echo "AccessKey: $5"; echo "Status: enabled"
@@ -157,6 +164,30 @@ class CaseTrackerAccess(unittest.TestCase):
             self.assertNotIn(secret, call)
         # It travelled on stdin instead.
         self.assertIn(self.root_password, (self.dir / "stdin.log").read_text(encoding="utf-8"))
+
+    def test_no_credential_is_ever_on_an_mc_command_line(self):
+        # Inside the container too: a container's processes are on the host's process list.
+        code, output = self.run_script(OFFICE)
+        self.assertEqual(code, 0, output)
+        secret = self.credential()["secret_key"]
+        mc_calls = (self.dir / "mc.log").read_text(encoding="utf-8").splitlines()
+        self.assertTrue(any("user\x1fadd" in call for call in mc_calls), "the user was created")
+        for call in mc_calls:
+            self.assertNotIn(self.root_password, call)
+            self.assertNotIn(secret, call)
+        # The admin login reached mc by name, as the MC_HOST_local URL, on every call.
+        hosts = (self.dir / "mc-host.log").read_text(encoding="utf-8").splitlines()
+        self.assertEqual(set(hosts), {f"http://{self.root_user}:{self.root_password}@minio:9000"})
+
+    def test_a_root_login_a_url_cannot_carry_is_refused_before_minio_is_touched(self):
+        env = (self.dir / "env.prod").read_text(encoding="utf-8")
+        (self.dir / "env.prod").write_text(env.replace(self.root_password, self.root_password + "@x"),
+                                           encoding="utf-8", newline="\n")
+        code, output = self.run_script(OFFICE)
+        self.assertNotEqual(code, 0)
+        self.assertIn("may use only", output)
+        self.assertEqual(self.docker_calls(), [])
+        self.assertNotIn(self.root_password, output)
 
     def test_an_uppercase_office_id_is_accepted_and_lowercased(self):
         code, output = self.run_script(OFFICE.upper())

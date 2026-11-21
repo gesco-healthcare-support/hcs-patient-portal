@@ -46,8 +46,9 @@ esac
 container="${SQL_CONTAINER:-$(docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps -q sql-server 2> /dev/null || true)}"
 [[ -n "$container" ]] || fail "the sql-server container is not running"
 
-# T-SQL on stdin, as sa. The sa password is read from the container's own environment, never a command line.
-as_sa() { docker exec -i "$container" bash -c "${SQLCMD} -S localhost -U sa -P \"\$MSSQL_SA_PASSWORD\" -C -b -h -1 -W -s '|'"; }
+# T-SQL on stdin, as sa. The sa password is read from the container's own environment and handed to sqlcmd by NAME
+# (SQLCMDPASSWORD), so it is on no command line: not docker's, not bash's, not sqlcmd's.
+as_sa() { docker exec -i "$container" bash -c "SQLCMDPASSWORD=\"\$MSSQL_SA_PASSWORD\" ${SQLCMD} -S localhost -U sa -C -b -h -1 -W -s '|'"; }
 
 report() {
   echo "-- database | recovery | log_reuse_wait | log MB"

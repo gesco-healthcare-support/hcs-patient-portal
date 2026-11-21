@@ -93,7 +93,9 @@ MINIO_PASS="$(grep -E '^MINIO_ROOT_PASSWORD=' "$ENV_FILE" | head -1 | cut -d= -f
 [[ -n "$MINIO_USER" ]] && [[ -n "$MINIO_PASS" ]] || fail "MinIO credentials not found in $ENV_FILE"
 
 for bucket in case-evaluation-documents case-tracker-documents; do
-  # Credentials go in via MC_HOST_* so nothing is written to an mc config file on disk.
+  # Credentials go in via MC_HOST_* so nothing is written to an mc config file on disk. The variable is passed by
+  # NAME (-e MC_HOST_m, no value), so the credential is not on the docker command line either: a command line is
+  # readable by every local user.
   #
   # S5332 (clear-text protocol) is deliberately NOT applied to the http:// below.
   # This resolves `minio` by Docker service name on the private compose bridge
@@ -120,8 +122,8 @@ for bucket in case-evaluation-documents case-tracker-documents; do
   #
   # Pinned rather than :latest for the reason docker-compose.prod.yml gives: a
   # floating tag can change the tool with no commit and no review.
-  docker run --rm --network "$DOCKER_NET" \
-    -e "MC_HOST_m=http://${MINIO_USER}:${MINIO_PASS}@minio:9000" \
+  MC_HOST_m="http://${MINIO_USER}:${MINIO_PASS}@minio:9000" docker run --rm --network "$DOCKER_NET" \
+    -e MC_HOST_m \
     -v "$STAGING/minio:/backup" \
     quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z mirror --overwrite --remove "m/${bucket}" "/backup/${bucket}" >/dev/null \
     || fail "mc mirror failed for ${bucket}"
@@ -194,8 +196,9 @@ if [[ "${1:-}" = "--verify-restore" ]]; then
   [[ -n "$newest" ]] || fail "no dump from this run to verify"
   cbase="/var/opt/mssql/backups/$(basename "$newest")"
   scratch="RestoreProof_${STAMP}"
-  sqlc() { docker compose -f docker-compose.prod.yml --env-file "$ENV_FILE" exec -T sql-server \
-    /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$SA_PASSWORD" -C -b "$@"; }
+  # The password goes by NAME (SQLCMDPASSWORD), never as -P: a command line is readable by every local user.
+  sqlc() { SQLCMDPASSWORD="$SA_PASSWORD" docker compose -f docker-compose.prod.yml --env-file "$ENV_FILE" exec -T \
+    -e SQLCMDPASSWORD sql-server /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b "$@"; }
   sqlx() { docker compose -f docker-compose.prod.yml --env-file "$ENV_FILE" exec -T sql-server "$@"; }
   trap scratch_cleanup EXIT
   # MOVE to fresh files so the scratch copy cannot touch the live database's data files.

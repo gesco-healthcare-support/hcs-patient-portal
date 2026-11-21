@@ -105,6 +105,10 @@ bucket="$(env_value MINIO_BUCKET_NAME)"
 bucket="${bucket:-case-evaluation-documents}"
 base_domain="$(env_value BASE_DOMAIN)"
 [[ -n "$root_user" && -n "$root_password" ]] || fail "MINIO_ROOT_USER / MINIO_ROOT_PASSWORD not found in $ENV_FILE"
+# mc gets the admin login by NAME (MC_HOST_local, a URL), so refuse a value a URL cannot carry as-is.
+[[ "$root_user" =~ ^[A-Za-z0-9._~-]+$ && "$root_password" =~ ^[A-Za-z0-9._~-]+$ ]] \
+  || fail "MINIO_ROOT_USER / MINIO_ROOT_PASSWORD may use only A-Z a-z 0-9 . _ ~ - (they travel to mc as a URL)"
+[[ "$MINIO_URL" == *://* ]] || fail "MINIO_URL must look like http://host:port"
 
 if $shared; then
   access_key="ct-shared"
@@ -128,10 +132,11 @@ for id in "${tenants[@]}"; do
 done
 policy_json="{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Action\":[\"s3:GetObject\"],\"Resource\":[${resources}]}]}"
 
-# Run a script inside the pinned mc image on the stack's network, with the admin alias already set.
+# Run a script inside the pinned mc image on the stack's network, with the admin alias already set. The alias is
+# MC_HOST_local, exported inside the piped script, so the login is on no command line: not docker's, not mc's.
 run_mc() {
   { printf 'set -eu\n'
-    printf 'mc alias set local %s %s %s > /dev/null\n' "$(sq "$MINIO_URL")" "$(sq "$root_user")" "$(sq "$root_password")"
+    printf 'export MC_HOST_local=%s\n' "$(sq "${MINIO_URL%%://*}://${root_user}:${root_password}@${MINIO_URL#*://}")"
     cat
   } | docker run --rm -i --network "$DOCKER_NET" --entrypoint /bin/sh "$MC_IMAGE" -s
 }
@@ -225,7 +230,7 @@ cat > /tmp/ct-policy.json <<'POLICY'
 ${policy_json}
 POLICY
 mc admin policy create local $(sq "$policy") /tmp/ct-policy.json > /dev/null
-mc admin user add local $(sq "$access_key") $(sq "$secret") > /dev/null
+printf '%s\n' $(sq "$secret") | mc admin user add local $(sq "$access_key") > /dev/null
 echo SECRET_SET
 case "\$(mc admin user info local $(sq "$access_key"))" in
   *$(sq "$policy")*) ;;

@@ -65,13 +65,20 @@ $saLine = Get-Content .env | Select-String '^MSSQL_SA_PASSWORD='
 if (-not $saLine) { Write-Error "MSSQL_SA_PASSWORD not in .env"; exit 1 }
 $saPassword = ($saLine.Line -replace '^MSSQL_SA_PASSWORD=','').Trim('"').Trim()
 
+# The sa password reaches sqlcmd by NAME (SQLCMDPASSWORD, passed through `docker exec -e` with no value), never as
+# -P: a command line is readable by every local user.
 function Invoke-Sql([string]$Query, [switch]$NoHeader) {
-    $dockerArgs = @('exec','replicate-old-app-sql-server-1',
-              '/opt/mssql-tools18/bin/sqlcmd','-S','localhost','-U','sa','-P',$saPassword,
+    $dockerArgs = @('exec','-e','SQLCMDPASSWORD','replicate-old-app-sql-server-1',
+              '/opt/mssql-tools18/bin/sqlcmd','-S','localhost','-U','sa',
               '-C','-d','CaseEvaluation')
     if ($NoHeader) { $dockerArgs += @('-h','-1','-W') }
     $dockerArgs += @('-Q',$Query)
-    return (& docker @dockerArgs 2>&1) -join "`n"
+    $env:SQLCMDPASSWORD = $saPassword
+    try {
+        return (& docker @dockerArgs 2>&1) -join "`n"
+    } finally {
+        Remove-Item Env:SQLCMDPASSWORD -ErrorAction SilentlyContinue
+    }
 }
 
 # --- Step 1: SQL fixture -----------------------------------------------------

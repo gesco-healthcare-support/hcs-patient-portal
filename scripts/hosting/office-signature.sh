@@ -76,12 +76,17 @@ app_secret="$(env_value MINIO_APP_SECRET_KEY)"
 bucket="$(env_value MINIO_BUCKET_NAME)"
 bucket="${bucket:-case-evaluation-documents}"
 [[ -n "$app_key" && -n "$app_secret" ]] || fail "MINIO_APP_ACCESS_KEY / MINIO_APP_SECRET_KEY not found in $ENV_FILE"
+# mc gets the login by NAME (MC_HOST_local, a URL), so refuse a value a URL cannot carry as-is.
+[[ "$app_key" =~ ^[A-Za-z0-9._~-]+$ && "$app_secret" =~ ^[A-Za-z0-9._~-]+$ ]] \
+  || fail "MINIO_APP_ACCESS_KEY / MINIO_APP_SECRET_KEY may use only A-Z a-z 0-9 . _ ~ - (they travel to mc as a URL)"
+[[ "$MINIO_URL" == *://* ]] || fail "MINIO_URL must look like http://host:port"
 
 # Run a script inside the pinned mc image on the stack's network, with the alias already set. Extra arguments
-# (the volume mount) go to docker run before the image.
+# (the volume mount) go to docker run before the image. The alias is MC_HOST_local, exported inside the piped
+# script, so the login is on no command line: not docker's, not mc's.
 run_mc() {
   { printf 'set -eu\n'
-    printf 'mc alias set local %s %s %s > /dev/null\n' "$(sq "$MINIO_URL")" "$(sq "$app_key")" "$(sq "$app_secret")"
+    printf 'export MC_HOST_local=%s\n' "$(sq "${MINIO_URL%%://*}://${app_key}:${app_secret}@${MINIO_URL#*://}")"
     cat
   } | docker run --rm -i --network "$DOCKER_NET" "$@" --entrypoint /bin/sh "$MC_IMAGE" -s
 }
