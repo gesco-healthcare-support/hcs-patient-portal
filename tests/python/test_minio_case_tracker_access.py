@@ -167,7 +167,9 @@ class CaseTrackerAccess(unittest.TestCase):
 
     def test_no_credential_is_ever_on_an_mc_command_line(self):
         # Inside the container too: a container's processes are on the host's process list.
-        code, output = self.run_script(OFFICE)
+        # An explicit, non-default MINIO_URL: the assertion below then proves the scheme and host:port are carried
+        # through from it, not hardcoded.
+        code, output = self.run_script(OFFICE, MINIO_URL="https://minio.test:9443")
         self.assertEqual(code, 0, output)
         secret = self.credential()["secret_key"]
         mc_calls = (self.dir / "mc.log").read_text(encoding="utf-8").splitlines()
@@ -177,7 +179,7 @@ class CaseTrackerAccess(unittest.TestCase):
             self.assertNotIn(secret, call)
         # The admin login reached mc by name, as the MC_HOST_local URL, on every call.
         hosts = (self.dir / "mc-host.log").read_text(encoding="utf-8").splitlines()
-        self.assertEqual(set(hosts), {f"http://{self.root_user}:{self.root_password}@minio:9000"})
+        self.assertEqual(set(hosts), {f"https://{self.root_user}:{self.root_password}@minio.test:9443"})
 
     def test_a_root_login_a_url_cannot_carry_is_refused_before_minio_is_touched(self):
         env = (self.dir / "env.prod").read_text(encoding="utf-8")

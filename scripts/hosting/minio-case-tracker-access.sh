@@ -108,7 +108,7 @@ base_domain="$(env_value BASE_DOMAIN)"
 # mc gets the admin login by NAME (MC_HOST_local, a URL), so refuse a value a URL cannot carry as-is.
 [[ "$root_user" =~ ^[A-Za-z0-9._~-]+$ && "$root_password" =~ ^[A-Za-z0-9._~-]+$ ]] \
   || fail "MINIO_ROOT_USER / MINIO_ROOT_PASSWORD may use only A-Z a-z 0-9 . _ ~ - (they travel to mc as a URL)"
-[[ "$MINIO_URL" == *://* ]] || fail "MINIO_URL must look like http://host:port"
+[[ "$MINIO_URL" == *://* ]] || fail "MINIO_URL must be scheme://host:port, as the default is"
 
 if $shared; then
   access_key="ct-shared"

@@ -79,7 +79,7 @@ bucket="${bucket:-case-evaluation-documents}"
 # mc gets the login by NAME (MC_HOST_local, a URL), so refuse a value a URL cannot carry as-is.
 [[ "$app_key" =~ ^[A-Za-z0-9._~-]+$ && "$app_secret" =~ ^[A-Za-z0-9._~-]+$ ]] \
   || fail "MINIO_APP_ACCESS_KEY / MINIO_APP_SECRET_KEY may use only A-Z a-z 0-9 . _ ~ - (they travel to mc as a URL)"
-[[ "$MINIO_URL" == *://* ]] || fail "MINIO_URL must look like http://host:port"
+[[ "$MINIO_URL" == *://* ]] || fail "MINIO_URL must be scheme://host:port, as the default is"
 
 # Run a script inside the pinned mc image on the stack's network, with the alias already set. Extra arguments
 # (the volume mount) go to docker run before the image. The alias is MC_HOST_local, exported inside the piped

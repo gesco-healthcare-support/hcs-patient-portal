@@ -25,7 +25,7 @@ echo "$(ts) image $IMG ($(docker image inspect "$IMG" --format '{{.Created}}' < 
 docker network create --internal "$NET" > /dev/null < /dev/null || fail "network create"
 docker run -d --name "$SQL" --network "$NET" --network-alias sql-server --env-file <(svc_env sql-server) "$SQLIMG" > /dev/null < /dev/null || fail "scratch sql start"
 # The sa password goes by NAME (SQLCMDPASSWORD, from the container's own env), never as -P on sqlcmd's command line.
-q() { docker exec "$SQL" bash -c 'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -b -h -1 -W -s "|" -Q "$0"' "$1" < /dev/null; }
+q() { local query="$1"; docker exec "$SQL" bash -c 'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -b -h -1 -W -s "|" -Q "$0"' "$query" < /dev/null; }
 for _ in $(seq 1 45); do q "SET NOCOUNT ON; SELECT 1" > /dev/null 2>&1 && break; sleep 2; done
 q "SET NOCOUNT ON; SELECT 1" > /dev/null 2>&1 || fail "scratch sql not ready after 90 s"
 

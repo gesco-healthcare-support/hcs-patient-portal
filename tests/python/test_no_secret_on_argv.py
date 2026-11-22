@@ -25,7 +25,7 @@ REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 RULES = [
     # Case-insensitive so a ${SQLCMD} variable counts too; the \b keeps SQLCMDPASSWORD out.
     ("sqlcmd password on the command line (-P)",
-     re.compile(r"sqlcmd\b.*?(?:^|[\s'\",(])-P(?:[\s'\",]|$)", re.IGNORECASE)),
+     re.compile(r"sqlcmd\b.*?[\s'\",(]-P(?:[\s'\",]|$)", re.IGNORECASE)),
     ("mc alias set (the login on mc's command line)",
      re.compile(r"\bmc\s+alias\s+set\b")),
     ("docker -e MC_HOST_*=... (the login on docker's command line)",
@@ -69,6 +69,8 @@ KNOWN_GOOD = [
     'K="$ABP_NUGET_API_KEY" docker run --rm -e K -e P="$PROJECT" -e SLN="$SLN" \\',
     "printf '%s\\n' \"$$MINIO_APP_SECRET_KEY\" | mc admin user add local \"$$MINIO_APP_ACCESS_KEY\"",
     "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -Q \"SELECT 1\" -o /dev/null",
+    # "-P" inside a word is not the password flag: the rule wants -P as its own argument.
+    "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -o /var/log/restore-P",
     "as_sa() { docker exec -i \"$container\" bash -c \"SQLCMDPASSWORD=\\\"\\$MSSQL_SA_PASSWORD\\\" ${SQLCMD} -S localhost -U sa -C\"; }",
     '-out "$OUT" -passout env:DATAPROTECTION_CERT_PASSPHRASE',
     'openssl pkcs12 -in "$OUT" -noout -passin env:PW',
@@ -93,7 +95,7 @@ def logical_lines(text):
         stripped = raw.strip()
         if not buffer and stripped.startswith("#"):
             continue
-        if stripped.endswith("\\") or stripped.endswith("`"):
+        if stripped.endswith(("\\", "`")):
             buffer += stripped[:-1] + " "
             continue
         joined.append(buffer + stripped)

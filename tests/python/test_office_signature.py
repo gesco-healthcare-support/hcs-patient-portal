@@ -230,7 +230,9 @@ class OfficeSignature(unittest.TestCase):
         self.assertEqual(self.docker_calls(), [])
 
     def test_the_application_credential_is_used_and_never_on_a_command_line(self):
-        code, output = self.run_script(OFFICE, shell_path(self.png))
+        # An explicit, non-default MINIO_URL: the MC_HOST_local assertion below then proves the scheme and host:port
+        # are carried through from it, not hardcoded.
+        code, output = self.run_script(OFFICE, shell_path(self.png), MINIO_URL="https://minio.test:9443")
         self.assertEqual(code, 0, output)
         calls = self.docker_calls()
         self.assertTrue(calls)
@@ -248,7 +250,7 @@ class OfficeSignature(unittest.TestCase):
         for call in mc_calls:
             self.assertNotIn(self.app_secret, call)
         hosts = (self.dir / "mc-host.log").read_text(encoding="utf-8").splitlines()
-        self.assertEqual(set(hosts), {f"http://{self.app_key}:{self.app_secret}@minio:9000"})
+        self.assertEqual(set(hosts), {f"https://{self.app_key}:{self.app_secret}@minio.test:9443"})
 
     def test_an_app_login_a_url_cannot_carry_is_refused_before_minio_is_touched(self):
         env = (self.dir / "env.prod").read_text(encoding="utf-8")
