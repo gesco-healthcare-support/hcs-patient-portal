@@ -14,6 +14,8 @@ on:
       - 'docker/packet-renderer/**'
       - 'tests/python/test_post_process_real_pdf.py'
       - '.github/workflows/packet-real-pdf.yml'
+      # The hash-pinned install below: a version bump there changes the library under test.
+      - '.github/requirements/real-pdf.*'
   schedule:
     - cron: '17 6 * * 1'
   workflow_dispatch:

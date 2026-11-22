@@ -92,7 +92,10 @@ jobs:
       # Installed from a committed lockfile (.github/tools/markdownlint): every
       # transitive package is pinned by version and integrity hash, and `npm ci`
       # fails if the lock and package.json disagree. --ignore-scripts blocks
-      # lifecycle scripts.
+      # lifecycle scripts. Its package.json carries npm `overrides` lifting three
+      # transitive packages to their patched versions (2026-11-22); the linter's
+      # output was byte-identical before and after. Drop them when
+      # markdownlint-cli2 itself is bumped past these versions.
       - name: Install markdownlint-cli2 without running lifecycle scripts
         run: |
           cp -r .github/tools/markdownlint "$RUNNER_TEMP/mdlint"
