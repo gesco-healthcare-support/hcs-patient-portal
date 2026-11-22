@@ -21,10 +21,12 @@ PROJECT="${2:-src/HealthcareSupport.CaseEvaluation.DbMigrator/HealthcareSupport.
 : "${ABP_NUGET_API_KEY:?set ABP_NUGET_API_KEY}"
 SLN=HealthcareSupport.CaseEvaluation.slnx
 fail=0
-run() { MSYS_NO_PATHCONV=1 docker run --rm -e K="$ABP_NUGET_API_KEY" -e P="$PROJECT" -e SLN="$SLN" \
+# The key reaches the container by NAME (-e K, no value), never on the docker command line, and the grep below
+# reads it from stdin (-f -), so it is not on grep's either: a command line is readable by every local user.
+run() { K="$ABP_NUGET_API_KEY" MSYS_NO_PATHCONV=1 docker run --rm -e K -e P="$PROJECT" -e SLN="$SLN" \
           -e DOTNET_CLI_TELEMETRY_OPTOUT=1 --entrypoint sh "$IMAGE" -c "$1"; }
 
-n=$(run 'grep -rlF "$K" /root /src /app /artifacts /tmp 2>/dev/null | wc -l')
+n=$(run 'printf "%s\n" "$K" | grep -rlF -f - /root /src /app /artifacts /tmp 2>/dev/null | wc -l')
 echo "1. files still holding the key: $n"; [ "$n" = 0 ] || fail=1
 
 run 'dotnet restore "$SLN" --locked-mode --force >/tmp/r.log 2>&1; echo "exit=$?"; tail -3 /tmp/r.log' | sed 's/^/2. keyless restore: /'

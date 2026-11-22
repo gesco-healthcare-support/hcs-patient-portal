@@ -123,11 +123,18 @@ function Invoke-Api {
     }
 }
 
+# The sa password reaches sqlcmd by NAME (SQLCMDPASSWORD, passed through `docker exec -e` with no value), never as
+# -P: a command line is readable by every local user.
 function Invoke-Sql {
     param([string]$Query)
-    return (& docker exec replicate-old-app-sql-server-1 `
-        /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P $saPassword `
-        -C -d CaseEvaluation -h -1 -W -Q $Query 2>&1) -join "`n"
+    $env:SQLCMDPASSWORD = $saPassword
+    try {
+        return (& docker exec -e SQLCMDPASSWORD replicate-old-app-sql-server-1 `
+            /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa `
+            -C -d CaseEvaluation -h -1 -W -Q $Query 2>&1) -join "`n"
+    } finally {
+        Remove-Item Env:SQLCMDPASSWORD -ErrorAction SilentlyContinue
+    }
 }
 
 # ---- Step 1: tokens --------------------------------------------------------
