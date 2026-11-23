@@ -1,0 +1,8 @@
+{
+  "name": "ci-semantic-release",
+  "private": true,
+  "description": "Pinned install of semantic-release for release.yml; the lockfile carries the integrity hashes.",
+  "dependencies": {
+    "semantic-release": "25.0.9"
+  }
+}

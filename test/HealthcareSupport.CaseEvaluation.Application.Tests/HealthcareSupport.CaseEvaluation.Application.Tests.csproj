@@ -4,14 +4,10 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>HealthcareSupport.CaseEvaluation</RootNamespace>
-    <!-- BUG-025 (2026-05-21): adding the HttpApi.Host ProjectReference
-         below pulls in Microsoft.AspNetCore.DataProtection 10.0.0
-         transitively, which has open CVE GHSA-9mv3-2cwr-p262 (NU1904).
-         The vulnerable code path is not exercised by these tests; the
-         broader fix is to bump DataProtection across all consumers,
-         tracked separately. Scoped suppression keeps this PR's blast
-         radius minimal. -->
-    <NoWarn>$(NoWarn);NU1904</NoWarn>
+    <!-- 2026-11-20: the NU1904 suppression that lived here (BUG-025, GHSA-9mv3-2cwr-p262 on the
+         DataProtection 10.0.0 that the HttpApi.Host reference brought in) is gone. Both hosts now take
+         DataProtection.StackExchangeRedis 10.0.15, which brings the patched DataProtection, so a critical
+         advisory in this project fails the restore again like everywhere else. -->
   </PropertyGroup>
 
   <ItemGroup>

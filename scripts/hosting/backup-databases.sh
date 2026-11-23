@@ -36,9 +36,10 @@ SA_PASSWORD="$(grep -E '^MSSQL_SA_PASSWORD=' "$ENV_FILE" | head -1 | cut -d= -f2
 
 mkdir -p "$BACKUP_DIR"
 
+# The password goes by NAME (SQLCMDPASSWORD), never as -P: a command line is readable by every local user.
 sqlcmd() {
-  docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" exec -T "$SQL_SERVICE" \
-    /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$SA_PASSWORD" -C -b "$@"
+  SQLCMDPASSWORD="$SA_PASSWORD" docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" exec -T \
+    -e SQLCMDPASSWORD "$SQL_SERVICE" /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b "$@"
 }
 
 # App databases: the host DB + every office DB (CaseEvaluation_<slug>).

@@ -717,20 +717,13 @@ jobs:
       # dotnet-coverage 18.11.0: a pin locks in the toolchain that produced the
       # verified figure rather than whatever the index serves next.
       #
-      # NOT hash-pinned, and that is a decision rather than an oversight (#700; kept
-      # by decision d36). Scorecard's PinnedDependenciesID wants --require-hashes
-      # against a requirements file carrying a hash for every transitive dependency.
-      # Declined HERE: PyPI does not permit a published version to be re-uploaded with
-      # different content, so the residual risk a hash closes is a registry
-      # compromise, and this job only measures coverage -- it ships nothing.
+      # HASH-PINNED since the #700 follow-up: the install reads
+      # .github/requirements/coverage.txt (compiled from coverage.in with
+      # pip-compile --generate-hashes) under --require-hashes, which clears
+      # Scorecard's PinnedDependencies finding. Same tool version as before.
+      # To bump coverage, edit coverage.in and recompile inside python:3.12-slim.
       #
-      # The packet-renderer IMAGE went the other way in B8 (decision 18, reversing
-      # item 2.14): it renders documents carrying patient data, so its
-      # requirements.txt is hashed and installed with --require-hashes. Do not read
-      # the two as contradicting each other; they answer different risks.
-      #
-      # `--only-binary :all:` is ORTHOGONAL to that decision, and is what B9 adds here
-      # (2026-09-25) instead of hashes. It refuses source distributions, so no sdist
+      # `--only-binary :all:` is kept alongside the hashes (B9, 2026-09-25). It refuses source distributions, so no sdist
       # `setup.py` runs during install -- which is the arbitrary-code-execution surface a
       # version pin alone leaves open. #700 argues about REGISTRY compromise and says
       # nothing against this, so both positions stand together and #700 is unchanged.
@@ -759,7 +752,7 @@ jobs:
       # quietly builds from source is exactly the arbitrary-code-execution surface the
       # flag exists to close.
       - name: Install coverage
-        run: "python -m pip install --only-binary :all: coverage==7.15.2"
+        run: "python -m pip install --require-hashes --only-binary :all: -r .github/requirements/coverage.txt"
 
       # Configuration lives in pyproject.toml, deliberately, rather than on this
       # command line -- so a local run and CI cannot disagree about `source`,

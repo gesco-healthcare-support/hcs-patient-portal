@@ -51,15 +51,15 @@ jobs:
       # If a configuration file is ever added declaring an external plugin, that plugin
       # must be added to this install line or it will be resolved at run time again.
       #
-      # NOT hash-pinned (#700). lint-meta.yml accepts the same residual risk, but its
-      # argument -- "build-time tooling that touches no shipped artefact" -- does NOT
-      # transfer here: this job holds contents/issues/pull-requests write and creates the
-      # release. The honest position is that an exact version plus --ignore-scripts is
-      # the remedy available short of vendoring, not that the risk is equivalent.
+      # Installed from a committed lockfile (.github/tools/semantic-release), so every
+      # transitive package is pinned by version AND integrity hash, and `npm ci` fails if
+      # the lock and package.json disagree. This job holds contents/issues/pull-requests
+      # write and creates the release, so an unpinned transitive dependency is not
+      # acceptable here. --ignore-scripts still blocks lifecycle scripts.
       - name: Install semantic-release without running lifecycle scripts
-        run: >
-          npm install --no-save --no-audit --no-fund --ignore-scripts
-          --prefix "$RUNNER_TEMP/semrel" semantic-release@25.0.9
+        run: |
+          cp -r .github/tools/semantic-release "$RUNNER_TEMP/semrel"
+          npm ci --ignore-scripts --no-audit --no-fund --prefix "$RUNNER_TEMP/semrel"
 
       - name: Create the release
         run: '"$RUNNER_TEMP/semrel/node_modules/.bin/semantic-release"'
