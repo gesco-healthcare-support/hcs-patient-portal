@@ -77,7 +77,7 @@ REVISION 2026-07-29 (reconcile hostname + rate limit -- BOTH CHANGE WHAT THE REC
 - **The reconcile GET is now rate limited: 300 requests per hour per source IP**, reversing the
   "no rate limit" statements in §F below. On 429 the response carries `Retry-After` in seconds.
   Reason: the endpoint is anonymous with a shared token as its only barrier, and since the Part 6
-  payload landed it returns claim numbers, injury dates, body parts, employer/insurer details and
+  payload landed it returns claim numbers, injury dates, body parts, employer (since 2026-11-23)/insurer details and
   attorney contacts. 300/hour was chosen to leave a post-outage catch-up sweep plenty of room --
   if a planned sweep needs more, say so and it is a one-line change.
 - Portal-side only, no contract impact: the API now honours `X-Forwarded-For`, so per-IP limits
@@ -465,6 +465,34 @@ Only rows the office has left ACTIVE are published.
 Insurance keys: `name`, `suite`, `phoneNumber`, `faxNumber`, `street`, `city`, `state`, `zipCode`.
 Claim examiner keys: the same plus `email`. All nullable; `state` is a resolved name.
 
+### `data.employer` (ADDED 2026-11-23)
+
+The patient's employer as recorded on the appointment: one per appointment, not per injury.
+
+**The key is ALWAYS present on every intake body, including `"employer": null`.** Null means "none on
+record": clear what you hold. The key is never omitted. Every intake body stays a FULL snapshot of the
+appointment (all party blocks, not just the employer), as everywhere else in section A.
+
+| Key           | Type   | Nullable | Source                                                                       |
+| ------------- | ------ | -------- | ---------------------------------------------------------------------------- |
+| `name`        | string | No       | `AppointmentEmployerDetail.EmployerName`, as stored                          |
+| `occupation`  | string | No       | `AppointmentEmployerDetail.Occupation`, as stored                            |
+| `phoneNumber` | string | Yes      | `AppointmentEmployerDetail.PhoneNumber`                                      |
+| `street`      | string | Yes      | `AppointmentEmployerDetail.Street`                                           |
+| `city`        | string | Yes      | `AppointmentEmployerDetail.City`                                             |
+| `state`       | string | Yes      | The State's NAME (e.g. `California`), never its id, as in the other blocks   |
+| `zipCode`     | string | Yes      | `AppointmentEmployerDetail.ZipCode`                                          |
+
+- `name` and `occupation` are required on the row. A blank one is sent as it is stored, never invented.
+- The optional keys are `null` when blank or whitespace, never `""`. Values are raw, never upper-cased.
+- If an appointment somehow has more than one employer row, the NEWEST is sent (by creation time). It is the
+  one the portal's edit screens show and save.
+- **An employer edit on a published appointment re-sends it** (created, updated or deleted; a delete sends
+  `"employer": null`), under the same rules as any other edit (section E2).
+- The key names are fixed. A rename, an added key or a moved key is a contract change agreed with you first.
+  A portal test pins this exact set.
+- Implementation: `IntakeEmployerSection` and `EmployerResolver` in `Domain/Integration/CaseTracker/Payload/`.
+
 ---
 
 ## B. `documents[]` entry
@@ -626,8 +654,17 @@ fresh, and the reconcile GET (§F) is a backstop rather than the delivery path f
 Receiver requirement: Case Tracker must let a re-push CHANGE a case's `status` (e.g. to a cancelled /
 rescheduled state), not only accept the first `Approved`. `updatedAt` guards ordering as for documents.
 
+CORRECTED 2026-11-23: the intake idempotency key is the `data` CONTENT (section G), not `updatedAt`.
+A save that changes nothing in `data` still collapses onto the existing row. A change that only touches
+a child row (for example the employer) still goes out, because the content differs.
+
 STATUS: BUILT (PR #395 -> main `8a1568eb`). `AppointmentChangedHandler` watches `Appointment` and
-`Patient` updates. NOT watched, deliberately: `Location`, `Doctor` and `AppointmentType` edits. They
+`Patient` updates. Since 2026-11-23, a change to a row the appointment owns -- its EMPLOYER, an
+INJURY, a PRIMARY INSURANCE or a CLAIM EXAMINER (created, updated or deleted) -- explicitly re-sends
+that appointment, through the same publishing rules. (Injury, insurance and examiner edits were
+already re-sent before that, through a framework default; they no longer depend on it.) NOT watched,
+deliberately:
+`Location`, `Doctor` and `AppointmentType` edits. They
 appear in the payload but are rare admin actions that would fan out to every appointment at a
 location, so they reach you via reconcile-on-open instead. Practical consequence: renaming a clinic
 will not immediately refresh cases you already hold.
@@ -740,7 +777,7 @@ through the document-update channel (section C), never by inference from a faile
   The value is `3600` -- the whole window, not the remaining time, which is what the fixed-window
   limiter reports. Treat it as an upper bound (verified live, not inferred).
   The change is because the shared token is the only barrier and the payload now carries claim numbers,
-  injury dates, body parts, employer/insurer details and attorney contacts -- unthrottled, a leaked
+  injury dates, body parts, employer (since 2026-11-23)/insurer details and attorney contacts -- unthrottled, a leaked
   token would allow all of that to be enumerated. Treat the token as a secret of the same weight as
   your `X-Intake-Token`. If a planned sweep needs more than 300/hour, tell us the shape of it; the
   limit is one constant.
@@ -765,6 +802,10 @@ through the document-update channel (section C), never by inference from a faile
     Always upsert by `id` and OVERWRITE the stored `objectKey`. Never treat the key as an identity.
 - Ordering guard (AGREED): the portal sends `updatedAt` per appointment and per document (incl.
   deletions); Case Tracker skips stale writes. Correctness is independent of delivery order.
+- Portal-side outbox key (for reference, not something you key on): an intake row's idempotency key
+  is a hash of the message type, the appointment and the serialized `data`. A re-send whose `data` is
+  identical collapses onto the newest row while that row is pending or sent; any change in `data`
+  (including a child row such as the employer) is a new row, served at a new feed cursor.
 
 ---
 

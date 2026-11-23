@@ -192,6 +192,13 @@ public class IntakePayload
 
     /// <summary>Active claim examiners. Same appointment-level caveat as the insurances.</summary>
     public List<IntakeClaimExaminerSection> ClaimExaminers { get; set; } = new();
+
+    /// <summary>
+    /// The patient's employer, or null when the appointment has none on record. ALWAYS serialized, null included:
+    /// the Case Tracker reads <c>"employer": null</c> as "none on record" and clears what it holds, so the key must
+    /// never be omitted. See <see cref="IntakeEmployerSection"/> for the fixed key names.
+    /// </summary>
+    public IntakeEmployerSection? Employer { get; set; }
 }
 
 /// <summary>Owning office. <see cref="FacilityId"/> is the clinic's external key.</summary>
