@@ -127,9 +127,13 @@ public class CaseTrackerFormsController : AbpController
             case BlankPacketFormOutcome.NotModified:
                 Response.Headers[HeaderNames.ETag] = result.ETag;
                 return StatusCode(StatusCodes.Status304NotModified);
-            default:
+            case BlankPacketFormOutcome.Pdf when result.Pdf != null:
                 Response.Headers[HeaderNames.ETag] = result.ETag;
-                return File(result.Pdf!, "application/pdf", fileName);
+                return File(result.Pdf, "application/pdf", fileName);
+            default:
+                // Fail closed: an outcome this action does not know, or a PDF outcome without bytes, is a
+                // bug. Answer with an error rather than guess a body.
+                throw new InvalidOperationException($"Unhandled blank-form outcome {result.Outcome}.");
         }
     }
 

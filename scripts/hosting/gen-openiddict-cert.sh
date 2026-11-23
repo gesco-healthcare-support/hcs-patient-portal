@@ -48,10 +48,12 @@ openssl req -x509 -newkey rsa:2048 -sha256 -days "$DAYS" -nodes \
   -keyout "$TMPDIR/key.pem" -out "$TMPDIR/cert.pem" \
   -subj "/CN=CaseEvaluation OpenIddict Token Signing"
 
-# Bundle into a PKCS#12 (.pfx) protected by the passphrase ABP will read.
+# Bundle into a PKCS#12 (.pfx) protected by the passphrase ABP will read. The passphrase reaches openssl by NAME
+# (env:), never as pass:<value>: a command line is readable by every local user.
+export AUTHSERVER_CERT_PASSPHRASE
 openssl pkcs12 -export \
   -inkey "$TMPDIR/key.pem" -in "$TMPDIR/cert.pem" \
-  -out "$OUT" -passout "pass:${AUTHSERVER_CERT_PASSPHRASE}"
+  -out "$OUT" -passout env:AUTHSERVER_CERT_PASSPHRASE
 
 chmod 600 "$OUT" 2>/dev/null || true
 

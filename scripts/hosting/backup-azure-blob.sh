@@ -265,8 +265,9 @@ if $verify_restore; then
 
   sa_password="$(env_value MSSQL_SA_PASSWORD)"
   [[ -n "$sa_password" ]] || fail "MSSQL_SA_PASSWORD not found in $ENV_FILE"
-  sqlc() { docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" exec -T sql-server \
-    /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$sa_password" -C -b "$@"; }
+  # The password goes by NAME (SQLCMDPASSWORD), never as -P: a command line is readable by every local user.
+  sqlc() { SQLCMDPASSWORD="$sa_password" docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" exec -T \
+    -e SQLCMDPASSWORD sql-server /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b "$@"; }
   cbase="/var/opt/mssql/backups/${proof_file}"
   scratch="RestoreProofAzure_${run_stamp//-/_}"
   sqlx() { docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" exec -T sql-server "$@"; }

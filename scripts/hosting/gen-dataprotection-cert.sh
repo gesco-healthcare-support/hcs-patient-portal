@@ -50,9 +50,11 @@ openssl req -x509 -newkey rsa:2048 -sha256 -days "$DAYS" -nodes \
   -keyout "$TMPDIR/key.pem" -out "$TMPDIR/cert.pem" \
   -subj "/CN=CaseEvaluation Data Protection Key Ring"
 
+# The passphrase reaches openssl by NAME (env:), never as pass:<value>: a command line is readable by every local user.
+export DATAPROTECTION_CERT_PASSPHRASE
 openssl pkcs12 -export \
   -inkey "$TMPDIR/key.pem" -in "$TMPDIR/cert.pem" \
-  -out "$OUT" -passout "pass:${DATAPROTECTION_CERT_PASSPHRASE}"
+  -out "$OUT" -passout env:DATAPROTECTION_CERT_PASSPHRASE
 
 # Both host containers run as the runtime image's unprivileged `app` account (uid 1654, gid
 # 1654) and read this file through its group, so it must end up mode 640, group 1654. Only open

@@ -61,7 +61,8 @@ Preconditions:
   office's tenant id from `CaseEvaluation.dbo.SaasTenants` (re-query after any
   `down -v`, the ids regenerate). Query SQL Server inside the container so the SA password
   never prints:
-  `MSYS_NO_PATHCONV=1 docker compose exec -T sql-server bash -c '/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -Q "SELECT Id, Name FROM CaseEvaluation.dbo.SaasTenants"'`.
+  `MSYS_NO_PATHCONV=1 docker compose exec -T sql-server bash -c 'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -Q "SELECT Id, Name FROM CaseEvaluation.dbo.SaasTenants"'`
+  (the password goes to sqlcmd by name, never as `-P` on a command line).
   Expect one row per office.
 
 Checks (each must pass):
