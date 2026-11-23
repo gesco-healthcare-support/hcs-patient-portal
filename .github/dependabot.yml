@@ -19,6 +19,18 @@ version: 2
 # replaces these PRs and has to cover the actions, every image digest, the
 # .NET SDK pin and the packet renderer's requirements, not only NuGet and npm.
 
+# TWO MEASURED FACTS ABOUT DEPENDABOT ON THIS REPOSITORY (2026-11-20):
+# (a) Dependabot's NuGet SECURITY jobs fail with `dependency_not_found`: it cannot
+#     reach the private ABP feed, which takes its key only as a URL path segment.
+#     NuGetAudit as a build error is the safety net for NuGet advisories.
+# (b) Security jobs run against the default branch (`branch: null` in the job
+#     definition). `target-branch` below only affects VERSION updates.
+#
+# The CI tool manifests (.github/requirements/*.txt, .github/tools/*/package.json
+# and their locks) are deliberately NOT listed as entries: every entry here has a
+# limit of 0, so an entry would propose nothing, and advisories on them still come
+# from the dependency graph. The monthly patch check covers them.
+
 # All version-update PRs target the long-lived chore/dependency-updates
 # integration branch, NOT main. See
 # docs/superpowers/specs/2026-05-21-dependency-integration-branch-design.md

@@ -69,8 +69,9 @@ password="$(env_value SQL_APP_PASSWORD)"
 container="${SQL_CONTAINER:-$(docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps -q sql-server 2> /dev/null || true)}"
 [[ -n "$container" ]] || fail "the sql-server container is not running"
 
-# T-SQL on stdin, as sa. The sa password is read from the container's own environment (as its healthcheck does).
-as_sa() { docker exec -i "$container" bash -c "${SQLCMD} -S localhost -U sa -P \"\$MSSQL_SA_PASSWORD\" -C -b -h -1 -W"; }
+# T-SQL on stdin, as sa. The sa password is read from the container's own environment (as its healthcheck does) and
+# handed to sqlcmd by NAME (SQLCMDPASSWORD), so it is on no command line.
+as_sa() { docker exec -i "$container" bash -c "SQLCMDPASSWORD=\"\$MSSQL_SA_PASSWORD\" ${SQLCMD} -S localhost -U sa -C -b -h -1 -W"; }
 # One query as the app login. Its password travels in SQLCMDPASSWORD, passed through from this process's environment.
 as_app() {
   SQLCMDPASSWORD="$password" docker exec -i -e SQLCMDPASSWORD "$container" \

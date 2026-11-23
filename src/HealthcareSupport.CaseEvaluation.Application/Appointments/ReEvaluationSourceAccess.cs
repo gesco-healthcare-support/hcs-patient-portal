@@ -44,19 +44,22 @@ public class ReEvaluationSourceAccess : ITransientDependency
     private readonly AppointmentReadAccessGuard _readAccessGuard;
     private readonly ReEvaluationLookupThrottle _throttle;
     private readonly ReEvaluationChain _chain;
+    private readonly LookupResponseFloor _responseFloor;
 
     public ReEvaluationSourceAccess(
         IAppointmentRepository appointmentRepository,
         IRepository<Patient, Guid> patientRepository,
         AppointmentReadAccessGuard readAccessGuard,
         ReEvaluationLookupThrottle throttle,
-        ReEvaluationChain chain)
+        ReEvaluationChain chain,
+        LookupResponseFloor responseFloor)
     {
         _appointmentRepository = appointmentRepository;
         _patientRepository = patientRepository;
         _readAccessGuard = readAccessGuard;
         _throttle = throttle;
         _chain = chain;
+        _responseFloor = responseFloor;
     }
 
     /// <summary>
@@ -71,6 +74,30 @@ public class ReEvaluationSourceAccess : ITransientDependency
     /// the same null.</para>
     /// </summary>
     public virtual async Task<ReEvaluationSourceMatch?> FindAsync(
+        string confirmationNumber,
+        DateTime? patientDateOfBirth)
+    {
+        // 2026-11-20: the choke point for every by-number re-evaluation load (the lookup, the booking submit,
+        // anything later). Every answer but a match takes the same minimum time: an unknown number, a known one
+        // the caller cannot open, and a throttle or any other exception alike. Otherwise the time would say
+        // whether the number exists and whether the date of birth was right. See LookupResponseFloor.
+        var started = _responseFloor.Start();
+        ReEvaluationSourceMatch? match = null;
+        try
+        {
+            match = await FindCoreAsync(confirmationNumber, patientDateOfBirth);
+            return match;
+        }
+        finally
+        {
+            if (match == null)
+            {
+                await _responseFloor.PadAsync(started);
+            }
+        }
+    }
+
+    private async Task<ReEvaluationSourceMatch?> FindCoreAsync(
         string confirmationNumber,
         DateTime? patientDateOfBirth)
     {

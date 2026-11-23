@@ -64,11 +64,14 @@ printf '%s\n---\n' "$script" >> "$FAKE_DIR/stdin.log"
 PATH="$FAKE_DIR/bin:$PATH" bash -s <<< "$script"
 """
 
-# A tiny stateful stand-in for `mc`: objects live in state/objects/<alias path>.
+# A tiny stateful stand-in for `mc`: objects live in state/objects/<alias path>. Every call's arguments go to mc.log;
+# the login must arrive as MC_HOST_local (recorded in mc-host.log), and `mc alias set` is refused as unexpected.
 FAKE_MC = r"""#!/usr/bin/env bash
 state="$FAKE_DIR/state"; mkdir -p "$state/objects"
+{ printf '%s\x1f' "$@"; printf '\n'; } >> "$FAKE_DIR/mc.log"
+printf '%s\n' "${MC_HOST_local:-}" >> "$FAKE_DIR/mc-host.log"
+[ -n "${MC_HOST_local:-}" ] || { echo "fake mc: MC_HOST_local is not set" >&2; exit 2; }
 case "$1" in
-  alias) exit 0 ;;
   cp)
     [ "$2" = "$FAKE_MOUNT_CONT" ] || { echo "fake mc: the source is not the mounted file" >&2; exit 2; }
     [ -n "${FAKE_FAIL_CP:-}" ] && { echo "mc: upload failed" >&2; exit 1; }
@@ -227,7 +230,9 @@ class OfficeSignature(unittest.TestCase):
         self.assertEqual(self.docker_calls(), [])
 
     def test_the_application_credential_is_used_and_never_on_a_command_line(self):
-        code, output = self.run_script(OFFICE, shell_path(self.png))
+        # An explicit, non-default MINIO_URL: the MC_HOST_local assertion below then proves the scheme and host:port
+        # are carried through from it, not hardcoded.
+        code, output = self.run_script(OFFICE, shell_path(self.png), MINIO_URL="https://minio.test:9443")
         self.assertEqual(code, 0, output)
         calls = self.docker_calls()
         self.assertTrue(calls)
@@ -238,6 +243,23 @@ class OfficeSignature(unittest.TestCase):
         stdin = (self.dir / "stdin.log").read_text(encoding="utf-8")
         self.assertIn(self.app_secret, stdin)
         self.assertNotIn(self.root_password, stdin, "the root login must not be used to write a signature")
+        self.assertNotIn(self.app_secret, output)
+        # Inside the container too (its processes are on the host's process list): the login reached mc by name.
+        mc_calls = (self.dir / "mc.log").read_text(encoding="utf-8").splitlines()
+        self.assertTrue(mc_calls)
+        for call in mc_calls:
+            self.assertNotIn(self.app_secret, call)
+        hosts = (self.dir / "mc-host.log").read_text(encoding="utf-8").splitlines()
+        self.assertEqual(set(hosts), {f"https://{self.app_key}:{self.app_secret}@minio.test:9443"})
+
+    def test_an_app_login_a_url_cannot_carry_is_refused_before_minio_is_touched(self):
+        env = (self.dir / "env.prod").read_text(encoding="utf-8")
+        (self.dir / "env.prod").write_text(env.replace(self.app_secret, self.app_secret + "/x"),
+                                           encoding="utf-8", newline="\n")
+        code, output = self.run_script(OFFICE, shell_path(self.png))
+        self.assertNotEqual(code, 0)
+        self.assertIn("may use only", output)
+        self.assertEqual(self.docker_calls(), [])
         self.assertNotIn(self.app_secret, output)
 
     def test_a_failed_upload_is_reported_and_confirms_nothing(self):
