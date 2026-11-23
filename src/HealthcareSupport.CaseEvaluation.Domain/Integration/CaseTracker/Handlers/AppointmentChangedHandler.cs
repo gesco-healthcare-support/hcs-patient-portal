@@ -18,8 +18,8 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Handlers;
 ///
 /// <para>This REVERSES the earlier "field edits are pull-only" design. Relying on the receiver to
 /// sweep every appointment periodically for freshness was overhead their team objected to, and the
-/// idempotent enqueue makes re-pushing nearly free: an unchanged save produces the same
-/// <c>updatedAt</c>, so the same idempotency key, so no second push.</para>
+/// idempotent enqueue makes re-pushing nearly free: the intake's idempotency key is the serialized
+/// <c>data</c> content, so a save that changes nothing in it collapses onto the existing row.</para>
 ///
 /// <para>Gated on <see cref="IntakeSettlePolicy"/> since 2026-07-30, and that gate is what makes
 /// deferring the intake actually work. Approval IS an appointment update, so this handler fires on the
@@ -29,10 +29,12 @@ namespace HealthcareSupport.CaseEvaluation.Integration.CaseTracker.Handlers;
 /// rendering leaves the settle path to send one complete message; a genuine later edit arrives after
 /// the set is complete, so it still re-pushes immediately.</para>
 ///
-/// <para>Watches <see cref="Appointment"/> and <see cref="Patient"/> ONLY. The payload carries
-/// appointment scalars, tenant, location, appointment type, schedule, patient, doctor, storage and
-/// documents -- it carries NO attorney, injury, employer or insurance fields, so edits to those cannot
-/// change what we publish. <c>Location</c>, <c>Doctor</c> and <c>AppointmentType</c> DO appear in the
+/// <para>Watches <see cref="Appointment"/> and <see cref="Patient"/>. Rows an appointment OWNS reach it
+/// through <see cref="RePushAfterChildChangeAsync"/>, called by an
+/// <see cref="AppointmentChildChangedHandler{TChild}"/> per child type: the employer since 2026-11-23.
+/// (The 2026-07 note here said the payload carried no attorney, injury, employer or insurance fields;
+/// it has carried attorneys, injuries, insurances and examiners since Part 6, and the employer since
+/// 2026-11-23.) <c>Location</c>, <c>Doctor</c> and <c>AppointmentType</c> DO appear in the
 /// payload but are rare admin edits that fan out to every appointment at that location, so they are
 /// deliberately excluded (confirmed 2026-07-28). ACCEPTED CONSEQUENCE: renaming a clinic does not
 /// immediately refresh cases already in the Case Tracker; they pick it up via reconcile-on-open.</para>
@@ -112,6 +114,39 @@ public class AppointmentChangedHandler :
                 "AppointmentChangedHandler: failed to re-push appointments for patient {PatientId}; the edit stands.",
                 patient.Id);
         }
+    }
+
+    /// <summary>
+    /// Re-pushes one appointment after a change to a row it owns (see <see cref="AppointmentChildChangedHandler{TChild}"/>).
+    /// The SAME rules as an edit to the appointment itself: published statuses only
+    /// (<see cref="CaseTrackerPublishPolicy.ShouldPublish"/>), settled packet sets only, the content-keyed enqueue,
+    /// and a failure is logged while the edit stands.
+    /// </summary>
+    public virtual async Task RePushAfterChildChangeAsync(Guid appointmentId, string trigger)
+    {
+        Appointment? appointment;
+        try
+        {
+            appointment = await _appointmentRepository.FindAsync(appointmentId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "AppointmentChangedHandler: could not load appointment {AppointmentId} after a {Trigger} change; nothing pushed, the edit stands.",
+                appointmentId, trigger);
+            return;
+        }
+
+        if (appointment == null || !CaseTrackerPublishPolicy.ShouldPublish(appointment.AppointmentStatus))
+        {
+            _logger.LogDebug(
+                "AppointmentChangedHandler: {Trigger} change for appointment {AppointmentId} ({Status}); nothing pushed.",
+                trigger, appointmentId, appointment?.AppointmentStatus);
+            return;
+        }
+
+        await RePushAsync(appointment.Id, appointment.TenantId, trigger);
     }
 
     private async Task RePushAsync(Guid appointmentId, Guid? tenantId, string trigger)

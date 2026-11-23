@@ -1,7 +1,6 @@
 using System;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.Appointments;
-using HealthcareSupport.CaseEvaluation.Enums;
 using HealthcareSupport.CaseEvaluation.Permissions;
 using HealthcareSupport.CaseEvaluation.Settings;
 using Microsoft.AspNetCore.Authorization;
@@ -51,9 +50,11 @@ public class CaseTrackerPushAppService : CaseEvaluationAppService, ICaseTrackerP
 
         var appointment = await _appointmentRepository.GetAsync(appointmentId);
 
-        // Only an approved appointment is a case. Pushing anything earlier would create a case for
-        // work the office has not accepted yet.
-        if (appointment.AppointmentStatus == AppointmentStatusType.Pending)
+        // Only a published appointment is a case, and the manual push follows the same rule as every
+        // automatic one (2026-11-23). Pending, Rejected and InfoRequested were never accepted, so pushing
+        // them would create a case for work the office has not taken on; NoShow and NotSeen were reported
+        // BY the Case Tracker, so echoing them back carries nothing it did not already say.
+        if (!CaseTrackerPublishPolicy.ShouldPublish(appointment.AppointmentStatus))
         {
             throw new UserFriendlyException(
                 L["Only an approved appointment can be pushed to the Case Tracker."]);

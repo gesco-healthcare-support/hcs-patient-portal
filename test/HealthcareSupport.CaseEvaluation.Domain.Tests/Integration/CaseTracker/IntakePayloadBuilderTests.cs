@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentClaimExaminers;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments;
 using HealthcareSupport.CaseEvaluation.AppointmentDocumentTypes;
+using HealthcareSupport.CaseEvaluation.AppointmentEmployerDetails;
 using HealthcareSupport.CaseEvaluation.AppointmentInjuryDetails;
 using HealthcareSupport.CaseEvaluation.AppointmentPrimaryInsurances;
 using HealthcareSupport.CaseEvaluation.AppointmentTypes;
@@ -50,6 +51,7 @@ public class IntakePayloadBuilderTests
     private static readonly Guid PatientId = new("e5f6a7b8-c9d0-4e1f-a2b3-c4d5e6f7a8bc");
     private static readonly Guid DoctorId = new("f7a8b9c0-d1e2-4f30-a415-263748596a7b");
     private static readonly Guid OtherOfficeId = new("0ff1ce00-0000-4000-8000-000000000002");
+    private static readonly Guid EmployerStateId = new("5a7e0000-0000-4000-8000-0000000000ca");
 
     private static Appointment NewAppointment(
         Guid id,
@@ -85,7 +87,8 @@ public class IntakePayloadBuilderTests
         bool withDoctor = true,
         Appointment? successor = null,
         OfficeLetterheadResolver? letterheadResolver = null,
-        ICurrentTenant? currentTenant = null)
+        ICurrentTenant? currentTenant = null,
+        List<AppointmentEmployerDetail>? employers = null)
     {
         var appointmentRepo = Substitute.For<IRepository<Appointment, Guid>>();
         appointmentRepo.GetAsync(appointment.Id, Arg.Any<bool>(), Arg.Any<CancellationToken>())
@@ -186,6 +189,13 @@ public class IntakePayloadBuilderTests
         stateRepo.GetListAsync(
                 Arg.Any<Expression<Func<State, bool>>>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new List<State>()));
+        stateRepo.FindAsync(EmployerStateId, Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<State?>(new State(EmployerStateId, "California")));
+
+        var employerRepo = Substitute.For<IRepository<AppointmentEmployerDetail, Guid>>();
+        employerRepo.GetListAsync(
+                Arg.Any<Expression<Func<AppointmentEmployerDetail, bool>>>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(employers ?? new List<AppointmentEmployerDetail>()));
 
         return new IntakePayloadBuilder(
             appointmentRepo,
@@ -198,6 +208,7 @@ public class IntakePayloadBuilderTests
             new DocumentListResolver(documentRepo, packetRepo, documentTypeRepo),
             new InjuryResolver(injuryRepo),
             new PartyDetailResolver(insuranceRepo, examinerRepo, stateRepo),
+            new EmployerResolver(employerRepo, stateRepo),
             new ChangeAttributionResolver(EmptyChangeRequestRepo()),
             SimpleGuidGenerator.Instance);
     }
@@ -652,6 +663,94 @@ public class IntakePayloadBuilderTests
         IntakePayloadSerializer.SerializeDocumentEntries(envelope.Data.Documents)
             .ShouldNotContain("office", Case.Insensitive);
     }
+
+    // ----------------------------------------------------------------- data.employer (2026-11-23)
+
+    /// <summary>
+    /// The Case Tracker reads EXACTLY these seven keys (agreed 2026-11-23). A rename here is a contract break on
+    /// their side, so this pins the set: renaming, adding or dropping a property fails CI.
+    /// </summary>
+    [Fact]
+    public async Task SerializedPayload_CarriesDataEmployerWithExactlyItsSevenKeys()
+    {
+        var row = Employer("TEST Acme Logistics", new DateTime(2026, 11, 1, 0, 0, 0, DateTimeKind.Utc), stateId: EmployerStateId);
+        var builder = Build(NewAppointment(AppointmentId, "A00065"), employers: new List<AppointmentEmployerDetail> { row });
+
+        using var json = System.Text.Json.JsonDocument.Parse(IntakePayloadSerializer.Serialize(await builder.BuildAsync(AppointmentId)));
+        var employer = json.RootElement.GetProperty("data").GetProperty("employer");
+
+        employer.EnumerateObject().Select(p => p.Name).ShouldBe(
+            new[] { "name", "occupation", "phoneNumber", "street", "city", "state", "zipCode" }, ignoreOrder: true);
+        employer.GetProperty("name").GetString().ShouldBe("TEST Acme Logistics");
+        employer.GetProperty("occupation").GetString().ShouldBe("TEST Warehouse Lead");
+        employer.GetProperty("phoneNumber").GetString().ShouldBe("(555) 010-0142");
+        employer.GetProperty("street").GetString().ShouldBe("100 Sample Way");
+        employer.GetProperty("city").GetString().ShouldBe("Encino");
+        employer.GetProperty("state").GetString().ShouldBe("California", "the State NAME, never its id");
+        employer.GetProperty("zipCode").GetString().ShouldBe("91316");
+    }
+
+    /// <summary>
+    /// No employer row: the key is still on the wire, as an explicit null. The Case Tracker reads null as "none on
+    /// record" and clears what it holds, so an omitted key would leave a stale employer on their side.
+    /// </summary>
+    [Fact]
+    public async Task SerializedPayload_CarriesEmployerNull_WhenTheAppointmentHasNoEmployerRow()
+    {
+        var builder = Build(NewAppointment(AppointmentId, "A00065"));
+
+        var envelope = await builder.BuildAsync(AppointmentId);
+        var body = IntakePayloadSerializer.Serialize(envelope);
+
+        envelope.Data.Employer.ShouldBeNull();
+        using var json = System.Text.Json.JsonDocument.Parse(body);
+        json.RootElement.GetProperty("data").GetProperty("employer").ValueKind
+            .ShouldBe(System.Text.Json.JsonValueKind.Null);
+        body.ShouldContain("\"employer\":null");
+    }
+
+    /// <summary>
+    /// More than one live row is reachable (no unique index). The NEWEST by creation time is sent -- the row the
+    /// edit screens load and save -- with the id as a tie-break, so the choice never depends on query order.
+    /// </summary>
+    [Fact]
+    public async Task BuildAsync_Employer_IsTheNewestRow_WithTheIdBreakingATie()
+    {
+        var older = Employer("TEST Older Employer", new DateTime(2026, 10, 1, 0, 0, 0, DateTimeKind.Utc));
+        var tiedLow = Employer("TEST Tied Low Id", new DateTime(2026, 11, 1, 0, 0, 0, DateTimeKind.Utc),
+            id: new Guid("00000000-0000-4000-8000-000000000001"));
+        var tiedHigh = Employer("TEST Tied High Id", new DateTime(2026, 11, 1, 0, 0, 0, DateTimeKind.Utc),
+            id: new Guid("ffffffff-0000-4000-8000-000000000001"));
+
+        foreach (var order in new[] { new[] { older, tiedLow, tiedHigh }, new[] { tiedHigh, older, tiedLow } })
+        {
+            var builder = Build(NewAppointment(AppointmentId, "A00065"), employers: order.ToList());
+
+            (await builder.BuildAsync(AppointmentId)).Data.Employer!.Name.ShouldBe("TEST Tied High Id");
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task BuildAsync_EmployerState_IsNull_WhenTheRowHasNoStateOrItDoesNotResolve(bool unresolvable)
+    {
+        var row = Employer("TEST Acme Logistics", new DateTime(2026, 11, 1, 0, 0, 0, DateTimeKind.Utc),
+            stateId: unresolvable ? Guid.NewGuid() : null);
+        var builder = Build(NewAppointment(AppointmentId, "A00065"), employers: new List<AppointmentEmployerDetail> { row });
+
+        (await builder.BuildAsync(AppointmentId)).Data.Employer!.State.ShouldBeNull();
+    }
+
+    private static AppointmentEmployerDetail Employer(string name, DateTime createdUtc, Guid? id = null, Guid? stateId = null) =>
+        new(id ?? Guid.NewGuid(), AppointmentId, stateId, name, "TEST Warehouse Lead")
+        {
+            PhoneNumber = "(555) 010-0142",
+            Street = "100 Sample Way",
+            City = "Encino",
+            ZipCode = "91316",
+            CreationTime = createdUtc,
+        };
 
     /// <summary>
     /// The letterhead is read in the APPOINTMENT's office, not whichever office is current. A
