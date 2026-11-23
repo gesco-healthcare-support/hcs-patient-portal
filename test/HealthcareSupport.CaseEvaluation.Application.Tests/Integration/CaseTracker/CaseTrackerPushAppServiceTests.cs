@@ -98,12 +98,21 @@ public class CaseTrackerPushAppServiceTests
     }
 
     /// <summary>
-    /// A request still awaiting the office's decision is not a case yet, so it cannot be pushed.
+    /// The manual push follows the SAME rule as every automatic push (<see cref="CaseTrackerPublishPolicy.ShouldPublish"/>,
+    /// 2026-11-23). A request still awaiting a decision, a rejected one and one sent back for information were never
+    /// accepted, so pushing them would create a case for work the office has not taken on; a no-show or not-seen was
+    /// reported BY the Case Tracker. Before 2026-11-23 only Pending was refused, so a Rejected appointment could be
+    /// pushed by hand.
     /// </summary>
-    [Fact]
-    public async Task PushAppointmentAsync_AStillPendingAppointment_IsRefused()
+    [Theory]
+    [InlineData(AppointmentStatusType.Pending)]
+    [InlineData(AppointmentStatusType.Rejected)]
+    [InlineData(AppointmentStatusType.InfoRequested)]
+    [InlineData(AppointmentStatusType.NoShow)]
+    [InlineData(AppointmentStatusType.NotSeen)]
+    public async Task PushAppointmentAsync_AnAppointmentTheAutomaticPathWouldNotPublish_IsRefused(AppointmentStatusType status)
     {
-        var appointment = NewAppointment(AppointmentStatusType.Pending);
+        var appointment = NewAppointment(status);
         var (service, queue, _) = Build(appointment, "true");
 
         await Should.ThrowAsync<UserFriendlyException>(() => service.PushAppointmentAsync(appointment.Id));
