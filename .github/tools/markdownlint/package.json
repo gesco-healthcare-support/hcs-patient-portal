@@ -4,5 +4,10 @@
   "description": "Pinned install of markdownlint-cli2 for lint-meta.yml; the lockfile carries the integrity hashes.",
   "dependencies": {
     "markdownlint-cli2": "0.13.0"
+  },
+  "overrides": {
+    "markdown-it": "14.3.3",
+    "js-yaml": "4.3.2",
+    "micromatch": "4.0.8"
   }
 }
