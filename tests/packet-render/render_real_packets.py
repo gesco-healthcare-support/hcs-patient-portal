@@ -83,7 +83,27 @@ EXPECTED = {
     "doctor-blank": {"pages": 8, "widgets": 1360},
     "patient": {"pages": 12, "widgets": 723},
     "patient-blank": {"pages": 12, "widgets": 740},
+    "patient-deu": {"pages": 14, "widgets": 736},
 }
+
+# The DEU variant (2026-11-24) prints 19 pre-filled values when they are known, and renders an EMPTY fillable field
+# under the value's old name when one resolves empty. The all-filled render above pins the all-known shape; this
+# second render empties these tokens and must gain exactly these fields, no page and no other name.
+DEU_TEMPLATE = "patient-deu"
+DEU_EMPTIED = {
+    "##Deu.Ssn##": "packet.patient.deu1.ssn",
+    "##Deu.DateOfBirth##": "packet.patient.deu1.dob",
+    "##Deu.Street1##": "packet.patient.deu1.street1",
+    "##Deu.DateOfInjury##": "packet.patient.deu1.doi",
+    "##Deu.Employer##": "packet.patient.deu1.employer",
+    "##Deu.Claim1##": "packet.patient.deu2.claim1",
+    "##Deu.Claim2##": "packet.patient.deu2.claim2",
+    "##Deu.Claim3##": "packet.patient.deu2.claim3",
+    "##Deu.Claim4##": "packet.patient.deu2.claim4",
+    "##Deu.Claim5##": "packet.patient.deu2.claim5",
+}
+# The pre-selected choice: a harvested highlight that must arrive ON.
+DEU_PRESET_FIELD = "packet.patient.deu2.doctor_selected#from_list"
 
 # The Case Tracker fills these packets BY FIELD NAME, so a name that changes or disappears breaks its filler with
 # nothing else going red. This file is the committed list, one "<template><TAB><field name>" per line, and the check
@@ -92,18 +112,21 @@ EXPECTED = {
 # The workflow copies it into the container and names it in FIELD_NAMES_PATH (docker exec -e), because stdin is the
 # script, so the file cannot be read from the repository. There is no default location: an unset variable fails the check.
 FIELD_NAMES_PATH = os.environ.get("FIELD_NAMES_PATH")
-NAMED_TEMPLATES = ("doctor", "doctor-blank", "patient", "patient-blank")
+NAMED_TEMPLATES = ("doctor", "doctor-blank", "patient", "patient-blank", "patient-deu")
 # The blank copy is the sent packet with its per-case values turned into fields, so it must keep every name the sent
 # one has: the Case Tracker fills a blank with the names it already knows.
 BLANK_OF = {"doctor-blank": "doctor", "patient-blank": "patient"}
 
 
-def render(name, signature=None):
-    """POST the template with every token filled. signature: None = a synthetic png, "" = the office has none."""
+def render(name, signature=None, emptied=()):
+    """POST the template with every token filled. signature: None = a synthetic png, "" = the office has none.
+    emptied: tokens sent as "" instead (the DEU fallback check)."""
     html = app._TEMPLATE_FILES[name].read_text(encoding="utf-8")
     tokens = dict.fromkeys(sorted(set(app.TOKEN_REGEX.findall(html))), SYNTHETIC_VALUE)
     if SIGNATURE_TOKEN in tokens:
         tokens[SIGNATURE_TOKEN] = synthetic_signature_data_uri() if signature is None else signature
+    for token in emptied:
+        tokens[token] = ""
     body = json.dumps({"template": name, "tokens": tokens}).encode("utf-8")
     request = urllib.request.Request(RENDER_URL, data=body, headers={"Content-Type": "application/json"})
     try:
@@ -214,6 +237,39 @@ def signature_problems(name, payload):
     return problems
 
 
+def preset_state(pdf, field):
+    """The /AS of a top-level field, or None when the field is not there."""
+    with pikepdf.open(io.BytesIO(pdf)) as document:
+        for candidate in document.Root.AcroForm.Fields:
+            if str(candidate.get("/T")) == field:
+                return str(candidate.get("/AS"))
+    return None
+
+
+def deu_problems(name, payload):
+    """The DEU variant: the pre-set choice arrives ON, and an emptied value becomes exactly its old fillable field."""
+    if name != DEU_TEMPLATE:
+        return []
+    problems = []
+    if preset_state(payload, DEU_PRESET_FIELD) != "/Yes":
+        problems.append(f"{DEU_PRESET_FIELD} is not pre-selected")
+    known = set(field_names(payload))
+    leaked = sorted(known & set(DEU_EMPTIED.values()))
+    if leaked:
+        problems.append(f"with every value known, {len(leaked)} fallback fields still render, e.g. {leaked[0]}")
+    status, content_type, emptied, _ = render(name, emptied=DEU_EMPTIED)
+    if status != 200 or content_type != "application/pdf":
+        return problems + [f"the render with empty values answered HTTP {status}"]
+    got = measure(emptied)
+    want = {"pages": EXPECTED[name]["pages"], "widgets": EXPECTED[name]["widgets"] + len(DEU_EMPTIED)}
+    if got != want:
+        problems.append(f"with {len(DEU_EMPTIED)} values empty: {got}, want {want}")
+    gained = set(field_names(emptied)) - known
+    if gained != set(DEU_EMPTIED.values()):
+        problems.append(f"with values empty the new fields are {sorted(gained)}, want {sorted(DEU_EMPTIED.values())}")
+    return problems
+
+
 def text_problems(pdf):
     result = subprocess.run(["pdftotext", "-q", "-", "-"], input=pdf, capture_output=True, check=False)
     if result.returncode != 0:
@@ -242,7 +298,7 @@ def check(name, pinned, rendered_names):
     except pikepdf.PdfError as error:
         return f"{name}: pikepdf cannot open it: {error}", False, None
     problems = text_problems(payload) + signature_problems(name, payload) + name_problems(
-        name, payload, pinned, rendered_names) + helvetica_problems(name, payload)
+        name, payload, pinned, rendered_names) + helvetica_problems(name, payload) + deu_problems(name, payload)
     want = EXPECTED.get(name)
     if want != got:
         problems.append(f"want {want}")
