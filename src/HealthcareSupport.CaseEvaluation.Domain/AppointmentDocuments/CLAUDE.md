@@ -137,6 +137,22 @@ A permanent render failure leaves the row as it was (NOT Failed: its file is sti
 announces it, so a new party is not left with nothing. A renderer outage propagates for Hangfire's
 retry. A patient email correction re-renders nothing.
 
+### The patient packet's DEU questionnaire (2026-11-24)
+
+For a Panel QME appointment (first evaluation or re-evaluation) whose patient has NO applicant attorney, the
+patient packet is rendered from `patient-deu` instead of `patient`: the same 12 pages, then the DWC Employee's
+Disability Questionnaire (DEU form 100). `GenerateAppointmentPacketJob.IncludesDeuForm` decides it; "represented"
+is `PacketTokenContext.HasApplicantAttorney`, a live applicant-attorney link OR a typed applicant-attorney email.
+
++ It is still ONE `PacketKind.Patient` packet: same blob path, same file name, same Case Tracker entry. Only the
+  template differs.
++ Its 19 pre-filled values are `Templates/DeuFormValues.cs` (the `##Deu.*##` tokens): trimmed, and `""` when
+  unknown, because the template renders an empty fillable field under the field's old name for an empty value.
++ Decided when the packet is generated. A packet already sent is kept as sent if an attorney is added or removed
+  later (staff decision); nothing re-renders the patient packet.
++ Since the same change, the packet employer tokens (every packet) come from the NEWEST live employer row, the Case
+  Tracker intake's rule.
+
 ### PDF replaces DOCX (parity note)
 
 OLD generated `.docx` reports. NEW renders HTML templates (owned by the WeasyPrint

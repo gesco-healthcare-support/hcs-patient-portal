@@ -311,4 +311,131 @@ public class PacketTokenResolverTests
 
         ctx.PatientAttorneyName.ShouldBe(longFirm.ToUpperInvariant());
     }
+
+    // -- 2026-11-24: the DWC Employee's Disability Questionnaire (patient-deu) --------------------
+
+    private static (World World, Appointment Appointment) DeuWorld()
+    {
+        var w = new World();
+        var ca = new State(Guid.NewGuid(), "TEST-California");
+        w.States.Add(ca);
+        var patient = new Patient(Guid.NewGuid(), ca.Id, null, null, null, "TEST-Ann", "TEST-Lee", "ann@test.local",
+            Gender.Unspecified, new DateTime(1980, 2, 3, 0, 0, 0, DateTimeKind.Utc), PhoneNumberType.Home,
+            middleName: "marie", socialSecurityNumber: "000112222", city: "TEST City", zipCode: "00000",
+            street: "1 TEST Way", apptNumber: "Unit 7");
+        w.Patients.Add(patient);
+        var slot = new DoctorAvailability(Guid.NewGuid(), Guid.NewGuid(), new DateTime(2031, 6, 2, 0, 0, 0, DateTimeKind.Utc),
+            new TimeOnly(9, 30), new TimeOnly(10, 30), BookingStatus.Booked);
+        w.Slots.Add(slot);
+        var type = new AppointmentType(Guid.NewGuid(), "Panel Qualified Medical Examination (PQME)");
+        w.Types.Add(type);
+        var appointment = NewAppointment(patient.Id, type.Id, Guid.NewGuid(), slot.Id);
+        w.Appointments.Add(appointment);
+        return (w, appointment);
+    }
+
+    [Fact]
+    public async Task The_deu_values_come_from_the_snapshot_the_newest_employer_and_the_injuries_in_date_order()
+    {
+        var (w, appointment) = DeuWorld();
+        var older = new DateTime(2031, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        w.Employers.Add(new AppointmentEmployerDetail(Guid.NewGuid(), appointment.Id, null, "TEST Newer Employer", "TEST Role")
+        { CreationTime = older.AddDays(1) });
+        w.Employers.Add(new AppointmentEmployerDetail(Guid.NewGuid(), appointment.Id, null, "TEST Older Employer", "TEST Role")
+        { CreationTime = older });
+        // Loaded newest-injury first: the questionnaire still lists them by date.
+        w.Injuries.Add(new AppointmentInjuryDetail(Guid.NewGuid(), appointment.Id, new DateTime(2030, 3, 4, 0, 0, 0, DateTimeKind.Utc),
+            "clm-later", false, "TEST knee", wcabAdj: "adj-2"));
+        w.Injuries.Add(new AppointmentInjuryDetail(Guid.NewGuid(), appointment.Id, new DateTime(2029, 1, 2, 0, 0, 0, DateTimeKind.Utc),
+            "clm-earlier", true, "TEST back", toDateOfInjury: new DateTime(2029, 6, 30, 0, 0, 0, DateTimeKind.Utc), wcabAdj: "adj-1"));
+
+        var ctx = await w.Resolver().ResolveAsync(appointment.Id);
+
+        ctx.Deu.FirstName.ShouldBe("TEST-ANN");
+        ctx.Deu.MiddleInitial.ShouldBe("M");
+        ctx.Deu.LastName.ShouldBe("TEST-LEE");
+        ctx.Deu.Ssn.ShouldBe("000112222");
+        ctx.Deu.Street1.ShouldBe("1 TEST WAY");
+        ctx.Deu.Street2.ShouldBe("UNIT 7");
+        ctx.Deu.City.ShouldBe("TEST CITY");
+        ctx.Deu.State.ShouldBe("TEST-CALIFORNIA");
+        ctx.Deu.Zip.ShouldBe("00000");
+        ctx.Deu.DateOfBirth.ShouldBe("02/03/1980");
+        ctx.Deu.DateOfInjury.ShouldBe("01/02/2029 \u2013 06/30/2029; 03/04/2030");
+        ctx.Deu.Claim1.ShouldBe("CLM-EARLIER");
+        ctx.Deu.Claim2.ShouldBe("CLM-LATER");
+        ctx.Deu.Claim3.ShouldBeEmpty();
+        ctx.Deu.Employer.ShouldBe("TEST NEWER EMPLOYER");
+        ctx.Deu.ExamScheduled.ShouldBe("06/02/2031 at 9:30 AM");
+        ctx.Deu.DoctorName.ShouldBe(ctx.Office.PhysicianName.Trim(), "the same physician the notices print");
+    }
+
+    [Fact]
+    public async Task The_employer_tokens_of_every_packet_follow_the_newest_row_too()
+    {
+        var (w, appointment) = DeuWorld();
+        var at = new DateTime(2031, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var lowId = new Guid("00000000-0000-0000-0000-000000000001");
+        var highId = new Guid("00000000-0000-0000-0000-000000000002");
+        // Same creation time: the higher id wins, like the Case Tracker intake's EmployerResolver.
+        w.Employers.Add(new AppointmentEmployerDetail(lowId, appointment.Id, null, "TEST Low Id", "TEST Role") { CreationTime = at });
+        w.Employers.Add(new AppointmentEmployerDetail(highId, appointment.Id, null, "TEST High Id", "TEST Role") { CreationTime = at });
+
+        var ctx = await w.Resolver().ResolveAsync(appointment.Id);
+
+        ctx.EmployerName.ShouldBe("TEST HIGH ID");
+        ctx.Deu.Employer.ShouldBe("TEST HIGH ID");
+    }
+
+    [Fact]
+    public async Task With_no_records_the_deu_values_are_empty_and_the_patient_is_unrepresented()
+    {
+        var w = new World();
+        var appointment = NewAppointment(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        w.Appointments.Add(appointment);
+
+        var ctx = await w.Resolver().ResolveAsync(appointment.Id);
+
+        ctx.HasApplicantAttorney.ShouldBeFalse();
+        ctx.Deu.FirstName.ShouldBeEmpty();
+        ctx.Deu.Ssn.ShouldBeEmpty();
+        ctx.Deu.DateOfInjury.ShouldBeEmpty();
+        ctx.Deu.Claim1.ShouldBeEmpty();
+        ctx.Deu.Employer.ShouldBeEmpty();
+        ctx.Deu.ExamScheduled.ShouldBeEmpty();
+    }
+
+    [Theory]
+    [InlineData(true, null, true)]
+    [InlineData(false, "aa@test.local", true)]
+    [InlineData(true, "aa@test.local", true)]
+    [InlineData(false, null, false)]
+    [InlineData(false, "   ", false)]
+    public async Task An_applicant_attorney_is_a_live_link_or_a_typed_email(bool linked, string? email, bool expected)
+    {
+        var (w, appointment) = DeuWorld();
+        appointment.ApplicantAttorneyEmail = email;
+        if (linked)
+        {
+            var applicant = new ApplicantAttorney(Guid.NewGuid(), null, null, "TEST Applicant Firm");
+            w.Applicants.Add(applicant);
+            w.ApplicantLinks.Add(new AppointmentApplicantAttorney(Guid.NewGuid(), appointment.Id, applicant.Id, null));
+        }
+
+        var ctx = await w.Resolver().ResolveAsync(appointment.Id);
+
+        ctx.HasApplicantAttorney.ShouldBe(expected);
+    }
+
+    [Fact]
+    public async Task A_link_whose_attorney_record_is_gone_still_counts_as_represented()
+    {
+        var (w, appointment) = DeuWorld();
+        w.ApplicantLinks.Add(new AppointmentApplicantAttorney(Guid.NewGuid(), appointment.Id, Guid.NewGuid(), null));
+
+        var ctx = await w.Resolver().ResolveAsync(appointment.Id);
+
+        ctx.HasApplicantAttorney.ShouldBeTrue();
+        ctx.PatientAttorneyName.ShouldBeEmpty();
+    }
 }

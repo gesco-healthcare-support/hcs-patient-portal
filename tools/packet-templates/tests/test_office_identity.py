@@ -31,7 +31,7 @@ ROOT = os.path.dirname(HERE)
 
 BUILDERS = {
     os.path.join("doctor", "build_doctor.py"): ["doctor.html", "doctor_landscape.html"],
-    os.path.join("patient", "build_patient.py"): ["patient.html"],
+    os.path.join("patient", "build_patient.py"): ["patient.html", "patient_deu.html"],
     os.path.join("attorney", "build_attorney.py"): ["ame_ime.html", "pqme.html"],
 }
 
@@ -94,12 +94,14 @@ class OfficeIdentityTest(unittest.TestCase):
                 self.assertTrue("##Office.PhysicianName##" in self.documents[name], name)
 
     def test_the_letters_carry_the_offices_letterhead(self) -> None:
-        for name in ("ame_ime.html", "pqme.html", "patient.html"):
+        for name in ("ame_ime.html", "pqme.html", "patient.html", "patient_deu.html"):
             with self.subTest(document=name):
                 self.assertTrue("##Office.LetterheadName##" in self.documents[name], name)
 
     def test_the_patient_packet_names_the_offices_practice(self) -> None:
-        self.assertTrue("##Office.PracticeName##" in self.documents["patient.html"])
+        for name in ("patient.html", "patient_deu.html"):
+            with self.subTest(document=name):
+                self.assertTrue("##Office.PracticeName##" in self.documents[name], name)
 
     def test_documents_using_data_if_carry_the_rule_that_hides_empty_lines(self) -> None:
         for name, html in self.documents.items():

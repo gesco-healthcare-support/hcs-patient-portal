@@ -11,6 +11,13 @@ public static class PacketTemplateNames
     public const string Doctor = "doctor";
     public const string Patient = "patient";
 
+    /// <summary>
+    /// The patient packet for a Panel QME patient with no applicant attorney: the same pages, then the DWC Employee's
+    /// Disability Questionnaire (DEU form 100). Still a <c>PacketKind.Patient</c> packet: same blob path, same file
+    /// name, same Case Tracker entry. Only the template differs (2026-11-24).
+    /// </summary>
+    public const string PatientDeu = "patient-deu";
+
     /// <summary>Shared AME / IME attorney+patient notice (the default AttorneyCE notice).</summary>
     public const string AttorneyAme = "attorney-ame";
 
