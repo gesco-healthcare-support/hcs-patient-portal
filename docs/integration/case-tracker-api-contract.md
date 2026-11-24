@@ -1465,6 +1465,38 @@ ones are `packet.patient.{adl,release,pregnancy,privacyack,complaints,ama3}.{pat
 `packet.doctor.rtw.employer_zip`. Every name of the sent packet is kept in the blank. The full list, pinned in CI so a
 name cannot change or disappear unnoticed, is `tests/packet-render/field-names.txt` (one `template<TAB>name` per line).
 
+### The sent patient packet with the DEU questionnaire (ADDED 2026-11-24)
+
+**When.** A Panel QME appointment (a first evaluation or a re-evaluation) whose patient has NO applicant attorney (no
+attorney link and no typed attorney email) gets a 14-page patient packet: the usual 12 pages, then the DWC Employee's
+Disability Questionnaire (DEU form 100) as pages 13 and 14. Decided when the packet is generated; a packet already sent
+is not re-sent if an attorney is added or removed later. Only new approvals get it.
+
+**Same document entry.** It is still the Patient packet: `source = "packet"`, `kind = "Patient"`, the same file name
+and the same object-key shape. Nothing in the feed tells the two apart; only the page count and the field names do.
+
+**The blank is unchanged.** The DEU pages are never in the blank patient packet (`.../forms/patient-packet`).
+
+**Field names: 32 on the two pages, all `packet.patient.deu1.*` or `packet.patient.deu2.*`.**
+
+- 13 are ALWAYS fillable: `deu1.intl_address`, `deu1.nature_business`, `deu2.doctor_selected#from_list`,
+  `deu2.doctor_selected#other`, `deu2.doctor_other`, `deu2.job_duties`, `deu2.disability`, `deu2.work_effect`,
+  `deu2.prior_disability`, `deu2.prior_when`, `deu2.describe_disability`, `deu2.date`, `deu2.signature`.
+- 19 are PRINTED WHEN KNOWN, FILLABLE WHEN EMPTY: `deu1.first_name`, `deu1.mi`, `deu1.last_name`, `deu1.ssn` (digits
+  only), `deu1.street1`, `deu1.street2`, `deu1.city`, `deu1.state` (the state's name), `deu1.zip`, `deu1.dob`,
+  `deu1.doi`, `deu1.employer`, `deu2.claim1` .. `deu2.claim5`, `deu2.doctor_name`, `deu2.exam_scheduled`. When the
+  portal knows the value it is printed text and the field does NOT exist in the PDF; when it does not, an empty
+  fillable field of exactly that name is there instead. So `deu1.mi`, `deu1.street2` and `deu2.claim2` .. `claim5` are
+  usually fields: treat all 19 as optional.
+- `deu2.doctor_selected#from_list` arrives already SELECTED (the doctor of a Panel QME came from the State's list); the
+  patient can clear it.
+
+**Value formats.** Dates `MM/DD/YYYY`. A cumulative injury is a range: the start date, a space, an EN DASH (U+2013),
+a space, the end date. Several injuries are joined with `; `. The claim lines follow the injuries ordered by date of injury, then
+by when they were entered; claim numbers are distinct, and the fifth line carries every claim after the fourth, joined
+with `, `. The exam is `MM/DD/YYYY at h:mm AM`. Values are upper case except the doctor's name, which is the office's
+letterhead text.
+
 ## Coordination
 
 NOTE 2026-09-24: the two "provides" lists below predate the September thread and have NOT been

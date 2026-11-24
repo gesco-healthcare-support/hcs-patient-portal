@@ -332,4 +332,18 @@ public class PacketTokenContext
     /// replace the letterhead, physician name, address and phone that were hardcoded there.
     /// </summary>
     public HealthcareSupport.CaseEvaluation.Branding.OfficeLetterhead Office { get; set; } = new();
+
+    // -- DEU group (NEW 2026-11-24, no OLD parity) --------------------------
+
+    /// <summary>
+    /// The values pre-filled on the DWC Employee's Disability Questionnaire (DEU form 100): <c>##Deu.*##</c>. Used
+    /// only by the <c>patient-deu</c> template; each is trimmed, and "" means the template renders a fillable field.
+    /// </summary>
+    public DeuFormValues Deu { get; set; } = new();
+
+    /// <summary>
+    /// Whether the appointment has an applicant attorney: a live applicant-attorney link OR a typed applicant-attorney
+    /// email. Not a token: it decides, with the type, whether the patient packet carries the DEU questionnaire.
+    /// </summary>
+    public bool HasApplicantAttorney { get; set; }
 }

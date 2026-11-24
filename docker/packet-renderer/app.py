@@ -22,7 +22,7 @@ Routes:
                        transport error so Hangfire retries the job
 
 Template names (CONTRACT with the .NET side -- keep in sync with PacketTemplateNames in
-GenerateAppointmentPacketJob): doctor | patient | attorney-ame | attorney-pqme.
+GenerateAppointmentPacketJob): doctor | patient | patient-deu | attorney-ame | attorney-pqme.
 
 HIPAA: the token map carries PHI (SSN / DOB). NEVER log the tokens, the substituted HTML, or the
 PDF -- only the template name and byte sizes. The service binds to 127.0.0.1 on the compose network.
@@ -83,6 +83,9 @@ log = logging.getLogger("packet-renderer")
 _TEMPLATE_FILES = {
     "doctor": GENERATORS_ROOT / "doctor" / "doctor.html",
     "patient": GENERATORS_ROOT / "patient" / "patient.html",
+    # The patient packet for a Panel QME patient with no applicant attorney: the same pages plus the DWC Employee's
+    # Disability Questionnaire (DEU form 100). Still a Patient-kind packet on the .NET side (2026-11-24).
+    "patient-deu": GENERATORS_ROOT / "patient" / "patient_deu.html",
     "attorney-ame": GENERATORS_ROOT / "attorney" / "ame_ime.html",
     "attorney-pqme": GENERATORS_ROOT / "attorney" / "pqme.html",
     # Reusable copies for the Case Tracker: every per-case value is an empty, uniquely named field.

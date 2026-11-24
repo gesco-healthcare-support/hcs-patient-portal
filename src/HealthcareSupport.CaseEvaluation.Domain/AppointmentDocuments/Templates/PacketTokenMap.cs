@@ -144,6 +144,28 @@ public static class PacketTokenMap
             ["##Office.RecordsReleaseAddress##"] = c.Office.RecordsReleaseAddress,
             ["##Office.MissedAppointmentFee##"] = c.Office.MissedAppointmentFee,
             ["##Office.SignatureImage##"] = c.Office.SignatureImage,
+
+            // DEU group (NEW 2026-11-24): the DWC Employee's Disability Questionnaire's pre-filled values, used only
+            // by the patient-deu template. An empty value makes the template render a fillable field instead.
+            ["##Deu.FirstName##"] = c.Deu.FirstName,
+            ["##Deu.MiddleInitial##"] = c.Deu.MiddleInitial,
+            ["##Deu.LastName##"] = c.Deu.LastName,
+            ["##Deu.Ssn##"] = c.Deu.Ssn,
+            ["##Deu.Street1##"] = c.Deu.Street1,
+            ["##Deu.Street2##"] = c.Deu.Street2,
+            ["##Deu.City##"] = c.Deu.City,
+            ["##Deu.State##"] = c.Deu.State,
+            ["##Deu.Zip##"] = c.Deu.Zip,
+            ["##Deu.DateOfBirth##"] = c.Deu.DateOfBirth,
+            ["##Deu.DateOfInjury##"] = c.Deu.DateOfInjury,
+            ["##Deu.Employer##"] = c.Deu.Employer,
+            ["##Deu.Claim1##"] = c.Deu.Claim1,
+            ["##Deu.Claim2##"] = c.Deu.Claim2,
+            ["##Deu.Claim3##"] = c.Deu.Claim3,
+            ["##Deu.Claim4##"] = c.Deu.Claim4,
+            ["##Deu.Claim5##"] = c.Deu.Claim5,
+            ["##Deu.DoctorName##"] = c.Deu.DoctorName,
+            ["##Deu.ExamScheduled##"] = c.Deu.ExamScheduled,
         };
     }
 }
