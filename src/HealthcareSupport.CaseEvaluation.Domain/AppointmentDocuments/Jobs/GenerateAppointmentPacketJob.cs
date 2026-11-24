@@ -373,13 +373,17 @@ public class GenerateAppointmentPacketJob :
     }
 
     /// <summary>
-    /// Maps a kind (and, for AttorneyClaimExaminer, the appointment type) to the sidecar template
+    /// Maps a kind (and, for AttorneyClaimExaminer and Patient, the appointment) to the sidecar template
     /// name. Panel QME selects the DWC QME notice; AME, single QME, and any other type use the
-    /// shared AME/IME notice (see <see cref="IsPanelQme"/>).
+    /// shared AME/IME notice (see <see cref="IsPanelQme"/>). The patient packet adds the DWC Employee's
+    /// Disability Questionnaire for an unrepresented Panel QME patient (see <see cref="IncludesDeuForm"/>);
+    /// it stays a Patient-kind packet either way.
     /// </summary>
     private static string HtmlTemplateName(PacketKind kind, PacketTokenContext context) => kind switch
     {
-        PacketKind.Patient => PacketTemplateNames.Patient,
+        PacketKind.Patient => IncludesDeuForm(context)
+            ? PacketTemplateNames.PatientDeu
+            : PacketTemplateNames.Patient,
         PacketKind.Doctor => PacketTemplateNames.Doctor,
         PacketKind.AttorneyClaimExaminer => IsPanelQme(context.AppointmentType)
             ? PacketTemplateNames.AttorneyPqme
@@ -397,4 +401,13 @@ public class GenerateAppointmentPacketJob :
     private static bool IsPanelQme(string? appointmentTypeName) =>
         !string.IsNullOrEmpty(appointmentTypeName)
         && appointmentTypeName.Contains("PANEL", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// 2026-11-24 (staff decision): the patient packet ends with the DWC Employee's Disability Questionnaire (DEU
+    /// form 100) when the appointment is a Panel QME, a first evaluation or a re-evaluation, AND the patient has no
+    /// applicant attorney (see <see cref="PacketTokenContext.HasApplicantAttorney"/>). Decided when the packet is
+    /// generated; a packet already sent is kept as sent if an attorney is added or removed later.
+    /// </summary>
+    internal static bool IncludesDeuForm(PacketTokenContext context) =>
+        IsPanelQme(context.AppointmentType) && !context.HasApplicantAttorney;
 }

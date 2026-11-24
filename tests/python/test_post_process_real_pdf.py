@@ -74,7 +74,9 @@ text = widget("t", [10, 600, 200, 620], FT=Name.Tx, T="synthetic.text", Ff=0,
               DA=String("0 g /Helv 12 Tf"))
 link = pdf.make_indirect(Dictionary(Type=Name.Annot, Subtype=Name.Link, Rect=Array([50, 500, 70, 520]),
                                     A=Dictionary(S=Name.URI, URI=String("cc:packet.doctor.spinal.synthetic"))))
-page.Annots = Array([check, kid1, kid2, text, link])
+preset = pdf.make_indirect(Dictionary(Type=Name.Annot, Subtype=Name.Link, Rect=Array([80, 500, 100, 520]),
+                                      A=Dictionary(S=Name.URI, URI=String("cc:synthetic.preset#a!on"))))
+page.Annots = Array([check, kid1, kid2, text, link, preset])
 pdf.Root.AcroForm = pdf.make_indirect(Dictionary(Fields=Array([check, radio, kid1, kid2, text]),
                                                  NeedAppearances=True))
 pdf.save(path)
@@ -90,6 +92,7 @@ rd = next(f for f in top if f.get("/T") == "synthetic.radio")
 tx = next(f for f in top if f.get("/T") == "synthetic.text")
 ck = next(f for f in top if f.get("/T") == "synthetic.check")
 hl = [f for f in top if f.get("/T") == "packet.doctor.spinal.synthetic"]
+pre = [f for f in top if f.get("/T") == "synthetic.preset#a"]
 kids = [k.get_object() for k in rd["/Kids"]]
 print(json.dumps({
     "need_appearances": bool(acro["/NeedAppearances"].value),
@@ -106,6 +109,11 @@ print(json.dumps({
     "highlight_ap_keys": sorted(str(k) for k in hl[0]["/AP"]["/N"].keys()) if hl else None,
     "link_left": sum(1 for a in r.pages[0]["/Annots"] if a.get_object().get("/Subtype") == "/Link"),
     "pypdf_field_count": len(fields),
+    "preset_count": len(pre),
+    "preset_as": str(pre[0].get("/AS")) if pre else None,
+    "preset_v": str(pre[0].get("/V")) if pre else None,
+    "preset_ap_keys": sorted(str(k) for k in pre[0]["/AP"]["/N"].keys()) if pre else None,
+    "plain_as": str(hl[0].get("/AS")) if hl else None,
 }))
 '''
 
@@ -141,8 +149,9 @@ class FinalizeAgainstRealPikepdf(unittest.TestCase):
     def test_radio_kids_lose_their_own_name_and_the_top_level_copy(self):
         self.assertEqual(self.report["kid_has_T"], [False, False])
         self.assertEqual(self.report["top_level_names"].count("synthetic.radio"), 1)
-        # check + radio parent + text + harvested highlight; the two radio kids are de-listed.
-        self.assertEqual(self.report["top_level_count"], 4)
+        # check + radio parent + text + two harvested highlights (one pre-set); the two radio kids
+        # are de-listed.
+        self.assertEqual(self.report["top_level_count"], 5)
 
     def test_appearance_streams_are_replaced_with_off_and_on_states(self):
         self.assertEqual(self.report["check_ap_keys"], ["/Off", "/Yes"])
@@ -161,6 +170,14 @@ class FinalizeAgainstRealPikepdf(unittest.TestCase):
 
     def test_an_independent_reader_still_parses_the_form(self):
         self.assertGreaterEqual(self.report["pypdf_field_count"], 4)
+
+    def test_a_preset_anchor_is_selected_and_painted_under_its_plain_name(self):
+        """The DEU questionnaire's pre-set choice, read back by pypdf: on, with an on appearance."""
+        self.assertEqual(self.report["preset_count"], 1)
+        self.assertEqual(self.report["preset_as"], "/Yes")
+        self.assertEqual(self.report["preset_v"], "/Yes")
+        self.assertEqual(self.report["preset_ap_keys"], ["/Off", "/Yes"])
+        self.assertEqual(self.report["plain_as"], "/Off")
 
 
 # Runs in the child: a text field whose /DA names a subset font, then use_helvetica over it.

@@ -1355,6 +1355,187 @@ def page_patinfo():
     return f'<div class="page" id="p-patinfo">{"".join(parts)}</div>'
 
 
+# ----------------------------------------------------------------------------- CA DWC Disability Questionnaire (DEU form 100)
+# Back 2026-11-24 (staff decision): only for a Panel QME patient with NO applicant attorney, at the END of the
+# patient packet, in its own template patient_deu.html (the job picks it; the 12-page packet and the blank copy are
+# untouched). The identity values are PRE-FILLED: each is printed when the portal knows it, and when it resolves
+# empty the patient gets an empty fillable field under the field's OLD name instead (the Case Tracker fills the
+# packet digitally, so a printed blank line could never be filled). Both are in the HTML; the renderer's token
+# substitution decides which one shows: an element whose data-known resolved to "" is hidden, and an element whose
+# data-unknown resolved to anything else is hidden. A hidden input makes no PDF field (measured on WeasyPrint 70).
+# Every ##Deu.*## value is trimmed by the .NET resolver, so "unknown" means exactly "".
+
+# old field name (packet.patient.deu1.*) -> the token that pre-fills it.
+DEU1_PREFILLED = {
+    "first_name": "##Deu.FirstName##",
+    "mi": "##Deu.MiddleInitial##",
+    "last_name": "##Deu.LastName##",
+    "ssn": "##Deu.Ssn##",
+    "street1": "##Deu.Street1##",
+    "street2": "##Deu.Street2##",
+    "city": "##Deu.City##",
+    "state": "##Deu.State##",
+    "zip": "##Deu.Zip##",
+    "dob": "##Deu.DateOfBirth##",
+    "doi": "##Deu.DateOfInjury##",
+    "employer": "##Deu.Employer##",
+}
+
+# old field name (packet.patient.deu2.*) -> the token that pre-fills it.
+DEU2_PREFILLED = {
+    "claim1": "##Deu.Claim1##",
+    "claim2": "##Deu.Claim2##",
+    "claim3": "##Deu.Claim3##",
+    "claim4": "##Deu.Claim4##",
+    "claim5": "##Deu.Claim5##",
+    "doctor_name": "##Deu.DoctorName##",
+    "exam_scheduled": "##Deu.ExamScheduled##",
+}
+
+# The DEU pages' own CSS, added ONLY to patient_deu.html so patient.html stays byte-identical. The base CSS above
+# still carries the #p-deu1/#p-deu2 rules from before 2026-09-17; these come after it and win.
+DEU_CSS = r"""
+  /* printed-when-known / fillable-when-empty (DEU form 100 only) */
+  [data-known=""] { display: none !important; }
+  [data-unknown]:not([data-unknown=""]) { display: none !important; }
+  #p-deu1 .deu-val, #p-deu2 .dq-val { display: inline-block; border-bottom: 1px solid #000;
+        min-height: 1.1em; white-space: nowrap; overflow: hidden; vertical-align: bottom; }
+  #p-deu2 .dq-val { vertical-align: baseline; }
+  #p-deu1 .deu-row .deu-val { width: 100%; }
+  /* the state is a NAME (the portal stores no code) and a cumulative injury is a date RANGE: wider lines.
+     The date-of-injury field needs a selector that outranks the base `.deu-date input.deu-line` 2.0in rule,
+     which WeasyPrint lets win over the inline width (measured). */
+  #p-deu1 .deu-row .col-city { flex: 0 0 4.2in; }
+  #p-deu1 .deu-row .col-state { flex: 0 0 1.9in; }
+  #p-deu1 .deu-date input.deu-line.deu-wide { width: 4.6in; }
+"""
+
+# The anchor suffix shared/post_process.py turns into a pre-selected choice. Kept as a literal because
+# post_process imports pikepdf and this builder must run without it; a test pins the two equal.
+PRESET_ON_SUFFIX = "!on"
+
+_DEU_DOI_WIDTH = "4.6in"
+_DEU_LINE = "deu-line"
+_DQ_LINE = "dq-line"
+
+
+def _known_or_fillable(token, name, value_class, line_class, width):
+    """The value printed when the portal knows it; otherwise an empty fillable field named `name`."""
+    style = f' style="width:{width}"' if width else ""
+    return (f'<span class="{value_class}" data-known="{token}"{style}>{_tok(token)}</span>'
+            f'<span data-unknown="{token}"><input type="text" class="{line_class}" name="{name}"{style}></span>')
+
+
+def page_deu1():
+    """CA DWC Employee's Disability Questionnaire, page 1 (page 13 of the DEU variant). Barcode = faithful image
+    crop. The identity values are pre-filled (DEU1_PREFILLED); the international address and the nature of the
+    employer's business stay for the patient. Each field is an entry line with its label BELOW it."""
+    ns = "packet.patient.deu1"
+
+    def line(name, w):
+        return f'<input type="text" class="{_DEU_LINE}" name="{ns}.{name}" style="width:{w}">'
+
+    def pre(name, w, line_class=_DEU_LINE):
+        return _known_or_fillable(DEU1_PREFILLED[name], f"{ns}.{name}", "deu-val", line_class, w)
+
+    def fld(field, label):
+        return f'<div class="deu-fld">{field}<div class="deu-lab">{label}</div></div>'
+
+    parts = [
+        '<div class="deu-head">' +
+        '<img class="deu-bc" src="images/deu_barcode.png" alt="form barcode">' +
+        '<div class="deu-h1">STATE OF CALIFORNIA</div>' +
+        '<div class="deu-h2">Division of Workers\u2019<br>Compensation Disability<br>Evaluation Unit</div>' +
+        '<div class="deu-h3">EMPLOYEE\u2019S DISABILITY QUESTIONNAIRE</div>' +
+        '</div>',
+        '<div class="deu-box">This form will aid the doctor in determining your permanent '
+        'impairment or disability. Please complete this form and give it to the physician who '
+        'will be performing the evaluation. The doctor will include this form with his or her '
+        'report and submit it to the Disability Evaluation Unit, with a copy to you and your '
+        'claims administrator.</div>',
+        '<div class="deu-emp">Employee</div>',
+        # First Name + MI (line above, label below)
+        '<div class="deu-fld"><div class="deu-row"><span class="col-fn">' + pre("first_name", "100%")
+        + '</span><span class="col-mi">' + pre("mi", "100%") + '</span></div>'
+        '<div class="deu-row"><span class="col-fn deu-lab">First Name</span>'
+        '<span class="col-mi deu-lab">MI</span></div></div>',
+        # Wider than the original 2.0in: a printed value cannot wrap, and a long last name must not be clipped.
+        fld(pre("last_name", "4.0in"), "Last Name"),
+        fld(pre("ssn", "6.5in"), "SSN (Numbers Only)"),
+        fld(pre("street1", _W_FULL),
+            "Street Address 1/PO Box (Please leave blank spaces between numbers, names or words)"),
+        fld(pre("street2", _W_FULL),
+            "Street Address 2/PO Box (Please leave blank spaces between numbers, names or words)"),
+        fld(line("intl_address", "5.2in"),
+            "International Address (Please leave blank spaces between numbers, names or words)"),
+        # City / State / Zip
+        '<div class="deu-fld"><div class="deu-row"><span class="col-city">' + pre("city", "100%")
+        + '</span><span class="col-state">' + pre("state", "100%") + '</span>'
+        '<span class="col-zip">' + pre("zip", "100%") + '</span></div>'
+        '<div class="deu-row"><span class="col-city deu-lab">City</span>'
+        '<span class="col-state deu-lab">State</span><span class="col-zip deu-lab">Zip code</span></div></div>',
+        '<div class="deu-date">Date of Birth: ' + pre("dob", _W_SHORT)
+        + '<div class="deu-mmdd">MM/DD/YYYY</div></div>',
+        '<div class="deu-date">Date of Injury: ' + pre("doi", _DEU_DOI_WIDTH, f"{_DEU_LINE} deu-wide")
+        + '<div class="deu-mmdd">MM/DD/YYYY</div></div>',
+        fld(pre("employer", _W_FULL), "Employer"),
+        fld(line("nature_business", _W_FULL), "Nature of Employers Business"),
+    ]
+    return f'<div class="page" id="p-deu1">{"".join(parts)}</div>'
+
+
+def page_deu2():
+    """CA DWC Employee's Disability Questionnaire, page 2 (page 14 of the DEU variant). The claim numbers, the
+    doctor and the exam date are pre-filled (DEU2_PREFILLED). "From a list of doctors provided by the State" is
+    pre-SELECTED: this page is only ever sent for a Panel QME, whose doctor came from the State's list. The patient
+    can still clear it. The disability questions, date and signature are the patient's."""
+    ns = "packet.patient.deu2"
+
+    def chk(group, value, preset=False):
+        on = PRESET_ON_SUFFIX if preset else ""
+        return f'<a class="dq-chk" href="cc:{ns}.{group}#{value}{on}"></a>'
+
+    def inline(name, w):
+        return f'<input type="text" class="{_DQ_LINE}" name="{ns}.{name}" style="width:{w}">'
+
+    def pre(name, w):
+        return _known_or_fillable(DEU2_PREFILLED[name], f"{ns}.{name}", "dq-val", _DQ_LINE, w)
+
+    def box(name, h):
+        return f'<textarea class="dq-box" name="{ns}.{name}" style="height:{h}"></textarea>'
+
+    claims = ''.join(
+        f'<div class="dq-claim"><span class="lbl">Claim Number {i}</span>{pre(f"claim{i}", "4.3in")}</div>'
+        for i in range(1, 6))
+
+    parts = [
+        claims,
+        '<hr class="dq-rule">',
+        '<div class="dq-h">PLEASE ANSWER THE FOLLOWING QUESTIONS FULLY:</div>',
+        '<div class="dq-h">How was your evaluating doctor selected? (Check one)</div>',
+        '<div class="dq-chkrow">' + chk("doctor_selected", "from_list", preset=True)
+        + 'From a list of doctors provided by the State of California, Division of Workers\u2019 Compensation.</div>',
+        '<div class="dq-chkrow">' + chk("doctor_selected", "other")
+        + 'Other (Explain) ' + inline("doctor_other", "5.3in") + '</div>',
+        '<div class="dq-q">What is the name of the doctor who will be doing the evaluation? '
+        + pre("doctor_name", "3.5in") + '</div>',
+        '<div class="dq-q">When is your examination scheduled? ' + pre("exam_scheduled", "5.0in") + '</div>',
+        '<div class="dq-q">What were your job duties at the time of your injury?'
+        + box("job_duties", "0.8in") + '</div>',
+        '<div class="dq-q">What is the disability resulting from your injury?'
+        + box("disability", "1.1in") + '</div>',
+        '<div class="dq-q">How does this injury affect you in your work?'
+        + box("work_effect", "1.0in") + '</div>',
+        '<div class="dq-q">Have you ever had a disability as a result of another injury or illness? '
+        + inline("prior_disability", "3.2in") + '</div>',
+        '<div class="dq-q">If so, when? ' + inline("prior_when", "3.0in") + '</div>',
+        '<div class="dq-q">Please describe the disability?' + box("describe_disability", "0.8in") + '</div>',
+        '<div class="dq-sign">Date' + inline("date", _W_SHORT)
+        + ' MM/DD/YYYY&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Signature' + inline("signature", "3.4in") + '</div>',
+    ]
+    return f'<div class="page" id="p-deu2">{"".join(parts)}</div>'
+
+
 # --- page registry: (slug, render-fn). One page per approval gate, in document
 # order. New order after the 2026-06-03 template edit: cover letter is page 1;
 # Epworth + QME-122 + Service-List pages removed; trailing empty page dropped. ---
@@ -1364,7 +1545,8 @@ def page_patinfo():
 #   - cover: the "Dear Mr./Mrs." appointment letter (the appointment notice already
 #     carries a patient letter; see build_attorney.py patient_notice())
 #   - deu1/deu2: the DWC "Employee's Disability Questionnaire" (DEU form 100)
-# Their generator functions are removed below. Re-add only if the office's source adds them back.
+# The cover letter stays out. deu1/deu2 came back 2026-11-24 by staff decision, but ONLY in the
+# DEU variant (DEU_PAGES below, patient_deu.html), never in PAGES and never in the blank copy.
 PAGES = [
     ("adl", page_adl),
     ("release", page_release),
@@ -1378,6 +1560,12 @@ PAGES = [
     ("jobduties1", page_jobduties1),
     ("jobduties2", page_jobduties2),
     ("patinfo", page_patinfo),
+]
+
+# Appended after PAGES in the DEU variant only (Panel QME, no applicant attorney).
+DEU_PAGES = [
+    ("deu1", page_deu1),
+    ("deu2", page_deu2),
 ]
 
 
@@ -1401,6 +1589,13 @@ def build_blank():
     return _document(CSS + blank_fields.CSS, body)
 
 
+def build_deu():
+    """The packet sent for a Panel QME patient with NO applicant attorney (2026-11-24): the same pages as
+    build_standard(), then the DWC Employee's Disability Questionnaire (DEU form 100). Its CSS is added here only,
+    so the standard packet stays byte-identical."""
+    return _document(CSS + DEU_CSS, "\n".join(fn() for _, fn in PAGES + DEU_PAGES))
+
+
 def _write(name, html):
     # newline="\n" so the document is byte-identical on every platform.
     # Without it Python's text mode emits CRLF on Windows and LF on Linux --
@@ -1411,10 +1606,12 @@ def _write(name, html):
 
 
 def build():
-    """Assemble all registered pages into patient.html and its blank twin patient_blank.html."""
+    """Assemble patient.html, its blank twin patient_blank.html, and the DEU variant patient_deu.html."""
     _write("patient.html", build_standard())
     _write("patient_blank.html", build_blank())
-    print(f"patient.html and patient_blank.html written: {len(PAGES)} page(s) registered")
+    _write("patient_deu.html", build_deu())
+    print(f"patient.html, patient_blank.html and patient_deu.html written: {len(PAGES)} page(s) registered,"
+          f" {len(DEU_PAGES)} more in the DEU variant")
 
 
 if __name__ == "__main__":

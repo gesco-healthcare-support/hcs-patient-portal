@@ -168,11 +168,17 @@ class TemplatePathTests(unittest.TestCase):
     def setUp(self):
         self.app = load_app()
 
-    def test_all_six_templates_are_mapped(self):
+    def test_all_seven_templates_are_mapped(self):
         self.assertEqual(
             sorted(self.app._TEMPLATE_FILES),
-            ["attorney-ame", "attorney-pqme", "doctor", "doctor-blank", "patient", "patient-blank"],
+            ["attorney-ame", "attorney-pqme", "doctor", "doctor-blank", "patient", "patient-blank", "patient-deu"],
         )
+
+    def test_the_deu_variant_is_baked_by_the_patient_builder(self):
+        """patient-deu is the file build_patient.py writes beside patient.html (2026-11-24)."""
+        path = self.app._TEMPLATE_FILES["patient-deu"]
+        self.assertEqual(path.name, "patient_deu.html")
+        self.assertEqual(path.parent, self.app._TEMPLATE_FILES["patient"].parent)
 
     def test_only_the_blank_templates_get_helvetica(self):
         self.assertEqual(self.app._BLANK_TEMPLATES, frozenset({"doctor-blank", "patient-blank"}))
