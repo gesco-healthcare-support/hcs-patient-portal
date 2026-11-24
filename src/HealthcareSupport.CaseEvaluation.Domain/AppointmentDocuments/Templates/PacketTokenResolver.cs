@@ -41,10 +41,11 @@ namespace HealthcareSupport.CaseEvaluation.AppointmentDocuments.Templates;
 /// <para>OLD parity rules (from
 /// <c>AppointmentDocumentDomain.cs:865-1190</c>):</para>
 /// <list type="number">
-///   <item>All single-row groups (Patients, Appointments, EmployerDetails,
-///   PatientAttorneys, DefenseAttorneys, Others) take the FirstOrDefault
-///   row. NEW null-guards instead of NREing on missing rows -- fixes OLD
-///   bugs at <c>AppointmentDocumentDomain.cs:882, :886, :890</c>.</item>
+///   <item>All single-row groups (Patients, Appointments, PatientAttorneys,
+///   DefenseAttorneys, Others) take the FirstOrDefault row; EmployerDetails takes
+///   the NEWEST live row (2026-11-24, the Case Tracker intake's rule). NEW null-guards
+///   instead of NREing on missing rows -- fixes OLD bugs at
+///   <c>AppointmentDocumentDomain.cs:882, :886, :890</c>.</item>
 ///   <item>InjuryDetails group space-concatenates ALL injuries' values
 ///   with a trailing space per row (single-injury yields "VALUE ").
 ///   ToUpper applied. Per-injury joins (claim examiner address, primary
@@ -144,12 +145,17 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
         var appointment = await _appointmentRepository.GetAsync(appointmentId, cancellationToken: cancellationToken);
         var ctx = new PacketTokenContext();
 
-        await PopulatePatientAsync(ctx, appointment, cancellationToken);
+        var snapshot = await PopulatePatientAsync(ctx, appointment, cancellationToken);
         await PopulateAppointmentAsync(ctx, appointment, cancellationToken);
-        await PopulateEmployerAsync(ctx, appointmentId, cancellationToken);
-        await PopulatePatientAttorneyAsync(ctx, appointmentId, cancellationToken);
+        var employer = await PopulateEmployerAsync(ctx, appointmentId, cancellationToken);
+        var applicantLinked = await PopulatePatientAttorneyAsync(ctx, appointmentId, cancellationToken);
         await PopulateDefenseAttorneyAsync(ctx, appointmentId, cancellationToken);
-        await PopulateInjuryDetailsAsync(ctx, appointmentId, cancellationToken);
+        var injuries = await PopulateInjuryDetailsAsync(ctx, appointmentId, cancellationToken);
+
+        // 2026-11-24: represented = a live applicant-attorney link OR a typed applicant-attorney email. The two move
+        // together on every path (booking, staff add, staff remove); either one counts, so a half-written attorney
+        // never gets the unrepresented patient's DEU questionnaire.
+        ctx.HasApplicantAttorney = applicantLinked || !string.IsNullOrWhiteSpace(appointment.ApplicantAttorneyEmail);
 
         // 2026-08-27: the date the packet was GENERATED, in Pacific time. This was
         // DateTime.Today, i.e. the server's date, and the server runs UTC -- so a packet
@@ -166,12 +172,18 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
         // office has none stored (the template then prints the blank line).
         ctx.Office = ctx.Office with { SignatureImage = await _officeSignatureReader.ReadDataUriAsync(cancellationToken) };
 
+        // 2026-11-24: the DWC Employee's Disability Questionnaire (patient-deu template only), from the records loaded
+        // above; the doctor is the office letterhead's physician, as on the notices.
+        ctx.Deu = DeuFormValues.Compose(
+            snapshot, ctx.PatientState, injuries, employer?.EmployerName,
+            ctx.Office.PhysicianName, ctx.AvailableDate, ctx.AppointmentTime);
+
         return ctx;
     }
 
     // -- Patient ----------------------------------------------------------
 
-    private async Task PopulatePatientAsync(PacketTokenContext ctx, Appointment appointment, CancellationToken ct)
+    private async Task<AppointmentPatientSnapshot?> PopulatePatientAsync(PacketTokenContext ctx, Appointment appointment, CancellationToken ct)
     {
         // Item 5 (2026-08-14): a generated packet is a legal record of what was served, so
         // it renders the demographics AS BOOKED. Before this, regenerating a packet after a
@@ -181,7 +193,7 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
         var snapshot = await _patientSnapshotResolver.ResolveAsync(appointment, ct);
         if (snapshot == null)
         {
-            return;
+            return null;
         }
 
         ctx.PatientFirstName = Upper(snapshot.FirstName);
@@ -208,7 +220,7 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
         var patient = await _patientRepository.FindAsync(appointment.PatientId, cancellationToken: ct);
         if (patient == null)
         {
-            return;
+            return snapshot;
         }
 
         // Interpreter pair (NEW PQME-notice tokens; no OLD parity). The "needs interpreter" Yes/No
@@ -222,6 +234,7 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
             DeriveInterpreter(languageName, snapshot.InterpreterVendorName);
         ctx.PatientInterpreterRequired = interpreterRequired;
         ctx.PatientInterpreterLanguage = interpreterLanguage;
+        return snapshot;
     }
 
     /// <summary>
@@ -347,20 +360,19 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
         }
     }
 
-    // -- EmployerDetails (FirstOrDefault) ----------------------------------
+    // -- EmployerDetails (the newest live row) ------------------------------
 
-    private async Task PopulateEmployerAsync(PacketTokenContext ctx, Guid appointmentId, CancellationToken ct)
+    private async Task<AppointmentEmployerDetail?> PopulateEmployerAsync(PacketTokenContext ctx, Guid appointmentId, CancellationToken ct)
     {
-        // GetQueryableAsync returns an IQueryable bound to the current UoW's
-        // DbContext; the sync FirstOrDefault below blows up with
-        // ObjectDisposedException once the surrounding job has no [UnitOfWork]
-        // wrapper. The async repo terminator runs inside a UoW that the
-        // extension method manages itself.
-        var employer = await _employerDetailRepository.FirstOrDefaultAsync(
-            x => x.AppointmentId == appointmentId, ct);
+        // 2026-11-24: the NEWEST live row (CreationTime, then Id, descending), the same rule as the Case Tracker
+        // intake's EmployerResolver, so a packet and the CT never disagree about the employer. It was FirstOrDefault
+        // with no order. The table has no unique index; the rows are few, so they are ordered in memory (the async
+        // terminator runs inside a unit of work the repository manages, which a sync queryable would not).
+        var rows = await _employerDetailRepository.GetListAsync(x => x.AppointmentId == appointmentId, cancellationToken: ct);
+        var employer = rows.OrderByDescending(e => e.CreationTime).ThenByDescending(e => e.Id).FirstOrDefault();
         if (employer == null)
         {
-            return;
+            return null;
         }
 
         ctx.EmployerName = Upper(employer.EmployerName);
@@ -368,23 +380,25 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
         ctx.EmployerCity = Upper(employer.City);
         ctx.EmployerZip = Upper(employer.ZipCode);
         ctx.EmployerState = await ResolveStateNameAsync(employer.StateId, ct);
+        return employer;
     }
 
     // -- Patient Attorney (FirstOrDefault) ----------------------------------
 
-    private async Task PopulatePatientAttorneyAsync(PacketTokenContext ctx, Guid appointmentId, CancellationToken ct)
+    /// <returns>Whether a live applicant-attorney link exists, whatever its master record holds.</returns>
+    private async Task<bool> PopulatePatientAttorneyAsync(PacketTokenContext ctx, Guid appointmentId, CancellationToken ct)
     {
         var link = await _appointmentApplicantAttorneyRepository.FirstOrDefaultAsync(
             x => x.AppointmentId == appointmentId, ct);
         if (link == null)
         {
-            return;
+            return false;
         }
 
         var attorney = await _applicantAttorneyRepository.FindAsync(link.ApplicantAttorneyId, cancellationToken: ct);
         if (attorney == null)
         {
-            return;
+            return true;
         }
 
         ctx.PatientAttorneyStreet = Upper(attorney.Street);
@@ -392,6 +406,7 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
         ctx.PatientAttorneyZip = Upper(attorney.ZipCode);
         ctx.PatientAttorneyState = await ResolveStateNameAsync(attorney.StateId, ct);
         ctx.PatientAttorneyName = Upper(await ResolveAttorneyDisplayNameAsync(attorney.IdentityUserId, attorney.FirmName, ct));
+        return true;
     }
 
     // -- Defense Attorney (FirstOrDefault) ----------------------------------
@@ -420,13 +435,14 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
 
     // -- Injury Details (multi-row, space-concat per OLD) -------------------
 
-    private async Task PopulateInjuryDetailsAsync(PacketTokenContext ctx, Guid appointmentId, CancellationToken ct)
+    /// <returns>The appointment's live injuries, as loaded (no order); the DEU questionnaire orders them itself.</returns>
+    private async Task<List<AppointmentInjuryDetail>> PopulateInjuryDetailsAsync(PacketTokenContext ctx, Guid appointmentId, CancellationToken ct)
     {
         var injuries = await _injuryRepository.GetListAsync(
             x => x.AppointmentId == appointmentId, cancellationToken: ct);
         if (injuries.Count == 0)
         {
-            return;
+            return injuries;
         }
 
         // Per-row collectors. We accumulate raw values per injury, then
@@ -488,6 +504,7 @@ public class PacketTokenResolver : IPacketTokenResolver, ITransientDependency
         ctx.InjuryClaimExaminerState = ConcatPerInjury(new List<string?> { await ResolveStateNameOrNullAsync(claimExaminer?.StateId, ct) });
         ctx.InjuryClaimExaminerZip = ConcatPerInjury(new List<string?> { claimExaminer?.Zip });
         ctx.InjuryClaimExaminerPhoneNumber = ConcatPerInjury(new List<string?> { claimExaminer?.PhoneNumber });
+        return injuries;
     }
 
     // -- Helpers ------------------------------------------------------------

@@ -15,6 +15,14 @@ RADIO = 1 << 15        # 32768  (Radio flag)
 NOTOGGLE = 1 << 14     # 16384  (NoToggleToOff)
 PUSHBUTTON = 1 << 16   # 65536  (Pushbutton)
 
+# The on-state name a harvested circle-the-choice widget gets: it has no appearance of its own,
+# so onstate_of() falls back to this, and set_hl_ap() paints this state.
+ON_STATE = "/Yes"
+
+# A 'cc:' anchor whose name ends with this starts SELECTED (2026-11-24, the DEU questionnaire's
+# "From a list of doctors" for a panel QME). The suffix is stripped from the field name.
+PRESET_ON_SUFFIX = "!on"
+
 
 def make_xobj(pdf, w, h, content):
     s = pikepdf.Stream(pdf, content.encode())
@@ -117,7 +125,7 @@ def onstate_of(widget):
         for key in ap["/N"].keys():
             if str(key) != "/Off":
                 return str(key)
-    return "/Yes"
+    return ON_STATE
 
 
 def set_ap(pdf, widget, is_radio):
@@ -246,6 +254,9 @@ def harvest_circle_fields(path):
     (no form input, so WeasyPrint bakes no control box). Each anchor becomes a Link
     annotation with the glyph's exact rectangle; we replace it with a Btn widget so
     fix() can attach the blank-off / yellow-highlight appearance.
+
+    An anchor named "cc:NAME!on" becomes the widget NAME, already selected (/V and /AS on), so the
+    template can pre-set a choice the patient can still clear.
     """
     pdf = Pdf.open(path, allow_overwriting_input=True)
     fields = _ensure_acroform(pdf).Fields
@@ -261,13 +272,18 @@ def harvest_circle_fields(path):
             uri = act.get("/URI") if act is not None else None
             if a.get("/Subtype") == Name("/Link") and uri is not None and str(uri).startswith("cc:"):
                 name = str(uri)[3:]
+                preset = name.endswith(PRESET_ON_SUFFIX)
+                if preset:
+                    name = name[:-len(PRESET_ON_SUFFIX)]
                 r = [float(x) for x in a.Rect]
                 x1, x2 = sorted((r[0], r[2]))
                 y1, y2 = sorted((r[1], r[3]))
                 widget = pdf.make_indirect(Dictionary(
                     Type=Name.Annot, Subtype=Name.Widget, FT=Name.Btn, T=name, F=4,
                     Rect=Array([round(x1, 2), round(y1, 2), round(x2, 2), round(y2, 2)]),
-                    AS=Name("/Off"), P=pg, CcChoice=True))   # tag: circle-the-choice highlight
+                    AS=Name(ON_STATE if preset else "/Off"), P=pg, CcChoice=True))   # tag: circle-the-choice highlight
+                if preset:
+                    widget[Name.V] = Name(ON_STATE)
                 keep.append(widget)
                 fields.append(widget)
                 added += 1

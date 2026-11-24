@@ -630,6 +630,32 @@ class HarvestCircleFieldsTest(unittest.TestCase):
         self.assertEqual(len(remaining), 1)
         self.assertIsNot(remaining[0], link)
 
+    def test_a_preset_anchor_starts_selected_under_its_plain_name(self):
+        """'cc:NAME!on' (the DEU questionnaire's "From a list of doctors") becomes NAME, already on:
+        /AS and /V both the on-state fix() paints, so the box shows the patient's own mark."""
+        page = fake.Page(Dictionary(Annots=Array([
+            self._link("cc:packet.patient.deu2.doctor_selected#from_list!on"),
+            self._link("cc:packet.patient.deu2.doctor_selected#other"),
+        ])))
+        pdf = make_pdf(fields=[], pages=[page])
+        added, _ = self._harvest(pdf)
+        self.assertEqual(added, 2)
+        preset, plain = list(pdf.Root.AcroForm.Fields)
+        self.assertEqual(preset[Name.T], "packet.patient.deu2.doctor_selected#from_list")
+        self.assertEqual(str(preset[Name.AS]), post_process.ON_STATE)
+        self.assertEqual(str(preset[Name.V]), post_process.ON_STATE)
+        self.assertEqual(plain[Name.T], "packet.patient.deu2.doctor_selected#other")
+        self.assertEqual(str(plain[Name.AS]), "/Off")
+        self.assertNotIn("/V", plain)
+
+    def test_a_plain_anchor_never_starts_selected(self):
+        page = fake.Page(Dictionary(Annots=Array([self._link("cc:packet.doctor.spinal.x")])))
+        pdf = make_pdf(fields=[], pages=[page])
+        self._harvest(pdf)
+        widget = next(iter(pdf.Root.AcroForm.Fields))
+        self.assertEqual(str(widget[Name.AS]), "/Off")
+        self.assertNotIn("/V", widget)
+
     def test_a_non_cc_link_is_preserved(self):
         """A genuine hyperlink in the packet must survive the harvest untouched."""
         ordinary = self._link("https://example.test/help")

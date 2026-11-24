@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using HealthcareSupport.CaseEvaluation.AppointmentDocuments.Jobs;
@@ -223,6 +224,84 @@ public class GenerateAppointmentPacketJobTests
             Arg.Any<CancellationToken>());
     }
 
+    // -- 2026-11-24: the DWC Employee's Disability Questionnaire (patient-deu) --------------------
+
+    private const string PanelQmeType = "PANEL QUALIFIED MEDICAL EXAMINATION (PQME)";
+
+    /// <summary>
+    /// The Case Tracker's condition: the 14-page packet is still ONE Patient-kind packet, under the same blob path,
+    /// so its CT entry (Kind "Patient", source "packet", the same file name) cannot tell the two templates apart.
+    /// </summary>
+    [Fact]
+    public async Task Patient_UnrepresentedPanelQme_RendersTheDeuTemplate_AsTheOnePatientKindPacket()
+    {
+        var fixture = new JobFixture(appointmentType: PanelQmeType, hasApplicantAttorney: false);
+
+        var ex = await Record.ExceptionAsync(() => fixture.Job.ExecuteAsync(fixture.Args));
+        ex.ShouldBeNull();
+
+        var blobNames = fixture.PacketManager.ReceivedCalls()
+            .Where(c => c.GetMethodInfo().Name == nameof(AppointmentPacketManager.EnsureGeneratingAsync)
+                        && (PacketKind)c.GetArguments()[2]! == PacketKind.Patient)
+            .Select(c => (string)c.GetArguments()[3]!)
+            .ToList();
+
+        await fixture.PacketRenderer.Received(1).RenderAsync(
+            PacketTemplateNames.PatientDeu, Arg.Any<IReadOnlyDictionary<string, string>>(), Arg.Any<CancellationToken>());
+        await fixture.PacketRenderer.DidNotReceive().RenderAsync(
+            PacketTemplateNames.Patient, Arg.Any<IReadOnlyDictionary<string, string>>(), Arg.Any<CancellationToken>());
+        await fixture.PacketManager.Received(1).EnsureGeneratingAsync(
+            Arg.Any<Guid?>(), Arg.Any<Guid>(), PacketKind.Patient, Arg.Any<string>());
+        blobNames.ShouldHaveSingleItem();
+        blobNames[0].ShouldStartWith($"{TenantId}/{AppointmentId}/packet/patient/");
+        blobNames[0].ShouldEndWith(".pdf");
+
+        var generatedAt = new DateTime(2031, 6, 2, 17, 0, 0, DateTimeKind.Utc);
+        var packet = new AppointmentPacket(Guid.NewGuid(), TenantId, AppointmentId, PacketKind.Patient, blobNames[0],
+            PacketGenerationStatus.Generated);
+        packet.GeneratedAt = generatedAt;
+        var entry = HealthcareSupport.CaseEvaluation.Integration.CaseTracker.DocumentEntryMapper
+            .FromPacket(packet, "A00001", TenantId);
+        entry.Kind.ShouldBe("Patient");
+        entry.Source.ShouldBe("packet");
+        entry.FileName.ShouldBe(HealthcareSupport.CaseEvaluation.Integration.CaseTracker.DocumentEntryMapper
+            .PacketFileName("A00001", PacketKind.Patient, generatedAt));
+    }
+
+    [Fact]
+    public async Task Patient_UnrepresentedPanelQmeReEvaluation_AlsoRendersTheDeuTemplate()
+    {
+        var fixture = new JobFixture(appointmentType: PanelQmeType, hasApplicantAttorney: false);
+        fixture.TokenResolver.ResolveAsync(Arg.Any<Guid>()).Returns(new PacketTokenContext
+        {
+            AppointmentType = PanelQmeType,
+            EvaluationKindLabel = "RE",
+            HasApplicantAttorney = false,
+        });
+
+        (await Record.ExceptionAsync(() => fixture.Job.ExecuteAsync(fixture.Args))).ShouldBeNull();
+
+        await fixture.PacketRenderer.Received(1).RenderAsync(
+            PacketTemplateNames.PatientDeu, Arg.Any<IReadOnlyDictionary<string, string>>(), Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData(PanelQmeType, true)]
+    [InlineData("AGREED MEDICAL EXAMINATION (AME)", false)]
+    [InlineData("INDEPENDENT MEDICAL EXAMINATION (IME)", false)]
+    [InlineData("", false)]
+    public async Task Patient_RepresentedOrNotPanelQme_RendersTheStandardTemplate(string type, bool hasApplicantAttorney)
+    {
+        var fixture = new JobFixture(appointmentType: type, hasApplicantAttorney: hasApplicantAttorney);
+
+        (await Record.ExceptionAsync(() => fixture.Job.ExecuteAsync(fixture.Args))).ShouldBeNull();
+
+        await fixture.PacketRenderer.Received(1).RenderAsync(
+            PacketTemplateNames.Patient, Arg.Any<IReadOnlyDictionary<string, string>>(), Arg.Any<CancellationToken>());
+        await fixture.PacketRenderer.DidNotReceive().RenderAsync(
+            PacketTemplateNames.PatientDeu, Arg.Any<IReadOnlyDictionary<string, string>>(), Arg.Any<CancellationToken>());
+    }
+
     private sealed class JobFixture
     {
         public IRepository<Appointment, Guid> AppointmentRepository { get; }
@@ -237,8 +316,10 @@ public class GenerateAppointmentPacketJobTests
         public GenerateAppointmentPacketArgs Args { get; }
 
         // appointmentType drives the AttorneyCE notice selection (Panel QME vs
-        // AME/IME); default empty exercises the AME/IME path.
-        public JobFixture(string appointmentType = "")
+        // AME/IME); default empty exercises the AME/IME path. With the type,
+        // hasApplicantAttorney decides the patient template (the DEU questionnaire,
+        // 2026-11-24); the default is represented, so the standard patient packet.
+        public JobFixture(string appointmentType = "", bool hasApplicantAttorney = true)
         {
             AppointmentRepository = Substitute.For<IRepository<Appointment, Guid>>();
 
@@ -262,7 +343,7 @@ public class GenerateAppointmentPacketJobTests
 
             TokenResolver = Substitute.For<IPacketTokenResolver>();
             TokenResolver.ResolveAsync(Arg.Any<Guid>())
-                .Returns(new PacketTokenContext { AppointmentType = appointmentType });
+                .Returns(new PacketTokenContext { AppointmentType = appointmentType, HasApplicantAttorney = hasApplicantAttorney });
 
             PacketRenderer = Substitute.For<IHtmlPacketRenderer>();
             PacketRenderer.RenderAsync(
