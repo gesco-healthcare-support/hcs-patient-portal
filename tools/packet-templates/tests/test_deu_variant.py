@@ -157,6 +157,13 @@ class DeuVariantTests(unittest.TestCase):
         self.assertEqual(expected, fallback)
         self.assertEqual(PREFILLED - expected, printed)
 
+    def test_every_value_empty_gives_all_19_old_names_as_fields_and_prints_none(self):
+        """All 19 at once, the flex-column ones included (first name, MI, city, state, zip): the uniform rule."""
+        printed, fallback = _visible(_substitute(self.deu_pages, dict.fromkeys(self.tokens, "")))
+        self.assertEqual(PREFILLED, fallback)
+        self.assertEqual(19, len(fallback))
+        self.assertEqual(set(), printed)
+
     def test_a_value_that_is_markup_stays_text_and_still_counts_as_known(self):
         printed, fallback = _visible(_substitute(self.deu_pages, dict.fromkeys(self.tokens, "<i>&'\"</i>")))
         self.assertEqual(PREFILLED, printed)

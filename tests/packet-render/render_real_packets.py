@@ -88,12 +88,20 @@ EXPECTED = {
 
 # The DEU variant (2026-11-24) prints 19 pre-filled values when they are known, and renders an EMPTY fillable field
 # under the value's old name when one resolves empty. The all-filled render above pins the all-known shape; this
-# second render empties these tokens and must gain exactly these fields, no page and no other name.
+# second render empties ALL 19 (the flex-column ones too: first name, MI, city, state, zip) and must gain exactly
+# these fields, no page and no other name.
 DEU_TEMPLATE = "patient-deu"
 DEU_EMPTIED = {
+    "##Deu.FirstName##": "packet.patient.deu1.first_name",
+    "##Deu.MiddleInitial##": "packet.patient.deu1.mi",
+    "##Deu.LastName##": "packet.patient.deu1.last_name",
     "##Deu.Ssn##": "packet.patient.deu1.ssn",
-    "##Deu.DateOfBirth##": "packet.patient.deu1.dob",
     "##Deu.Street1##": "packet.patient.deu1.street1",
+    "##Deu.Street2##": "packet.patient.deu1.street2",
+    "##Deu.City##": "packet.patient.deu1.city",
+    "##Deu.State##": "packet.patient.deu1.state",
+    "##Deu.Zip##": "packet.patient.deu1.zip",
+    "##Deu.DateOfBirth##": "packet.patient.deu1.dob",
     "##Deu.DateOfInjury##": "packet.patient.deu1.doi",
     "##Deu.Employer##": "packet.patient.deu1.employer",
     "##Deu.Claim1##": "packet.patient.deu2.claim1",
@@ -101,6 +109,8 @@ DEU_EMPTIED = {
     "##Deu.Claim3##": "packet.patient.deu2.claim3",
     "##Deu.Claim4##": "packet.patient.deu2.claim4",
     "##Deu.Claim5##": "packet.patient.deu2.claim5",
+    "##Deu.DoctorName##": "packet.patient.deu2.doctor_name",
+    "##Deu.ExamScheduled##": "packet.patient.deu2.exam_scheduled",
 }
 # The pre-selected choice: a harvested highlight that must arrive ON.
 DEU_PRESET_FIELD = "packet.patient.deu2.doctor_selected#from_list"
